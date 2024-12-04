@@ -3,7 +3,7 @@ Import ListNotations.
 
 Require Import Regex.
 
-(** * Backtracking Trees  *)
+(** * Priority Trees  *)
 
 Inductive tree : Type :=
 | Mismatch
@@ -15,10 +15,7 @@ Inductive tree : Type :=
 | OpenGroup (g:group_id) (t:tree)
 | CloseGroup (g:group_id) (t:tree)
 | ResetGroups (gl:list group_id) (t:tree) (* for capture reset *)
-| LK (lk:lookaround) (tlk:tree) (t:tree) (* First tree is the lookaround tree. *)
-| LKFail (lk:lookaround) (tlk:tree)
-| AnchorFail (a:anchor)
-| AnchorPass (a:anchor) (t:tree).
+.
 
 (** * Greedy and Lazy Choice *)
 
@@ -49,24 +46,6 @@ Fixpoint tree_res (t:tree) (gm:group_map): option leaf :=
   | OpenGroup id t1 => tree_res t1 (open_group gm id)
   | CloseGroup id t1 => tree_res t1 (close_group gm id)
   | ResetGroups idl t1 => tree_res t1 (reset_groups gm idl)
-  | LK lk tlk t1 =>
-      match (positivity lk) with
-      | true => 
-          match tree_res tlk gm with
-          | None => None
-          (* using the captures defined in the first branch of the lookahead *)
-          | Some (_,gm') => tree_res t1 gm'
-          end
-      | false =>
-          match tree_res tlk gm with
-          (* using previous captures *)
-          | None => tree_res t1 gm
-          | Some _ => None
-          end
-      end
-  | LKFail _ _ => None
-  | AnchorFail a => None
-  | AnchorPass a t1 => tree_res t1 gm
   end.
 
 (* initializing on a the empty group map *)
@@ -89,24 +68,6 @@ Fixpoint tree_leaves (t:tree) (gm:group_map): list leaf :=
   | OpenGroup id t1 => tree_leaves t1 (open_group gm id)
   | CloseGroup id t1 => tree_leaves t1 (close_group gm id)
   | ResetGroups idl t1 => tree_leaves t1 (reset_groups gm idl)
-  | LK lk tlk t1 =>
-      match (positivity lk) with
-      | true =>
-          match (tree_leaves tlk gm) with
-          | [] => []             (* should not happen *)
-          (* using the captures defined in the first branch of the lookaround *)
-          | (_,gm')::_ => tree_leaves t1 gm'
-          end
-      | false =>
-          match (tree_leaves tlk gm) with
-          (* using previous captures *)
-          | [] => tree_leaves t1 gm
-          | _ => []              (* should not happen *)
-          end
-      end
-  | LKFail _ _ => []
-  | AnchorFail _ => []
-  | AnchorPass _ t1 => tree_leaves t1 gm
   end.
 
 (* intermediate lemma about hd_error *)
@@ -129,8 +90,6 @@ Theorem first_tree_leaf:
 Proof.
   intros t. induction t; intros; simpl; auto.
   - rewrite IHt1. rewrite IHt2. rewrite hd_error_app. auto.
-  - rewrite IHt1. rewrite IHt2. destruct (positivity lk) eqn:POS; auto;
-      destruct (tree_leaves t1 gm) as [|[s gm'] t1']; simpl; auto.
 Qed.
       
 (** * Group Map irrelevance  *)
@@ -151,13 +110,4 @@ Proof.
   - apply app_eq_nil in H as [NIL1 NIL2].
     apply IHt1 with (gm2:=gm2) in NIL1. apply IHt2 with (gm2:=gm2) in NIL2.
     rewrite NIL1. rewrite NIL2. auto.
-  - destruct (positivity lk) eqn:POS.
-    + destruct (tree_leaves t1 gm2) eqn:L2;
-        destruct (tree_leaves t1 gm1) eqn:L1; auto.
-      * destruct l. apply IHt1 with (gm2:=gm2) in L1. rewrite L1 in L2. inversion L2.
-      * destruct l, l1. eapply IHt2; eauto.
-    + destruct (tree_leaves t1 gm2) eqn:L2;
-        destruct (tree_leaves t1 gm1) eqn:L1; auto.
-      * eapply IHt2; eauto.
-      * apply IHt1 with (gm2:=gm1) in L2. rewrite L1 in L2. inversion L2.
 Qed.
