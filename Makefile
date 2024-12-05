@@ -1,6 +1,6 @@
 .PHONY: coq all clean
 
-FILES = Regex.v Tree.v Semantics.v
+FILES = Regex.v Tree.v Semantics.v NFA.v
 
 COQC = coqc
 COQDEP = coqdep
