@@ -41,6 +41,14 @@ Proof.
   apply get_prefix.
 Qed.
 
+Corollary get_first_0:
+  forall c prev x,
+    x = length prev ->
+    get_pc (prev ++ c) (x) = get_pc c 0.
+Proof.
+  intros. subst. apply get_first.
+Qed.
+
 Corollary get_second:
   forall c prev,
     get_pc (prev ++ c) (S (length prev)) = get_pc c 1.
@@ -104,6 +112,7 @@ Fixpoint compile (r:regex) (fresh:label) : code * label :=
   end.
 
 (** * Inductive NFA characterization *)
+(* like a representation predicate *)
 
 Inductive is_nfa : regex -> code -> label -> label -> Prop :=
 | is_nfa_epsilon:
@@ -210,34 +219,44 @@ Proof.
         2: { admit. } auto.
       * apply fresh_correct in COMP1. rewrite <- COMP1. simpl.
         rewrite app_length. simpl. rewrite app_length. simpl. lia.
-  - (* tedious, but doable *)
+  - inversion H. destruct (compile r1 start) as [bc1 end1] eqn:COMP1. destruct (compile r2 end1) as [bc2 end2] eqn:COMP2.
+    inversion H2. subst. econstructor.
+    + apply IHr1 with (prev:=prev) in COMP1; auto.
+      rewrite app_assoc. apply is_nfa_extend. eauto.
+    + apply IHr2 with (prev:=prev ++ bc1) in COMP2; auto.
+      * rewrite app_assoc. auto.
+      * apply fresh_correct in COMP1. rewrite app_length. lia.
+  - inversion H. destruct (compile r (S (S start))) as [bc1 end1] eqn:COMP1. inversion H2. subst. constructor.
+    + rewrite get_first. simpl. auto.
+    + rewrite get_second. simpl. auto.
+    + apply IHr with (prev:=prev ++ [Fork (S (length prev)) (S end1); BeginLoop]) in COMP1.
+      * rewrite <- app_assoc in COMP1. simpl in COMP1.
+        replace (prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: bc1 ++ [EndLoop (length prev)]) with
+          ((prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: bc1) ++ [EndLoop (length prev)]).
+        2: { admit. }
+        apply is_nfa_extend. auto.
+      * rewrite app_length. simpl. lia.
+    + replace (prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: bc1 ++ [EndLoop (length prev)]) with
+          ((prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: bc1) ++ [EndLoop (length prev)]).
+      2: { admit. }
+      apply fresh_correct in COMP1. subst. apply get_first_0.
+      simpl. rewrite app_length. simpl. lia.
+  - inversion H. destruct (compile r (S start)) as [bc1 end1] eqn:COMP1. inversion H2. subst.
+    constructor.
+    + rewrite get_first. simpl. auto.
+    +  apply IHr with (prev:=prev ++ [SetRegOpen id]) in COMP1.
+       2: { rewrite app_length. simpl. lia. }
+       replace (prev ++ SetRegOpen id :: bc1 ++ [SetRegClose id]) with ((prev ++ SetRegOpen id :: bc1) ++ [SetRegClose id]).
+       2:{ admit. }
+       apply is_nfa_extend. rewrite <- app_assoc in COMP1. simpl in COMP1. auto.
+    + replace (prev ++ SetRegOpen id :: bc1 ++ [SetRegClose id]) with ((prev ++ SetRegOpen id :: bc1) ++ [SetRegClose id]).
+      2:{ admit. }
+      apply get_first_0. apply fresh_correct in COMP1. subst. rewrite app_length. simpl. lia.
 Admitted.
 
 
 
-(* all edges in the code point to valid instructions or the fresh label *)
-Definition code_wf (c:code) (fresh:label) : Prop :=
-  forall pc instr nextpc,
-    get_pc c pc = Some instr ->
-    In nextpc (next_pcs pc instr) ->
-    nextpc = fresh \/ exists instr', get_pc c nextpc = Some instr'.
-
-Lemma empty_wf:
-  forall fresh, code_wf [] fresh.
-Proof.
-  unfold code_wf. intros. unfold get_pc in H. simpl in H. destruct pc; simpl in H; inversion H.
-Qed.
-
-
-Lemma nfa_wf:
-  forall r c start endl,
-    is_nfa r c start endl ->
-    code_wf c endl.
-Proof.
-(* this one isn't true: you could have bogus code before the start.
- you need a more precise def, to say that code from a certain range is well_formed for a certain range *)
-Admitted.
-          
+(* TODO: prove that when we have is_nfa, all the code in the range [start;end[ points to [start;end] *)
 
 
 (** * NFA Exponential Semantics  *)
@@ -245,8 +264,35 @@ Admitted.
 
 Definition registers : Type := group_id -> nat.
 
+Definition set_reg (reg:registers) (gid:group_id) (idx:nat) : registers :=
+  fun x =>
+    if (Nat.eqb gid x) then idx else reg gid.
+
 Definition thread : Type := (label * registers).
+
+Definition upd_label (t:thread) (next:label): thread :=
+  match t with
+  | (l,r) => (next,r)
+  end.
 
 Definition nfa_state : Type :=
   (* string, index, active, blocked, bestmatch *)
   (input * nat * list thread * list thread * option thread).
+
+(*
+Definition pike_thread_step (t:thread) (c:code): list thread * option thread * option (thread * char_descr) :=
+  match (get_pc c t) with
+  | None => ([], None, None)     (* missing code *)
+  | Some instr =>
+      match instr with
+      | Accept => ([], t, [])    (* accepting thread *)
+      | Consume cd => ([], None, Some (t, cd)) (* blocking thread *)
+      | Jmp nextlabel => ([upd_label t nextlabel], None, None)
+      | Fork l1 l2 => ([upd_label t l1; upd_label t l2], None, None)
+      | SetRegOpen gid => (, None, None)
+      | SetRegClose gid =>
+      | BeginLoop =>
+      | EndLoop =>
+         
+*)
+(* TODO when we have a better notion of registers and group maps etc *)

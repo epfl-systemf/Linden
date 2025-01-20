@@ -101,7 +101,7 @@ Fixpoint def_groups (r:regex) : list group_id :=
   | Group id r1 => id::(def_groups r1)  
   end.
 
-(* Stroting the values of each group and a functio nindicating if each group is opened or closed *)
+(* Storing the values of each group and a function indicating if each group is opened or closed *)
 Definition group_map : Type :=
   (group_id -> option string) * (group_id -> bool).
 
