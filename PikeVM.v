@@ -28,6 +28,9 @@ Definition open_thread (t:thread) (gid:group_id) (idx:nat) : thread :=
 Definition close_thread (t:thread) (gid:group_id) (idx:nat) : thread :=
   match t with (l,r,b) => (l+1, close_group r gid idx, b) end.
 
+Definition reset_thread (t:thread) (gidl:list group_id) : thread :=
+  match t with (l,r,b) => (l+1, reset_groups r gidl, b) end.
+
 Definition begin_thread (t:thread) : thread :=
   match t with (l,r,b) => (l+1,r,CannotExit) end.
 
@@ -59,6 +62,7 @@ Definition epsilon_step (t:thread) (c:code) (i:input) (idx:nat): epsilon_result 
           | Fork l1 l2 => EpsActive [upd_label t l1; upd_label t l2]
           | SetRegOpen gid => EpsActive [open_thread t gid idx]
           | SetRegClose gid => EpsActive [close_thread t gid idx]
+          | ResetRegs gidl => EpsActive [reset_thread t gidl]
           | BeginLoop => EpsActive [begin_thread t]
           | EndLoop next => match b with
                            | CannotExit => EpsDead

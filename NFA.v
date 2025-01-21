@@ -17,6 +17,7 @@ Inductive bytecode: Type :=
 | Fork: label -> label -> bytecode
 | SetRegOpen: group_id -> bytecode
 | SetRegClose: group_id -> bytecode
+| ResetRegs: list group_id -> bytecode
 | BeginLoop: bytecode
 | EndLoop: label -> bytecode.    (* also contains the backedge instead of adding a jump *)
 
@@ -79,7 +80,7 @@ Qed.
 
 Definition next_pcs (pc:label) (b:bytecode) : list label :=
   match b with
-  | Consume _ | SetRegOpen _ | SetRegClose _ | BeginLoop => [S pc]
+  | Consume _ | SetRegOpen _ | SetRegClose _ | ResetRegs _ | BeginLoop => [S pc]
   | Accept => []
   | Jmp l | EndLoop l => [l]
   | Fork l1 l2 => [l1; l2]
@@ -100,10 +101,9 @@ Fixpoint compile (r:regex) (fresh:label) : code * label :=
       let (bc1, f1) := compile r1 fresh in
       let (bc2, f2) := compile r2 f1 in
       (bc1 ++ bc2, f2)
-  (* no capture reset for now *)
   | Star r1 =>
-      let (bc1, f1) := compile r1 (S (S fresh)) in
-      ([Fork (S fresh) (S f1); BeginLoop] ++ bc1 ++ [EndLoop fresh], S f1)
+      let (bc1, f1) := compile r1 (S (S (S fresh))) in
+      ([Fork (S fresh) (S f1); BeginLoop; ResetRegs (def_groups r1)] ++ bc1 ++ [EndLoop fresh], S f1)
   | Group gid r1 =>
       let (bc1, f1) := compile r1 (S fresh) in
       ([SetRegOpen gid] ++ bc1 ++ [SetRegClose gid], S f1)
@@ -137,7 +137,8 @@ Inductive is_nfa : regex -> code -> label -> label -> Prop :=
   forall c r1 start end1
     (FORK: get_pc c start = Some (Fork (S start) (S end1)))
     (BEGIN: get_pc c (S start) = Some (BeginLoop))
-    (NFA1: is_nfa r1 c (S (S start)) end1)
+    (RESET: get_pc c (S (S start)) = Some (ResetRegs (def_groups r1)))
+    (NFA1: is_nfa r1 c (S (S (S start))) end1)
     (END: get_pc c end1 = Some (EndLoop start)),
     is_nfa (Star r1) c start (S end1)
 | is_nfa_group:
@@ -183,7 +184,7 @@ Proof.
     inversion H0. subst f2. apply IHr1 in COMP1. apply IHr2 in COMP2.
     rewrite <- COMP1 in COMP2. rewrite app_length. lia.
   - inversion COMPILE.
-    destruct (compile r (S (S fresh))) as [bc1 f1] eqn:COMP1. inversion H0. apply IHr in COMP1.
+    destruct (compile r (S (S (S fresh)))) as [bc1 f1] eqn:COMP1. inversion H0. apply IHr in COMP1.
     subst. simpl. rewrite app_length. simpl. lia.
   - inversion COMPILE.
     destruct (compile r (S fresh)) as [bc1 f1] eqn:COMP1. inversion H0. apply IHr in COMP1.
@@ -225,18 +226,19 @@ Proof.
     + apply IHr2 with (prev:=prev ++ bc1) in COMP2; auto.
       * rewrite app_assoc. auto.
       * apply fresh_correct in COMP1. rewrite app_length. lia.
-  - inversion H. destruct (compile r (S (S start))) as [bc1 end1] eqn:COMP1. inversion H2. subst. constructor.
+  - inversion H. destruct (compile r (S (S (S start)))) as [bc1 end1] eqn:COMP1. inversion H2. subst. constructor.
     + rewrite get_first. simpl. auto.
     + rewrite get_second. simpl. auto.
-    + apply IHr with (prev:=prev ++ [Fork (S (length prev)) (S end1); BeginLoop]) in COMP1.
+    + rewrite get_third. simpl. auto.
+    + apply IHr with (prev:=prev ++ [Fork (S (length prev)) (S end1); BeginLoop; ResetRegs (def_groups r)]) in COMP1.
       * rewrite <- app_assoc in COMP1. simpl in COMP1.
-        replace (prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: bc1 ++ [EndLoop (length prev)]) with
-          ((prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: bc1) ++ [EndLoop (length prev)]).
+        replace (prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1 ++ [EndLoop (length prev)]) with
+          ((prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1) ++ [EndLoop (length prev)]).
         2: { rewrite <- app_assoc. auto. }
         apply is_nfa_extend. auto.
       * rewrite app_length. simpl. lia.
-    + replace (prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: bc1 ++ [EndLoop (length prev)]) with
-          ((prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: bc1) ++ [EndLoop (length prev)]).
+    + replace (prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1 ++ [EndLoop (length prev)]) with
+          ((prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1) ++ [EndLoop (length prev)]).
       2: { rewrite <- app_assoc. auto. }
       apply fresh_correct in COMP1. subst. apply get_first_0.
       simpl. rewrite app_length. simpl. lia.
