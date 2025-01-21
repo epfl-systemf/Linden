@@ -1,7 +1,7 @@
 Require Import List.
 Import ListNotations.
 
-Require Import Regex.
+Require Import Regex Chars Groups.
 Require Import Tree.
 
 

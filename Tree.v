@@ -1,7 +1,8 @@
 Require Import List.
 Import ListNotations.
 
-Require Import Regex.
+Require Import Regex Chars Groups.
+
 
 (** * Chaining optional results  *)
 Definition seqop {X:Type} (o1 o2: option X) : option X :=
@@ -22,7 +23,6 @@ Lemma seqop_some:
   forall X Y l f r, List.fold_left (fun (y:option Y) (x:X) => seqop y (f x)) l (Some r) = Some r.
 Proof. intros X Y l. induction l; intros; simpl; auto. Qed.
 
-
 Lemma seqop_list_head_some:
   forall X Y (h:X) l f (r:Y),
     f h = Some r -> 
@@ -39,6 +39,10 @@ Lemma seqop_list_head_none:
     seqop_list (h::l) f = seqop_list l f.
 Proof. intros. unfold seqop_list. simpl. rewrite H. auto. Qed.
 
+Lemma seqop_assoc:
+  forall X (o1 o2 o3:option X),
+    seqop o1 (seqop o2 o3) = seqop (seqop o1 o2) o3.
+Proof. intros. unfold seqop. destruct o1; destruct o2; auto. Qed.
 
 (** * Priority Trees  *)
 
@@ -68,40 +72,40 @@ Definition leaf: Type := (input * group_map).
 
 (* returning the highest-priority result *)
 (* we also return the corresponding group map *)
-Fixpoint tree_res (t:tree) (gm:group_map): option leaf :=
+Fixpoint tree_res (t:tree) (gm:group_map) (idx:nat): option leaf :=
   match t with
   | Mismatch => None
   | Match s => Some (s, gm)
   | Choice t1 t2 =>
-      seqop (tree_res t1 gm) (tree_res t2 gm)
-  | Read c t1 => tree_res t1 (add_char gm c)
+      seqop (tree_res t1 gm idx) (tree_res t2 gm idx)
+  | Read c t1 => tree_res t1 gm (idx + 1)
   | CheckFail _ => None
-  | CheckPass _ t1 => tree_res t1 gm
-  | OpenGroup id t1 => tree_res t1 (open_group gm id)
-  | CloseGroup id t1 => tree_res t1 (close_group gm id)
-  | ResetGroups idl t1 => tree_res t1 (reset_groups gm idl)
+  | CheckPass _ t1 => tree_res t1 gm idx
+  | OpenGroup gid t1 => tree_res t1 (open_group gm gid idx) idx
+  | CloseGroup gid t1 => tree_res t1 (close_group gm gid idx) idx
+  | ResetGroups gidl t1 => tree_res t1 (reset_groups gm gidl) idx
   end.
 
 (* initializing on a the empty group map *)
 Definition first_branch (t:tree) : option leaf :=
-  tree_res t empty_group_map.
+  tree_res t empty_group_map 0.
 
 (** * All Tree Results *)
 
 (* returns the ordered list of all results of a tree *)
 (* together with the corresponding group map *)
-Fixpoint tree_leaves (t:tree) (gm:group_map): list leaf :=
+Fixpoint tree_leaves (t:tree) (gm:group_map) (idx:nat): list leaf :=
   match t with
   | Mismatch => []
   | Match s => [(s,gm)]
   | Choice t1 t2 =>
-      tree_leaves t1 gm ++ tree_leaves t2 gm
-  | Read c t1 => tree_leaves t1 (add_char gm c)
+      tree_leaves t1 gm idx ++ tree_leaves t2 gm idx
+  | Read c t1 => tree_leaves t1 gm (idx + 1)
   | CheckFail _ => []
-  | CheckPass _ t1 => tree_leaves t1 gm
-  | OpenGroup id t1 => tree_leaves t1 (open_group gm id)
-  | CloseGroup id t1 => tree_leaves t1 (close_group gm id)
-  | ResetGroups idl t1 => tree_leaves t1 (reset_groups gm idl)
+  | CheckPass _ t1 => tree_leaves t1 gm idx
+  | OpenGroup gid t1 => tree_leaves t1 (open_group gm gid idx) idx
+  | CloseGroup gid t1 => tree_leaves t1 (close_group gm gid idx) idx
+  | ResetGroups gidl t1 => tree_leaves t1 (reset_groups gm gidl) idx
   end.
 
 (* intermediate lemma about hd_error *)
@@ -119,12 +123,12 @@ Qed.
 
 (* this definition coincides on the first element with the previous definition *)
 Theorem first_tree_leaf:
-  forall t gm,
-    tree_res t gm = hd_error (tree_leaves t gm).
+  forall t gm idx,
+    tree_res t gm idx = hd_error (tree_leaves t gm idx).
 Proof.
   intros t. induction t; intros; simpl; auto.
   - rewrite IHt1. rewrite IHt2. rewrite hd_error_app. unfold seqop.
-    destruct (hd_error (tree_leaves t1 gm)) eqn:HD; auto. 
+    destruct (hd_error (tree_leaves t1 gm idx)) eqn:HD; auto. 
 Qed.
       
 (** * Group Map irrelevance  *)
@@ -135,15 +139,15 @@ Qed.
 (* warning: actually so far I don't need this theorem *)
 
 Lemma leaves_group_map_indep:
-  forall t gm1 gm2,
-    tree_leaves t gm1 = [] -> tree_leaves t gm2 = [].
+  forall t gm1 gm2 idx1 idx2,
+    tree_leaves t gm1 idx1 = [] -> tree_leaves t gm2 idx2 = [].
 Proof.
   intros t.
   induction t; intros; simpl; auto;
     simpl in H; try solve[inversion H];
     try solve[eapply IHt in H; eauto].
   - apply app_eq_nil in H as [NIL1 NIL2].
-    apply IHt1 with (gm2:=gm2) in NIL1. apply IHt2 with (gm2:=gm2) in NIL2.
+    apply IHt1 with (gm2:=gm2) (idx2:=idx2) in NIL1. apply IHt2 with (gm2:=gm2) (idx2:=idx2) in NIL2.
     rewrite NIL1. rewrite NIL2. auto.
 Qed.
 
@@ -167,7 +171,7 @@ Inductive step_result : Type :=
 
 Definition StepDead := StepActive []. (* the thread died *)
 
-Definition tree_bfs_step (t:tree) (gm:group_map): step_result :=
+Definition tree_bfs_step (t:tree) (gm:group_map) (idx:nat): step_result :=
   match t with
   | Mismatch => StepDead
   | Match i => StepMatch (i, gm)
@@ -175,14 +179,14 @@ Definition tree_bfs_step (t:tree) (gm:group_map): step_result :=
   | Read c t1 => StepBlocked t1
   | CheckFail _ => StepDead
   | CheckPass _ t1 => StepActive [(t1,gm)]
-  | OpenGroup gid t1 => StepActive [(t1,open_group gm gid)]
-  | CloseGroup gid t1 => StepActive [(t1, close_group gm gid)]
+  | OpenGroup gid t1 => StepActive [(t1,open_group gm gid idx)]
+  | CloseGroup gid t1 => StepActive [(t1, close_group gm gid idx)]
   | ResetGroups gid t1 => StepActive [(t1, reset_groups gm gid)]
   end.
 
 Definition pike_tree_state : Type :=
-  (* active, bestmatch, blocked *)
-  list (tree * group_map) * option leaf * list (tree * group_map).
+  (* index, active, bestmatch, blocked *)
+  nat * list (tree * group_map) * option leaf * list (tree * group_map).
 
 Definition upd_blocked {X:Type} (newblocked: option X) (blocked: list X) :=
   match newblocked with Some b => b::blocked | None => blocked end.
@@ -190,50 +194,56 @@ Definition upd_blocked {X:Type} (newblocked: option X) (blocked: list X) :=
 Inductive pike_tree_step : pike_tree_state -> pike_tree_state -> Prop :=
 | pts_nextchar:
   (* when the list of active trees is empty, restart from the blocked ones, proceeding to the next character *)
-  forall best blocked,
-    pike_tree_step ([], best, blocked) (blocked, best, [])
+  forall idx best blocked,
+    pike_tree_step (idx, [], best, blocked) (idx + 1, blocked, best, [])
 | pts_active:
   (* generated new active trees: add them in front of the low-priority ones *)
-  forall t gm active best blocked nextactive
-    (STEP: tree_bfs_step t gm = StepActive nextactive),
-    pike_tree_step ((t,gm)::active, best, blocked) (nextactive++active, best, blocked)
+  forall idx t gm active best blocked nextactive
+    (STEP: tree_bfs_step t gm idx = StepActive nextactive),
+    pike_tree_step (idx, (t,gm)::active, best, blocked) (idx, nextactive++active, best, blocked)
 | pts_match:
   (* a match is found, discard remaining low-priority active trees *)
-  forall t gm active best blocked leaf
-    (STEP: tree_bfs_step t gm = StepMatch leaf),
-    pike_tree_step ((t,gm)::active, best, blocked) ([], Some leaf, blocked)
+  forall idx t gm active best blocked leaf
+    (STEP: tree_bfs_step t gm idx = StepMatch leaf),
+    pike_tree_step (idx, (t,gm)::active, best, blocked) (idx, [], Some leaf, blocked)
 | pts_blocked:
 (* add the new blocked thread after the previous ones *)
-  forall t gm active best blocked newt
-    (STEP: tree_bfs_step t gm = StepBlocked newt),
-    pike_tree_step ((t,gm)::active, best, blocked) (active, best, blocked ++ [(newt,gm)]).
+  forall idx t gm active best blocked newt
+    (STEP: tree_bfs_step t gm idx = StepBlocked newt),
+    pike_tree_step (idx, (t,gm)::active, best, blocked) (idx, active, best, blocked ++ [(newt,gm)]).
 
 Definition pike_tree_initial_state (t:tree) : pike_tree_state :=
-  ([(t, empty_group_map)], None, []).
+  (0, [(t, empty_group_map)], None, []).
+
+(* we reach a final state when both active and blocked are empty *)
+Inductive pike_tree_final_state : pike_tree_state -> option leaf -> Prop :=
+| pts_final:
+  forall idx best,
+    pike_tree_final_state (idx, [], best, []) best.
 
 (** * Tree BFS Correction *)
 
-Definition list_result (l:list (tree * group_map)) : option leaf :=
-  seqop_list l (fun tgm => tree_res (fst tgm) (snd tgm)).
-      
+Definition list_result (l:list (tree * group_map)) (idx:nat) : option leaf :=
+  seqop_list l (fun tgm => tree_res (fst tgm) (snd tgm) idx).
+
 Lemma list_result_cons:
-  forall t gm l,
-    list_result ((t,gm)::l) = seqop (tree_res t gm) (list_result l).
+  forall t gm l idx,
+    list_result ((t,gm)::l) idx = seqop (tree_res t gm idx) (list_result l idx).
 Proof.
   intros. unfold list_result, seqop_list. simpl.
 Admitted.
 
 Lemma list_result_app:
-  forall l1 l2,
-    list_result (l1 ++ l2) = seqop (list_result l1) (list_result l2).
+  forall l1 l2 idx,
+    list_result (l1 ++ l2) idx = seqop (list_result l1 idx) (list_result l2 idx).
 Proof.
 Admitted.
 
 (* first, see if there is a result in blocked, then active, then take the best *)
 Definition state_result (pts: pike_tree_state) : option leaf :=
   match pts with
-  | (active, best, blocked) =>
-      seqop (list_result blocked) (seqop (list_result active) best)
+  | (idx, active, best, blocked) =>
+      seqop (list_result blocked (idx+1)) (seqop (list_result active idx) best)
   end.
   
 
@@ -258,8 +268,8 @@ Proof.
     simpl. apply f_equal. rewrite list_result_cons. auto.
   - destruct t; simpl in STEP; inversion STEP; subst.
     simpl. rewrite list_result_app. rewrite list_result_cons. simpl.
-    admit.                      (* an issue with group map that must (or not? if we change group maps) change *)
-Admitted.
+    rewrite <- seqop_assoc with (o3:=best). rewrite seqop_assoc. apply f_equal. auto.
+Qed.
 
 (* the invariant is properly initialized: at the beginning, the result of the state is the first result of the tree *)
 Lemma pts_result_init:
