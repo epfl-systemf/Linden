@@ -155,7 +155,7 @@ Qed.
 
 
 
-(** * Tree BFS  *)
+(** * Pike Tree Algorithm  *)
 (* Close to the kind of execution the PikeVM is doing on the bytecode *)
 
 (* returns three things:
@@ -184,9 +184,8 @@ Definition tree_bfs_step (t:tree) (gm:group_map) (idx:nat): step_result :=
   | ResetGroups gid t1 => StepActive [(t1, reset_groups gm gid)]
   end.
 
-Definition pike_tree_state : Type :=
-  (* index, active, bestmatch, blocked *)
-  nat * list (tree * group_map) * option leaf * list (tree * group_map).
+Inductive pike_tree_state : Type :=
+| PTS (idx:nat) (active: list (tree * group_map)) (best: option leaf) (blocked: list (tree * group_map)).
 
 Definition upd_blocked {X:Type} (newblocked: option X) (blocked: list X) :=
   match newblocked with Some b => b::blocked | None => blocked end.
@@ -195,31 +194,31 @@ Inductive pike_tree_step : pike_tree_state -> pike_tree_state -> Prop :=
 | pts_nextchar:
   (* when the list of active trees is empty, restart from the blocked ones, proceeding to the next character *)
   forall idx best blocked,
-    pike_tree_step (idx, [], best, blocked) (idx + 1, blocked, best, [])
+    pike_tree_step (PTS idx [] best blocked) (PTS (idx + 1) blocked best [])
 | pts_active:
   (* generated new active trees: add them in front of the low-priority ones *)
   forall idx t gm active best blocked nextactive
     (STEP: tree_bfs_step t gm idx = StepActive nextactive),
-    pike_tree_step (idx, (t,gm)::active, best, blocked) (idx, nextactive++active, best, blocked)
+    pike_tree_step (PTS idx ((t,gm)::active) best blocked) (PTS idx (nextactive++active) best blocked)
 | pts_match:
   (* a match is found, discard remaining low-priority active trees *)
   forall idx t gm active best blocked leaf
     (STEP: tree_bfs_step t gm idx = StepMatch leaf),
-    pike_tree_step (idx, (t,gm)::active, best, blocked) (idx, [], Some leaf, blocked)
+    pike_tree_step (PTS idx ((t,gm)::active) best blocked) (PTS idx [] (Some leaf) blocked)
 | pts_blocked:
 (* add the new blocked thread after the previous ones *)
   forall idx t gm active best blocked newt
     (STEP: tree_bfs_step t gm idx = StepBlocked newt),
-    pike_tree_step (idx, (t,gm)::active, best, blocked) (idx, active, best, blocked ++ [(newt,gm)]).
+    pike_tree_step (PTS idx ((t,gm)::active) best blocked) (PTS idx active best (blocked ++ [(newt,gm)])).
 
 Definition pike_tree_initial_state (t:tree) : pike_tree_state :=
-  (0, [(t, empty_group_map)], None, []).
+  (PTS 0 [(t, empty_group_map)] None []).
 
 (* we reach a final state when both active and blocked are empty *)
 Inductive pike_tree_final_state : pike_tree_state -> option leaf -> Prop :=
 | pts_final:
   forall idx best,
-    pike_tree_final_state (idx, [], best, []) best.
+    pike_tree_final_state (PTS idx [] best []) best.
 
 (** * Tree BFS Correction *)
 
@@ -242,7 +241,7 @@ Admitted.
 (* first, see if there is a result in blocked, then active, then take the best *)
 Definition state_result (pts: pike_tree_state) : option leaf :=
   match pts with
-  | (idx, active, best, blocked) =>
+  | (PTS idx active best blocked) =>
       seqop (list_result blocked (idx+1)) (seqop (list_result active idx) best)
   end.
   
