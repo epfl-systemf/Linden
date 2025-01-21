@@ -21,6 +21,20 @@ Proof. decide equality; apply string_eq_dec. Defined.
 (* indicating which character is a word character for anchors *)
 Parameter word_char : Char -> bool.
 
+Definition next_str (i:input) : string :=
+  match i with
+  | Input s _ => s
+  end.
+
+Definition current_str (i:input) : string :=
+  match i with
+  | Input next pref => next
+  end.
+
+Definition init_input (str:string) : input :=
+  Input str [].
+
+
 (** * Character Descriptors  *)
 (* by character descriptors, we mean everything that can represent a single character *)
 (* the character itself, the dot, an escape, a character group like \d, character classes *)
@@ -59,16 +73,57 @@ Definition read_char (cd:char_descr) (i:input) : option (Char * input) :=
       end
   end.
 
+Inductive ReadResult  : Type :=
+| CanRead
+| CannotRead.
 
-Definition next_str (i:input) : string :=
+(* the function above is useful when defining trees *)
+(* however, the VMs do it differently: they will test the same character of the input multiple times before advancing *)
+(* instead, we use the two following functions to read and advance *)
+
+(* simply checks if the next character of the input corresponds to the given character descriptor *)
+Definition check_read (cd:char_descr) (i:input) : ReadResult :=
   match i with
-  | Input s _ => s
+  | Input next pref =>
+      match next with
+      | [] => CannotRead
+      | h::next' => if char_match h cd
+                  then CanRead
+                  else CannotRead
+      end
   end.
 
-Definition current_str (i:input) : string :=
+(* simply advance input to the next character *)
+Definition advance_input (i:input) : option input :=
   match i with
-  | Input next pref => next
+  | Input next pref =>
+      match next with
+      | [] => None
+      | h::next' => Some (Input next' (h::pref))
+      end
   end.
+  
+(* the proof of equivalence between the two *)
+Theorem can_read_correct:
+  forall i1 cd i2,
+  (exists c, read_char cd i1 = Some (c, i2)) <->
+    check_read cd i1 = CanRead /\ advance_input i1 = Some i2.
+Proof.
+  intros i1 cd i2. split; intros.
+  - destruct H as [c H].
+    destruct i1. simpl. simpl in H. destruct next; inversion H.
+    destruct (char_match c0 cd); inversion H; auto.
+  - destruct i1. simpl. simpl in H.
+    destruct next; inversion H; inversion H1.
+    exists c. destruct (char_match c cd); inversion H0. auto.
+Qed.
 
-Definition init_input (str:string) : input :=
-  Input str [].
+Theorem cannot_read_correct:
+  forall i cd,
+    read_char cd i = None <-> check_read cd i = CannotRead.
+Proof.
+  intros i cd. destruct i. simpl. destruct next; split; auto.
+  - destruct (char_match c cd); auto. inversion 1.
+  - destruct (char_match c cd); auto. inversion 1.
+Qed.
+
