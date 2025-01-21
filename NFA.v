@@ -25,6 +25,7 @@ Definition code : Type := list bytecode.
 Definition get_pc (c:code) (pc:label) : option bytecode :=
   List.nth_error c pc.
 
+(** * Bytecode Properties  *)
 Lemma get_prefix:
   forall c pc prev,
     get_pc (prev ++ c) (length prev + pc) = get_pc c pc.
@@ -75,9 +76,6 @@ Proof.
   { apply nth_error_Some. rewrite H. unfold not. intros. inversion H0. }
   rewrite nth_error_app1; auto.
 Qed.
-
-    
-
 
 Definition next_pcs (pc:label) (b:bytecode) : list label :=
   match b with
@@ -208,7 +206,7 @@ Proof.
       2: { rewrite app_length. simpl. lia. }
       replace (prev ++ Fork (S (length prev)) (S end1) :: bc1 ++ Jmp endl :: bc2) with
         (((prev ++ [Fork (S (length prev)) (S end1)]) ++ bc1) ++ (Jmp endl :: bc2)).
-      2:{ admit. }
+      2:{ rewrite <- app_assoc. rewrite <- app_assoc. auto. }
       apply is_nfa_extend. auto.
     + apply fresh_correct in COMP1. rewrite <- COMP1.
       replace (S (length prev) + length bc1) with (length prev + (S (length bc1))) by lia.
@@ -216,7 +214,8 @@ Proof.
     + apply IHr2 with (prev:= prev ++ Fork (S (length prev)) (S end1) :: bc1 ++ [Jmp endl]) in COMP2.
       * replace (prev ++ Fork (S (length prev)) (S end1) :: bc1 ++ Jmp endl :: bc2) with
           ((prev ++ Fork (S (length prev)) (S end1) :: bc1 ++ [Jmp endl]) ++ bc2).
-        2: { admit. } auto.
+        2: { rewrite <- app_assoc. simpl. apply f_equal. apply f_equal. rewrite <- app_assoc. auto. }
+        auto.
       * apply fresh_correct in COMP1. rewrite <- COMP1. simpl.
         rewrite app_length. simpl. rewrite app_length. simpl. lia.
   - inversion H. destruct (compile r1 start) as [bc1 end1] eqn:COMP1. destruct (compile r2 end1) as [bc2 end2] eqn:COMP2.
@@ -233,12 +232,12 @@ Proof.
       * rewrite <- app_assoc in COMP1. simpl in COMP1.
         replace (prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: bc1 ++ [EndLoop (length prev)]) with
           ((prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: bc1) ++ [EndLoop (length prev)]).
-        2: { admit. }
+        2: { rewrite <- app_assoc. auto. }
         apply is_nfa_extend. auto.
       * rewrite app_length. simpl. lia.
     + replace (prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: bc1 ++ [EndLoop (length prev)]) with
           ((prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: bc1) ++ [EndLoop (length prev)]).
-      2: { admit. }
+      2: { rewrite <- app_assoc. auto. }
       apply fresh_correct in COMP1. subst. apply get_first_0.
       simpl. rewrite app_length. simpl. lia.
   - inversion H. destruct (compile r (S start)) as [bc1 end1] eqn:COMP1. inversion H2. subst.
@@ -247,16 +246,14 @@ Proof.
     +  apply IHr with (prev:=prev ++ [SetRegOpen id]) in COMP1.
        2: { rewrite app_length. simpl. lia. }
        replace (prev ++ SetRegOpen id :: bc1 ++ [SetRegClose id]) with ((prev ++ SetRegOpen id :: bc1) ++ [SetRegClose id]).
-       2:{ admit. }
+       2:{ rewrite <- app_assoc. auto. }
        apply is_nfa_extend. rewrite <- app_assoc in COMP1. simpl in COMP1. auto.
     + replace (prev ++ SetRegOpen id :: bc1 ++ [SetRegClose id]) with ((prev ++ SetRegOpen id :: bc1) ++ [SetRegClose id]).
-      2:{ admit. }
+      2:{ rewrite <- app_assoc. auto. }
       apply get_first_0. apply fresh_correct in COMP1. subst. rewrite app_length. simpl. lia.
-Admitted.
+Qed.
 
-
-
-(* TODO: prove that when we have is_nfa, all the code in the range [start;end[ points to [start;end] *)
+(* TODO: maybe prove that when we have is_nfa, all the code in the range [start;end[ points to [start;end] *)
 
 
 (** * NFA Exponential Semantics  *)
