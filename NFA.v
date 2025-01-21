@@ -253,3 +253,33 @@ Proof.
       2:{ rewrite <- app_assoc. auto. }
       apply get_first_0. apply fresh_correct in COMP1. subst. rewrite app_length. simpl. lia.
 Qed.
+
+
+(** * Lifting the representation predicate to continuations  *)
+(* This is useful to relate the continuations used in the tree semantics to the code produced by the NFA compiler *)
+
+(* action_bc a c pc1 pc2 indicates that the bytecode for a is located in code c between labels pc1 and pc2  *)
+Inductive action_bc : action -> code -> label -> label -> Prop :=
+| areg_bc:
+  forall r c pcstart pcend
+    (IS_NFA: is_nfa r c pcstart pcend),
+    action_bc (Areg r) c pcstart pcend
+| acheck_bc:
+  forall c str pc pcnext
+    (END: get_pc c pc = Some (EndLoop pcnext)),
+    action_bc (Acheck str) c pc pcnext
+| aclose_bc:
+  forall c gid pc
+    (CLOSE: get_pc c pc = Some (SetRegClose gid)),
+    action_bc (Aclose gid) c pc (S pc).
+
+(* continuation_bc cont c pc1 pc2 means that the bytecode for cont is located in c between labels pc1 and pc2 *)
+Inductive continuation_bc : continuation -> code -> label -> label -> Prop :=
+| empty_bc:
+  forall c pc,
+    continuation_bc [] c pc pc
+| cons_bc:
+  forall a cont c pcstart pcmid pcend
+    (ACTION: action_bc a c pcstart pcmid)
+    (CONT: continuation_bc cont c pcmid pcend),
+    continuation_bc (a::cont) c pcstart pcend.
