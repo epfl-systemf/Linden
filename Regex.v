@@ -28,4 +28,3 @@ Fixpoint def_groups (r:regex) : list group_id :=
   | Star r1 => def_groups r1
   | Group id r1 => id::(def_groups r1)  
   end.
-
