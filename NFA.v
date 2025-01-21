@@ -5,7 +5,6 @@ Require Import Regex Chars Groups.
 Require Import Tree.
 Require Import Semantics.
 
-
 (** * NFA Bytecdode *)
 
 Definition label : Type := nat.

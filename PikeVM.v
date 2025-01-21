@@ -5,14 +5,10 @@ Import ListNotations.
 
 Require Import Regex Chars Groups.
 Require Import Tree Semantics NFA.
-
+Require Import BooleanSemantics.
 
 (** * PikeVM Semantics  *)
 (* exponential for now because we're not tracking the seen set yet *)
-
-Inductive LoopBool : Type :=
-| CanExit
-| CannotExit.
 
 Definition thread : Type := (label * group_map * LoopBool).
 
@@ -81,7 +77,7 @@ Inductive pike_vm_step (c:code): pike_vm_state -> pike_vm_state -> Prop :=
 | pvs_end:
   (* when the list of active is empty and we've reached the end of string. self-looping for now, just like PikeTree *)
   forall inp idx best blocked
-    (END: advance_input inp = None),
+    (ADVANCE: advance_input inp = None),
     pike_vm_step c (PVS inp idx [] best blocked) (PVS inp idx [] best blocked)
 | pvs_nextchar:
   (* when the list of active threads is empty, restart from the blocked ones, proceeding to the next character *)
@@ -103,3 +99,23 @@ Inductive pike_vm_step (c:code): pike_vm_state -> pike_vm_state -> Prop :=
   forall inp idx t active best blocked newt
     (STEP: epsilon_step t c inp idx = EpsBlocked newt),
     pike_vm_step c (PVS inp idx (t::active) best blocked) (PVS inp idx active best (blocked ++ [newt])).
+
+(** * PikeVM properties  *)
+
+Theorem pikevm_deterministic:
+  forall c pvso pvs1 pvs2
+    (STEP1: pike_vm_step c pvso pvs1)
+    (STEP2: pike_vm_step c pvso pvs2),
+    pvs1 = pvs2.
+Proof.
+  intros c pvso pvs1 pvs2 STEP1 STEP2. inversion STEP1; subst.
+  - inversion STEP2; subst; auto. rewrite ADVANCE in ADVANCE0. inversion ADVANCE0.
+  - inversion STEP2; subst; auto; rewrite ADVANCE in ADVANCE0; inversion ADVANCE0.
+    subst. auto.
+  - inversion STEP2; subst; auto; rewrite STEP in STEP0; inversion STEP0.
+    subst. auto.
+  - inversion STEP2; subst; auto; rewrite STEP in STEP0; inversion STEP0.
+    subst. auto.
+  - inversion STEP2; subst; auto; rewrite STEP in STEP0; inversion STEP0.
+    subst. auto.
+Qed.
