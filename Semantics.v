@@ -26,7 +26,7 @@ Inductive is_tree: regex -> continuation -> input -> tree -> Prop :=
 | tree_epsilon:
   (* on an empty continuation *)
   forall inp,
-    is_tree Epsilon [] inp (Match inp)
+    is_tree Epsilon [] inp Match
 | tree_pop_reg:
   (* pops a regex from the continuation list *)
   forall inp regcont tailcont treecont

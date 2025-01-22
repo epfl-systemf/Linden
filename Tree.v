@@ -48,7 +48,7 @@ Proof. intros. unfold seqop. destruct o1; destruct o2; auto. Qed.
 
 Inductive tree : Type :=
 | Mismatch
-| Match (i:input)
+| Match
 | Choice (t1 t2:tree)
 | Read (c:Char) (t:tree)
 | CheckFail (str:string) (* failed to make progress wrt some string *)
@@ -68,14 +68,14 @@ Definition greedy_choice (greedy:bool) (t1 t2:tree) :=
 
 (** * Tree Results  *)
 
-Definition leaf: Type := (input * group_map).
+Definition leaf: Type := (group_map).
 
 (* returning the highest-priority result *)
 (* we also return the corresponding group map *)
 Fixpoint tree_res (t:tree) (gm:group_map) (idx:nat): option leaf :=
   match t with
   | Mismatch => None
-  | Match s => Some (s, gm)
+  | Match => Some gm
   | Choice t1 t2 =>
       seqop (tree_res t1 gm idx) (tree_res t2 gm idx)
   | Read c t1 => tree_res t1 gm (idx + 1)
@@ -97,7 +97,7 @@ Definition first_branch (t:tree) : option leaf :=
 Fixpoint tree_leaves (t:tree) (gm:group_map) (idx:nat): list leaf :=
   match t with
   | Mismatch => []
-  | Match s => [(s,gm)]
+  | Match => [gm]
   | Choice t1 t2 =>
       tree_leaves t1 gm idx ++ tree_leaves t2 gm idx
   | Read c t1 => tree_leaves t1 gm (idx + 1)

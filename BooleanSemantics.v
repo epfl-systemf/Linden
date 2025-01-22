@@ -21,7 +21,7 @@ Inductive bool_tree: regex -> continuation -> input -> LoopBool -> tree -> Prop 
 | bool_epsilon:
   (* on an empty continuation *)
   forall inp b,
-    bool_tree Epsilon [] inp b (Match inp)
+    bool_tree Epsilon [] inp b Match
 | bool_pop_reg:
   (* pops a regex from the continuation list *)
   forall inp regcont tailcont treecont b

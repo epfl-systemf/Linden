@@ -15,7 +15,7 @@ Require Import Regex Chars Groups Tree.
 
 Inductive step_result : Type :=
 | StepActive: list (tree * group_map) -> step_result (* generated new active threads, possibly 0 *)
-| StepMatch: leaf -> step_result                (* a match was found *)
+| StepMatch: step_result                (* a match was found *)
 | StepBlocked: tree -> step_result     (* the thread was blocked *)
 .
 
@@ -24,7 +24,7 @@ Definition StepDead := StepActive []. (* the thread died *)
 Definition tree_bfs_step (t:tree) (gm:group_map) (idx:nat): step_result :=
   match t with
   | Mismatch => StepDead
-  | Match i => StepMatch (i, gm)
+  | Match => StepMatch
   | Choice t1 t2 => StepActive [(t1,gm); (t2,gm)]
   | Read c t1 => StepBlocked t1
   | CheckFail _ => StepDead
@@ -52,9 +52,9 @@ Inductive pike_tree_step : pike_tree_state -> pike_tree_state -> Prop :=
     pike_tree_step (PTS idx ((t,gm)::active) best blocked) (PTS idx (nextactive++active) best blocked)
 | pts_match:
   (* a match is found, discard remaining low-priority active trees *)
-  forall idx t gm active best blocked leaf
-    (STEP: tree_bfs_step t gm idx = StepMatch leaf),
-    pike_tree_step (PTS idx ((t,gm)::active) best blocked) (PTS idx [] (Some leaf) blocked)
+  forall idx t gm active best blocked
+    (STEP: tree_bfs_step t gm idx = StepMatch),
+    pike_tree_step (PTS idx ((t,gm)::active) best blocked) (PTS idx [] (Some gm) blocked)
 | pts_blocked:
 (* add the new blocked thread after the previous ones *)
   forall idx t gm active best blocked newt

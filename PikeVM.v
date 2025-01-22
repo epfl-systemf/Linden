@@ -33,11 +33,11 @@ Definition begin_thread (t:thread) : thread :=
 
 
 Inductive VM_state : Type :=
-| VMS (idx:nat) (input:input) (active: list thread) (best: option thread) (blocked: list thread).
+| VMS (idx:nat) (input:input) (active: list thread) (best: option leaf) (blocked: list thread).
 
 Inductive epsilon_result : Type :=
 | EpsActive: list thread -> epsilon_result
-| EpsMatch: thread -> epsilon_result
+| EpsMatch: epsilon_result
 | EpsBlocked: thread -> epsilon_result.
 
 Definition EpsDead : epsilon_result := EpsActive [].
@@ -49,7 +49,7 @@ Definition epsilon_step (t:thread) (c:code) (i:input) (idx:nat): epsilon_result 
       | None => EpsDead
       | Some instr =>
           match instr with
-          | Accept => EpsMatch t
+          | Accept => EpsMatch
           | Consume cd => match check_read cd i with
                          | CannotRead => EpsDead
                          | CanRead => EpsBlocked (advance_thread t)
@@ -70,10 +70,13 @@ Definition epsilon_step (t:thread) (c:code) (i:input) (idx:nat): epsilon_result 
 
 
 Inductive pike_vm_state : Type :=
-| PVS (inp:input) (idx:nat) (active: list thread) (best: option thread) (blocked: list thread).
+| PVS (inp:input) (idx:nat) (active: list thread) (best: option leaf) (blocked: list thread).
 
 Definition pike_vm_initial_state (inp:input) : pike_vm_state :=
   PVS inp 0 [(0,empty_group_map,CanExit)] None [].
+
+Definition gm_of (t:thread) : group_map :=
+  match t with (pc,gm,b) => gm end.
 
 Inductive pike_vm_step (c:code): pike_vm_state -> pike_vm_state -> Prop :=
 | pvs_end:
@@ -93,9 +96,9 @@ Inductive pike_vm_step (c:code): pike_vm_state -> pike_vm_state -> Prop :=
     pike_vm_step c (PVS inp idx (t::active) best blocked) (PVS inp idx (nextactive++active) best blocked)
 | pvs_match:
   (* a match is found, discard remaining low-priority active threads *)
-  forall inp idx t active best blocked result
-    (STEP: epsilon_step t c inp idx = EpsMatch result),
-    pike_vm_step c (PVS inp idx (t::active) best blocked) (PVS inp idx [] (Some result) blocked)
+  forall inp idx t active best blocked
+    (STEP: epsilon_step t c inp idx = EpsMatch),
+    pike_vm_step c (PVS inp idx (t::active) best blocked) (PVS inp idx [] (Some (gm_of t)) blocked)
 | pvs_blocked:
   (* add the new blocked thread after the previous ones *)
   forall inp idx t active best blocked newt
@@ -117,7 +120,6 @@ Proof.
   - inversion STEP2; subst; auto; rewrite STEP in STEP0; inversion STEP0.
     subst. auto.
   - inversion STEP2; subst; auto; rewrite STEP in STEP0; inversion STEP0.
-    subst. auto.
   - inversion STEP2; subst; auto; rewrite STEP in STEP0; inversion STEP0.
     subst. auto.
 Qed.
