@@ -108,44 +108,50 @@ Fixpoint compile (r:regex) (fresh:label) : code * label :=
       ([SetRegOpen gid] ++ bc1 ++ [SetRegClose gid], S f1)
   end.
 
+(* adds an accept at the end of the code *)
+Definition compilation (r:regex) : code :=
+  match (compile r 0) with
+  | (c,fresh) => c ++ [Accept]
+  end.
+
 (** * Inductive NFA characterization *)
 (* like a representation predicate *)
 
-Inductive is_nfa : regex -> code -> label -> label -> Prop :=
-| is_nfa_epsilon:
+Inductive nfa_rep : regex -> code -> label -> label -> Prop :=
+| nfa_rep_epsilon:
   forall c lbl,
-    is_nfa Epsilon c lbl lbl
-| is_nfa_char:
+    nfa_rep Epsilon c lbl lbl
+| nfa_rep_char:
   forall c cd lbl
     (CONSUME: get_pc c lbl = Some (Consume cd)),
-    is_nfa (Character cd) c lbl (S lbl)
-| is_nfa_disj:
+    nfa_rep (Character cd) c lbl (S lbl)
+| nfa_rep_disj:
   forall c r1 r2 start end1 end2
     (FORK: get_pc c start = Some (Fork (S start) (S end1)))
-    (NFA1: is_nfa r1 c (S start) end1)
+    (NFA1: nfa_rep r1 c (S start) end1)
     (JMP: get_pc c end1 = Some (Jmp end2))
-    (NFA2: is_nfa r2 c (S end1) end2),
-    is_nfa
+    (NFA2: nfa_rep r2 c (S end1) end2),
+    nfa_rep
       (Disjunction r1 r2) c start end2
-| is_nfa_seq:
+| nfa_rep_seq:
   forall c r1 r2 start end1 end2
-    (NFA1: is_nfa r1 c start end1)
-    (NFA2: is_nfa r2 c end1 end2),
-    is_nfa (Sequence r1 r2) c start end2
-| is_nfa_star:
+    (NFA1: nfa_rep r1 c start end1)
+    (NFA2: nfa_rep r2 c end1 end2),
+    nfa_rep (Sequence r1 r2) c start end2
+| nfa_rep_star:
   forall c r1 start end1
     (FORK: get_pc c start = Some (Fork (S start) (S end1)))
     (BEGIN: get_pc c (S start) = Some (BeginLoop))
     (RESET: get_pc c (S (S start)) = Some (ResetRegs (def_groups r1)))
-    (NFA1: is_nfa r1 c (S (S (S start))) end1)
+    (NFA1: nfa_rep r1 c (S (S (S start))) end1)
     (END: get_pc c end1 = Some (EndLoop start)),
-    is_nfa (Star r1) c start (S end1)
-| is_nfa_group:
+    nfa_rep (Star r1) c start (S end1)
+| nfa_rep_group:
   forall c r1 gid start end1
     (OPEN: get_pc c start = Some (SetRegOpen gid))
-    (NFA1: is_nfa r1 c (S start) end1)
+    (NFA1: nfa_rep r1 c (S start) end1)
     (CLOSE: get_pc c end1 = Some (SetRegClose gid)),
-    is_nfa (Group gid r1) c start (S end1).
+    nfa_rep (Group gid r1) c start (S end1).
 
 (** * Compile Characterization  *)
 
@@ -153,15 +159,15 @@ Lemma cons_app:
   forall A (x:A) l, x::l = [x] ++ l.
 Proof. intros. simpl. auto. Qed.
 
-Lemma is_nfa_extend:
+Lemma nfa_rep_extend:
   forall r c start endl suffix,
-    is_nfa r c start endl ->
-    is_nfa r (c++suffix) start endl.
+    nfa_rep r c start endl ->
+    nfa_rep r (c++suffix) start endl.
 Proof.
   intros r c start endl suffix H. generalize dependent suffix.
   induction H; intros; econstructor;
-    try (erewrite get_suffix; eauto); try apply IHis_nfa;
-    try apply IHis_nfa1; try apply IHis_nfa2.
+    try (erewrite get_suffix; eauto); try apply IHnfa_rep;
+    try apply IHnfa_rep1; try apply IHnfa_rep2.
 Qed.
 
 (* correctness of the returned fresh label *)
@@ -190,24 +196,24 @@ Proof.
     subst. simpl. rewrite app_length. simpl. lia.
 Qed.
 
-Theorem compile_is_nfa:
+Theorem compile_nfa_rep:
   forall r c start endl prev,
     compile r start = (c, endl) ->
     start = List.length prev ->
-    is_nfa r (prev ++ c) start endl.
+    nfa_rep r (prev ++ c) start endl.
 Proof.
   intros r. induction r; intros.
   - inversion H. subst. rewrite app_nil_r. constructor.
   - inversion H. subst. constructor. apply get_first.
   - inversion H. destruct (compile r1 (S start)) as [bc1 end1] eqn:COMP1. destruct (compile r2 (S end1)) as [bc2 end2] eqn:COMP2.
-    inversion H2. subst. apply is_nfa_disj with (end1:=end1).
+    inversion H2. subst. apply nfa_rep_disj with (end1:=end1).
     + rewrite get_first. simpl. auto.
     + apply IHr1 with (prev:=prev ++ [Fork (S (length prev)) (S end1)]) in COMP1.
       2: { rewrite app_length. simpl. lia. }
       replace (prev ++ Fork (S (length prev)) (S end1) :: bc1 ++ Jmp endl :: bc2) with
         (((prev ++ [Fork (S (length prev)) (S end1)]) ++ bc1) ++ (Jmp endl :: bc2)).
       2:{ rewrite <- app_assoc. rewrite <- app_assoc. auto. }
-      apply is_nfa_extend. auto.
+      apply nfa_rep_extend. auto.
     + apply fresh_correct in COMP1. rewrite <- COMP1.
       replace (S (length prev) + length bc1) with (length prev + (S (length bc1))) by lia.
       rewrite get_prefix. rewrite cons_app. rewrite app_assoc. apply get_first.
@@ -221,7 +227,7 @@ Proof.
   - inversion H. destruct (compile r1 start) as [bc1 end1] eqn:COMP1. destruct (compile r2 end1) as [bc2 end2] eqn:COMP2.
     inversion H2. subst. econstructor.
     + apply IHr1 with (prev:=prev) in COMP1; auto.
-      rewrite app_assoc. apply is_nfa_extend. eauto.
+      rewrite app_assoc. apply nfa_rep_extend. eauto.
     + apply IHr2 with (prev:=prev ++ bc1) in COMP2; auto.
       * rewrite app_assoc. auto.
       * apply fresh_correct in COMP1. rewrite app_length. lia.
@@ -234,7 +240,7 @@ Proof.
         replace (prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1 ++ [EndLoop (length prev)]) with
           ((prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1) ++ [EndLoop (length prev)]).
         2: { rewrite <- app_assoc. auto. }
-        apply is_nfa_extend. auto.
+        apply nfa_rep_extend. auto.
       * rewrite app_length. simpl. lia.
     + replace (prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1 ++ [EndLoop (length prev)]) with
           ((prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1) ++ [EndLoop (length prev)]).
@@ -248,7 +254,7 @@ Proof.
        2: { rewrite app_length. simpl. lia. }
        replace (prev ++ SetRegOpen id :: bc1 ++ [SetRegClose id]) with ((prev ++ SetRegOpen id :: bc1) ++ [SetRegClose id]).
        2:{ rewrite <- app_assoc. auto. }
-       apply is_nfa_extend. rewrite <- app_assoc in COMP1. simpl in COMP1. auto.
+       apply nfa_rep_extend. rewrite <- app_assoc in COMP1. simpl in COMP1. auto.
     + replace (prev ++ SetRegOpen id :: bc1 ++ [SetRegClose id]) with ((prev ++ SetRegOpen id :: bc1) ++ [SetRegClose id]).
       2:{ rewrite <- app_assoc. auto. }
       apply get_first_0. apply fresh_correct in COMP1. subst. rewrite app_length. simpl. lia.
@@ -258,28 +264,31 @@ Qed.
 (** * Lifting the representation predicate to continuations  *)
 (* This is useful to relate the continuations used in the tree semantics to the code produced by the NFA compiler *)
 
-(* action_bc a c pc1 pc2 indicates that the bytecode for a is located in code c between labels pc1 and pc2  *)
-Inductive action_bc : action -> code -> label -> label -> Prop :=
+(* action_rep a c pc1 pc2 indicates that the bytecode for a is located in code c between labels pc1 and pc2  *)
+Inductive action_rep : action -> code -> label -> label -> Prop :=
 | areg_bc:
   forall r c pcstart pcend
-    (IS_NFA: is_nfa r c pcstart pcend),
-    action_bc (Areg r) c pcstart pcend
+    (NFA: nfa_rep r c pcstart pcend),
+    action_rep (Areg r) c pcstart pcend
 | acheck_bc:
   forall c str pc pcnext
     (END: get_pc c pc = Some (EndLoop pcnext)),
-    action_bc (Acheck str) c pc pcnext
+    action_rep (Acheck str) c pc pcnext
 | aclose_bc:
   forall c gid pc
     (CLOSE: get_pc c pc = Some (SetRegClose gid)),
-    action_bc (Aclose gid) c pc (S pc).
+    action_rep (Aclose gid) c pc (S pc).
 
-(* continuation_bc cont c pc1 pc2 means that the bytecode for cont is located in c between labels pc1 and pc2 *)
-Inductive continuation_bc : continuation -> code -> label -> label -> Prop :=
+(* continuation_rep cont c pc1 pc2 means that the bytecode for cont is located in c between labels pc1 and pc2 *)
+Inductive continuation_rep : continuation -> code -> label -> label -> Prop :=
 | empty_bc:
-  forall c pc,
-    continuation_bc [] c pc pc
+  (* when the continuation is empty, it means we have nothing more to do and fond a match *)
+  (* in the bytecode, this means an accept *)
+  forall c pc
+    (ACCEPT: get_pc c pc = Some Accept),
+    continuation_rep [] c pc pc
 | cons_bc:
   forall a cont c pcstart pcmid pcend
-    (ACTION: action_bc a c pcstart pcmid)
-    (CONT: continuation_bc cont c pcmid pcend),
-    continuation_bc (a::cont) c pcstart pcend.
+    (ACTION: action_rep a c pcstart pcmid)
+    (CONT: continuation_rep cont c pcmid pcend),
+    continuation_rep (a::cont) c pcstart pcend.
