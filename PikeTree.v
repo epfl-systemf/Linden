@@ -35,16 +35,21 @@ Definition tree_bfs_step (t:tree) (gm:group_map) (idx:nat): step_result :=
   end.
 
 Inductive pike_tree_state : Type :=
-| PTS (idx:nat) (active: list (tree * group_map)) (best: option leaf) (blocked: list (tree * group_map)).
+| PTS (idx:nat) (active: list (tree * group_map)) (best: option leaf) (blocked: list (tree * group_map))
+| PTS_final (best: option leaf).
 
 Definition upd_blocked {X:Type} (newblocked: option X) (blocked: list X) :=
   match newblocked with Some b => b::blocked | None => blocked end.
 
 Inductive pike_tree_step : pike_tree_state -> pike_tree_state -> Prop :=
+| pts_final:
+(* moving to a final state when there are no more active or blocked trees *)
+  forall idx best,
+    pike_tree_step (PTS idx [] best []) (PTS_final best)
 | pts_nextchar:
   (* when the list of active trees is empty, restart from the blocked ones, proceeding to the next character *)
-  forall idx best blocked,
-    pike_tree_step (PTS idx [] best blocked) (PTS (idx + 1) blocked best [])
+  forall idx best blocked tgm,
+    pike_tree_step (PTS idx [] best (tgm::blocked)) (PTS (idx + 1) (tgm::blocked) best [])
 | pts_active:
   (* generated new active trees: add them in front of the low-priority ones *)
   forall idx t gm active best blocked nextactive
@@ -64,11 +69,6 @@ Inductive pike_tree_step : pike_tree_state -> pike_tree_state -> Prop :=
 Definition pike_tree_initial_state (t:tree) : pike_tree_state :=
   (PTS 0 [(t, empty_group_map)] None []).
 
-(* we reach a final state when both active and blocked are empty *)
-Inductive pike_tree_final_state : pike_tree_state -> option leaf -> Prop :=
-| pts_final:
-  forall idx best,
-    pike_tree_final_state (PTS idx [] best []) best.
 
 (** * Pike Tree Properties  *)
 
@@ -79,6 +79,7 @@ Theorem pike_tree_determinism:
     pts1 = pts2.
 Proof.
   intros ptso pts1 pts2 STEP1 STEP2. inversion STEP1; subst.
+  - inversion STEP2; subst; auto.
   - inversion STEP2; subst; auto.
   - inversion STEP2; rewrite STEP in STEP0; inversion STEP0; subst; auto.
   - inversion STEP2; rewrite STEP in STEP0; inversion STEP0; subst; auto.
@@ -119,6 +120,7 @@ Definition state_result (pts: pike_tree_state) : option leaf :=
   match pts with
   | (PTS idx active best blocked) =>
       seqop (list_result blocked (idx+1)) (seqop (list_result active idx) best)
+  | (PTS_final best) => best
   end.
   
 
@@ -130,6 +132,7 @@ Theorem pts_result_preservation:
 Proof.
   intros pts1 pts2 H.
   inversion H; subst.
+  - simpl. auto.
   - simpl. auto.
   - destruct t; simpl in STEP; inversion STEP; subst.
     + rewrite app_nil_l. unfold state_result. apply f_equal. unfold list_result. rewrite seqop_list_head_none; auto.

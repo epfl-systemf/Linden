@@ -70,7 +70,8 @@ Definition epsilon_step (t:thread) (c:code) (i:input) (idx:nat): epsilon_result 
 
 
 Inductive pike_vm_state : Type :=
-| PVS (inp:input) (idx:nat) (active: list thread) (best: option leaf) (blocked: list thread).
+| PVS (inp:input) (idx:nat) (active: list thread) (best: option leaf) (blocked: list thread)
+| PVS_final (best: option leaf).
 
 Definition pike_vm_initial_state (inp:input) : pike_vm_state :=
   PVS inp 0 [(0,empty_group_map,CanExit)] None [].
@@ -79,16 +80,20 @@ Definition gm_of (t:thread) : group_map :=
   match t with (pc,gm,b) => gm end.
 
 Inductive pike_vm_step (c:code): pike_vm_state -> pike_vm_state -> Prop :=
+| pvs_final:
+(* moving to a final state when there are no more active or blocked threads *)
+  forall inp idx best,
+    pike_vm_step c (PVS inp idx [] best []) (PVS_final best)
 | pvs_end:
-  (* when the list of active is empty and we've reached the end of string. self-looping for now, just like PikeTree *)
+  (* when the list of active is empty and we've reached the end of string *)
   forall inp idx best blocked
     (ADVANCE: advance_input inp = None),
-    pike_vm_step c (PVS inp idx [] best blocked) (PVS inp idx [] best blocked)
+    pike_vm_step c (PVS inp idx [] best blocked) (PVS_final best)
 | pvs_nextchar:
-  (* when the list of active threads is empty, restart from the blocked ones, proceeding to the next character *)
-  forall inp1 inp2 idx best blocked
+  (* when the list of active threads is empty (but not blocked), restart from the blocked ones, proceeding to the next character *)
+  forall inp1 inp2 idx best blocked thr
     (ADVANCE: advance_input inp1 = Some inp2),
-    pike_vm_step c (PVS inp1 idx [] best blocked) (PVS inp2 (idx+1) blocked best [])
+    pike_vm_step c (PVS inp1 idx [] best (thr::blocked)) (PVS inp2 (idx+1) (thr::blocked) best [])
 | pvs_active:
   (* generated new active threads: add them in front of the low-priority ones *)
   forall inp idx t active best blocked nextactive
@@ -114,6 +119,7 @@ Theorem pikevm_deterministic:
     pvs1 = pvs2.
 Proof.
   intros c pvso pvs1 pvs2 STEP1 STEP2. inversion STEP1; subst.
+  - inversion STEP2; subst; auto. 
   - inversion STEP2; subst; auto. rewrite ADVANCE in ADVANCE0. inversion ADVANCE0.
   - inversion STEP2; subst; auto; rewrite ADVANCE in ADVANCE0; inversion ADVANCE0.
     subst. auto.

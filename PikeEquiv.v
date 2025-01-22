@@ -59,7 +59,10 @@ Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> Prop :=
     (ACTIVE: list_tree_thread code inp treeactive threadactive)
     (* below is not correct: they must be equivalent for the next input *)
     (BLOCKED: list_tree_thread code inp treeblocked threadblocked),
-    pike_inv code (PTS idx treeactive best treeblocked) (PVS inp idx threadactive best threadblocked).
+    pike_inv code (PTS idx treeactive best treeblocked) (PVS inp idx threadactive best threadblocked)
+| pikeinv_final:
+  forall best,
+    pike_inv code (PTS_final best) (PVS_final best).
 
 (* the initial states of both smallstep semantics are related with the invariant *)
 Lemma initial_pike_inv:
@@ -116,7 +119,7 @@ Theorem generate_blocked:
     (TT: tree_thread code inp (tree, gm) (pc, gm, b)),
   exists nextthread,
     epsilon_step (pc, gm, b) code inp idx = EpsBlocked nextthread /\
-      tree_thread code inp (nexttree,gm) nextthread.
+      tree_thread code inp (nexttree,gm) nextthread. (* TODO: that should be for next input, not current input *)
 Proof.
 Admitted.
 
@@ -131,18 +134,22 @@ Theorem invariant_preservation:
 Proof.
   intros. inversion INV. subst.
   inversion TREESTEP; subst.
+  (* pts final *)
+  - exists (PVS_final best). split.
+    + inversion ACTIVE. inversion BLOCKED. subst. apply pvs_final.
+    + apply pikeinv_final.
   (* pts_nextchar *)
   - inversion ACTIVE. subst.
     (* the pike vm has two different rules for when we reach the end of input or not *)
     destruct (advance_input inp) as [nextinp|] eqn:ADVANCE.
-    + exists (PVS nextinp (idx+1) threadblocked best []). split.
+    + inversion BLOCKED. subst.
+      exists (PVS nextinp (idx+1) ((pc,gm,b)::threadlist) best []). split.
       * apply pvs_nextchar. auto.
-      * constructor; auto.
-        ** admit.               (* we only have the eq for the previous input *)
-        ** admit.               (* same. ut for best, maybe we could only export the group_map *)
-    + exists (PVS inp idx [] best threadblocked). split.
+      * constructor; auto. 2: constructor.
+        admit. (* error in the invariant, blocked should be related to nextinp *)        
+    + exists (PVS_final best). split.
       * apply pvs_end. auto.
-      * admit.                  (* here there is an issue: the pike tree step loops but keeps increasing its index *)
+      * admit. (* it should not be possible for PTS to continue while PVS has reached end of input *)
   (* pts_active *)
   - inversion ACTIVE. subst. rename t into tree.
     eapply generate_active in TT as [newthreads [EPS LTT2]]; eauto.
