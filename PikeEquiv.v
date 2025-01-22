@@ -84,16 +84,8 @@ Qed.
 
 
 (** * Invariant Preservation  *)
-
-Theorem generate_active:
-  forall tree gm idx inp code pc b treeactive
-    (TREESTEP: tree_bfs_step tree gm idx = StepActive treeactive)
-    (TT: tree_thread code inp (tree, gm) (pc, gm, b)),
-  exists threadactive,
-    epsilon_step (pc, gm, b) code inp idx = EpsActive threadactive /\
-      list_tree_thread code inp treeactive threadactive.
-Proof.
-Admitted.
+(* For each possible kind of tree, I show that the PikeTree step over that tree corresponds *)
+(* to an equivalent step in the PikeVM. This preserves the invariant. *)
 
 Theorem generate_match:
   forall tree gm idx inp code pc b
@@ -143,6 +135,51 @@ Proof.
     econstructor; eauto. constructor. auto.
   - inversion CHOICE.
 Qed.
+
+
+Theorem generate_choice:
+  forall tree1 tree2 gm idx inp code pc b treeactive
+    (TREESTEP: tree_bfs_step (Choice tree1 tree2) gm idx = StepActive treeactive)
+    (TT: tree_thread code inp (Choice tree1 tree2, gm) (pc, gm, b)),
+  exists threadactive,
+    epsilon_step (pc, gm, b) code inp idx = EpsActive threadactive /\
+      list_tree_thread code inp treeactive threadactive.
+Proof.
+  intros tree1 tree2 gm idx inp code pc b treeactive TREESTEP TT.
+  unfold tree_bfs_step in TREESTEP. inversion TREESTEP. subst. clear TREESTEP.
+  inversion TT. subst. remember (Choice tree1 tree2) as TCHOICE.
+  generalize dependent pc_cont. generalize dependent pc_end.
+  induction TREE; intros; subst; try inversion HeqTCHOICE; subst.
+  - inversion CONT. inversion ACTION. inversion NFA. subst. eapply IHTREE; eauto.
+  - inversion NFA. subst. exists [(S pc,gm,b);(S end1,gm,b)]. split.
+    + unfold epsilon_step. rewrite FORK. auto.
+    + constructor.
+      * constructor. constructor.
+        apply tt_eq with (pc_cont:=pc_cont) (pc_end:=pc_end) (r:=r2) (cont:=cont); auto.
+      * apply tt_eq with (pc_cont:=end1) (pc_end:=pc_end) (r:=r1) (cont:=cont); auto.
+        admit.
+  (* here I can't do a lockstep: the PikeVM takes one more step than the PikeTree, *)
+  (* because there is that extra jump instruction. *)
+  (* I must revisit my proof to allow a one-to-many (many being 2 I guess) simulation scheme: *)
+  (* whenever PikeTree takes a step, PikeVM takes 1 or 2 equivalent steps  *)
+  (* another solution could be o change the representation predicate to allow that extra jump *)
+  - inversion NFA. subst. eapply IHTREE; eauto.
+    econstructor; eauto. constructor. auto.
+  (* when the choice comes from a star *)
+  - admit.                      (* TODO *)
+Admitted.
+
+
+Theorem generate_active:
+  forall tree gm idx inp code pc b treeactive
+    (TREESTEP: tree_bfs_step tree gm idx = StepActive treeactive)
+    (TT: tree_thread code inp (tree, gm) (pc, gm, b)),
+  exists threadactive,
+    epsilon_step (pc, gm, b) code inp idx = EpsActive threadactive /\
+      list_tree_thread code inp treeactive threadactive.
+Proof.  
+Admitted.
+
 
 
 Theorem invariant_preservation:
