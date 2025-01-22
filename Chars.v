@@ -127,3 +127,7 @@ Proof.
   - destruct (char_match c cd); auto. inversion 1.
 Qed.
 
+(* Inductive relation of next_inputs *)
+Inductive next_input : input -> input -> Prop :=
+| nextin: forall i1 i2 (ADVANCE: advance_input i1 = Some i2),
+    next_input i1 i2.

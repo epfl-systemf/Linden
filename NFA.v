@@ -20,6 +20,14 @@ Inductive bytecode: Type :=
 | BeginLoop: bytecode
 | EndLoop: label -> bytecode.    (* also contains the backedge instead of adding a jump *)
 
+(* TODO: it could be nice to merge Begin Loop with ResetRegs *)
+(* The benefit would be that now, one instruction in the bytecode corresponds to one node in the tree *)
+(* This possibly makes the PikeEquiv proof a bit more "lockstep", which should be easier *)
+(* only downside is that in some cases, I can want one or not the other *)
+(* for instance if we do the optimization of not always inserting Begin/End *)
+(* also I might want to split resetregs into several instructions *)
+(* maybe this can be another VM, that we prove to be equivalent *)
+
 Definition code : Type := list bytecode.
 
 Definition get_pc (c:code) (pc:label) : option bytecode :=

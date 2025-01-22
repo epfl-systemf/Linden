@@ -57,8 +57,9 @@ Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> Prop :=
 | pikeinv:
   forall inp idx treeactive treeblocked threadactive threadblocked best
     (ACTIVE: list_tree_thread code inp treeactive threadactive)
-    (* below is not correct: they must be equivalent for the next input *)
-    (BLOCKED: list_tree_thread code inp treeblocked threadblocked),
+    (* blocked threads should be equivalent for the next input *)
+    (* nothing to say if there is no next input *)
+    (BLOCKED: forall nextinp, advance_input inp = Some nextinp -> list_tree_thread code nextinp treeblocked threadblocked),
     pike_inv code (PTS idx treeactive best treeblocked) (PVS inp idx threadactive best threadblocked)
 | pikeinv_final:
   forall best,
@@ -75,7 +76,7 @@ Proof.
   unfold compilation in COMPILE. destruct (compile r 0) as [c fresh] eqn:COMP.
   apply compile_nfa_rep with (prev := []) in COMP as REP; auto. simpl in REP.
   apply fresh_correct in COMP. simpl in COMP. subst.
-  constructor; constructor; try constructor.
+  eapply pikeinv; constructor; try constructor.
   apply tt_eq with (pc_cont:=length c) (pc_end:=length c) (r:=r) (cont:=[]); auto.
   - subst. apply nfa_rep_extend. auto.
   - constructor. replace (length c) with (length c + 0) by auto. rewrite get_prefix. auto.
@@ -123,7 +124,7 @@ Theorem generate_blocked:
     (TT: tree_thread code inp (tree, gm) (pc, gm, b)),
   exists nextthread,
     epsilon_step (pc, gm, b) code inp idx = EpsBlocked nextthread /\
-      tree_thread code inp (nexttree,gm) nextthread. (* TODO: that should be for next input, not current input *)
+      (forall nextinp, advance_input inp = Some nextinp -> tree_thread code nextinp (nexttree,gm) nextthread).
 Proof.
 Admitted.
 
@@ -136,21 +137,25 @@ Theorem invariant_preservation:
     pike_vm_step code pvs1 pvs2 /\
       pike_inv code pts2 pvs2.
 Proof.
-  intros. inversion INV. subst.
+  intros. inversion INV; subst.
+  2: { inversion TREESTEP. }
   inversion TREESTEP; subst.
   (* pts final *)
   - exists (PVS_final best). split.
-    + inversion ACTIVE. inversion BLOCKED. subst. apply pvs_final.
+    + inversion ACTIVE.
+      destruct (advance_input inp) eqn:ADVANCE.
+      * specialize (BLOCKED i eq_refl). inversion BLOCKED. subst. apply pvs_final.
+      * apply pvs_end. auto.
     + apply pikeinv_final.
   (* pts_nextchar *)
   - inversion ACTIVE. subst.
     (* the pike vm has two different rules for when we reach the end of input or not *)
     destruct (advance_input inp) as [nextinp|] eqn:ADVANCE.
-    + inversion BLOCKED. subst.
+    + specialize (BLOCKED nextinp eq_refl).
+      inversion BLOCKED. subst.
       exists (PVS nextinp (idx+1) ((pc,gm,b)::threadlist) best []). split.
       * apply pvs_nextchar. auto.
-      * constructor; auto. 2: constructor.
-        admit. (* error in the invariant, blocked should be related to nextinp *)        
+      * constructor; auto. intros. constructor.
     + exists (PVS_final best). split.
       * apply pvs_end. auto.
       * admit. (* it should not be possible for PTS to continue while PVS has reached end of input *)
@@ -171,6 +176,7 @@ Proof.
     eapply generate_blocked in TT as [nextt [EPS TT2]]; eauto.
     exists (PVS inp idx threadlist best (threadblocked ++ [nextt])). split.
     + apply pvs_blocked. auto.
-    + constructor; auto. apply ltt_app; auto.
+    + constructor; auto. intros nextinp H. specialize (BLOCKED nextinp H).
+      apply ltt_app; auto. specialize (TT2 nextinp H).
       inversion TT2. subst. constructor; auto. constructor.
 Admitted.
