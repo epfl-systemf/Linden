@@ -101,18 +101,22 @@ Theorem generate_match:
     epsilon_step (pc, gm, b) code inp idx = EpsMatch.
 Proof.
   intros tree gm idx inp code pc b TREESTEP TT.
-  unfold tree_bfs_step in TREESTEP. destruct tree; inversion TREESTEP. subst.
-  inversion TT. subst. inversion TREE; subst.
+  unfold tree_bfs_step in TREESTEP. destruct tree; inversion TREESTEP. subst. clear TREESTEP.
+  inversion TT. subst. remember Match as TMATCH.
+  generalize dependent pc_cont. generalize dependent pc_end.
+  (* here we have to proceed by induction because there are many ways to get a Match tree *)
+  (* it could be the regex epsilon, it could be a continuation, it could be epsilon followed by epsilon etc *)
+  induction TREE; intros; subst; try inversion HeqTMATCH.
   - unfold epsilon_step. inversion CONT. subst. inversion NFA. subst.
     rewrite ACCEPT. auto.
-  (* issue: there are many ways to obtain a match tree. maybe it's epsilon, maybe epsilon;epsilon ... *)
-  (* these all have the same tree. not sure how to proceed for now *)
-  - admit.
-  - admit.
-  - admit.
-Admitted.
+  - inversion NFA. subst. inversion CONT. subst. inversion ACTION. subst.
+    eapply IHTREE; eauto.
+  - inversion NFA. subst. eapply IHTREE; eauto.
+    econstructor; eauto. constructor. auto.
+  - inversion CHOICE.
+Qed.
 
-(* TODO: there is too much info in EpsBlocked, StepMatch etc. Makes the theorem statements no very convenient *)
+
 Theorem generate_blocked:
   forall tree gm idx inp code pc b nexttree
     (TREESTEP: tree_bfs_step tree gm idx = StepBlocked nexttree)
