@@ -18,6 +18,10 @@ Definition upd_label (t:thread) (next:label): thread :=
 Definition advance_thread (t:thread) : thread :=
   match t with (l,r,b) => (l+1,r,b) end.
 
+(* used after consuming *)
+Definition block_thread (t:thread) : thread :=
+  match t with (l,r,b) => (l+1,r,CanExit) end.
+
 Definition open_thread (t:thread) (gid:group_id) (idx:nat) : thread :=
   match t with (l,r,b) => (l+1, open_group r gid idx, b) end.
 
@@ -52,7 +56,7 @@ Definition epsilon_step (t:thread) (c:code) (i:input) (idx:nat): epsilon_result 
           | Accept => EpsMatch
           | Consume cd => match check_read cd i with
                          | CannotRead => EpsDead
-                         | CanRead => EpsBlocked (advance_thread t)
+                         | CanRead => EpsBlocked (block_thread t)
                          end
           | Jmp next => EpsActive [upd_label t next]
           | Fork l1 l2 => EpsActive [upd_label t l1; upd_label t l2]

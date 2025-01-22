@@ -110,8 +110,7 @@ Proof.
   induction TREE; intros; subst; try inversion HeqTMATCH.
   - unfold epsilon_step. inversion CONT. subst. inversion NFA. subst.
     rewrite ACCEPT. auto.
-  - inversion NFA. subst. inversion CONT. subst. inversion ACTION. subst.
-    eapply IHTREE; eauto.
+  - inversion CONT. inversion ACTION. inversion NFA. subst. eapply IHTREE; eauto.
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
   - inversion CHOICE.
@@ -126,7 +125,24 @@ Theorem generate_blocked:
     epsilon_step (pc, gm, b) code inp idx = EpsBlocked nextthread /\
       (forall nextinp, advance_input inp = Some nextinp -> tree_thread code nextinp (nexttree,gm) nextthread).
 Proof.
-Admitted.
+  intros tree gm idx inp code pc b nexttree TREESTEP TT.
+  unfold tree_bfs_step in TREESTEP. destruct tree; inversion TREESTEP. subst. clear TREESTEP.
+  inversion TT. subst. remember (Read c nexttree) as TREAD.
+  generalize dependent pc_cont. generalize dependent pc_end.
+  induction TREE; intros; subst; try inversion HeqTREAD; subst.
+  - inversion CONT. inversion ACTION. inversion NFA. subst. eapply IHTREE; eauto.
+  - assert (H: check_read cd inp = CanRead /\ advance_input inp = Some nextinp) by (apply can_read_correct; eauto).
+    destruct H as [CHECK ADVANCE]. 
+    inversion NFA. subst. exists (pc + 1, gm, CanExit). split.
+    + unfold epsilon_step. rewrite CONSUME.
+      rewrite CHECK. unfold block_thread. auto.
+    + intros nextinp0 H. rewrite ADVANCE in H. inversion H. subst.
+      eapply tt_eq; eauto. replace (S pc) with (pc + 1) by lia.
+      constructor.
+  - inversion NFA. subst. eapply IHTREE; eauto.
+    econstructor; eauto. constructor. auto.
+  - inversion CHOICE.
+Qed.
 
 
 Theorem invariant_preservation:
