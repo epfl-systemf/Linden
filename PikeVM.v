@@ -72,6 +72,8 @@ Definition epsilon_step (t:thread) (c:code) (i:input) (idx:nat): epsilon_result 
 Inductive pike_vm_state : Type :=
 | PVS (inp:input) (idx:nat) (active: list thread) (best: option thread) (blocked: list thread).
 
+Definition pike_vm_initial_state (inp:input) : pike_vm_state :=
+  PVS inp 0 [(0,empty_group_map,CanExit)] None [].
 
 Inductive pike_vm_step (c:code): pike_vm_state -> pike_vm_state -> Prop :=
 | pvs_end:
