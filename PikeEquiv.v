@@ -136,6 +136,113 @@ Proof.
   - inversion CHOICE.
 Qed.
 
+Theorem generate_open:
+  forall gid tree gm idx inp code pc b
+    (TT: tree_thread code inp (OpenGroup gid tree, gm) (pc, gm, b)),
+    epsilon_step (pc, gm, b) code inp idx = EpsActive [(pc + 1, open_group gm gid idx, b)] /\
+      tree_thread code inp (tree,open_group gm gid idx) (pc + 1, open_group gm gid idx, b).
+Proof.
+  intros gid tree gm idx inp code pc b TT.
+  inversion TT. subst. remember (OpenGroup gid tree) as TOPEN.
+  generalize dependent pc_cont. generalize dependent pc_end.
+  induction TREE; intros; subst; try inversion HeqTOPEN; subst.
+  - inversion CONT. inversion ACTION. inversion NFA. subst. eapply IHTREE; eauto.
+  - inversion NFA. subst. eapply IHTREE; eauto.
+    econstructor; eauto. constructor. auto.
+  - inversion CHOICE.
+  - inversion NFA. subst. simpl. rewrite OPEN. split; auto.
+    replace (pc+1) with (S pc) by lia. eapply tt_eq; eauto.
+    apply cons_bc with (pcmid:=S end1); eauto. constructor. auto.
+Qed.
+
+Theorem generate_close:
+  forall gid tree gm idx inp code pc b
+    (TT: tree_thread code inp (CloseGroup gid tree, gm) (pc, gm, b)),
+    epsilon_step (pc, gm, b) code inp idx = EpsActive [(pc + 1, close_group gm gid idx, b)] /\
+      tree_thread code inp (tree,close_group gm gid idx) (pc + 1, close_group gm gid idx, b).
+Proof.
+  intros gid tree gm idx inp code pc b TT.
+  inversion TT. subst. remember (CloseGroup gid tree) as TCLOSE.
+  generalize dependent pc_cont. generalize dependent pc_end.
+  induction TREE; intros; subst; try inversion HeqTCLOSE; subst.
+  - inversion CONT. inversion ACTION. inversion NFA. subst. eapply IHTREE; eauto.
+  - inversion CONT. inversion ACTION. inversion NFA. subst. simpl. rewrite CLOSE.
+    split. auto. econstructor; eauto. replace (S pc_cont) with (pc_cont + 1) by lia. constructor.
+  - inversion NFA. subst. eapply IHTREE; eauto.
+    econstructor; eauto. constructor. auto.
+  - inversion CHOICE. 
+Qed.
+
+Theorem no_tree_reset:
+  (* The tree of a regex or a continuation cannot start with ResetGroups *)
+  forall gidl tree inp r cont b,
+    bool_tree r cont inp b (ResetGroups gidl tree) -> False.
+Proof.
+  intros gidl tree inp r cont b H.
+  remember (ResetGroups gidl tree) as TRESET.
+  induction H; inversion HeqTRESET; subst; auto.
+  inversion CHOICE.
+Qed.
+
+Corollary generate_reset:  
+  forall gidl tree inp code thread gm
+    (TT: tree_thread code inp (ResetGroups gidl tree, gm) thread), False.
+Proof.
+  intros. inversion TT. eapply no_tree_reset; eauto.
+Qed.
+
+Theorem generate_checkfail:
+  forall str gm idx inp code pc b
+    (TT: tree_thread code inp (CheckFail str, gm) (pc, gm, b)),
+    epsilon_step (pc, gm, b) code inp idx = EpsActive [].
+Proof.
+  intros str gm idx inp code pc b TT.
+  inversion TT. subst. remember (CheckFail str) as TFAIL.
+  generalize dependent pc_cont. generalize dependent pc_end.
+  induction TREE; intros; subst; try inversion HeqTFAIL; subst.
+  - inversion CONT. inversion ACTION. inversion NFA. subst. eapply IHTREE; eauto.
+  - inversion CONT. inversion ACTION. inversion NFA. subst. simpl. rewrite END. auto.
+  - inversion NFA. subst. eapply IHTREE; eauto.
+    econstructor; eauto. constructor. auto.
+  - inversion CHOICE. 
+Qed.
+
+Theorem generate_checkpass:
+  forall str tree gm idx inp code pc b
+    (TT: tree_thread code inp (CheckPass str tree, gm) (pc, gm, b)),
+    exists nextpc, epsilon_step (pc, gm, b) code inp idx = EpsActive [(nextpc,gm,CanExit)] /\
+      tree_thread code inp (tree,gm) (nextpc,gm,CanExit).
+Proof.
+  intros str tree gm idx inp code pc b TT.
+  inversion TT. subst. remember (CheckPass str tree) as TPASS.
+  generalize dependent pc_cont. generalize dependent pc_end.
+  induction TREE; intros; subst; try inversion HeqTPASS; subst.
+  - inversion CONT. inversion ACTION. inversion NFA. subst. eapply IHTREE; eauto.
+  - inversion CONT. inversion ACTION. inversion NFA. subst. simpl. rewrite END.
+    exists pcmid. split; auto. econstructor; eauto. constructor.
+  - inversion NFA. subst. eapply IHTREE; eauto.
+    econstructor; eauto. constructor. auto.
+  - inversion CHOICE. 
+Qed.
+
+Theorem generate_mismatch:
+  forall gm idx inp code pc b
+    (TT: tree_thread code inp (Mismatch, gm) (pc, gm, b)),
+    epsilon_step (pc, gm, b) code inp idx = EpsActive [].
+Proof.
+  intros gm idx inp code pc b TT.
+  inversion TT. subst. remember (Mismatch) as TMIS.
+  generalize dependent pc_cont. generalize dependent pc_end.
+  induction TREE; intros; subst; try inversion HeqTMIS; subst.
+  - inversion CONT. inversion ACTION. inversion NFA. subst. eapply IHTREE; eauto.
+  - inversion NFA. subst. unfold epsilon_step. rewrite CONSUME.
+    rewrite cannot_read_correct in READ. rewrite READ. auto.
+  - inversion NFA. subst. eapply IHTREE; eauto.
+    econstructor; eauto. constructor. auto.
+  - inversion CHOICE.
+Qed.
+
+
 
 Theorem generate_choice:
   forall tree1 tree2 gm idx inp code pc b treeactive
@@ -177,7 +284,19 @@ Theorem generate_active:
   exists threadactive,
     epsilon_step (pc, gm, b) code inp idx = EpsActive threadactive /\
       list_tree_thread code inp treeactive threadactive.
-Proof.  
+Proof.
+  intros tree gm idx inp code pc b treeactive TREESTEP TT.
+  destruct tree; simpl in TREESTEP; inversion TREESTEP; subst.
+  - eapply generate_mismatch in TT. exists []. split; eauto. constructor.
+  - admit.                      (* choice cannot be done in lockstep *)
+  - eapply generate_checkfail in TT. exists []. split; eauto. constructor.
+  - eapply generate_checkpass in TT as [nextpc [STEP EQ]]. exists [(nextpc,gm,CanExit)]. split; eauto.
+    constructor; auto. constructor.
+  - eapply generate_open in TT as [STEP EQ]. exists [(pc+1,open_group gm g idx,b)]. split; eauto.
+    constructor; auto. constructor.
+  - eapply generate_close in TT as [STEP EQ]. exists [(pc+1,close_group gm g idx,b)]. split; eauto.
+    constructor; auto. constructor.
+  - eapply generate_reset in TT. inversion TT.
 Admitted.
 
 
