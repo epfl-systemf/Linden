@@ -20,7 +20,7 @@ Inductive tree_thread (code:code) (inp:input) : (tree * group_map) -> thread -> 
     tree_thread code inp (tree, gm) (pc, gm, b) n
 | tt_reset:
   forall tree gm pc b n gidl
-    (TT: tree_thread code inp (tree,gm) (pc+1,gm,b) n)
+    (TT: tree_thread code inp (tree,reset_groups gm gidl) (pc+1,reset_groups gm gidl,b) n)
     (RESET: get_pc code pc = Some (ResetRegs gidl)),
     tree_thread code inp (ResetGroups gidl tree,gm) (pc,gm,b) n
 | tt_begin:
@@ -266,12 +266,18 @@ Proof.
 Qed.
 
 Corollary generate_reset:  
-  forall gidl tree inp code thread gm n
-    (TT: tree_thread code inp (ResetGroups gidl tree, gm) thread n), False.
+  forall gidl tree inp code pc b gm n idx
+    (TT: tree_thread code inp (ResetGroups gidl tree, gm) (pc,gm,b) n)
+    (NOSTUTTER: stutters pc code = false),
+    epsilon_step (pc,gm,b) code inp idx = EpsActive [(pc+1, reset_groups gm gidl, b)] /\
+      tree_thread code inp (tree,reset_groups gm gidl) (pc+1, reset_groups gm gidl, b) n.
 Proof.
-  intros. inversion TT. eapply no_tree_reset; eauto.
-  subst.
-Admitted.                       (* needs to be changed *)
+  intros.
+  inversion TT; subst.
+  - exfalso. eapply no_tree_reset; eauto.
+  - simpl. rewrite RESET. split; auto.
+  - exfalso. eapply doesnt_stutter_begin; eauto.
+Qed.
 
 Theorem generate_checkfail:
   forall str gm idx inp code pc b n
@@ -415,7 +421,9 @@ Proof.
   - eapply generate_close in TT as [STEP EQ]; auto.
     exists [(pc+1,close_group gm g idx,b)]. exists [n]. split; eauto.
     constructor; auto. constructor.
-  - eapply generate_reset in TT. inversion TT.
+  - eapply generate_reset in TT as [STEP EQ]; auto.
+    exists [(pc + 1, reset_groups gm gl, b)]. exists [n]. split; eauto.
+    constructor; auto. constructor. 
 Qed.
 
 (* in the case where we are at a stuttering step, we show that we still preserve the invariant and decrease the measure *)
