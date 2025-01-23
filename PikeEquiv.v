@@ -291,17 +291,13 @@ Proof.
     2: { apply NOSTUTTER in JMP. inversion JMP. }
     inversion ACTION. subst. eapply IHTREE; eauto.
   - inversion NFA. subst. exists [(S pc,gm,b);(S end1,gm,b)]. exists [S n; n]. split.
+    (* here in the first element of the list we introduced an extra stuttering step, thus (S n) measure *)
     + unfold epsilon_step. rewrite FORK. auto.
     + constructor.
       * constructor. constructor.
         apply tt_eq with (pc_cont:=pc_cont) (pc_end:=pc_end) (r:=r2) (cont:=cont); auto.
       * apply tt_eq with (pc_cont:=end1) (pc_end:=pc_end) (r:=r1) (cont:=cont); auto.
         replace (S n) with (n + 1) by lia. apply jump_bc with (pcstart := pc_cont); auto.
-  (* here I can't do a lockstep: the PikeVM takes one more step than the PikeTree, *)
-  (* because there is that extra jump instruction. *)
-  (* I must revisit my proof to allow a one-to-many (many being 2 I guess) simulation scheme: *)
-  (* whenever PikeTree takes a step, PikeVM takes 1 or 2 equivalent steps  *)
-  (* another solution could be o change the representation predicate to allow that extra jump *)
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
   (* when the choice comes from a star *)
@@ -315,31 +311,76 @@ Proof.
       (* there is an issue with begin loop first *)
 Admitted.
 
-(* TO ADAPT: 
 
 Theorem generate_active:
-  forall tree gm idx inp code pc b treeactive
+  forall tree gm idx inp code pc b treeactive n
     (TREESTEP: tree_bfs_step tree gm idx = StepActive treeactive)
-    (TT: tree_thread code inp (tree, gm) (pc, gm, b)),
-  exists threadactive,
+    (NOSTUTTER: forall next, get_pc code pc <> Some (Jmp next))
+    (TT: tree_thread code inp (tree, gm) (pc, gm, b) n),
+  exists threadactive measure,
     epsilon_step (pc, gm, b) code inp idx = EpsActive threadactive /\
-      list_tree_thread code inp treeactive threadactive.
+      list_tree_thread code inp treeactive threadactive measure.
 Proof.
-  intros tree gm idx inp code pc b treeactive TREESTEP TT.
+  intros tree gm idx inp code pc b treeactive n TREESTEP NOSTUTTER TT.
   destruct tree; simpl in TREESTEP; inversion TREESTEP; subst.
-  - eapply generate_mismatch in TT. exists []. split; eauto. constructor.
-  - admit.                      (* choice cannot be done in lockstep *)
-  - eapply generate_checkfail in TT. exists []. split; eauto. constructor.
-  - eapply generate_checkpass in TT as [nextpc [STEP EQ]]. exists [(nextpc,gm,CanExit)]. split; eauto.
+  - eapply generate_mismatch in TT; auto. exists []. exists []. split; eauto. constructor.
+  - eapply generate_choice; eauto.
+  - eapply generate_checkfail in TT; auto. exists []. exists []. split; eauto. constructor.
+  - eapply generate_checkpass in TT as [nextpc [STEP EQ]]; auto.
+    exists [(nextpc,gm,CanExit)]. exists [n]. split; eauto.
     constructor; auto. constructor.
-  - eapply generate_open in TT as [STEP EQ]. exists [(pc+1,open_group gm g idx,b)]. split; eauto.
+  - eapply generate_open in TT as [STEP EQ]; auto.
+    exists [(pc+1,open_group gm g idx,b)]. exists [n]. split; eauto.
     constructor; auto. constructor.
-  - eapply generate_close in TT as [STEP EQ]. exists [(pc+1,close_group gm g idx,b)]. split; eauto.
+  - eapply generate_close in TT as [STEP EQ]; auto.
+    exists [(pc+1,close_group gm g idx,b)]. exists [n]. split; eauto.
     constructor; auto. constructor.
   - eapply generate_reset in TT. inversion TT.
-Admitted.
+Qed.
 
-
+Theorem stutter_step:
+  forall tree gm inp code pc b n next
+    (TT: tree_thread code inp (tree,gm) (pc,gm,b) n)
+    (STUTTER: get_pc code pc = Some (Jmp next)),
+  exists m,
+    tree_thread code inp (tree,gm) (next,gm,b) m /\ n = S m.
+Proof.
+  intros tree gm inp code pc b n next TT STUTTER.
+  inversion TT. subst.  
+  generalize dependent pc_cont. generalize dependent pc_end.
+  induction TREE; intros; inversion NFA; subst.
+  - inversion CONT; subst.
+    + rewrite STUTTER in ACCEPT. inversion ACCEPT.
+    + rewrite STUTTER in JMP. inversion JMP.
+      exists n0. split; try lia. econstructor; eauto; econstructor.
+  - inversion CONT; subst.
+    { inversion ACTION. subst. eapply IHTREE; eauto. }
+    rewrite STUTTER in JMP. inversion JMP. subst.
+    exists n0. split; try lia.
+    apply tt_eq with (pc_cont:=pcstart) (pc_end:=pc_end) (r:=Epsilon) (cont:=Areg regcont::tailcont); auto.
+    + constructor. auto.
+    + constructor.
+  - inversion CONT; subst.
+    + inversion ACTION. subst. rewrite STUTTER in END. inversion END.
+    + rewrite STUTTER in JMP. inversion JMP. subst.
+      exists n0. split; try lia. econstructor; eauto; econstructor; auto.
+  - inversion CONT; subst.
+    + inversion ACTION. subst. rewrite STUTTER in END. inversion END.
+    + rewrite STUTTER in JMP. inversion JMP. subst.
+      exists n0. split; try lia. econstructor; eauto; econstructor; auto.
+  - inversion CONT; subst.
+    + inversion ACTION. subst. rewrite STUTTER in CLOSE. inversion CLOSE.
+    + rewrite STUTTER in JMP. inversion JMP. subst.
+      exists n0. split; try lia. econstructor; eauto; econstructor; auto.
+  - rewrite STUTTER in CONSUME. inversion CONSUME.
+  - rewrite STUTTER in CONSUME. inversion CONSUME.
+  - rewrite STUTTER in FORK. inversion FORK.
+  - eapply IHTREE; eauto. eapply cons_bc; eauto. apply areg_bc. auto.
+  - rewrite STUTTER in FORK. inversion FORK.
+  - rewrite STUTTER in OPEN. inversion OPEN.
+Qed.
+  
+(* TO ADAPT: 
 
 Theorem invariant_preservation:
   forall code pts1 pts2 pvs1
