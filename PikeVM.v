@@ -124,7 +124,7 @@ Theorem pikevm_deterministic:
 Proof.
   intros c pvso pvs1 pvs2 STEP1 STEP2. inversion STEP1; subst.
   - inversion STEP2; subst; auto. 
-  - inversion STEP2; subst; auto. rewrite ADVANCE in ADVANCE0. inversion ADVANCE0.
+  - inversion STEP2; subst; auto. rewrite ADVANCE in ADVANCE0; inversion ADVANCE0.
   - inversion STEP2; subst; auto; rewrite ADVANCE in ADVANCE0; inversion ADVANCE0.
     subst. auto.
   - inversion STEP2; subst; auto; rewrite STEP in STEP0; inversion STEP0.

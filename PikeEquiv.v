@@ -74,6 +74,9 @@ Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> nat -> Prop 
     (* blocked threads should be equivalent for the next input *)
     (* nothing to say if there is no next input *)
     (BLOCKED: forall nextinp, advance_input inp = Some nextinp -> list_tree_thread code nextinp treeblocked threadblocked measureblocked)
+    (* these two properties are needed to ensure the two algorithms stop at he same time *)
+    (ENDVM: advance_input inp = None -> threadblocked = [])
+    (ENDTREE: advance_input inp = None -> treeblocked = [])
     (* the measure is simply the measure of the top priority thread *)
     (MEASURE: n = hd 0 (measureactive++measureblocked)),
     pike_inv code (PTS idx treeactive best treeblocked) (PVS inp idx threadactive best threadblocked) n
@@ -178,9 +181,9 @@ Theorem generate_blocked:
     (TREESTEP: tree_bfs_step tree gm idx = StepBlocked nexttree)
     (NOSTUTTER: stutters pc code = false)
     (TT: tree_thread code inp (tree, gm) (pc, gm, b) n),
-  exists nextthread,
-    epsilon_step (pc, gm, b) code inp idx = EpsBlocked nextthread /\
-      (forall nextinp, advance_input inp = Some nextinp -> tree_thread code nextinp (nexttree,gm) nextthread n).
+    epsilon_step (pc,gm,b) code inp idx = EpsBlocked (pc+1,gm,CanExit) /\
+      (forall nextinp, advance_input inp = Some nextinp -> tree_thread code nextinp (nexttree,gm) (pc+1,gm,CanExit) n) /\
+      exists nextinp, advance_input inp = Some nextinp.
 Proof.
   intros tree gm idx inp code pc b nexttree n TREESTEP NOSTUTTER TT.
   unfold tree_bfs_step in TREESTEP. destruct tree; inversion TREESTEP. subst. clear TREESTEP.
@@ -192,14 +195,16 @@ Proof.
   - inversion NFA. inversion CONT; subst.
     2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
     inversion ACTION. subst. eapply IHTREE; eauto.
-  - assert (H: check_read cd inp = CanRead /\ advance_input inp = Some nextinp) by (apply can_read_correct; eauto).
-    destruct H as [CHECK ADVANCE]. 
-    inversion NFA. subst. exists (pc + 1, gm, CanExit). split.
-    + unfold epsilon_step. rewrite CONSUME.
-      rewrite CHECK. unfold block_thread. auto.
-    + intros nextinp0 H. rewrite ADVANCE in H. inversion H. subst.
-      eapply tt_eq; eauto. replace (S pc) with (pc + 1) by lia.
+  - assert (CHECK: check_read cd inp = CanRead /\ advance_input inp = Some nextinp) by (apply can_read_correct; eauto).
+    destruct CHECK as [CHECK ADVANCE]. 
+    inversion NFA. subst. 
+    split; try split.
+    + simpl. rewrite CONSUME. rewrite CHECK. auto.
+    + intros. rewrite ADVANCE in H. inversion H. subst.
+      eapply tt_eq; eauto. 
+      replace (S pc) with (pc + 1) by lia.
       constructor.
+    + eauto.
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
   - inversion CHOICE.
@@ -480,8 +485,6 @@ Proof.
   - unfold stutters in STUTTER. rewrite OPEN in STUTTER. inversion STUTTER.
 Qed.
 
-
-(* to adapt:
     
 
 Theorem invariant_preservation:
@@ -508,12 +511,12 @@ Proof.
   (* Final states make no step *)
   2: { left. intros. inversion TREESTEP. }
   inversion TREESTEP; subst.
-  (* pts final *)
+  (* pts_final *)
   - left. exists (PVS_final best). exists 0. split.
-    + inversion ACTIVE.
+    + inversion ACTIVE. subst.
       destruct (advance_input inp) eqn:ADVANCE.
       * specialize (BLOCKED i eq_refl). inversion BLOCKED. subst. apply pvs_final.
-      * apply pvs_end. auto.
+      * specialize (ENDVM eq_refl). subst. apply pvs_end. auto.
     + apply pikeinv_final.
   (* pts_nextchar *)
   - left. inversion ACTIVE. subst.
@@ -524,57 +527,48 @@ Proof.
       exists (PVS nextinp (idx+1) ((pc,gm,b)::threadlist) best []). exists n. split.
       * apply pvs_nextchar. auto.
       * eapply pikeinv; eauto. intros. constructor.
-    + exists (PVS_final best). exists 0. split.
-      * apply pvs_end. auto.
-      * admit. (* it should not be possible for PTS to continue while PVS has reached end of input *)
+    + specialize (ENDTREE eq_refl). inversion ENDTREE.
   (* pts_active *)
   - inversion ACTIVE. subst.
     destruct (stutters pc code) eqn:STUTTERS.
-    + right. apply does_stutter in STUTTERS as [next JMP].
-      eapply stutter_step in TT as [m [TT LESS]]; subst; eauto.
-      exists (PVS inp idx ([(next, gm, b)] ++ threadlist) best threadblocked). exists m.
+    + right. apply stutter_step with (idx:=idx) in TT as [nextpc [nextb [m [EPSSTEP [TT LESS]]]]]; subst; eauto.
+      exists (PVS inp idx ([(nextpc, gm, nextb)] ++ threadlist) best threadblocked). exists m.
       split; try split; auto.
-      * apply pvs_active. simpl. rewrite JMP. auto.
-      * simpl. eapply pikeinv; eauto. econstructor; eauto. simpl. auto.
+      * apply pvs_active. auto.
+      * simpl. eapply pikeinv with (measureactive:=m::measurelist); eauto. econstructor; eauto.
     + left. inversion ACTIVE. subst. rename t into tree.
       eapply generate_active in TT as [newthreads [measure [EPS LTT2]]]; eauto.
-      2: { apply doesnt_stutter. auto. }
       exists (PVS inp idx (newthreads++threadlist) best threadblocked). exists (hd 0 ((measure ++ measurelist) ++ measureblocked)). split.
       * apply pvs_active. auto.
       * eapply pikeinv; auto. apply ltt_app; eauto.
   (* pts_match *)
   - inversion ACTIVE. subst.
      destruct (stutters pc code) eqn:STUTTERS.
-    + right. apply does_stutter in STUTTERS as [next JMP].
-      eapply stutter_step in TT as [m [TT LESS]]; subst; eauto.
-      exists (PVS inp idx ([(next, gm, b)] ++ threadlist) best threadblocked). exists m.
+    + right. apply stutter_step with (idx:=idx) in TT as [nextpc [nextb [m [EPSSTEP [TT LESS]]]]]; subst; eauto.
+      exists (PVS inp idx ([(nextpc, gm, nextb)] ++ threadlist) best threadblocked). exists m.
       split; try split; auto.
-      * apply pvs_active. simpl. rewrite JMP. auto.
-      * simpl. eapply pikeinv; eauto. econstructor; eauto. simpl. auto.
+      * apply pvs_active. auto.
+      * simpl. eapply pikeinv with (measureactive:=m::measurelist); eauto. econstructor; eauto.
     + left. rename t into tree. eapply generate_match in TT; eauto.
-      2: { apply doesnt_stutter. auto. }
       exists (PVS inp idx [] (Some gm) threadblocked). exists (hd 0 measureblocked). split.
       * apply pvs_match. auto.
       * econstructor; auto. constructor. simpl. auto.
   (* pts_blocked *)
   - inversion ACTIVE. subst.
     destruct (stutters pc code) eqn:STUTTERS.
-    + right. apply does_stutter in STUTTERS as [next JMP].
-      eapply stutter_step in TT as [m [TT LESS]]; subst; eauto.
-      exists (PVS inp idx ([(next, gm, b)] ++ threadlist) best threadblocked). exists m.
+    + right. apply stutter_step with (idx:=idx) in TT as [nextpc [nextb [m [EPSSTEP [TT LESS]]]]]; subst; eauto.
+      exists (PVS inp idx ([(nextpc, gm, nextb)] ++ threadlist) best threadblocked). exists m.
       split; try split; auto.
-      * apply pvs_active. simpl. rewrite JMP. auto.
-      * simpl. eapply pikeinv; eauto. econstructor; eauto. simpl. auto.
+      * apply pvs_active. auto.
+      * simpl. eapply pikeinv with (measureactive:=m::measurelist); eauto. econstructor; eauto.
     + left. rename t into tree.
-    eapply generate_blocked in TT as [nextt [EPS TT2]]; eauto.
-    2: { apply doesnt_stutter. auto. }
-    exists (PVS inp idx threadlist best (threadblocked ++ [nextt])). exists (hd 0 (measurelist ++ measureblocked ++ [n])). split.
+      specialize (generate_blocked _ _ _ _ _ _ _ _ _ STEP STUTTERS TT) as [EPS2 [TT2 [nexti ADVANCE]]].
+      exists (PVS inp idx threadlist best (threadblocked ++ [(pc+1,gm,CanExit)])). exists (hd 0 (measurelist ++ measureblocked ++ [n])). split.
       * apply pvs_blocked. auto.
-      * econstructor; eauto. intros nextinp H. specialize (BLOCKED nextinp H).
+      * econstructor; eauto.
+        2: { intros H. rewrite ADVANCE in H. inversion H. }
+        2: { intros H. rewrite ADVANCE in H. inversion H. }
+        intros nextinp H. specialize (BLOCKED nextinp H).
         apply ltt_app; eauto. specialize (TT2 nextinp H).
-        inversion TT2; subst.
-        2: { admit.  }
-        2: { admit. }
-        subst. constructor; eauto. constructor.
-Admitted.
-*)
+        eapply ltt_cons. constructor. auto.
+Qed.
