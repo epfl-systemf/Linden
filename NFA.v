@@ -288,18 +288,26 @@ Inductive action_rep : action -> code -> label -> label -> Prop :=
     action_rep (Aclose gid) c pc (S pc).
 
 (* continuation_rep cont c pc1 pc2 means that the bytecode for cont is located in c between labels pc1 and pc2 *)
-Inductive continuation_rep : continuation -> code -> label -> label -> Prop :=
+(* inside the representation of the continuation, there might be jump instructions *)
+(* the nat is a measure of how many there are *)
+Inductive continuation_rep : continuation -> code -> label -> label -> nat -> Prop :=
 | empty_bc:
   (* when the continuation is empty, it means we have nothing more to do and fond a match *)
   (* in the bytecode, this means an accept *)
   forall c pc
     (ACCEPT: get_pc c pc = Some Accept),
-    continuation_rep [] c pc pc
+    continuation_rep [] c pc pc 0
 | cons_bc:
-  forall a cont c pcstart pcmid pcend
+  forall a cont c pcstart pcmid pcend n
     (ACTION: action_rep a c pcstart pcmid)
-    (CONT: continuation_rep cont c pcmid pcend),
-    continuation_rep (a::cont) c pcstart pcend.
+    (CONT: continuation_rep cont c pcmid pcend n),
+    continuation_rep (a::cont) c pcstart pcend n
+| jump_bc:
+  forall cont c pcstart pcend n pc
+    (CONT: continuation_rep cont c pcstart pcend n)
+    (JMP: get_pc c pc = Some (Jmp pcstart)),
+    continuation_rep cont c pc pcend (n+1).
+    
 
 (** * Compilation Example  *)
 Definition epsilon_regex: regex :=
