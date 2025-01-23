@@ -54,25 +54,28 @@ Proof.
   intros. induction LTT1; auto. simpl. econstructor; eauto.
 Qed.
 
+
 (* lifting the equivalence predicate to pike states *)
-Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> Prop :=
+Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> nat -> Prop :=
 | pikeinv:
-  forall inp idx treeactive treeblocked threadactive threadblocked best measureactive measureblocked
+  forall inp idx treeactive treeblocked threadactive threadblocked best measureactive measureblocked n
     (ACTIVE: list_tree_thread code inp treeactive threadactive measureactive)
     (* blocked threads should be equivalent for the next input *)
     (* nothing to say if there is no next input *)
-    (BLOCKED: forall nextinp, advance_input inp = Some nextinp -> list_tree_thread code nextinp treeblocked threadblocked measureblocked),
-    pike_inv code (PTS idx treeactive best treeblocked) (PVS inp idx threadactive best threadblocked)
+    (BLOCKED: forall nextinp, advance_input inp = Some nextinp -> list_tree_thread code nextinp treeblocked threadblocked measureblocked)
+    (* the measure is simply the measure of the top priority thread *)
+    (MEASURE: n = hd 0 (measureactive++measureblocked)),
+    pike_inv code (PTS idx treeactive best treeblocked) (PVS inp idx threadactive best threadblocked) n
 | pikeinv_final:
   forall best,
-    pike_inv code (PTS_final best) (PVS_final best).
+    pike_inv code (PTS_final best) (PVS_final best) 0.
 
 (* the initial states of both smallstep semantics are related with the invariant *)
 Lemma initial_pike_inv:
   forall r inp tree code
     (TREE: bool_tree r [] inp CanExit tree)
     (COMPILE: compilation r = code),
-    pike_inv code (pike_tree_initial_state tree) (pike_vm_initial_state inp).
+    pike_inv code (pike_tree_initial_state tree) (pike_vm_initial_state inp) 0.
 Proof.
   intros r inp tree code TREE COMPILE.
   unfold compilation in COMPILE. destruct (compile r 0) as [c fresh] eqn:COMP.
@@ -86,8 +89,11 @@ Qed.
 
 
 (** * Invariant Preservation  *)
+
+(* generate lemmas: *)
 (* For each possible kind of tree, I show that the PikeTree step over that tree corresponds *)
 (* to an equivalent step in the PikeVM. This preserves the invariant. *)
+(* These lemmas discard the stuttering steps by preventing the current pc being at a Jmp instruction *)
 
 Theorem generate_match:
   forall tree gm idx inp code pc b n
@@ -312,6 +318,7 @@ Proof.
 Admitted.
 
 
+(* next we combine the generate lemmas together, for the general non-stuttering case *)
 Theorem generate_active:
   forall tree gm idx inp code pc b treeactive n
     (TREESTEP: tree_bfs_step tree gm idx = StepActive treeactive)
@@ -338,6 +345,7 @@ Proof.
   - eapply generate_reset in TT. inversion TT.
 Qed.
 
+(* in the case where we are at a stuttering step, we show that we still preserve the invariant and decrease the measure *)
 Theorem stutter_step:
   forall tree gm inp code pc b n next
     (TT: tree_thread code inp (tree,gm) (pc,gm,b) n)
@@ -379,75 +387,114 @@ Proof.
   - rewrite STUTTER in FORK. inversion FORK.
   - rewrite STUTTER in OPEN. inversion OPEN.
 Qed.
-  
-(* TO ADAPT: 
+
+(* returns true if that state will stutter *)
+Definition stutters (pc:label) (code:code) : bool :=
+  match get_pc code pc with
+  | Some (Jmp _) => true
+  | _ => false
+  end.
+
+Lemma does_stutter:
+  forall pc code, stutters pc code = true -> exists next, get_pc code pc = Some (Jmp next).
+Proof.
+  unfold stutters. intros. destruct (get_pc code pc); try destruct b; inversion H. eauto.
+Qed.
+
+Lemma doesnt_stutter:
+  forall pc code, stutters pc code = false -> forall next, get_pc code pc <> Some (Jmp next).
+Proof.
+  unfold stutters, not. intros. destruct (get_pc code pc); try destruct b; inversion H0. inversion H.
+Qed.
+    
 
 Theorem invariant_preservation:
-  forall code pts1 pts2 pvs1
-    (INV: pike_inv code pts1 pvs1)
+  forall code pts1 pvs1 n pts2
+    (INV: pike_inv code pts1 pvs1 n)
     (TREESTEP: pike_tree_step pts1 pts2),
-  exists pvs2,
-    pike_vm_step code pvs1 pvs2 /\
-      pike_inv code pts2 pvs2.
+    (* progress on the PTS side implies progress on the PVS side *)
+    (        
+      exists pvs2 m,
+        pike_vm_step code pvs1 pvs2 /\
+          pike_inv code pts2 pvs2 m
+    )
+    \/
+      (* stuttering step on the PVS side *)
+      (
+        exists pvs2 m,
+          pike_vm_step code pvs1 pvs2 /\
+            pike_inv code pts1 pvs2 m /\
+            m < n
+      ).
 Proof.
-  intros. inversion INV; subst.
-  2: { inversion TREESTEP. }
+  intros code pts1 pvs1 n pts2 INV TREESTEP.
+  inversion INV; subst.
+  (* Final states make no step *)
+  2: { left. intros. inversion TREESTEP. }
   inversion TREESTEP; subst.
   (* pts final *)
-  - exists (PVS_final best). split.
+  - left. exists (PVS_final best). exists 0. split.
     + inversion ACTIVE.
       destruct (advance_input inp) eqn:ADVANCE.
       * specialize (BLOCKED i eq_refl). inversion BLOCKED. subst. apply pvs_final.
       * apply pvs_end. auto.
     + apply pikeinv_final.
   (* pts_nextchar *)
-  - inversion ACTIVE. subst.
+  - left. inversion ACTIVE. subst.
     (* the pike vm has two different rules for when we reach the end of input or not *)
     destruct (advance_input inp) as [nextinp|] eqn:ADVANCE.
     + specialize (BLOCKED nextinp eq_refl).
       inversion BLOCKED. subst.
-      exists (PVS nextinp (idx+1) ((pc,gm,b)::threadlist) best []). split.
+      exists (PVS nextinp (idx+1) ((pc,gm,b)::threadlist) best []). exists n. split.
       * apply pvs_nextchar. auto.
-      * constructor; auto. intros. constructor.
-    + exists (PVS_final best). split.
+      * eapply pikeinv; eauto. intros. constructor.
+    + exists (PVS_final best). exists 0. split.
       * apply pvs_end. auto.
       * admit. (* it should not be possible for PTS to continue while PVS has reached end of input *)
   (* pts_active *)
-  - inversion ACTIVE. subst. rename t into tree.
-    eapply generate_active in TT as [newthreads [EPS LTT2]]; eauto.
-    exists (PVS inp idx (newthreads++threadlist) best threadblocked). split.
-    + apply pvs_active. auto.
-    + apply pikeinv; auto. apply ltt_app; auto.
+  - inversion ACTIVE. subst.
+    destruct (stutters pc code) eqn:STUTTERS.
+    + right. apply does_stutter in STUTTERS as [next JMP].
+      eapply stutter_step in TT as [m [TT LESS]]; subst; eauto.
+      exists (PVS inp idx ([(next, gm, b)] ++ threadlist) best threadblocked). exists m.
+      split; try split; auto.
+      * apply pvs_active. simpl. rewrite JMP. auto.
+      * simpl. eapply pikeinv; eauto. econstructor; eauto. simpl. auto.
+    + left. inversion ACTIVE. subst. rename t into tree.
+      eapply generate_active in TT as [newthreads [measure [EPS LTT2]]]; eauto.
+      2: { apply doesnt_stutter. auto. }
+      exists (PVS inp idx (newthreads++threadlist) best threadblocked). exists (hd 0 ((measure ++ measurelist) ++ measureblocked)). split.
+      * apply pvs_active. auto.
+      * eapply pikeinv; auto. apply ltt_app; eauto.
   (* pts_match *)
-  - inversion ACTIVE. subst. rename t into tree.
-    eapply generate_match in TT; eauto.
-    exists (PVS inp idx [] (Some gm) threadblocked). split.
-    + apply pvs_match. auto.
-    + constructor; auto. constructor.
+  - inversion ACTIVE. subst.
+     destruct (stutters pc code) eqn:STUTTERS.
+    + right. apply does_stutter in STUTTERS as [next JMP].
+      eapply stutter_step in TT as [m [TT LESS]]; subst; eauto.
+      exists (PVS inp idx ([(next, gm, b)] ++ threadlist) best threadblocked). exists m.
+      split; try split; auto.
+      * apply pvs_active. simpl. rewrite JMP. auto.
+      * simpl. eapply pikeinv; eauto. econstructor; eauto. simpl. auto.
+    + left. rename t into tree. eapply generate_match in TT; eauto.
+      2: { apply doesnt_stutter. auto. }
+      exists (PVS inp idx [] (Some gm) threadblocked). exists (hd 0 measureblocked). split.
+      * apply pvs_match. auto.
+      * econstructor; auto. constructor. simpl. auto.
   (* pts_blocked *)
-  - inversion ACTIVE. subst. rename t into tree.
+  - inversion ACTIVE. subst.
+    destruct (stutters pc code) eqn:STUTTERS.
+    + right. apply does_stutter in STUTTERS as [next JMP].
+      eapply stutter_step in TT as [m [TT LESS]]; subst; eauto.
+      exists (PVS inp idx ([(next, gm, b)] ++ threadlist) best threadblocked). exists m.
+      split; try split; auto.
+      * apply pvs_active. simpl. rewrite JMP. auto.
+      * simpl. eapply pikeinv; eauto. econstructor; eauto. simpl. auto.
+    + left. rename t into tree.
     eapply generate_blocked in TT as [nextt [EPS TT2]]; eauto.
-    exists (PVS inp idx threadlist best (threadblocked ++ [nextt])). split.
-    + apply pvs_blocked. auto.
-    + constructor; auto. intros nextinp H. specialize (BLOCKED nextinp H).
-      apply ltt_app; auto. specialize (TT2 nextinp H).
-      inversion TT2. subst. constructor; auto. constructor.
+    2: { apply doesnt_stutter. auto. }
+    exists (PVS inp idx threadlist best (threadblocked ++ [nextt])). exists (hd 0 (measurelist ++ measureblocked ++ [n])). split.
+      * apply pvs_blocked. auto.
+      * econstructor; eauto. intros nextinp H. specialize (BLOCKED nextinp H).
+        apply ltt_app; eauto. specialize (TT2 nextinp H).
+        inversion TT2. subst. constructor; eauto. constructor.
 Admitted.
-
-
-(** * Backward *)
-(* trying the other direction just to see if it's easier *)
-
-Theorem backward_open:
-  forall code inp gid pc gm b tree idx
-    (TT: tree_thread code inp (tree,gm) (pc, gm, b))
-    (OPEN: get_pc code pc = Some (SetRegOpen gid)),
-  exists newtree, tree_bfs_step tree gm idx = StepActive [newtree] /\
-               tree_thread code inp newtree (open_thread (pc,gm,b) gid idx).
-Proof.
-  intros code inp gid pc gm b tree idx TT OPEN.
-  inversion TT. subst.
-  inversion TREE; subst.
-  - inversion NFA. subst. inversion CONT. subst. rewrite ACCEPT in OPEN. inversion OPEN.
-Admitted.                       (* not very convenient *)
- *)
