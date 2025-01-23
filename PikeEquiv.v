@@ -428,49 +428,58 @@ Qed.
 
 (* in the case where we are at a stuttering step, we show that we still preserve the invariant and decrease the measure *)
 Theorem stutter_step:
-  forall tree gm inp code pc b n next
+  forall tree gm inp code pc b n idx
     (TT: tree_thread code inp (tree,gm) (pc,gm,b) n)
-    (STUTTER: get_pc code pc = Some (Jmp next)),
-  exists m,
-    tree_thread code inp (tree,gm) (next,gm,b) m /\ n = S m.
+    (STUTTER: stutters pc code = true),
+  exists nextpc nextb m,
+    epsilon_step (pc,gm,b) code inp idx = EpsActive [(nextpc,gm,nextb)] /\
+      tree_thread code inp (tree,gm) (nextpc,gm,nextb) m /\
+      n = S m.
 Proof.
-  intros tree gm inp code pc b n next TT STUTTER.
+  intros tree gm inp code pc b n idx TT STUTTER.
   inversion TT; subst.
-  2: { rewrite STUTTER in RESET. inversion RESET. }
-  2: { rewrite STUTTER in BEGIN. inversion BEGIN. }
+  (* reset is not stuttering *)
+  2: { unfold stutters in STUTTER. rewrite RESET in STUTTER. inversion STUTTER. }
+  (* at a beginloop instruction *)
+  2: { exists (pc + 1). exists CannotExit. exists n0. split; try split; auto.
+       simpl. rewrite BEGIN. auto. }
+  (* at a jmp instruction *)
   generalize dependent pc_cont. generalize dependent pc_end.
   induction TREE; intros; inversion NFA; subst.
   - inversion CONT; subst.
-    + rewrite STUTTER in ACCEPT. inversion ACCEPT.
-    + rewrite STUTTER in JMP. inversion JMP.
-      exists n0. split; try lia. econstructor; eauto; econstructor.
+    { unfold stutters in STUTTER. rewrite ACCEPT in STUTTER. inversion STUTTER. }
+    exists pcstart. exists b. exists n0. split; try split; try lia.
+    + simpl. rewrite JMP. auto.
+    + apply tt_eq with (pc_cont:=pcstart) (pc_end:=pc_end) (r:=Epsilon) (cont:=[]); try constructor; auto.
   - inversion CONT; subst.
     { inversion ACTION. subst. eapply IHTREE; eauto. }
-    rewrite STUTTER in JMP. inversion JMP. subst.
-    exists n0. split; try lia.
-    apply tt_eq with (pc_cont:=pcstart) (pc_end:=pc_end) (r:=Epsilon) (cont:=Areg regcont::tailcont); auto.
-    + constructor. auto.
-    + constructor.
+    exists pcstart. exists b. exists n0. split; try split; try lia.
+    + simpl. rewrite JMP. auto.
+    + apply tt_eq with (pc_cont:=pcstart) (pc_end:=pc_end) (r:=Epsilon) (cont:=Areg regcont::tailcont);
+        try constructor; auto.
   - inversion CONT; subst.
-    + inversion ACTION. subst. rewrite STUTTER in END. inversion END.
-    + rewrite STUTTER in JMP. inversion JMP. subst.
-      exists n0. split; try lia. econstructor; eauto; econstructor; auto.
+    { inversion ACTION. subst. unfold stutters in STUTTER. rewrite END in STUTTER. inversion STUTTER. }
+    exists pcstart. exists CanExit. exists n0. split; try split; try lia.
+    + simpl. rewrite JMP. auto.
+    + apply tt_eq with (pc_cont:=pcstart) (pc_end:=pc_end) (r:=Epsilon) (cont:=Acheck strcheck::tailcont); try constructor; auto.
   - inversion CONT; subst.
-    + inversion ACTION. subst. rewrite STUTTER in END. inversion END.
-    + rewrite STUTTER in JMP. inversion JMP. subst.
-      exists n0. split; try lia. econstructor; eauto; econstructor; auto.
+    { inversion ACTION. subst. unfold stutters in STUTTER. rewrite END in STUTTER. inversion STUTTER. }
+    exists pcstart. exists CannotExit. exists n0. split; try split; try lia.
+    + simpl. rewrite JMP. auto.
+    + apply tt_eq with (pc_cont:=pcstart) (pc_end:=pc_end) (r:=Epsilon) (cont:=Acheck strcheck::tailcont); try constructor; auto.
   - inversion CONT; subst.
-    + inversion ACTION. subst. rewrite STUTTER in CLOSE. inversion CLOSE.
-    + rewrite STUTTER in JMP. inversion JMP. subst.
-      exists n0. split; try lia. econstructor; eauto; econstructor; auto.
-  - rewrite STUTTER in CONSUME. inversion CONSUME.
-  - rewrite STUTTER in CONSUME. inversion CONSUME.
-  - rewrite STUTTER in FORK. inversion FORK.
+    { inversion ACTION. subst. unfold stutters in STUTTER. rewrite CLOSE in STUTTER. inversion STUTTER. }
+    exists pcstart. exists b. exists n0. split; try split; try lia.
+    + simpl. rewrite JMP. auto.
+    + apply tt_eq with (pc_cont:=pcstart) (pc_end:=pc_end) (r:=Epsilon) (cont:=Aclose gid::tailcont); try constructor; auto.
+  - unfold stutters in STUTTER. rewrite CONSUME in STUTTER. inversion STUTTER.
+  - unfold stutters in STUTTER. rewrite CONSUME in STUTTER. inversion STUTTER.
+  - unfold stutters in STUTTER. rewrite FORK in STUTTER. inversion STUTTER.
   - eapply IHTREE; eauto. eapply cons_bc; eauto. apply areg_bc. auto.
-  - rewrite STUTTER in FORK. inversion FORK.
-  - rewrite STUTTER in OPEN. inversion OPEN.
+  - unfold stutters in STUTTER. rewrite FORK in STUTTER. inversion STUTTER.
+  - unfold stutters in STUTTER. rewrite OPEN in STUTTER. inversion STUTTER.
 Qed.
-(* TODO: need to change the stutter definition here *)
+
 
 (* to adapt:
     
