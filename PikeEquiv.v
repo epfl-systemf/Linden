@@ -100,6 +100,44 @@ Proof.
 Qed.
 
 
+(** * Stuttering  *)
+(* There are a few cases where the PikeVM takes more steps than the Pike Tree. *)
+(* These are stutter steps. *)
+(* They correspond to
+   - being at a Jmp instruction, inserted for a disjunction
+   - being at a BeginLoop instruction, inserted for a quantifier
+ *)
+
+(* With the definitions below, we provide ways to kow when is a state going to stutter *)
+
+(* returns true if that state will stutter *)
+Definition stutters (pc:label) (code:code) : bool :=
+  match get_pc code pc with
+  | Some (Jmp _) => true
+  | Some BeginLoop => true
+  | _ => false
+  end.
+
+Lemma does_stutter:
+  forall pc code, stutters pc code = true ->
+             get_pc code pc = Some BeginLoop \/ exists next, get_pc code pc = Some (Jmp next).
+Proof.
+  unfold stutters. intros. destruct (get_pc code pc); try destruct b; inversion H; eauto.
+Qed.
+
+Lemma doesnt_stutter_jmp:
+  forall pc code next, stutters pc code = false -> get_pc code pc = Some (Jmp next) -> False.
+Proof.
+  unfold stutters, not. intros. destruct (get_pc code pc); try destruct b; inversion H0. inversion H.
+Qed.
+
+Lemma doesnt_stutter_begin:
+  forall pc code, stutters pc code = false -> get_pc code pc = Some BeginLoop -> False.
+Proof.
+  unfold stutters, not. intros. destruct (get_pc code pc); try destruct b; inversion H0. inversion H.
+Qed.
+
+
 (** * Invariant Preservation  *)
 
 (* generate lemmas: *)
@@ -110,35 +148,35 @@ Qed.
 Theorem generate_match:
   forall tree gm idx inp code pc b n
     (TREESTEP: tree_bfs_step tree gm idx = StepMatch)
-    (NOSTUTTER: forall next, get_pc code pc <> Some (Jmp next))
+    (NOSTUTTER: stutters pc code = false)
     (TT: tree_thread code inp (tree, gm) (pc, gm, b) n),
     epsilon_step (pc, gm, b) code inp idx = EpsMatch.
 Proof.
   intros tree gm idx inp code pc b n TREESTEP NOSTUTTER TT.
   unfold tree_bfs_step in TREESTEP. destruct tree; inversion TREESTEP. subst. clear TREESTEP.
-  inversion TT.
-  2: { admit. }
-  subst. remember Match as TMATCH.
+  inversion TT; subst.
+  2: { apply doesnt_stutter_begin in NOSTUTTER; auto. contradiction. }
+  remember Match as TMATCH.
   generalize dependent pc_cont. generalize dependent pc_end.
   (* here we have to proceed by induction because there are many ways to get a Match tree *)
   (* it could be the regex epsilon, it could be a continuation, it could be epsilon followed by epsilon etc *)
   induction TREE; intros; subst; try inversion HeqTMATCH.
   - unfold epsilon_step. inversion NFA. inversion CONT; subst.
-    2: { apply NOSTUTTER in JMP. inversion JMP. }
+    2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
     rewrite ACCEPT. auto.
   - inversion NFA. inversion CONT; subst.
-    2: { apply NOSTUTTER in JMP. inversion JMP. }
+    2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
     inversion ACTION. subst. eapply IHTREE; eauto. 
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
   - inversion CHOICE.
-Admitted.
+Qed.
 
 
 Theorem generate_blocked:
   forall tree gm idx inp code pc b nexttree n
     (TREESTEP: tree_bfs_step tree gm idx = StepBlocked nexttree)
-    (NOSTUTTER: forall next, get_pc code pc <> Some (Jmp next))
+    (NOSTUTTER: stutters pc code = false)
     (TT: tree_thread code inp (tree, gm) (pc, gm, b) n),
   exists nextthread,
     epsilon_step (pc, gm, b) code inp idx = EpsBlocked nextthread /\
@@ -146,13 +184,13 @@ Theorem generate_blocked:
 Proof.
   intros tree gm idx inp code pc b nexttree n TREESTEP NOSTUTTER TT.
   unfold tree_bfs_step in TREESTEP. destruct tree; inversion TREESTEP. subst. clear TREESTEP.
-  inversion TT.
-  2: { admit. }
-  subst. remember (Read c nexttree) as TREAD.
+  inversion TT; subst.
+  2: { exfalso. eapply doesnt_stutter_begin; eauto. }
+  remember (Read c nexttree) as TREAD.
   generalize dependent pc_cont. generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTREAD; subst.
   - inversion NFA. inversion CONT; subst.
-    2: { apply NOSTUTTER in JMP. inversion JMP. }
+    2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
     inversion ACTION. subst. eapply IHTREE; eauto.
   - assert (H: check_read cd inp = CanRead /\ advance_input inp = Some nextinp) by (apply can_read_correct; eauto).
     destruct H as [CHECK ADVANCE]. 
@@ -165,23 +203,23 @@ Proof.
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
   - inversion CHOICE.
-Admitted.
+Qed.
 
 Theorem generate_open:
   forall gid tree gm idx inp code pc b n
     (TT: tree_thread code inp (OpenGroup gid tree, gm) (pc, gm, b) n)
-    (NOSTUTTER: forall next, get_pc code pc <> Some (Jmp next)),
+    (NOSTUTTER: stutters pc code = false),
     epsilon_step (pc, gm, b) code inp idx = EpsActive [(pc + 1, open_group gm gid idx, b)] /\
       tree_thread code inp (tree,open_group gm gid idx) (pc + 1, open_group gm gid idx, b) n.
 Proof.
   intros gid tree gm idx inp code pc b n TT NOSTUTTER.
-  inversion TT.
-  2: { subst. admit. }
-  subst. remember (OpenGroup gid tree) as TOPEN.
+  inversion TT; subst.
+  2: { exfalso. eapply doesnt_stutter_begin; eauto. }
+  remember (OpenGroup gid tree) as TOPEN.
   generalize dependent pc_cont. generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTOPEN; subst.
   - inversion NFA. inversion CONT; subst.
-    2: { apply NOSTUTTER in JMP. inversion JMP. }
+    2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
     inversion ACTION. subst. eapply IHTREE; eauto.
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
@@ -189,32 +227,32 @@ Proof.
   - inversion NFA. subst. simpl. rewrite OPEN. split; auto.
     replace (pc+1) with (S pc) by lia. eapply tt_eq; eauto.
     apply cons_bc with (pcmid:=S end1); eauto. constructor. auto.
-Admitted.
+Qed.
 
 Theorem generate_close:
   forall gid tree gm idx inp code pc b n
     (TT: tree_thread code inp (CloseGroup gid tree, gm) (pc, gm, b) n)
-    (NOSTUTTER: forall next, get_pc code pc <> Some (Jmp next)),
+    (NOSTUTTER: stutters pc code = false),
     epsilon_step (pc, gm, b) code inp idx = EpsActive [(pc + 1, close_group gm gid idx, b)] /\
       tree_thread code inp (tree,close_group gm gid idx) (pc + 1, close_group gm gid idx, b) n.
 Proof.
   intros gid tree gm idx inp code pc b n TT NOSTUTTER.
-  inversion TT.
-  2: { admit. }
-  subst. remember (CloseGroup gid tree) as TCLOSE.
+  inversion TT; subst.
+  2: { exfalso. eapply doesnt_stutter_begin; eauto. }
+  remember (CloseGroup gid tree) as TCLOSE.
   generalize dependent pc_cont. generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTCLOSE; subst.
   - inversion NFA. inversion CONT; subst.
-    2: { apply NOSTUTTER in JMP. inversion JMP. }
+    2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
     inversion ACTION. subst. eapply IHTREE; eauto.
   - inversion NFA. inversion CONT; subst.
-    2: { apply NOSTUTTER in JMP. inversion JMP. }
+    2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
     inversion ACTION. subst. simpl. rewrite CLOSE.
     split. auto. econstructor; eauto. replace (S pc_cont) with (pc_cont + 1) by lia. constructor.
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
-  - inversion CHOICE. 
-Admitted.
+  - inversion CHOICE.
+Qed.
 
 Theorem no_tree_reset:
   (* The tree of a regex or a continuation cannot start with ResetGroups *)
@@ -238,78 +276,78 @@ Admitted.                       (* needs to be changed *)
 Theorem generate_checkfail:
   forall str gm idx inp code pc b n
     (TT: tree_thread code inp (CheckFail str, gm) (pc, gm, b) n)
-    (NOSTUTTER: forall next, get_pc code pc <> Some (Jmp next)),
+    (NOSTUTTER: stutters pc code = false),
     epsilon_step (pc, gm, b) code inp idx = EpsActive [].
 Proof.
   intros str gm idx inp code pc b n TT NOSTUTTER.
-  inversion TT.
-  2: { admit. }
-  subst. remember (CheckFail str) as TFAIL.
+  inversion TT; subst.
+  2: { exfalso. eapply doesnt_stutter_begin; eauto. }
+  remember (CheckFail str) as TFAIL.
   generalize dependent pc_cont. generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTFAIL; subst.
   - inversion NFA. inversion CONT; subst.
-    2: { apply NOSTUTTER in JMP. inversion JMP. }
+    2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
     inversion ACTION. subst. eapply IHTREE; eauto.
   - inversion NFA. inversion CONT; subst.
-    2: { apply NOSTUTTER in JMP. inversion JMP. }
+    2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
     inversion ACTION. subst. simpl. rewrite END. auto.
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
-  - inversion CHOICE. 
-Admitted.
+  - inversion CHOICE.
+Qed.
 
 Theorem generate_checkpass:
   forall str tree gm idx inp code pc b n
     (TT: tree_thread code inp (CheckPass str tree, gm) (pc, gm, b) n)
-    (NOSTUTTER: forall next, get_pc code pc <> Some (Jmp next)),
+    (NOSTUTTER: stutters pc code = false),
     exists nextpc, epsilon_step (pc, gm, b) code inp idx = EpsActive [(nextpc,gm,CanExit)] /\
       tree_thread code inp (tree,gm) (nextpc,gm,CanExit) n.
 Proof.
   intros str tree gm idx inp code pc b n TT NOSTUTTER.
-  inversion TT.
-  2: { admit. }
-  subst. remember (CheckPass str tree) as TPASS.
+  inversion TT; subst.
+  2: { exfalso. eapply doesnt_stutter_begin; eauto. }
+  remember (CheckPass str tree) as TPASS.
   generalize dependent pc_cont. generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTPASS; subst.
   - inversion NFA. inversion CONT; subst.
-    2: { apply NOSTUTTER in JMP. inversion JMP. }
+    2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
     inversion ACTION. subst. eapply IHTREE; eauto.
   - inversion NFA. inversion CONT; subst.
-    2: { apply NOSTUTTER in JMP. inversion JMP. }
+    2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
     inversion ACTION. subst. simpl. rewrite END.
     exists pcmid. split; auto. econstructor; eauto. constructor.
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
-  - inversion CHOICE. 
-Admitted.
+  - inversion CHOICE.
+Qed.
 
 Theorem generate_mismatch:
   forall gm idx inp code pc b n
     (TT: tree_thread code inp (Mismatch, gm) (pc, gm, b) n)
-    (NOSTUTTER: forall next, get_pc code pc <> Some (Jmp next)),
+    (NOSTUTTER: stutters pc code = false),
     epsilon_step (pc, gm, b) code inp idx = EpsActive [].
 Proof.
   intros gm idx inp code pc b n TT NOSTUTTER.
-  inversion TT.
-  2: { admit. }
-  subst. remember (Mismatch) as TMIS.
+  inversion TT; subst.
+  2: { exfalso. eapply doesnt_stutter_begin; eauto. }
+  remember (Mismatch) as TMIS.
   generalize dependent pc_cont. generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTMIS; subst.
   - inversion NFA. inversion CONT; subst.
-    2: { apply NOSTUTTER in JMP. inversion JMP. }
+    2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
     inversion ACTION. subst. eapply IHTREE; eauto.
   - inversion NFA. subst. unfold epsilon_step. rewrite CONSUME.
     rewrite cannot_read_correct in READ. rewrite READ. auto.
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
   - inversion CHOICE.
-Admitted.
+Qed.
 
 
 Theorem generate_choice:
   forall tree1 tree2 gm idx inp code pc b treeactive n
     (TREESTEP: tree_bfs_step (Choice tree1 tree2) gm idx = StepActive treeactive)
-    (NOSTUTTER: forall next, get_pc code pc <> Some (Jmp next))
+    (NOSTUTTER: stutters pc code = false)
     (TT: tree_thread code inp (Choice tree1 tree2, gm) (pc, gm, b) n),
   exists threadactive measure,
     epsilon_step (pc, gm, b) code inp idx = EpsActive threadactive /\
@@ -317,13 +355,13 @@ Theorem generate_choice:
 Proof.
   intros tree1 tree2 gm idx inp code pc b treeactive n TREESTEP NOSTUTTER TT.
   unfold tree_bfs_step in TREESTEP. inversion TREESTEP. subst. clear TREESTEP.
-  inversion TT.
-  2: { admit. }
-  subst. remember (Choice tree1 tree2) as TCHOICE.
+  inversion TT; subst.
+  2: { exfalso. eapply doesnt_stutter_begin; eauto. }
+  remember (Choice tree1 tree2) as TCHOICE.
   generalize dependent pc_cont. generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTCHOICE; subst.
   - inversion NFA. inversion CONT; subst.
-    2: { apply NOSTUTTER in JMP. inversion JMP. }
+    2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
     inversion ACTION. subst. eapply IHTREE; eauto.
   - inversion NFA. subst. exists [(S pc,gm,b);(S end1,gm,b)]. exists [S n; n]. split.
     (* here in the first element of the list we introduced an extra stuttering step, thus (S n) measure *)
@@ -350,14 +388,14 @@ Proof.
       * apply cons_bc with (pcmid:=pc).
         { constructor. auto. }
         apply cons_bc with (pcmid:=S end1); try constructor; auto.
-Admitted.
+Qed.
 
 
 (* next we combine the generate lemmas together, for the general non-stuttering case *)
 Theorem generate_active:
   forall tree gm idx inp code pc b treeactive n
     (TREESTEP: tree_bfs_step tree gm idx = StepActive treeactive)
-    (NOSTUTTER: forall next, get_pc code pc <> Some (Jmp next))
+    (NOSTUTTER: stutters pc code = false)
     (TT: tree_thread code inp (tree, gm) (pc, gm, b) n),
   exists threadactive measure,
     epsilon_step (pc, gm, b) code inp idx = EpsActive threadactive /\
@@ -424,25 +462,9 @@ Proof.
   - rewrite STUTTER in FORK. inversion FORK.
   - rewrite STUTTER in OPEN. inversion OPEN.
 Qed.
+(* TODO: need to change the stutter definition here *)
 
-(* returns true if that state will stutter *)
-Definition stutters (pc:label) (code:code) : bool :=
-  match get_pc code pc with
-  | Some (Jmp _) => true
-  | _ => false
-  end.
-
-Lemma does_stutter:
-  forall pc code, stutters pc code = true -> exists next, get_pc code pc = Some (Jmp next).
-Proof.
-  unfold stutters. intros. destruct (get_pc code pc); try destruct b; inversion H. eauto.
-Qed.
-
-Lemma doesnt_stutter:
-  forall pc code, stutters pc code = false -> forall next, get_pc code pc <> Some (Jmp next).
-Proof.
-  unfold stutters, not. intros. destruct (get_pc code pc); try destruct b; inversion H0. inversion H.
-Qed.
+(* to adapt:
     
 
 Theorem invariant_preservation:
@@ -538,3 +560,4 @@ Proof.
         2: { admit. }
         subst. constructor; eauto. constructor.
 Admitted.
+*)
