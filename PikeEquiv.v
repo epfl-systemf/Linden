@@ -7,16 +7,27 @@ Require Import Regex Chars Groups.
 Require Import Tree Semantics BooleanSemantics.
 Require Import NFA PikeTree PikeVM.
 
+(** * A new continuation representation for stuttering steps  *)
+Inductive cont_rep : continuation -> code -> label -> label -> nat -> Prop :=
+| cont0: forall cont code pc_cont pc_end
+           (REP: continuation_rep cont code pc_cont pc_end),
+    cont_rep cont code pc_cont pc_end 0
+| cont_next:
+  forall cont code pc_cont pc_end pc n
+    (JMP: get_pc code pc = Some (Jmp pc_cont))
+    (CONT: cont_rep cont code pc_cont pc_end n),
+    cont_rep cont code pc pc_end (n+1).
+
 (* a tree and a thread are equivalent when they are about to execute the same thing *)
 (* this means when the tree represents a given regex and continuation, *)
 (* the thread is at a pc that will execute the nfa of that same regex and continuation *)
-Inductive tree_thread (code:code) (inp:input): (tree * group_map) -> thread -> Prop :=
+Inductive tree_thread (code:code) (inp:input) : (tree * group_map) -> thread -> Prop :=
 | tt_eq:
   forall tree gm pc b pc_cont pc_end r cont
     (TREE: bool_tree r cont inp b tree)
     (NFA: nfa_rep r code pc pc_cont)
     (CONT: continuation_rep cont code pc_cont pc_end),
-    tree_thread code inp (tree, gm) (pc, gm, b).
+    tree_thread code inp (tree, gm) (pc, gm, b).    
 
 (* the initial active thread and the initial active tree are related with the invariant *)
 Lemma initial_tree_thread:
@@ -273,7 +284,14 @@ Proof.
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
   (* when the choice comes from a star *)
-  - admit.                      (* TODO *)
+  - inversion NFA. subst. simpl. inversion CHOICE. subst.
+    rewrite FORK. exists [(S pc, gm, b); (S end1, gm, b)]. split; auto.
+    constructor.
+    + constructor. constructor.
+      apply tt_eq with (pc_cont:=S end1) (pc_end:=pc_end) (r:=Epsilon) (cont:=cont); auto.
+      constructor.
+    + apply tt_eq with (pc_cont:=end1) (pc_end:=S end1) (r:=r1) (cont:=Acheck(current_str inp)::Areg(Star r1)::cont); auto; admit.
+      (* there is an issue with begin loop first *)
 Admitted.
 
 
@@ -352,3 +370,20 @@ Proof.
       apply ltt_app; auto. specialize (TT2 nextinp H).
       inversion TT2. subst. constructor; auto. constructor.
 Admitted.
+
+
+(** * Backward *)
+(* trying the other direction just to see if it's easier *)
+
+Theorem backward_open:
+  forall code inp gid pc gm b tree idx
+    (TT: tree_thread code inp (tree,gm) (pc, gm, b))
+    (OPEN: get_pc code pc = Some (SetRegOpen gid)),
+  exists newtree, tree_bfs_step tree gm idx = StepActive [newtree] /\
+               tree_thread code inp newtree (open_thread (pc,gm,b) gid idx).
+Proof.
+  intros code inp gid pc gm b tree idx TT OPEN.
+  inversion TT. subst.
+  inversion TREE; subst.
+  - inversion NFA. subst. inversion CONT. subst. rewrite ACCEPT in OPEN. inversion OPEN.
+Admitted.                       (* not very convenient *)

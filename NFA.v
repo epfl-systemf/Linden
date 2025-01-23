@@ -300,3 +300,17 @@ Inductive continuation_rep : continuation -> code -> label -> label -> Prop :=
     (ACTION: action_rep a c pcstart pcmid)
     (CONT: continuation_rep cont c pcmid pcend),
     continuation_rep (a::cont) c pcstart pcend.
+
+(** * Compilation Example  *)
+Definition epsilon_regex: regex :=
+  Sequence (Disjunction (Disjunction Epsilon Epsilon) Epsilon) (Character dot).
+
+Definition epsilon_code: code :=
+  compilation epsilon_regex.
+
+Lemma test_epsilon:
+  epsilon_code = epsilon_code.
+Proof.
+  (* just checking that Dijunction jumps can happen in a row *)
+  unfold epsilon_code, compilation, compile. simpl. auto.
+Qed.
