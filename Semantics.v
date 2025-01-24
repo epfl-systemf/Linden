@@ -4,10 +4,9 @@ Import ListNotations.
 Require Import Regex Chars Groups.
 Require Import Tree.
 
-
+(* This relates a regex and a string to their backtracking tree *)
 
 (** * Continuation Semantics *)
-(* relating regexes and string to the corresponding backtree *)
 
 (* actions are things to do after executing the current focused regex *)
 (* it can either be executing another regex (encoding the sequence) *)

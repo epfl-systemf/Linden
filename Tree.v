@@ -4,7 +4,13 @@ Import ListNotations.
 Require Import Regex Chars Groups.
 
 
+(* A tree represents all the possible paths that could be explored by a backtracking engine *)
+(* Its nodes are made out of actions: manipulating groups, chosing between 2 branches etc *)
+(* Branches of the tree are ordered by priority: the leftmost branch is the top priority behavior *)
+
 (** * Chaining optional results  *)
+(* in the future, maybe use an option monad *)
+
 Definition seqop {X:Type} (o1 o2: option X) : option X :=
   match o1 with Some o => o1 | None => o2 end.
 
@@ -134,7 +140,7 @@ Qed.
 (** * Group Map irrelevance  *)
 (* finding a match does not depend on the initial group map *)
 (* we could phrase a stronger theorem about how to relate the two results *)
-(* but for no I only need to differentiate when there is no results from when there is one *)
+(* but for now I only need to differentiate when there is no results from when there is one *)
 
 (* warning: actually so far I don't need this theorem *)
 

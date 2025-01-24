@@ -5,6 +5,8 @@ Require Import Regex Chars Groups.
 Require Import Tree.
 Require Import Semantics.
 
+(* An alternate definition of the semantics, using a boolean to know if one can exit a loop *)
+
 (** * Loop Boolean  *)
 (* The loop boolean, indicating if we can exit a loop iteration or not *)
 (* CanExit means that we are allowed to exit any quantifier: we have read a character more recently than we have entered a free quantifier *)

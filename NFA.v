@@ -6,6 +6,7 @@ Require Import Tree.
 Require Import Semantics.
 
 (** * NFA Bytecdode *)
+(* the bytecode generated for the PikeVM algorithm *)
 
 Definition label : Type := nat.
 
@@ -19,14 +20,6 @@ Inductive bytecode: Type :=
 | ResetRegs: list group_id -> bytecode
 | BeginLoop: bytecode
 | EndLoop: label -> bytecode.    (* also contains the backedge instead of adding a jump *)
-
-(* TODO: it could be nice to merge Begin Loop with ResetRegs *)
-(* The benefit would be that now, one instruction in the bytecode corresponds to one node in the tree *)
-(* This possibly makes the PikeEquiv proof a bit more "lockstep", which should be easier *)
-(* only downside is that in some cases, I can want one or not the other *)
-(* for instance if we do the optimization of not always inserting Begin/End *)
-(* also I might want to split resetregs into several instructions *)
-(* maybe this can be another VM, that we prove to be equivalent *)
 
 Definition code : Type := list bytecode.
 
@@ -125,6 +118,7 @@ Definition compilation (r:regex) : code :=
 (** * Inductive NFA characterization *)
 (* like a representation predicate *)
 
+(* nfa_rep r code pc1 pc2 means that the bytecode for r is represented in code, from pc1 to pc2 (excluded)  *)
 Inductive nfa_rep : regex -> code -> label -> label -> Prop :=
 | nfa_rep_epsilon:
   forall c lbl,
@@ -204,6 +198,7 @@ Proof.
     subst. simpl. rewrite app_length. simpl. lia.
 Qed.
 
+(* this shows that the compilation function adheres to the representation predicate *)
 Theorem compile_nfa_rep:
   forall r c start endl prev,
     compile r start = (c, endl) ->
@@ -288,11 +283,11 @@ Inductive action_rep : action -> code -> label -> label -> Prop :=
     action_rep (Aclose gid) c pc (S pc).
 
 (* continuation_rep cont c pc1 pc2 means that the bytecode for cont is located in c between labels pc1 and pc2 *)
-(* inside the representation of the continuation, there might be jump instructions *)
+(* inside the representation of the continuation, there might be extra jump instructions *)
 (* the nat is a measure of how many there are *)
 Inductive continuation_rep : continuation -> code -> label -> label -> nat -> Prop :=
 | empty_bc:
-  (* when the continuation is empty, it means we have nothing more to do and fond a match *)
+  (* when the continuation is empty, it means we have nothing more to do and found a match *)
   (* in the bytecode, this means an accept *)
   forall c pc
     (ACCEPT: get_pc c pc = Some Accept),
@@ -307,18 +302,3 @@ Inductive continuation_rep : continuation -> code -> label -> label -> nat -> Pr
     (CONT: continuation_rep cont c pcstart pcend n)
     (JMP: get_pc c pc = Some (Jmp pcstart)),
     continuation_rep cont c pc pcend (n+1).
-    
-
-(** * Compilation Example  *)
-Definition epsilon_regex: regex :=
-  Sequence (Disjunction (Disjunction Epsilon Epsilon) Epsilon) (Character dot).
-
-Definition epsilon_code: code :=
-  compilation epsilon_regex.
-
-Lemma test_epsilon:
-  epsilon_code = epsilon_code.
-Proof.
-  (* just checking that Dijunction jumps can happen in a row *)
-  unfold epsilon_code, compilation, compile. simpl. auto.
-Qed.

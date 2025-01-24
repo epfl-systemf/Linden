@@ -34,11 +34,6 @@ Definition reset_thread (t:thread) (gidl:list group_id) : thread :=
 Definition begin_thread (t:thread) : thread :=
   match t with (l,r,b) => (l+1,r,CannotExit) end.
 
-
-
-Inductive VM_state : Type :=
-| VMS (idx:nat) (input:input) (active: list thread) (best: option leaf) (blocked: list thread).
-
 Inductive epsilon_result : Type :=
 | EpsActive: list thread -> epsilon_result
 | EpsMatch: epsilon_result
@@ -46,6 +41,7 @@ Inductive epsilon_result : Type :=
 
 Definition EpsDead : epsilon_result := EpsActive [].
 
+(* an atomic step for a thread *)
 Definition epsilon_step (t:thread) (c:code) (i:input) (idx:nat): epsilon_result :=
   match t with
   | (pc, gm, b) =>
@@ -72,7 +68,7 @@ Definition epsilon_step (t:thread) (c:code) (i:input) (idx:nat): epsilon_result 
       end
   end.
 
-
+(* semantic states of the PikeVM algorithm *)
 Inductive pike_vm_state : Type :=
 | PVS (inp:input) (idx:nat) (active: list thread) (best: option leaf) (blocked: list thread)
 | PVS_final (best: option leaf).
@@ -83,6 +79,7 @@ Definition pike_vm_initial_state (inp:input) : pike_vm_state :=
 Definition gm_of (t:thread) : group_map :=
   match t with (pc,gm,b) => gm end.
 
+(* small-tep semantics for the PikeVM algorithm *)
 Inductive pike_vm_step (c:code): pike_vm_state -> pike_vm_state -> Prop :=
 | pvs_final:
 (* moving to a final state when there are no more active or blocked threads *)

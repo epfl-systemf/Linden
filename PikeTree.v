@@ -1,5 +1,8 @@
 (** * Pike Tree Algorithm  *)
-(* Close to the kind of execution the PikeVM is doing on the bytecode *)
+
+(* An algorithm that takes a tree as input, and finds the first match *)
+(* Its execution is close to the kind of execution the PikeVM is doing on the bytecode *)
+(* It explores multiples ordered branches in parallel, synced with their current input position *)
 
 Require Import List.
 Import ListNotations.
@@ -21,6 +24,7 @@ Inductive step_result : Type :=
 
 Definition StepDead := StepActive []. (* the thread died *)
 
+(* this corresponds to an atomic step of a single tree *)
 Definition tree_bfs_step (t:tree) (gm:group_map) (idx:nat): step_result :=
   match t with
   | Mismatch => StepDead
@@ -34,6 +38,7 @@ Definition tree_bfs_step (t:tree) (gm:group_map) (idx:nat): step_result :=
   | ResetGroups gid t1 => StepActive [(t1, reset_groups gm gid)]
   end.
 
+(* The semantic states of the PikeTree algorithm *)
 Inductive pike_tree_state : Type :=
 | PTS (idx:nat) (active: list (tree * group_map)) (best: option leaf) (blocked: list (tree * group_map))
 | PTS_final (best: option leaf).
@@ -41,6 +46,7 @@ Inductive pike_tree_state : Type :=
 Definition upd_blocked {X:Type} (newblocked: option X) (blocked: list X) :=
   match newblocked with Some b => b::blocked | None => blocked end.
 
+(* Small-step semantics for the PikeTree algorithm *)
 Inductive pike_tree_step : pike_tree_state -> pike_tree_state -> Prop :=
 | pts_final:
 (* moving to a final state when there are no more active or blocked trees *)

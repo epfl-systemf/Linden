@@ -4,6 +4,11 @@ Import ListNotations.
 Require Import Chars.
 Require Import Groups.
 
+(* The subset of JavaScript regexes supported by this development. *)
+(* The semantics come from JavaScript:
+   for instance, the star termination criteria is not the same as in other languages
+   and capture groups are reset at each iteration *)
+
 (** * Regex Syntax  *)
 Inductive regex : Type :=
 | Epsilon 

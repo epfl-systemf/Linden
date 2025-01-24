@@ -7,10 +7,12 @@ Require Import Regex Chars Groups.
 Require Import Tree Semantics BooleanSemantics.
 Require Import NFA PikeTree PikeVM.
 
+(** * Simulation Invariant  *)
+
 (* a tree and a thread are equivalent when they are about to execute the same thing *)
 (* this means when the tree represents a given regex and continuation, *)
 (* the thread is at a pc that will execute the nfa of that same regex and continuation *)
-(* the nat is a measure of stuttering steps *)
+(* the nat is a measure of stuttering steps in the continuation *)
 Inductive tree_thread (code:code) (inp:input) : (tree * group_map) -> thread -> nat -> Prop :=
 | tt_eq:
   forall tree gm pc b pc_cont pc_end r cont n
@@ -66,7 +68,7 @@ Proof.
 Qed.
 
 
-(* lifting the equivalence predicate to pike states *)
+(* lifting the equivalence predicate to pike states, to get the full invariant *)
 Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> nat -> Prop :=
 | pikeinv:
   forall inp idx treeactive treeblocked threadactive threadblocked best measureactive measureblocked n
@@ -83,6 +85,9 @@ Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> nat -> Prop 
 | pikeinv_final:
   forall best,
     pike_inv code (PTS_final best) (PVS_final best) 0.
+
+
+(** * Invariant Initialization  *)
 
 (* the initial states of both smallstep semantics are related with the invariant *)
 Lemma initial_pike_inv:
@@ -375,7 +380,7 @@ Proof.
     2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
     inversion ACTION. subst. eapply IHTREE; eauto.
   - inversion NFA. subst. exists [(S pc,gm,b);(S end1,gm,b)]. exists [S n; n]. split.
-    (* here in the first element of the list we introduced an extra stuttering step, thus (S n) measure *)
+    (* here in the first element of the list we introduced an extra stuttering step, hence the (S n) measure *)
     + unfold epsilon_step. rewrite FORK. auto.
     + constructor.
       * constructor. constructor.
