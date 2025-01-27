@@ -577,3 +577,31 @@ Proof.
         apply ltt_app; eauto. specialize (TT2 nextinp H).
         eapply ltt_cons. constructor. auto.
 Qed.
+
+
+(** * Backward Style Invariant Preservation *)
+Theorem backward_match:
+  forall tree gm idx inp code pc b n
+    (VMSTEP: epsilon_step (pc,gm,b) code inp idx = EpsMatch)
+    (NOSTUTTER: stutters pc code = false)
+    (TT: tree_thread code inp (tree, gm) (pc, gm, b) n),
+    tree = Match.
+Proof.
+  intros tree gm idx inp code pc b n VMSTEP NOSTUTTER TT.
+  simpl in VMSTEP.
+  (* extracting current instruction *)
+  destruct (get_pc code pc) as [instr|] eqn:CODE.
+  2: { inversion VMSTEP. }
+  destruct instr; try solve [inversion VMSTEP].
+  2: { destruct (check_read c inp); inversion VMSTEP. }
+  2: { destruct b; inversion VMSTEP. }
+  (* extracting relevant invariant case *)
+  inversion TT; subst.
+  2: { rewrite RESET in CODE. inversion CODE. }
+  2: { rewrite BEGIN in CODE. inversion CODE. }
+  (* there are many ways that we could be at an Accept instruction *)
+  (* we could have r = epsilon, cont = [] *)
+  (* or r = Epsilon;Epsilon, cont = []... *)
+Abort.
+(* It's really harder to reason from the VM step *)
+(* It's much easier to reason from a Pike tree step, ast it allows inductive reasoning on the bool_tree semantics  *)

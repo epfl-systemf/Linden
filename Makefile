@@ -1,6 +1,6 @@
 .PHONY: coq all clean
 
-FILES = Chars.v Groups.v Regex.v Tree.v Semantics.v BooleanSemantics.v PikeTree.v NFA.v PikeVM.v PikeEquiv.v
+FILES = Chars.v Groups.v Regex.v Tree.v Semantics.v BooleanSemantics.v PikeTree.v NFA.v PikeVM.v PikeEquiv.v PikeTreeSeen.v
 
 COQC = coqc
 COQDEP = coqdep
