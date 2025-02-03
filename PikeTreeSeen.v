@@ -276,7 +276,10 @@ Proof.
       * inversion EQ1. subst. admit. (* should be ok *)
       * inversion EQ1. subst. simpl. apply RES_EQ.
     (* this I cannot prove I think *)
-        admit.
+    (* counter-example: *)
+    (* blocked = [], active = [CheckPass t]; best = None; Seen = {t} *)
+    (* in that state, the inv holds for the result of t *)
+    (* but after we step to active = [t], the invariant does not hold since we could skip t *)
     + admit.
     + admit.
   - admit.
