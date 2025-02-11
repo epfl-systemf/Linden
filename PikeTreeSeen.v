@@ -78,210 +78,150 @@ Definition pike_tree_seen_initial_state (t:tree) : pike_tree_seen_state :=
 
 (** * Pike Tree Seen Correction  *)
 
-Definition op_tree (o:option (tree*group_map)) (idx:nat): option leaf :=
-  match o with
-  | None => None
-  | Some (t,gm) => tree_res t gm idx
-  end.
 
-(* defines the first result of a sequence of blocked, active and best trees *)
-(* the option in the middle is for a tree being currently manipulated *)
-(* this simplifies later intermediate theorems *)
-Definition result (blocked:list (tree*group_map)) (tmp: option (tree*group_map)) (active:list (tree*group_map)) (best:option leaf)  (idx:nat): option leaf :=
-  seqop (list_result blocked (idx+1))
-    (seqop (op_tree tmp idx)
-       (seqop (list_result active idx)
-          best)).
-
-Lemma result_move_active:
-  forall blocked active best t gm idx,
-    result blocked (Some (t,gm)) active best idx =
-      result blocked None ((t,gm)::active) best idx.
-Proof.
-  intros blocked active best t gm idx. unfold result. apply f_equal. simpl.
-  rewrite list_result_cons. rewrite seqop_assoc. auto.
-Qed.
-
-Lemma result_move_blocked:
-  forall blocked active best idx ch t gm,
-    result blocked (Some (Read ch t,gm)) active best idx =
-      result (blocked ++ [(t,gm)]) None active best idx.
-Proof.
-  intros blocked active best idx ch t gm. unfold result. rewrite list_result_app.
-  rewrite seqop_assoc. apply f_equal. simpl. auto.
-Qed.
-
-
-(* list_eq_seen seen l1 l2 means that l2 is a sublist of l1 where removed elements were in seen *)
-Inductive list_eq_seen (seen:seentrees) : list (tree * group_map) -> list (tree * group_map) -> Prop :=
-| les_nil: list_eq_seen seen [] []
-| les_cons:
-  forall t gm l1 l2
-    (LES: list_eq_seen seen l1 l2),
-    list_eq_seen seen ((t,gm)::l1) ((t,gm)::l2)
-| les_skip:
-  forall t gm l1 l2
-    (LES: list_eq_seen seen l1 l2)
+(** * Non-deterministic tree results *)
+(* any possible result after skipping or not any sub-tree in the seen set *)
+Inductive tree_nd: tree -> group_map -> nat -> seentrees -> option leaf -> Prop :=
+| tr_skip:
+  forall seen t gm idx
     (SEEN: inseen seen t = true),
-    list_eq_seen seen ((t,gm)::l1) l2.
+    tree_nd t gm idx seen None
+| tr_mismatch:
+  forall gm idx seen, tree_nd Mismatch gm idx seen None
+| tr_match:
+  forall gm idx seen, tree_nd Match gm idx seen (Some gm)
+| tr_choice:
+  forall t1 t2 gm idx l1 l2 seen
+    (TR1: tree_nd t1 gm idx seen l1)
+    (TR2: tree_nd t2 gm idx seen l2),
+    tree_nd (Choice t1 t2) gm idx seen (seqop l1 l2)
+| tr_read:
+  forall t cd gm idx l seen
+    (TR: tree_nd t gm (idx+1) seen l),
+    tree_nd (Read cd t) gm idx seen l
+| tr_checkpass:
+  forall t str gm idx l seen
+    (TR: tree_nd t gm idx seen l),
+    tree_nd (CheckPass str t) gm idx seen l
+| tr_checkfail:
+  forall str gm idx seen, tree_nd (CheckFail str) gm idx seen None
+| tr_open:
+  forall t gid gm idx l seen
+    (TR: tree_nd t (open_group gm gid idx) idx seen l),
+    tree_nd (OpenGroup gid t) gm idx seen l
+| tr_close:
+  forall t gid gm idx l seen
+    (TR: tree_nd t (close_group gm gid idx) idx seen l),
+    tree_nd (CloseGroup gid t) gm idx seen l
+| tr_reset:
+  forall t gidl gm idx l seen
+    (TR: tree_nd t (reset_groups gm gidl) idx seen l),
+    tree_nd (ResetGroups gidl t) gm idx seen l.
 
-Lemma les_refl:
-  forall seen l,
-    list_eq_seen seen l l.
-Proof. intros. induction l; try destruct a; try constructor; auto. Qed.
-
-Lemma les_nil_left:
-  forall seen l, list_eq_seen seen [] l -> l = [].
-Proof. intros seen l H. inversion H. auto. Qed.
-
-Lemma les_empty_seen:
-  forall l1 l2, list_eq_seen initial_seentrees l1 l2 -> l1 = l2.
-Proof. intros. induction H; subst; auto. rewrite initial_nothing in SEEN. inversion SEEN. Qed.
-      
-Lemma les_split:
-  forall la1 la2 lb seen,
-    list_eq_seen seen (la1++la2) lb ->
-    exists lb1 lb2, lb = lb1 ++ lb2 /\
-                 list_eq_seen seen la1 lb1 /\
-                 list_eq_seen seen la2 lb2.
+(* the normal result, obtained with function tree_res without skipping anything, is a possible result *)
+Lemma tree_res_nd:
+  forall t gm idx seen,
+    tree_nd t gm idx seen (tree_res t gm idx).
 Proof.
-  intros la1 la2 lb seen H. remember (la1 ++ la2) as la.
-  generalize dependent la1. generalize dependent la2.
-  induction H; intros.
-  - destruct la1; inversion Heqla. destruct la2; inversion Heqla.
-    exists []. exists []. simpl. split; auto. split; apply les_refl.
-  -
-Admitted.
-
-  
-
-(* res_eq means that for all list equivalent to active according to seeen, we get the same result *)
-Definition res_eq (res:option leaf) (seen:seentrees) (blocked:list (tree*group_map)) (tmp:option (tree*group_map)) (active:list (tree*group_map)) (best:option leaf) (idx:nat) : Prop :=
-  forall active_skipped
-    (LES: list_eq_seen seen active active_skipped),
-    result blocked tmp active_skipped best idx = res.
-
-Inductive piketreeinv : option leaf -> pike_tree_seen_state -> Prop :=
-| pti:
-  forall active best blocked idx seen res
-    (RES_EQ: res_eq res seen blocked None active best idx),
-    piketreeinv res (PTSS idx active best blocked seen)
-| pti_final:
-  forall res,
-    piketreeinv res (PTSS_final res).
-
-(* whenever we skip a tree, this preserves the result of the entire equivalence class *)
-Lemma seen_skip:
-  forall seen active best blocked idx t gm res,
-    inseen seen t = true ->
-    res_eq res seen blocked None ((t,gm)::active) best idx ->
-    res_eq res seen blocked None active best idx.
-Proof.
-  intros seen active best blocked idx t gm res H H0.
-  unfold res_eq. intros active_skipped LES.
-  assert (S1: list_eq_seen seen ((t,gm)::active) active_skipped).
-  { apply les_skip; auto. }
-  specialize (H0 active_skipped S1) as H1. rewrite H1.
-  assert (S2: list_eq_seen seen ((t,gm)::active) active).
-  { apply les_skip. apply les_refl. auto. }
-  specialize (H0 active S2) as H2. auto. 
+  intros t. induction t; intros; simpl; try solve[constructor; auto].
 Qed.
 
-(* equivalence with a list (when the head is not a result) implies equivalence with its tail *)
-Lemma reseq_remove:
-  forall seen active t gm idx best res
-    (H: forall active_skipped : list (tree * group_map),
-        list_eq_seen seen ((t, gm) :: active) active_skipped -> seqop (list_result active_skipped idx) best = res)
-    (NORES: tree_res t gm idx = None),
-  (forall skip, list_eq_seen seen active skip -> seqop (list_result skip idx) best = res).
+(* when there is nothing in seen, there is only one possible result *)
+Lemma tree_nd_initial:
+  forall t gm idx res,
+    tree_nd t gm idx initial_seentrees res ->
+    res = tree_res t gm idx.
 Proof.
-  intros seen active t gm idx best res RESEQ NORES skip EQ.
-  specialize (RESEQ ((t,gm)::skip)).
-  assert (list_eq_seen seen ((t,gm)::active) ((t,gm)::skip)) by (apply les_cons; auto).
-  apply RESEQ in H. rewrite list_result_cons in H. rewrite NORES in H. simpl in H. auto.
+  intros t gm idx res H.
+  remember initial_seentrees as init.
+  induction H; simpl; auto.
+  - subst. rewrite initial_nothing in SEEN. inversion SEEN.
+  - specialize (IHtree_nd1 Heqinit). specialize (IHtree_nd2 Heqinit). subst. auto.
 Qed.
 
-(* having no result does not depend on gm or idx (without backrefs) *)
-Lemma no_tree_res:
-  forall t gm1 gm2 idx1 idx2,
-    tree_res t gm1 idx1 = None ->
-    tree_res t gm2 idx2 = None.
-Proof.
-Admitted.
+Inductive list_nd: list (tree * group_map) -> nat -> seentrees -> option leaf -> Prop :=
+| tlr_nil:
+  forall idx seen, list_nd [] idx seen None
+| tlr_cons:
+  forall t gm active idx seen l1 l2
+    (TR: tree_nd t gm idx seen l1)
+    (TLR: list_nd active idx seen l2),
+    list_nd ((t,gm)::active) idx seen (seqop l1 l2).
 
-(* we can add the head of the active list to the seen set and preserve list equivalence *)
-Lemma active_strengthen:
-  forall seen t gm active blocked best idx res,
-    res_eq res seen blocked None ((t,gm)::active) best idx ->
-    res_eq res (add_seentrees seen t) blocked (Some (t,gm)) active best idx.
+(* the normal result for a list, without skipping anything, is a possible result *)
+Lemma list_result_nd:
+  forall active idx seen,
+    list_nd active idx seen (list_result active idx).
 Proof.
-  unfold res_eq, result. intros seen t gm active blocked best idx res RESEQ skip LES.
-  destruct (list_result blocked (idx+1)) eqn:NOBLOCK.
-  { simpl. simpl in RESEQ. apply RESEQ with (active_skipped:=((t,gm)::active)). apply les_refl. }
-  simpl. simpl in RESEQ.
-  destruct (tree_res t gm idx) eqn:REST.
-  { simpl. specialize (RESEQ _ (les_refl seen ((t,gm)::active))).
-    rewrite list_result_cons in RESEQ. rewrite REST in RESEQ. simpl in RESEQ. auto. }
-  simpl.
-  remember (add_seentrees seen t) as add.
-  specialize (reseq_remove _ _ _ _ _ _ _ RESEQ REST) as R. clear RESEQ.
-  induction LES.
-  - simpl. specialize (R _ (les_refl seen [])). simpl in R. auto.
-  - rewrite list_result_cons.
-    destruct (tree_res t0 gm0 idx) eqn:RES0; simpl.
-    + specialize (R _ (les_refl _ _)). rewrite list_result_cons in R.
-      rewrite RES0 in R. simpl in R. auto.
-    + apply IHLES. intros skip EQ. specialize (R ((t0,gm0)::skip)).
-      assert (list_eq_seen seen ((t0,gm0)::l1) ((t0,gm0)::skip)) by (apply les_cons; auto).
-      apply R in H. rewrite list_result_cons in H. rewrite RES0 in H. simpl in H. auto.
-  - subst. apply in_add in SEEN as ADD. destruct ADD.
-    + subst.
-      assert (NORES: tree_res t gm0 idx = None) by (eapply no_tree_res; eauto).
-      specialize (reseq_remove _ _ _ _ _ _ _ R NORES) as R0. clear R. apply IHLES in R0. auto.
-    + destruct (tree_res t0 gm0 idx) eqn:RES0; simpl.
-      * apply IHLES. intros skip H0. apply R. apply les_skip; auto.
-      * apply IHLES.
-        apply reseq_remove with (t:=t0) (gm:=gm0); auto.
+  intros active. induction active; intros; try constructor.
+  destruct a as [t gm]. rewrite list_result_cons.
+  constructor; auto. apply tree_res_nd.
 Qed.
 
-  
+(* when there is nothing in seen, there is only one possible result *)
+Lemma list_nd_initial:
+  forall l idx res,
+    list_nd l idx initial_seentrees res ->
+    res = list_result l idx.
+Proof.
+  intros l idx res H.
+  remember initial_seentrees as init.
+  induction H; simpl; auto.
+  subst. rewrite list_result_cons. specialize (IHlist_nd (eq_refl _)). subst.
+  apply tree_nd_initial in TR. subst. auto.
+Qed.
+
+
+Inductive state_nd: nat -> list (tree*group_map) -> option leaf -> list (tree*group_map) -> seentrees -> option leaf -> Prop :=
+| sr:
+  forall blocked active best idx seen r1 r2 rseq
+    (BLOCKED: list_result blocked (idx+1) = r1)
+    (ACTIVE: list_nd active idx seen r2)
+    (SEQ: rseq = seqop r1 (seqop r2 best)),
+    state_nd idx active best blocked seen rseq.
+
+(* Invariant of the PikeTreeSeen execution *)
+(* at any moment, all the possibles results of the current state are all equal (equal to the first result of the original tree) *)
+Inductive piketreeinv: pike_tree_seen_state -> option leaf -> Prop :=
+| pi:
+  forall result blocked active best idx seen
+    (SAMERES: forall res, state_nd idx active best blocked seen res -> res = result),
+    piketreeinv (PTSS idx active best blocked seen) result
+| sr_final:
+  forall best,
+    piketreeinv (PTSS_final best) best.
+
+
+(** * Invariant Preservation  *)
+
 Theorem ptss_preservation:
   forall pts1 pts2 res
     (PSTEP: pike_tree_seen_step pts1 pts2)
-    (INVARIANT: piketreeinv res pts1),
-    piketreeinv res pts2.
+    (INVARIANT: piketreeinv pts1 res),
+    piketreeinv pts2 res.
 Proof.
   intros pts1 pts2 res PSTEP INVARIANT.
-  inversion INVARIANT; subst.
+  destruct INVARIANT.
   2: { inversion PSTEP. }
   inversion PSTEP; subst.
-  - constructor. eapply seen_skip; eauto.
-  - specialize (RES_EQ [] (les_refl seen [])).
-    unfold result in RES_EQ. simpl in RES_EQ. subst. constructor.
-  - constructor. unfold res_eq. intros active_skipped LES. apply les_empty_seen in LES. subst.
-    specialize (RES_EQ [] (les_refl _ [])). unfold result in RES_EQ. simpl in RES_EQ.
-    unfold result. simpl. auto.
-  - apply active_strengthen in RES_EQ as NEXT_EQ.
-    destruct t; simpl in STEP; inversion STEP; subst; constructor.
-    + simpl. unfold res_eq in *. intros skip EQ. specialize (NEXT_EQ skip EQ). unfold result in *.
-      simpl in NEXT_EQ. simpl. auto.
-    + admit.
-    + simpl. unfold res_eq in *. intros skip EQ. specialize (NEXT_EQ skip EQ). unfold result in *.
-      simpl in NEXT_EQ. simpl. auto.
-    + admit.
-    + unfold res_eq in *. intros skip EQ.
-      apply les_split in EQ as [l1 [l2 [APP [EQ1 EQ2]]]].
-      apply NEXT_EQ in EQ2. remember ([(t,open_group gm g idx)]) as active1.
-      destruct EQ1; subst; inversion Heqactive1; subst.
-      * inversion EQ1. subst. admit. (* should be ok *)
-      * inversion EQ1. subst. simpl. apply RES_EQ.
-    (* this I cannot prove I think *)
-    (* counter-example: *)
-    (* blocked = [], active = [CheckPass t]; best = None; Seen = {t} *)
-    (* in that state, the inv holds for the result of t *)
-    (* but after we step to active = [t], the invariant does not hold since we could skip t *)
-    + admit.
-    + admit.
+  (* skipping *)
+  - constructor. intros res STATEND.
+    apply SAMERES. inversion STATEND; subst.
+    econstructor; eauto. replace r2 with (seqop None r2) by (simpl; auto).
+    apply tlr_cons; auto. apply tr_skip. auto.
+  (* final *)
+  - assert (best = result).
+    { apply SAMERES. econstructor; econstructor. }
+    subst. constructor.
+  (* nextchar *)
+  - constructor. intros res STATEND. inversion STATEND; subst.
+    apply list_nd_initial in ACTIVE.
+    simpl. subst. specialize (SAMERES (seqop (list_result (tgm::blocked0) (idx+1)) (seqop None best))).
+    simpl in SAMERES. apply SAMERES. econstructor; constructor.
+  (* active *)
   - admit.
+  (* match *)
+  - admit.
+  (* blocked *)
   - admit.
 Admitted.
