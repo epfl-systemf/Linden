@@ -212,6 +212,22 @@ Proof.
     rewrite IHt1. rewrite IHt2. auto.
 Qed.    
 
+(* the same is true for a non-deterministic result *)
+Lemma no_tree_result_nd:
+  forall t seen gm1 gm2 idx1 idx2
+    (NORES: tree_nd t gm1 idx1 seen None),
+    tree_nd t gm2 idx2 seen None.
+Proof.
+  intros t. induction t; intros;
+    try solve[inversion NORES; subst; try solve[constructor; auto]; try solve [constructor; eapply IHt; eauto]].
+  inversion NORES; subst.
+  + apply tr_skip. auto.
+  + destruct l1; destruct l2; inversion H.
+    apply tr_choice; auto.
+    * eapply IHt1; eauto.
+    * eapply IHt2; eauto.
+Qed.
+
 (* skipping over a new tree doesn't change the result if the tree that is being skipped does not have results *)
 Lemma add_seen:
   forall t seen tseen gm idx res
@@ -240,6 +256,36 @@ Proof.
   induction LISTND; subst; econstructor; eauto.
   eapply add_seen; eauto. eapply no_tree_result; eauto.
 Qed.
+
+(* skipping over a new tree doesn't change the result if the tree that is being skipped can produce a None result *)
+Lemma add_seen_nd:
+  forall t seen tseen gm idx res
+    (NORES: tree_nd tseen gm idx seen None)
+    (TREEND: tree_nd t gm idx (add_seentrees seen tseen) res),
+    tree_nd t gm idx seen res.
+Proof.
+  intros t seen tseen gm idx res NORES TREEND.
+  remember (add_seentrees seen tseen) as add.
+  induction TREEND; subst; try solve[constructor; auto];
+    try solve [constructor; apply IHTREEND; auto; eapply no_tree_result_nd; eauto].
+  - apply in_add in SEEN as [EQ | SEEN].
+    + subst. apply NORES.
+    + apply tr_skip. auto.
+Qed.
+
+(* same lemma generalizes to lists of trees *)
+Lemma list_add_seen_nd:
+  forall l seen tseen gm idx res
+    (NORES: tree_nd tseen gm idx seen None)
+    (LISTND: list_nd l idx (add_seentrees seen tseen) res),
+    list_nd l idx seen res.
+Proof.
+  intros l seen tseen gm idx res NORES LISTND.
+  remember (add_seentrees seen tseen) as add.
+  induction LISTND; subst; econstructor; eauto.
+  eapply add_seen_nd; eauto. eapply no_tree_result_nd; eauto.
+Qed.
+
 
 (* using the size of the tree will help us make sure that whenever a tree generates active subtrees, *)
 (* none of these subtrees can contain the parent tree that generated them *)
@@ -282,7 +328,7 @@ Proof.
   intros pts1 pts2 res PSTEP INVARIANT.
   destruct INVARIANT.
   2: { inversion PSTEP. }
-  inversion PSTEP; subst.
+  inversion PSTEP; subst; [| | |destruct t; inversion STEP; subst| |].
   (* skipping *)
   - constructor. intros res STATEND.
     apply SAMERES. inversion STATEND; subst.
@@ -297,10 +343,117 @@ Proof.
     apply list_nd_initial in ACTIVE.
     simpl. subst. specialize (SAMERES (seqop (list_result (tgm::blocked0) (idx+1)) (seqop None best))).
     simpl in SAMERES. apply SAMERES. econstructor; constructor.
-  (* active *)
-  - admit.
+  (* mismatch *)
+  - simpl. constructor. intros res STATEND. inversion STATEND; subst. apply SAMERES.
+    econstructor; eauto. econstructor; eauto. 
+    + eapply tr_mismatch.
+    + eapply list_add_seen with (gm:=gm) in ACTIVE; eauto.
+    + auto.
+  (* choice *)
+  - simpl. constructor. intros res STATEND. inversion STATEND; subst.
+    inversion ACTIVE; subst. inversion TLR; subst.
+    apply SAMERES.
+    apply add_parent_tree in TR.
+    2: { simpl. lia. }
+    apply add_parent_tree in TR0.
+    2: { simpl. lia. }
+    assert (PARENT: tree_nd (Choice t1 t2) gm idx seen (seqop l1 l0)).
+    { apply tr_choice; auto. }
+    (* case analysis: did t contribute to the result? *)
+    destruct (seqop l1 l0) as [leaf|] eqn:CHOICE.
+    + econstructor; eauto. rewrite seqop_assoc.
+      eapply tlr_cons; eauto.
+      * apply list_result_nd.
+      * rewrite CHOICE. simpl. auto.
+    (* when the tree did not contribute, adding it to seen does not change the results *)
+    + destruct l1; destruct l0; inversion CHOICE.
+      econstructor; eauto.
+      eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
+      eapply list_add_seen_nd with (gm:=gm) in TLR0; auto.
+      econstructor; eauto.
+  (* checkfail *)
+  - simpl. constructor. intros res STATEND. inversion STATEND; subst. apply SAMERES.
+    econstructor; eauto. econstructor; eauto.
+    + eapply tr_checkfail.
+    + eapply list_add_seen with (gm:=gm) in ACTIVE; eauto.
+    + auto.
+  (* checkpass *)
+  - simpl. constructor. intros res STATEND. inversion STATEND; subst.
+    inversion ACTIVE; subst.
+    apply SAMERES.
+    apply add_parent_tree in TR.
+    2: { simpl. lia. }
+    assert (PARENT: tree_nd (CheckPass str t) gm idx seen l1).
+    { apply tr_checkpass; auto. }
+    (* case analysis: did t contribute to the result? *)
+    destruct l1 as [leaf1|].
+    + econstructor; eauto. simpl.
+      eapply tlr_cons; eauto.
+      apply list_result_nd.
+    (* when the tree did not contribute, adding it to seen does not change the results *)
+    + econstructor; eauto.
+      eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
+      econstructor; eauto.
+  (* opengroup *)
+  - simpl. constructor. intros res STATEND. inversion STATEND; subst.
+    inversion ACTIVE; subst.
+    apply SAMERES.
+    apply add_parent_tree in TR.
+    2: { simpl. lia. }
+    assert (PARENT: tree_nd (OpenGroup g t) gm idx seen l1).
+    { apply tr_open; auto. }
+    (* case analysis: did t contribute to the result? *)
+    destruct l1 as [leaf1|].
+    + econstructor; eauto. simpl.
+      eapply tlr_cons; eauto.
+      apply list_result_nd.
+    (* when the tree did not contribute, adding it to seen does not change the results *)
+    + econstructor; eauto.
+      eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
+      econstructor; eauto.
+  (* closegroup *)
+  - simpl. constructor. intros res STATEND. inversion STATEND; subst.
+    inversion ACTIVE; subst.
+    apply SAMERES.
+    apply add_parent_tree in TR.
+    2: { simpl. lia. }
+    assert (PARENT: tree_nd (CloseGroup g t) gm idx seen l1).
+    { apply tr_close; auto. }
+    (* case analysis: did t contribute to the result? *)
+    destruct l1 as [leaf1|].
+    + econstructor; eauto. simpl.
+      eapply tlr_cons; eauto.
+      apply list_result_nd.
+    (* when the tree did not contribute, adding it to seen does not change the results *)
+    + econstructor; eauto.
+      eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
+      econstructor; eauto.
+  (* resetgroups *)
+  - simpl. constructor. intros res STATEND. inversion STATEND; subst.
+    inversion ACTIVE; subst.
+    apply SAMERES.
+    apply add_parent_tree in TR.
+    2: { simpl. lia. }
+    assert (PARENT: tree_nd (ResetGroups gl t) gm idx seen l1).
+    { apply tr_reset; auto. }
+    (* case analysis: did t contribute to the result? *)
+    destruct l1 as [leaf1|].
+    + econstructor; eauto. simpl.
+      eapply tlr_cons; eauto.
+      apply list_result_nd.
+    (* when the tree did not contribute, adding it to seen does not change the results *)
+    + econstructor; eauto.
+      eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
+      econstructor; eauto.
   (* match *)
-  - admit.
+  - destruct t; inversion STEP; subst. constructor.
+    intros res STATEND. inversion STATEND; subst.
+    inversion ACTIVE; subst. simpl. 
+    apply SAMERES. eapply sr with (r2:=Some gm); eauto.
+    replace (Some gm) with (seqop (Some gm) (list_result active0 idx)) by (simpl; auto).
+    econstructor; auto.
+    + apply tr_match.
+    + apply list_result_nd.
   (* blocked *)
   - destruct t; inversion STEP; subst. constructor.
     intros res STATEND. inversion STATEND; subst.
@@ -311,12 +464,16 @@ Proof.
     rewrite seqop_none. rewrite <- seqop_assoc. rewrite seqop_assoc with (o3:=best).
     econstructor; eauto.
     destruct (tree_res newt gm (idx+1)) eqn:REST.
+    (* if the blocked tree contained a match, then we don't care about the result of active *)
+    (* we can simply use the result obtained without skipping anything *)
     + eapply tlr_cons.
       * apply tree_res_nd.
       * apply list_result_nd.
       * simpl. rewrite REST. simpl. auto.
     + eapply tlr_cons.
+      (* if the blocked tree did not contain a match, we prove that the adding it to the seen set *)
+      (* does not change the skipping of the following active trees, using list_add_seen *)
       * apply tree_res_nd. 
       * eapply list_add_seen in ACTIVE; eauto.
       * simpl. rewrite REST. simpl. auto.
-Admitted.
+Qed.
