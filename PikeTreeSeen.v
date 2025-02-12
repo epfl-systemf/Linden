@@ -9,6 +9,7 @@
 
 Require Import List.
 Import ListNotations.
+Require Import Lia.
 
 Require Import Regex Chars Groups Tree.
 Require Import PikeTree.
@@ -143,10 +144,11 @@ Inductive list_nd: list (tree * group_map) -> nat -> seentrees -> option leaf ->
 | tlr_nil:
   forall idx seen, list_nd [] idx seen None
 | tlr_cons:
-  forall t gm active idx seen l1 l2
+  forall t gm active idx seen l1 l2 l3
     (TR: tree_nd t gm idx seen l1)
-    (TLR: list_nd active idx seen l2),
-    list_nd ((t,gm)::active) idx seen (seqop l1 l2).
+    (TLR: list_nd active idx seen l2)
+    (SEQ: l3 = seqop l1 l2),
+    list_nd ((t,gm)::active) idx seen l3.
 
 (* the normal result for a list, without skipping anything, is a possible result *)
 Lemma list_result_nd:
@@ -155,7 +157,7 @@ Lemma list_result_nd:
 Proof.
   intros active. induction active; intros; try constructor.
   destruct a as [t gm]. rewrite list_result_cons.
-  constructor; auto. apply tree_res_nd.
+  econstructor; eauto. apply tree_res_nd.
 Qed.
 
 (* when there is nothing in seen, there is only one possible result *)
@@ -191,6 +193,83 @@ Inductive piketreeinv: pike_tree_seen_state -> option leaf -> Prop :=
   forall best,
     piketreeinv (PTSS_final best) best.
 
+(** * Non deterministic results lemmas  *)
+
+(* a tree having no results is independent of the gm and the idx *)
+Lemma no_tree_result:
+  forall t gm1 gm2 idx1 idx2
+    (NORES: tree_res t gm1 idx1 = None),
+    tree_res t gm2 idx2 = None.
+Proof.
+  intros t.
+  induction t; intros; auto;
+    simpl in NORES; simpl; try solve [eapply IHt; eauto].
+  - inversion NORES.
+  - simpl in NORES. simpl.
+    destruct(tree_res t1 gm1 idx1) eqn:T1; destruct (tree_res t2 gm1 idx1) eqn:T2; inversion NORES.
+    specialize (IHt1 _ gm2 _ idx2 T1).
+    specialize (IHt2 _ gm2 _ idx2 T2).
+    rewrite IHt1. rewrite IHt2. auto.
+Qed.    
+
+(* skipping over a new tree doesn't change the result if the tree that is being skipped does not have results *)
+Lemma add_seen:
+  forall t seen tseen gm idx res
+    (NORES: tree_res tseen gm idx = None)
+    (TREEND: tree_nd t gm idx (add_seentrees seen tseen) res),
+    tree_nd t gm idx seen res.
+Proof.
+  intros t seen tseen gm idx res NORES TREEND.
+  remember (add_seentrees seen tseen) as add.
+  induction TREEND; subst; try solve[constructor; auto];
+    try solve [constructor; apply IHTREEND; auto; eapply no_tree_result; eauto].
+  apply in_add in SEEN as [EQ | SEEN].
+  + subst. rewrite <- NORES. apply tree_res_nd.
+  + apply tr_skip. auto.
+Qed.
+
+(* same lemma generalizes to lists of trees *)
+Lemma list_add_seen:
+  forall l seen tseen gm idx res
+    (NORES: tree_res tseen gm idx = None)
+    (LISTND: list_nd l idx (add_seentrees seen tseen) res),
+    list_nd l idx seen res.
+Proof.
+  intros l seen tseen gm idx res NORES LISTND.
+  remember (add_seentrees seen tseen) as add.
+  induction LISTND; subst; econstructor; eauto.
+  eapply add_seen; eauto. eapply no_tree_result; eauto.
+Qed.
+
+(* using the size of the tree will help us make sure that whenever a tree generates active subtrees, *)
+(* none of these subtrees can contain the parent tree that generated them *)
+Fixpoint size (t:tree) : nat :=
+  match t with
+  | Mismatch | Match | CheckFail _ => O
+  | Read _ t1 | CheckPass _ t1 | OpenGroup _ t1 | CloseGroup _ t1 | ResetGroups _ t1 => 1 + size t1
+  | Choice t1 t2 => size t1 + size t2 + 1
+  end.
+
+(* skipping over a new tree does not change the result of another tree if we know that the newly *)
+(* skipped over tree cannot appear in the tree we compute the result of *)
+Lemma add_parent_tree:
+  forall tseen t res seen gm idx
+    (SIZE: size t < size tseen)
+    (TREEND: tree_nd t gm idx (add_seentrees seen tseen) res),
+    tree_nd t gm idx seen res.
+Proof.
+  intros tseen t res seen gm idx SIZE TREEND.
+  remember (add_seentrees seen tseen) as add.
+  induction TREEND; subst; simpl in SIZE;
+    try solve [constructor; apply IHTREEND; auto; lia].
+  - apply in_add in SEEN as [EQ | SEEN].
+    + subst. exfalso. eapply PeanoNat.Nat.lt_irrefl. eauto.
+    + apply tr_skip. auto.
+  - constructor.
+    + apply IHTREEND1; auto. lia.
+    + apply IHTREEND2; auto. lia.
+Qed.
+
 
 (** * Invariant Preservation  *)
 
@@ -208,7 +287,7 @@ Proof.
   - constructor. intros res STATEND.
     apply SAMERES. inversion STATEND; subst.
     econstructor; eauto. replace r2 with (seqop None r2) by (simpl; auto).
-    apply tlr_cons; auto. apply tr_skip. auto.
+    eapply tlr_cons; eauto. apply tr_skip. auto.
   (* final *)
   - assert (best = result).
     { apply SAMERES. econstructor; econstructor. }
@@ -223,5 +302,21 @@ Proof.
   (* match *)
   - admit.
   (* blocked *)
-  - admit.
+  - destruct t; inversion STEP; subst. constructor.
+    intros res STATEND. inversion STATEND; subst.
+    apply SAMERES.
+    rewrite list_result_app. rewrite list_result_cons.
+    replace (list_result [] (idx+1)) with (None:option leaf).
+    2: { unfold list_result, seqop_list. simpl. auto. }
+    rewrite seqop_none. rewrite <- seqop_assoc. rewrite seqop_assoc with (o3:=best).
+    econstructor; eauto.
+    destruct (tree_res newt gm (idx+1)) eqn:REST.
+    + eapply tlr_cons.
+      * apply tree_res_nd.
+      * apply list_result_nd.
+      * simpl. rewrite REST. simpl. auto.
+    + eapply tlr_cons.
+      * apply tree_res_nd. 
+      * eapply list_add_seen in ACTIVE; eauto.
+      * simpl. rewrite REST. simpl. auto.
 Admitted.
