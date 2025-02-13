@@ -193,6 +193,19 @@ Inductive piketreeinv: pike_tree_seen_state -> option leaf -> Prop :=
   forall best,
     piketreeinv (PTSS_final best) best.
 
+(** * Initialization  *)
+
+Lemma init_piketree_inv:
+  forall t,
+    piketreeinv (pike_tree_seen_initial_state t) (tree_res t empty_group_map 0).
+Proof.
+  intros t. unfold pike_tree_seen_initial_state. constructor.
+  intros res STATEND. inversion STATEND; subst.
+  simpl. rewrite seqop_none. inversion ACTIVE; subst.
+  inversion TLR; subst. rewrite seqop_none.
+  apply tree_nd_initial in TR. auto.
+Qed.
+
 (** * Non deterministic results lemmas  *)
 
 (* a tree having no results is independent of the gm and the idx *)
