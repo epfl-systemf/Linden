@@ -11,27 +11,28 @@ Require Import PikeVM.
 
 (** * Sets of seen pcs *)
 
+(* remembering pairs of (pc, loopbool) that has been handled at the current input *)
 Parameter seenpcs: Type.
 Parameter initial_seenpcs: seenpcs.
-Parameter add_seenpcs: seenpcs -> label -> seenpcs.
-Parameter inseenpc : seenpcs -> label -> bool.
+Parameter add_seenpcs: seenpcs -> label -> LoopBool -> seenpcs.
+Parameter inseenpc : seenpcs -> label -> LoopBool -> bool.
 
 Axiom inpc_add:
-  forall seen pc1 pc2,
-    inseenpc (add_seenpcs seen pc2) pc1 = true <->
-    pc1 = pc2 \/ inseenpc seen pc1 = true.
+  forall seen pc1 b1 pc2 b2,
+    inseenpc (add_seenpcs seen pc2 b2) pc1 b1 = true <->
+    ((pc1,b1) = (pc2,b2)) \/ inseenpc seen pc1 b1 = true.
 
 Axiom initial_nothing_pc:
-  forall pc, inseenpc initial_seenpcs pc = false.
+  forall pc b, inseenpc initial_seenpcs pc b = false.
 
 Definition seen_thread (seen:seenpcs) (t:thread) :bool :=
   match t with
-  | (pc, gm, b) => inseenpc seen pc
+  | (pc, gm, b) => inseenpc seen pc b
   end.
 
 Definition add_thread (seen:seenpcs) (t:thread) : seenpcs :=
   match t with
-  | (pc, gm, b) => add_seenpcs seen pc
+  | (pc, gm, b) => add_seenpcs seen pc b
   end.
 
 (** * PikeVM Semantics  *)
@@ -108,3 +109,24 @@ Proof.
       rewrite STEP in STEP0; inversion STEP0.
     subst. auto.
 Qed.
+
+Theorem pikevm_progress:
+  forall c inp idx active best blocked seen,
+  exists pvs_next,
+    pike_vm_seen_step c (PVSS inp idx active best blocked seen) pvs_next.
+Proof.
+  intros c inp idx active best blocked seen.
+  destruct active as [|[[pc gm] b] active].
+  - destruct blocked as [|t blocked].
+    + eexists. econstructor.
+    + destruct (advance_input inp) eqn:INP.
+      * eexists. apply pvss_nextchar. eauto.
+      * eexists. apply pvss_end. eauto.
+  - destruct (seen_thread seen (pc,gm,b)) eqn:SEEN.
+    { eexists. apply pvss_skip. auto. }
+    destruct (epsilon_step (pc,gm,b) c inp idx) eqn:EPS.
+    + eexists. apply pvss_active; eauto.
+    + eexists. apply pvss_match; eauto.
+    + eexists. apply pvss_blocked; eauto.
+Qed.
+    
