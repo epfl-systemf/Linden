@@ -34,9 +34,6 @@ Definition tree_bfs_step (t:tree) (gm:group_map) (idx:nat): step_result :=
   | CheckFail _ => StepDead
   | CheckPass _ t1 => StepActive [(t1,gm)]
   | GroupAction a t1 => StepActive [(t1, group_act_map a gm idx)]
-  (*| OpenGroup gid t1 => StepActive [(t1,open_group gm gid idx)]
-  | CloseGroup gid t1 => StepActive [(t1, close_group gm gid idx)]
-  | ResetGroups gid t1 => StepActive [(t1, reset_groups gm gid)]*)
   end.
 
 (* The semantic states of the PikeTree algorithm *)

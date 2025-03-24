@@ -109,20 +109,7 @@ Inductive tree_nd: tree -> group_map -> nat -> seentrees -> option leaf -> Prop 
 | tr_groupaction:
   forall t act gm idx l seen
     (TR: tree_nd t (group_act_map act gm idx) idx seen l),
-    tree_nd (GroupAction act t) gm idx seen l
-(*| tr_open:
-  forall t gid gm idx l seen
-    (TR: tree_nd t (open_group gm gid idx) idx seen l),
-    tree_nd (OpenGroup gid t) gm idx seen l
-| tr_close:
-  forall t gid gm idx l seen
-    (TR: tree_nd t (close_group gm gid idx) idx seen l),
-    tree_nd (CloseGroup gid t) gm idx seen l
-| tr_reset:
-  forall t gidl gm idx l seen
-    (TR: tree_nd t (reset_groups gm gidl) idx seen l),
-    tree_nd (ResetGroups gidl t) gm idx seen l*)
-.
+    tree_nd (GroupAction act t) gm idx seen l.
 
 (* the normal result, obtained with function tree_res without skipping anything, is a possible result *)
 Lemma tree_res_nd:
