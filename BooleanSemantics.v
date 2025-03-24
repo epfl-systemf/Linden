@@ -44,7 +44,7 @@ Inductive bool_tree: regex -> continuation -> input -> LoopBool -> tree -> Prop 
 (* pops the closing of a group from the continuation list *)
   forall inp tailcont treecont gid b
     (TREECONT: bool_tree Epsilon tailcont inp b treecont),
-    bool_tree Epsilon (Aclose gid :: tailcont) inp b (CloseGroup gid treecont)
+    bool_tree Epsilon (Aclose gid :: tailcont) inp b (GroupAction (CloseGroup gid) treecont)
 | bool_char:
   (* changes the boolean so that we can now exit *)
   forall c cd inp nextinp cont tcont b
@@ -74,12 +74,12 @@ Inductive bool_tree: regex -> continuation -> input -> LoopBool -> tree -> Prop 
     (ISTREE1: bool_tree r1 (Acheck (current_str inp)::Areg (Star r1)::cont) inp CannotExit titer)
     (* skipping the star entirely *)
     (SKIP: bool_tree Epsilon cont inp b tskip)
-    (CHOICE: tquant = Choice (ResetGroups gidl titer) tskip),
+    (CHOICE: tquant = Choice (GroupAction (ResetGroups gidl) titer) tskip),
     bool_tree (Star r1) cont inp b tquant
 | bool_group:
   forall r1 cont treecont inp gid b
     (TREECONT: bool_tree r1 (Aclose gid :: cont) inp b treecont),
-    bool_tree (Group gid r1) cont inp b (OpenGroup gid treecont).
+    bool_tree (Group gid r1) cont inp b (GroupAction (OpenGroup gid) treecont).
 
 
 (** * Boolean Tree Equivalence  *)

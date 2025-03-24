@@ -5,7 +5,7 @@ Require Import Regex Chars Groups.
 
 
 (* A tree represents all the possible paths that could be explored by a backtracking engine *)
-(* Its nodes are made out of actions: manipulating groups, chosing between 2 branches etc *)
+(* Its nodes are made out of actions: manipulating groups, choosing between 2 branches etc *)
 (* Branches of the tree are ordered by priority: the leftmost branch is the top priority behavior *)
 
 (** * Chaining optional results  *)
@@ -35,8 +35,8 @@ Lemma seqop_list_head_some:
     seqop_list (h::l) f = Some r.
 Proof.
   intros X Y h l f r H. unfold seqop_list.
-  rewrite app_cons. rewrite fold_left_app.
-  simpl. rewrite H. rewrite seqop_some. auto.
+  simpl. rewrite H.
+  rewrite seqop_some. auto.
 Qed.
 
 Lemma seqop_list_head_none:
@@ -52,6 +52,12 @@ Proof. intros. unfold seqop. destruct o1; destruct o2; auto. Qed.
 
 (** * Priority Trees  *)
 
+Inductive groupaction : Type :=
+| OpenGroup (g:group_id)
+| CloseGroup (g:group_id)
+| ResetGroups (gl:list group_id) (* for capture reset *)
+.
+
 Inductive tree : Type :=
 | Mismatch
 | Match
@@ -59,9 +65,7 @@ Inductive tree : Type :=
 | Read (c:Char) (t:tree)
 | CheckFail (str:string) (* failed to make progress wrt some string *)
 | CheckPass (str:string) (t:tree)
-| OpenGroup (g:group_id) (t:tree)
-| CloseGroup (g:group_id) (t:tree)
-| ResetGroups (gl:list group_id) (t:tree) (* for capture reset *)
+| GroupAction (g:groupaction) (t: tree)
 .
 
 (** * Greedy and Lazy Choice *)
@@ -71,6 +75,14 @@ Definition greedy_choice (greedy:bool) (t1 t2:tree) :=
   if greedy
   then Choice t1 t2
   else Choice t2 t1.
+
+(** * Group action on a group map *)
+Definition group_act_map (a: groupaction) (gm: group_map) (idx: nat): group_map :=
+  match a with
+  | OpenGroup gid => open_group gm gid idx
+  | CloseGroup gid => close_group gm gid idx
+  | ResetGroups gidl => reset_groups gm gidl
+  end.
 
 (** * Tree Results  *)
 
@@ -87,9 +99,7 @@ Fixpoint tree_res (t:tree) (gm:group_map) (idx:nat): option leaf :=
   | Read c t1 => tree_res t1 gm (idx + 1)
   | CheckFail _ => None
   | CheckPass _ t1 => tree_res t1 gm idx
-  | OpenGroup gid t1 => tree_res t1 (open_group gm gid idx) idx
-  | CloseGroup gid t1 => tree_res t1 (close_group gm gid idx) idx
-  | ResetGroups gidl t1 => tree_res t1 (reset_groups gm gidl) idx
+  | GroupAction g t1 => tree_res t1 (group_act_map g gm idx) idx
   end.
 
 (* initializing on a the empty group map *)
@@ -109,9 +119,7 @@ Fixpoint tree_leaves (t:tree) (gm:group_map) (idx:nat): list leaf :=
   | Read c t1 => tree_leaves t1 gm (idx + 1)
   | CheckFail _ => []
   | CheckPass _ t1 => tree_leaves t1 gm idx
-  | OpenGroup gid t1 => tree_leaves t1 (open_group gm gid idx) idx
-  | CloseGroup gid t1 => tree_leaves t1 (close_group gm gid idx) idx
-  | ResetGroups gidl t1 => tree_leaves t1 (reset_groups gm gidl) idx
+  | GroupAction g t1 => tree_leaves t1 (group_act_map g gm idx) idx
   end.
 
 (* intermediate lemma about hd_error *)
@@ -134,7 +142,7 @@ Theorem first_tree_leaf:
 Proof.
   intros t. induction t; intros; simpl; auto.
   - rewrite IHt1. rewrite IHt2. rewrite hd_error_app. unfold seqop.
-    destruct (hd_error (tree_leaves t1 gm idx)) eqn:HD; auto. 
+    destruct (hd_error (tree_leaves t1 gm idx)) eqn:HD; auto.
 Qed.
       
 (** * Group Map irrelevance  *)

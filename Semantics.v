@@ -46,7 +46,7 @@ Inductive is_tree: regex -> continuation -> input -> tree -> Prop :=
 (* pops the closing of a group from the continuation list *)
   forall inp tailcont treecont gid
     (TREECONT: is_tree Epsilon tailcont inp treecont),
-    is_tree Epsilon (Aclose gid :: tailcont) inp (CloseGroup gid treecont)
+    is_tree Epsilon (Aclose gid :: tailcont) inp (GroupAction (CloseGroup gid) treecont)
 | tree_char:
   forall c cd inp nextinp cont tcont
     (READ: read_char cd inp = Some (c, nextinp))
@@ -74,12 +74,12 @@ Inductive is_tree: regex -> continuation -> input -> tree -> Prop :=
     (ISTREE1: is_tree r1 (Acheck (current_str inp)::Areg (Star r1)::cont) inp titer)
     (* skipping the star entirely *)
     (SKIP: is_tree Epsilon cont inp tskip)
-    (CHOICE: tquant = Choice (ResetGroups gidl titer) tskip),
+    (CHOICE: tquant = Choice (GroupAction (ResetGroups gidl) titer) tskip),
     is_tree (Star r1) cont inp tquant
 | tree_group:
   forall r1 cont treecont inp gid
     (TREECONT: is_tree r1 (Aclose gid :: cont) inp treecont),
-    is_tree (Group gid r1) cont inp (OpenGroup gid treecont).    
+    is_tree (Group gid r1) cont inp (GroupAction (OpenGroup gid) treecont).    
 
 
 Definition backtree (r:regex) (str:string) (t:tree): Prop :=

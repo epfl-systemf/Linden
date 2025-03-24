@@ -33,9 +33,10 @@ Definition tree_bfs_step (t:tree) (gm:group_map) (idx:nat): step_result :=
   | Read c t1 => StepBlocked t1
   | CheckFail _ => StepDead
   | CheckPass _ t1 => StepActive [(t1,gm)]
-  | OpenGroup gid t1 => StepActive [(t1,open_group gm gid idx)]
+  | GroupAction a t1 => StepActive [(t1, group_act_map a gm idx)]
+  (*| OpenGroup gid t1 => StepActive [(t1,open_group gm gid idx)]
   | CloseGroup gid t1 => StepActive [(t1, close_group gm gid idx)]
-  | ResetGroups gid t1 => StepActive [(t1, reset_groups gm gid)]
+  | ResetGroups gid t1 => StepActive [(t1, reset_groups gm gid)]*)
   end.
 
 (* The semantic states of the PikeTree algorithm *)
@@ -145,8 +146,6 @@ Proof.
     + unfold state_result. apply f_equal. apply f_equal2; auto.
     + rewrite app_nil_l. unfold state_result. apply f_equal. unfold list_result. rewrite seqop_list_head_none; auto.
     + unfold state_result. apply f_equal. rewrite list_result_cons. simpl. rewrite list_result_cons. auto.
-    + unfold state_result. apply f_equal. rewrite list_result_cons. simpl. rewrite list_result_cons. auto.
-    + unfold state_result. apply f_equal. rewrite list_result_cons. simpl. rewrite list_result_cons. auto.      
     + unfold state_result. apply f_equal. rewrite list_result_cons. simpl. rewrite list_result_cons. auto.
   - destruct t; simpl in STEP; inversion STEP; subst.
     simpl. apply f_equal. rewrite list_result_cons. auto.

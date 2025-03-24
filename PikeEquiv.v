@@ -24,7 +24,7 @@ Inductive tree_thread (code:code) (inp:input) : (tree * group_map) -> thread -> 
   forall tree gm pc b n gidl
     (TT: tree_thread code inp (tree,reset_groups gm gidl) (pc+1,reset_groups gm gidl,b) n)
     (RESET: get_pc code pc = Some (ResetRegs gidl)),
-    tree_thread code inp (ResetGroups gidl tree,gm) (pc,gm,b) n
+    tree_thread code inp (GroupAction (ResetGroups gidl) tree,gm) (pc,gm,b) n
 | tt_begin:
   forall tree gm pc b n
     (TT: tree_thread code inp (tree,gm) (pc+1,gm,CannotExit) n)
@@ -217,7 +217,7 @@ Qed.
 
 Theorem generate_open:
   forall gid tree gm idx inp code pc b n
-    (TT: tree_thread code inp (OpenGroup gid tree, gm) (pc, gm, b) n)
+    (TT: tree_thread code inp (GroupAction (OpenGroup gid) tree, gm) (pc, gm, b) n)
     (NOSTUTTER: stutters pc code = false),
     epsilon_step (pc, gm, b) code inp idx = EpsActive [(pc + 1, open_group gm gid idx, b)] /\
       tree_thread code inp (tree,open_group gm gid idx) (pc + 1, open_group gm gid idx, b) n.
@@ -225,7 +225,7 @@ Proof.
   intros gid tree gm idx inp code pc b n TT NOSTUTTER.
   inversion TT; subst.
   2: { exfalso. eapply doesnt_stutter_begin; eauto. }
-  remember (OpenGroup gid tree) as TOPEN.
+  remember (GroupAction (OpenGroup gid) tree) as TOPEN.
   generalize dependent pc_cont. generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTOPEN; subst.
   - inversion NFA. inversion CONT; subst.
@@ -241,7 +241,7 @@ Qed.
 
 Theorem generate_close:
   forall gid tree gm idx inp code pc b n
-    (TT: tree_thread code inp (CloseGroup gid tree, gm) (pc, gm, b) n)
+    (TT: tree_thread code inp (GroupAction (CloseGroup gid) tree, gm) (pc, gm, b) n)
     (NOSTUTTER: stutters pc code = false),
     epsilon_step (pc, gm, b) code inp idx = EpsActive [(pc + 1, close_group gm gid idx, b)] /\
       tree_thread code inp (tree,close_group gm gid idx) (pc + 1, close_group gm gid idx, b) n.
@@ -249,7 +249,7 @@ Proof.
   intros gid tree gm idx inp code pc b n TT NOSTUTTER.
   inversion TT; subst.
   2: { exfalso. eapply doesnt_stutter_begin; eauto. }
-  remember (CloseGroup gid tree) as TCLOSE.
+  remember (GroupAction (CloseGroup gid) tree) as TCLOSE.
   generalize dependent pc_cont. generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTCLOSE; subst.
   - inversion NFA. inversion CONT; subst.
@@ -267,17 +267,17 @@ Qed.
 Theorem no_tree_reset:
   (* The tree of a regex or a continuation cannot start with ResetGroups *)
   forall gidl tree inp r cont b,
-    bool_tree r cont inp b (ResetGroups gidl tree) -> False.
+    bool_tree r cont inp b (GroupAction (ResetGroups gidl) tree) -> False.
 Proof.
   intros gidl tree inp r cont b H.
-  remember (ResetGroups gidl tree) as TRESET.
+  remember (GroupAction (ResetGroups gidl) tree) as TRESET.
   induction H; inversion HeqTRESET; subst; auto.
   inversion CHOICE.
 Qed.
 
 Corollary generate_reset:  
   forall gidl tree inp code pc b gm n idx
-    (TT: tree_thread code inp (ResetGroups gidl tree, gm) (pc,gm,b) n)
+    (TT: tree_thread code inp (GroupAction (ResetGroups gidl) tree, gm) (pc,gm,b) n)
     (NOSTUTTER: stutters pc code = false),
     epsilon_step (pc,gm,b) code inp idx = EpsActive [(pc+1, reset_groups gm gidl, b)] /\
       tree_thread code inp (tree,reset_groups gm gidl) (pc+1, reset_groups gm gidl, b) n.
@@ -425,15 +425,16 @@ Proof.
   - eapply generate_checkpass in TT as [nextpc [STEP EQ]]; auto.
     exists [(nextpc,gm,CanExit)]. exists [n]. split; eauto.
     constructor; auto. constructor.
-  - eapply generate_open in TT as [STEP EQ]; auto.
-    exists [(pc+1,open_group gm g idx,b)]. exists [n]. split; eauto.
-    constructor; auto. constructor.
-  - eapply generate_close in TT as [STEP EQ]; auto.
-    exists [(pc+1,close_group gm g idx,b)]. exists [n]. split; eauto.
-    constructor; auto. constructor.
-  - eapply generate_reset in TT as [STEP EQ]; auto.
-    exists [(pc + 1, reset_groups gm gl, b)]. exists [n]. split; eauto.
-    constructor; auto. constructor. 
+  - destruct g.
+    + eapply generate_open in TT as [STEP EQ]; auto.
+      exists [(pc+1,open_group gm g idx,b)]. exists [n]. split; eauto.
+      constructor; auto. constructor.
+    + eapply generate_close in TT as [STEP EQ]; auto.
+      exists [(pc+1,close_group gm g idx,b)]. exists [n]. split; eauto.
+      constructor; auto. constructor.
+    + eapply generate_reset in TT as [STEP EQ]; auto.
+      exists [(pc + 1, reset_groups gm gl, b)]. exists [n]. split; eauto.
+      constructor; auto. constructor. 
 Qed.
 
 (* in the case where we are at a stuttering step, we show that we still preserve the invariant and decrease the measure *)

@@ -106,7 +106,11 @@ Inductive tree_nd: tree -> group_map -> nat -> seentrees -> option leaf -> Prop 
     tree_nd (CheckPass str t) gm idx seen l
 | tr_checkfail:
   forall str gm idx seen, tree_nd (CheckFail str) gm idx seen None
-| tr_open:
+| tr_groupaction:
+  forall t act gm idx l seen
+    (TR: tree_nd t (group_act_map act gm idx) idx seen l),
+    tree_nd (GroupAction act t) gm idx seen l
+(*| tr_open:
   forall t gid gm idx l seen
     (TR: tree_nd t (open_group gm gid idx) idx seen l),
     tree_nd (OpenGroup gid t) gm idx seen l
@@ -117,7 +121,8 @@ Inductive tree_nd: tree -> group_map -> nat -> seentrees -> option leaf -> Prop 
 | tr_reset:
   forall t gidl gm idx l seen
     (TR: tree_nd t (reset_groups gm gidl) idx seen l),
-    tree_nd (ResetGroups gidl t) gm idx seen l.
+    tree_nd (ResetGroups gidl t) gm idx seen l*)
+.
 
 (* the normal result, obtained with function tree_res without skipping anything, is a possible result *)
 Lemma tree_res_nd:
@@ -305,7 +310,7 @@ Qed.
 Fixpoint size (t:tree) : nat :=
   match t with
   | Mismatch | Match | CheckFail _ => O
-  | Read _ t1 | CheckPass _ t1 | OpenGroup _ t1 | CloseGroup _ t1 | ResetGroups _ t1 => 1 + size t1
+  | Read _ t1 | CheckPass _ t1 | GroupAction _ t1 => 1 + size t1
   | Choice t1 t2 => size t1 + size t2 + 1
   end.
 
@@ -407,48 +412,14 @@ Proof.
     + econstructor; eauto.
       eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
       econstructor; eauto.
-  (* opengroup *)
+  (* group action *)
   - simpl. constructor. intros res STATEND. inversion STATEND; subst.
     inversion ACTIVE; subst.
     apply SAMERES.
     apply add_parent_tree in TR.
     2: { simpl. lia. }
-    assert (PARENT: tree_nd (OpenGroup g t) gm idx seen l1).
-    { apply tr_open; auto. }
-    (* case analysis: did t contribute to the result? *)
-    destruct l1 as [leaf1|].
-    + econstructor; eauto. simpl.
-      eapply tlr_cons; eauto.
-      apply list_result_nd.
-    (* when the tree did not contribute, adding it to seen does not change the results *)
-    + econstructor; eauto.
-      eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
-      econstructor; eauto.
-  (* closegroup *)
-  - simpl. constructor. intros res STATEND. inversion STATEND; subst.
-    inversion ACTIVE; subst.
-    apply SAMERES.
-    apply add_parent_tree in TR.
-    2: { simpl. lia. }
-    assert (PARENT: tree_nd (CloseGroup g t) gm idx seen l1).
-    { apply tr_close; auto. }
-    (* case analysis: did t contribute to the result? *)
-    destruct l1 as [leaf1|].
-    + econstructor; eauto. simpl.
-      eapply tlr_cons; eauto.
-      apply list_result_nd.
-    (* when the tree did not contribute, adding it to seen does not change the results *)
-    + econstructor; eauto.
-      eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
-      econstructor; eauto.
-  (* resetgroups *)
-  - simpl. constructor. intros res STATEND. inversion STATEND; subst.
-    inversion ACTIVE; subst.
-    apply SAMERES.
-    apply add_parent_tree in TR.
-    2: { simpl. lia. }
-    assert (PARENT: tree_nd (ResetGroups gl t) gm idx seen l1).
-    { apply tr_reset; auto. }
+    assert (PARENT: tree_nd (GroupAction g t) gm idx seen l1).
+    { apply tr_groupaction; auto. }
     (* case analysis: did t contribute to the result? *)
     destruct l1 as [leaf1|].
     + econstructor; eauto. simpl.
