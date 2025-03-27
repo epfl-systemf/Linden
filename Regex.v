@@ -15,12 +15,15 @@ Inductive regex : Type :=
 | Character (cd : char_descr)   (* includes character classes and dot *)
 | Disjunction (r1 r2 : regex) 
 | Sequence (r1 r2 : regex)
-| Star (r1: regex)
+| Star (greedy:bool) (r1: regex)
 | Group (id : group_id) (r : regex).
 
 Definition regex_eq_dec : forall (x y : regex), { x = y } + { x <> y }.
 Proof.
-  decide equality. apply char_descr_eq_dec. apply PeanoNat.Nat.eq_dec. 
+  decide equality.
+  - apply char_descr_eq_dec.
+  - destruct greedy; destruct greedy0; auto. right. lia.
+  - apply PeanoNat.Nat.eq_dec. 
 Defined.
 
 (** * Group Manipulation  *)
@@ -30,6 +33,6 @@ Fixpoint def_groups (r:regex) : list group_id :=
   match r with
   | Epsilon | Character _  => []
   | Sequence r1 r2 | Disjunction r1 r2 => def_groups r1 ++ def_groups r2
-  | Star r1 => def_groups r1
+  | Star _ r1 => def_groups r1
   | Group id r1 => id::(def_groups r1)  
   end.
