@@ -53,9 +53,9 @@ Proof. intros. unfold seqop. destruct o1; destruct o2; auto. Qed.
 (** * Priority Trees  *)
 
 Inductive groupaction : Type :=
-| OpenGroup (g:group_id)
-| CloseGroup (g:group_id)
-| ResetGroups (gl:list group_id) (* for capture reset *)
+| Open (g:group_id)
+| Close (g:group_id)
+| Reset (gl:list group_id) (* for capture reset *)
 .
 
 Inductive tree : Type :=
@@ -77,11 +77,11 @@ Definition greedy_choice (greedy:bool) (t1 t2:tree) :=
   else Choice t2 t1.
 
 (** * Group action on a group map *)
-Definition group_act_map (a: groupaction) (gm: group_map) (idx: nat): group_map :=
+Definition group_effect (a: groupaction) (gm: group_map) (idx: nat): group_map :=
   match a with
-  | OpenGroup gid => open_group gm gid idx
-  | CloseGroup gid => close_group gm gid idx
-  | ResetGroups gidl => reset_groups gm gidl
+  | Open gid => open_group gm gid idx
+  | Close gid => close_group gm gid idx
+  | Reset gidl => reset_groups gm gidl
   end.
 
 (** * Tree Results  *)
@@ -99,7 +99,7 @@ Fixpoint tree_res (t:tree) (gm:group_map) (idx:nat): option leaf :=
   | Read c t1 => tree_res t1 gm (idx + 1)
   | CheckFail _ => None
   | CheckPass _ t1 => tree_res t1 gm idx
-  | GroupAction g t1 => tree_res t1 (group_act_map g gm idx) idx
+  | GroupAction g t1 => tree_res t1 (group_effect g gm idx) idx
   end.
 
 (* initializing on a the empty group map *)
@@ -119,7 +119,7 @@ Fixpoint tree_leaves (t:tree) (gm:group_map) (idx:nat): list leaf :=
   | Read c t1 => tree_leaves t1 gm (idx + 1)
   | CheckFail _ => []
   | CheckPass _ t1 => tree_leaves t1 gm idx
-  | GroupAction g t1 => tree_leaves t1 (group_act_map g gm idx) idx
+  | GroupAction g t1 => tree_leaves t1 (group_effect g gm idx) idx
   end.
 
 (* intermediate lemma about hd_error *)

@@ -24,7 +24,7 @@ Inductive tree_thread (code:code) (inp:input) : (tree * group_map) -> thread -> 
   forall tree gm pc b n gidl
     (TT: tree_thread code inp (tree,reset_groups gm gidl) (pc+1,reset_groups gm gidl,b) n)
     (RESET: get_pc code pc = Some (ResetRegs gidl)),
-    tree_thread code inp (GroupAction (ResetGroups gidl) tree,gm) (pc,gm,b) n
+    tree_thread code inp (GroupAction (Reset gidl) tree,gm) (pc,gm,b) n
 | tt_begin:
   forall tree gm pc b n
     (TT: tree_thread code inp (tree,gm) (pc+1,gm,CannotExit) n)
@@ -217,7 +217,7 @@ Qed.
 
 Theorem generate_open:
   forall gid tree gm idx inp code pc b n
-    (TT: tree_thread code inp (GroupAction (OpenGroup gid) tree, gm) (pc, gm, b) n)
+    (TT: tree_thread code inp (GroupAction (Open gid) tree, gm) (pc, gm, b) n)
     (NOSTUTTER: stutters pc code = false),
     epsilon_step (pc, gm, b) code inp idx = EpsActive [(pc + 1, open_group gm gid idx, b)] /\
       tree_thread code inp (tree,open_group gm gid idx) (pc + 1, open_group gm gid idx, b) n.
@@ -225,7 +225,7 @@ Proof.
   intros gid tree gm idx inp code pc b n TT NOSTUTTER.
   inversion TT; subst.
   2: { exfalso. eapply doesnt_stutter_begin; eauto. }
-  remember (GroupAction (OpenGroup gid) tree) as TOPEN.
+  remember (GroupAction (Open gid) tree) as TOPEN.
   generalize dependent pc_cont. generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTOPEN; subst.
   - inversion NFA. inversion CONT; subst.
@@ -241,7 +241,7 @@ Qed.
 
 Theorem generate_close:
   forall gid tree gm idx inp code pc b n
-    (TT: tree_thread code inp (GroupAction (CloseGroup gid) tree, gm) (pc, gm, b) n)
+    (TT: tree_thread code inp (GroupAction (Close gid) tree, gm) (pc, gm, b) n)
     (NOSTUTTER: stutters pc code = false),
     epsilon_step (pc, gm, b) code inp idx = EpsActive [(pc + 1, close_group gm gid idx, b)] /\
       tree_thread code inp (tree,close_group gm gid idx) (pc + 1, close_group gm gid idx, b) n.
@@ -249,7 +249,7 @@ Proof.
   intros gid tree gm idx inp code pc b n TT NOSTUTTER.
   inversion TT; subst.
   2: { exfalso. eapply doesnt_stutter_begin; eauto. }
-  remember (GroupAction (CloseGroup gid) tree) as TCLOSE.
+  remember (GroupAction (Close gid) tree) as TCLOSE.
   generalize dependent pc_cont. generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTCLOSE; subst.
   - inversion NFA. inversion CONT; subst.
@@ -267,17 +267,17 @@ Qed.
 Theorem no_tree_reset:
   (* The tree of a regex or a continuation cannot start with ResetGroups *)
   forall gidl tree inp r cont b,
-    bool_tree r cont inp b (GroupAction (ResetGroups gidl) tree) -> False.
+    bool_tree r cont inp b (GroupAction (Reset gidl) tree) -> False.
 Proof.
   intros gidl tree inp r cont b H.
-  remember (GroupAction (ResetGroups gidl) tree) as TRESET.
+  remember (GroupAction (Reset gidl) tree) as TRESET.
   induction H; inversion HeqTRESET; subst; auto.
   inversion CHOICE.
 Qed.
 
 Corollary generate_reset:  
   forall gidl tree inp code pc b gm n idx
-    (TT: tree_thread code inp (GroupAction (ResetGroups gidl) tree, gm) (pc,gm,b) n)
+    (TT: tree_thread code inp (GroupAction (Reset gidl) tree, gm) (pc,gm,b) n)
     (NOSTUTTER: stutters pc code = false),
     epsilon_step (pc,gm,b) code inp idx = EpsActive [(pc+1, reset_groups gm gidl, b)] /\
       tree_thread code inp (tree,reset_groups gm gidl) (pc+1, reset_groups gm gidl, b) n.

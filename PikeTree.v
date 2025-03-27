@@ -33,7 +33,7 @@ Definition tree_bfs_step (t:tree) (gm:group_map) (idx:nat): step_result :=
   | Read c t1 => StepBlocked t1
   | CheckFail _ => StepDead
   | CheckPass _ t1 => StepActive [(t1,gm)]
-  | GroupAction a t1 => StepActive [(t1, group_act_map a gm idx)]
+  | GroupAction a t1 => StepActive [(t1, group_effect a gm idx)]
   end.
 
 (* The semantic states of the PikeTree algorithm *)

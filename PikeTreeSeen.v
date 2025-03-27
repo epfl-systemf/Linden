@@ -108,7 +108,7 @@ Inductive tree_nd: tree -> group_map -> nat -> seentrees -> option leaf -> Prop 
   forall str gm idx seen, tree_nd (CheckFail str) gm idx seen None
 | tr_groupaction:
   forall t act gm idx l seen
-    (TR: tree_nd t (group_act_map act gm idx) idx seen l),
+    (TR: tree_nd t (group_effect act gm idx) idx seen l),
     tree_nd (GroupAction act t) gm idx seen l.
 
 (* the normal result, obtained with function tree_res without skipping anything, is a possible result *)
