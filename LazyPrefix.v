@@ -96,11 +96,12 @@ Theorem lazy_prefix_correct:
 Proof.
   intros r i.
   destruct i as [next pref].
+  simpl.
+  symmetry.
+  rewrite exec_tree.
   revert pref.
   induction next as [ | x next IHnext].
   - intro pref. simpl.
-    symmetry.
-    rewrite exec_tree.
     remember (exec r (Input [] pref)) as ol.
     symmetry in Heqol.
     rewrite exec_tree in Heqol.
@@ -108,10 +109,19 @@ Proof.
     eexists; split.
     + apply lazy_prefix_end. apply Htree.
     + replace (match ol with | Some leaf => _ | None => None end) with ol.
-      2: {
-        destruct ol; reflexivity.
-      }
+      2: destruct ol; reflexivity.
       unfold first_branch in *. simpl.
       rewrite seqop_none. assumption.
-  - 
+  - intro pref. simpl.
+    remember (exec r (Input (x::next) pref)) as ol eqn:Heqol.
+    symmetry in Heqol.
+    rewrite exec_tree in Heqol.
+    destruct Heqol as [tree_anch [Htree Hbranch]].
+    destruct (IHnext (x::pref)) as [tnext [Htreenext Hbranchnext]].
+    eexists; split.
+    + apply lazy_prefix_cons.
+      * apply Htree.
+      * apply Htreenext.
+    + unfold first_branch in *. simpl.
+      rewrite Hbranch.
 Admitted.
