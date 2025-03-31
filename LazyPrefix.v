@@ -1,9 +1,14 @@
 Require Import List.
 Import ListNotations.
+Require Import Lia.
 
 Require Import Regex Chars Groups Tree Semantics.
 Require String.
 
+
+Definition input_idx (i: input) := match i with
+  | Input _ pref => length pref
+end.
 
 (* Let's assume we have a function that computes the priority tree *)
 (* we don't for now, but this should be proved in the future *)
@@ -14,7 +19,7 @@ Axiom exec_tree:
   forall r i ol,
     exec r i = ol <->
       (exists tree, is_tree r [] i tree /\
-                 first_branch tree = ol).
+        tree_res tree empty_group_map (input_idx i) = ol).
 
 (* Search for a match for a regex, at a given position indicated by the current state of the input (next & pref) *)
 (* then search from the next position if no match is found *)
@@ -110,7 +115,7 @@ Proof.
     + apply lazy_prefix_end. apply Htree.
     + replace (match ol with | Some leaf => _ | None => None end) with ol.
       2: destruct ol; reflexivity.
-      unfold first_branch in *. simpl.
+      simpl.
       rewrite seqop_none. assumption.
   - intro pref. simpl.
     remember (exec r (Input (x::next) pref)) as ol eqn:Heqol.
@@ -122,6 +127,11 @@ Proof.
     + apply lazy_prefix_cons.
       * apply Htree.
       * apply Htreenext.
-    + unfold first_branch in *. simpl.
+    + simpl.
+      simpl in Hbranch.
       rewrite Hbranch.
-Admitted.
+      destruct ol as [leaf |].
+      * reflexivity.
+      * simpl. simpl in Hbranchnext. replace (length pref + 1) with (S (length pref)) by lia.
+        assumption.
+Qed.
