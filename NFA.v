@@ -1,9 +1,9 @@
 Require Import List Lia.
 Import ListNotations.
 
-Require Import Regex Chars Groups.
-Require Import Tree.
-Require Import Semantics.
+From Linden Require Import Regex Chars Groups.
+From Linden Require Import Tree.
+From Linden Require Import Semantics.
 
 (** * NFA Bytecdode *)
 (* the bytecode generated for the PikeVM algorithm *)

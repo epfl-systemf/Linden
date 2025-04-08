@@ -1,8 +1,8 @@
 Require Import List Lia.
 Import ListNotations.
 
-Require Import Chars.
-Require Import Groups.
+From Linden Require Import Chars.
+From Linden Require Import Groups.
 
 (* The subset of JavaScript regexes supported by this development. *)
 (* The semantics come from JavaScript:

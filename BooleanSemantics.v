@@ -1,9 +1,9 @@
 Require Import List Lia.
 Import ListNotations.
 
-Require Import Regex Chars Groups.
-Require Import Tree.
-Require Import Semantics.
+From Linden Require Import Regex Chars Groups.
+From Linden Require Import Tree.
+From Linden Require Import Semantics.
 
 (* An alternate definition of the semantics, using a boolean to know if one can exit a loop *)
 

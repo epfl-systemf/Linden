@@ -1,7 +1,7 @@
 Require Import List.
 Import ListNotations.
 
-Require Import Regex Chars Groups.
+From Linden Require Import Regex Chars Groups.
 
 
 (* A tree represents all the possible paths that could be explored by a backtracking engine *)

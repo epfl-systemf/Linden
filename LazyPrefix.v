@@ -2,7 +2,7 @@ Require Import List.
 Import ListNotations.
 Require Import Lia.
 
-Require Import Regex Chars Groups Tree Semantics.
+From Linden Require Import Regex Chars Groups Tree Semantics.
 Require String.
 
 

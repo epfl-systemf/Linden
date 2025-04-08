@@ -4,10 +4,10 @@
 Require Import List Lia.
 Import ListNotations.
 
-Require Import Regex Chars Groups.
-Require Import Tree Semantics NFA.
-Require Import BooleanSemantics.
-Require Import PikeVM.
+From Linden Require Import Regex Chars Groups.
+From Linden Require Import Tree Semantics NFA.
+From Linden Require Import BooleanSemantics.
+From Linden Require Import PikeVM.
 
 (** * Sets of seen pcs *)
 

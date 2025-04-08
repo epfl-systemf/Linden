@@ -3,11 +3,11 @@
 Require Import List Lia.
 Import ListNotations.
 
-Require Import Regex Chars Groups.
-Require Import Tree Semantics BooleanSemantics.
-Require Import NFA PikeTree PikeVM.
-Require Import PikeTreeSeen PikeVMSeen.
-Require Import PikeEquiv.
+From Linden Require Import Regex Chars Groups.
+From Linden Require Import Tree Semantics BooleanSemantics.
+From Linden Require Import NFA PikeTree PikeVM.
+From Linden Require Import PikeTreeSeen PikeVMSeen.
+From Linden Require Import PikeEquiv.
 
 (** * Simulation Invariant  *)
 

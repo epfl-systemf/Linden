@@ -1,8 +1,8 @@
 Require Import List.
 Import ListNotations.
 
-Require Import Regex Chars Groups.
-Require Import Tree.
+From Linden Require Import Regex Chars Groups.
+From Linden Require Import Tree.
 
 (* This relates a regex and a string to their backtracking tree *)
 
