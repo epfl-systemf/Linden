@@ -1,4 +1,4 @@
-From Warblre Require Import Parameters Typeclasses RegExpRecord Patterns.
+From Warblre Require Import Parameters Typeclasses RegExpRecord Patterns Result Errors.
 From Linden Require Import Chars.
 From Coq Require Import List.
 Import ListNotations.
@@ -70,7 +70,12 @@ Defined.
 Instance empty_unicode_marker: UnicodePropertyMarker NoProperty := mk_unicode_property_marker NoProperty.
 
 (* Character descriptors *)
-Parameter char_descr_to_regex: char_descr -> Patterns.Regex.
+Parameter char_descr_to_regex: char_descr -> Result Patterns.Regex CompileError.
 
-Axiom single_Char: forall c: Char, char_descr_to_regex (single c) = Patterns.Char c.
-Axiom dot_Dot: char_descr_to_regex dot = Patterns.Dot.
+Axiom single_Char: forall c: Char, char_descr_to_regex (single c) = Success (Patterns.Char c).
+Axiom dot_Dot: char_descr_to_regex dot = Success (Patterns.Dot).
+Axiom all_error: char_descr_to_regex all = Error CompileError.AssertionFailed.
+Axiom cd_case_analysis: forall cd: char_descr,
+  (exists c, cd = single c) \/
+  cd = dot \/
+  cd = all.
