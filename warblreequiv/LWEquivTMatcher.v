@@ -118,8 +118,10 @@ Proof.
   intros reg ctx rer.
   revert ctx.
   induction reg; simpl.
+
   - (* Empty *)
     intros. unfold equiv_tree in *. assumption.
+  
   - (* Character *)
     intros. unfold equiv_tree in *. intro.
     unfold tCharacterSetMatcher, Semantics.characterSetMatcher.
@@ -146,6 +148,7 @@ Proof.
       unfold advance_ms.
       rewrite Heqs'.
       reflexivity.
+  
   - (* Dot; mostly same as character *)
     intros.
     intro s.
@@ -173,10 +176,13 @@ Proof.
       unfold advance_ms.
       rewrite Heqs'.
       reflexivity.
+  
   - (* Unsupported case *)
     intro. destruct (match ae with | DecimalEsc de => _ | ACharacterClassEsc cce => _ | ACharacterEsc ce => _ | GroupEsc gn => _ end); split.
+  
   - (* Character class: unsupported *)
     intro. destruct (let! _ =<< _ in _); split.
+  
   - (* Disjunction *)
     intro.
     remember (Disjunction_left reg2 :: ctx) as ctxleft.
@@ -200,9 +206,11 @@ Proof.
     + rewrite IHreg1. simpl. reflexivity.
     + destruct (m2 s' mc) as [r2|] eqn:?; simpl; try exact I.
       rewrite IHreg1. simpl. assumption.
+  
   - (* Quantifier *)
     intro.
     admit.
+  
   - (* Sequence *)
     intro.
     remember (Seq_left reg2 :: ctx) as ctxleft.
@@ -219,6 +227,7 @@ Proof.
     specialize (IHreg1 (fun s0 => m2 s0 mc) (fun s0 => tm2 s0 tmc) gl IHreg2 s).
     simpl in *.
     assumption.
+  
   - (* Group *)
     intro.
     remember (Group_inner name :: ctx) as ctx'.
@@ -259,6 +268,8 @@ Proof.
     destruct (tm s treecont) as [t|] eqn:?; simpl; try exact I.
     destruct (m s origcont) as [res|] eqn:?; simpl; try exact I.
     assumption.
+  
+  
   - (* Unsupported *)
     split.
   - (* Unsupported *)

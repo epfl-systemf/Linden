@@ -24,3 +24,23 @@ Fixpoint to_warblre_regex (r: regex): Result Patterns.Regex CompileError :=
     let! wr =<< to_warblre_regex r in
     Success (Patterns.Group None wr)
   end.
+
+(* Ensuring that the group IDs of the translation correspond to those of the original regexp *)
+Fixpoint num_groups (r: regex): nat :=
+  match r with
+  | Epsilon | Character _ => 0
+  | Disjunction r1 r2 => num_groups r1 + num_groups r2
+  | Sequence r1 r2 => num_groups r1 + num_groups r2
+  | Star _ r1 => num_groups r1
+  | Group _ r1 => S (num_groups r1)
+  end.
+
+Inductive well_parenthesized' : nat -> regex -> Prop :=
+| wp_eps: forall n, well_parenthesized' n Epsilon
+| wp_char: forall n cd, well_parenthesized' n (Character cd)
+| wp_disj: forall n r1 r2, well_parenthesized' n r1 -> well_parenthesized' (num_groups r1 + n) r2 -> well_parenthesized' n (Disjunction r1 r2)
+| wp_seq: forall n r1 r2, well_parenthesized' n r1 -> well_parenthesized' (num_groups r1 + n) r2 -> well_parenthesized' n (Sequence r1 r2)
+| wp_star: forall n greedy r, well_parenthesized' n r -> well_parenthesized' n (Star greedy r)
+| wp_group: forall n r, well_parenthesized' (S n) r -> well_parenthesized' n (Group (S n) r).
+
+Definition well_parenthesized (r: regex) := well_parenthesized' 0 r.

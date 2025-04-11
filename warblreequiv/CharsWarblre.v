@@ -75,7 +75,19 @@ Parameter char_descr_to_regex: char_descr -> Result Patterns.Regex CompileError.
 Axiom single_Char: forall c: Char, char_descr_to_regex (single c) = Success (Patterns.Char c).
 Axiom dot_Dot: char_descr_to_regex dot = Success (Patterns.Dot).
 Axiom all_error: char_descr_to_regex all = Error CompileError.AssertionFailed.
-Axiom cd_case_analysis: forall cd: char_descr,
-  (exists c, cd = single c) \/
-  cd = dot \/
-  cd = all.
+Parameter is_char: char_descr -> bool. (* Simulates pattern matching *)
+Axiom is_char_spec: forall cd, is_char cd = true <-> exists c, cd = single c.
+Axiom others_error: forall cd, is_char cd = false -> cd <> dot -> cd <> all -> char_descr_to_regex cd = Error CompileError.AssertionFailed.
+
+Lemma char_descr_destruct: forall cd: char_descr, (exists c, cd = single c) \/ cd = dot \/ cd = all \/ char_descr_to_regex cd = Error CompileError.AssertionFailed.
+Proof.
+  intro cd.
+  destruct (is_char cd) eqn:Hchar.
+  - left. now apply is_char_spec.
+  - right.
+    destruct (char_descr_eq_dec cd dot) as [Hdot|Hdot].
+    + now left.
+    + right. destruct (char_descr_eq_dec cd all) as [Hall|Hall].
+      * now left.
+      * right. now apply others_error.
+Qed.
