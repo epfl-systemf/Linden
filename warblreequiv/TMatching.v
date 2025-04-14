@@ -68,16 +68,18 @@ match fuel with
   (*>> 4. For each integer k in the inclusive interval from parenIndex + 1 to parenIndex + parenCount, set cap[k] to undefined. <<*)
   (* + The additional +1 is normal: the range operator --- is non-inclusive on the right +*)
   set cap[(parenIndex + 1) --- (parenIndex + parenCount + 1) ] := undefined in
-  let! subtree =<<
-    (*>> 5. Let Input be x's input. <<*)
-    let input := MatchState.input x in
-    (*>> 6. Let e be x's endIndex. <<*)
-    let e := MatchState.endIndex x in
-    (*>> 7. Let xr be the MatchState (Input, e, cap). <<*)
-    let xr := match_state input e cap in
-    (*>> 8. If min ≠ 0, return m(xr, d). <<*)
-    if (min !=? 0)%nat
-      then m xr d else
+  (*>> 5. Let Input be x's input. <<*)
+  let input := MatchState.input x in
+  (*>> 6. Let e be x's endIndex. <<*)
+  let e := MatchState.endIndex x in
+  (*>> 7. Let xr be the MatchState (Input, e, cap). <<*)
+  let xr := match_state input e cap in
+  (*>> 8. If min ≠ 0, return m(xr, d). <<*)
+  if (min !=? 0)%nat
+    then 
+      let! subtree =<< m xr d in
+      Success (GroupAction (Reset (List.seq (parenIndex + 1) parenCount)) subtree)
+    else
     (*>> 9. If greedy is false, then <<*)
     if greedy is false then
       (*>> a. Let z be c(x). <<*)
@@ -85,15 +87,14 @@ match fuel with
       (*>> b. If z is not failure, return z. <<*)
       (*>> c. Return m(xr, d). <<*)
       let! z' =<< m xr d in
-      Success (Choice z z')
+      Success (Choice z (GroupAction (Reset (List.seq (parenIndex + 1) parenCount)) z'))
     else
-    (*>> 10. Let z be m(xr, d). <<*)
-    let! z =<< m xr d in
-    (*>> 11. If z is not failure, return z. <<*)
-    (*>> 12. Return c(x). <<*)
-    let! z' =<< c x in
-    Success (Choice z z')
-  in Success (GroupAction (Reset (List.seq (parenIndex + 1) parenCount)) subtree)
+      (*>> 10. Let z be m(xr, d). <<*)
+      let! z =<< m xr d in
+      (*>> 11. If z is not failure, return z. <<*)
+      (*>> 12. Return c(x). <<*)
+      let! z' =<< c x in
+      Success (Choice (GroupAction (Reset (List.seq (parenIndex + 1) parenCount)) z) z')
 end.
 
 Definition tRepeatMatcher (m: TMatcher) (min: non_neg_integer) (max: non_neg_integer_or_inf) (greedy: bool) (x: MatchState) (c: TMatcherContinuation) (parenIndex parenCount: non_neg_integer): TMatchResult :=

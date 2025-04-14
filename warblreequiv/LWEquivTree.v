@@ -19,7 +19,10 @@ Inductive ms_matches_inp: MatchState -> input -> Prop :=
         MatchState.captures := cap |} (Input next pref).
 
 Section Main.
-  Context (s0: string) (rer: RegExpRecord).
+  Context (s0: string) (rer: RegExpRecord) (root: regex) (wroot: Regex).
+  Hypothesis Hcasesenst: RegExpRecord.ignoreCase rer = false.
+  Hypothesis root_translates: to_warblre_regex root = Success wroot.
+  Hypothesis Hwp_root: well_parenthesized root.
 
   Definition tMC_is_tree (tmc: TMatcherContinuation) (reg: regex) (cont: continuation) (inp: input) :=
     forall s: MatchState, Valid (MatchState.input s) rer s -> ms_matches_inp s inp -> match tmc s with
@@ -32,12 +35,12 @@ Section Main.
 
   (* Theorem is not true for case-insensitive matching, which is not supported (yet) by the tree semantics *)
   (* Validity of the context and regexp? *)
-  Theorem tmatcher_bt: forall reg ctx
-    (Hcasesenst: RegExpRecord.ignoreCase rer = false),
+  Theorem tmatcher_bt: forall reg ctx,
     let wreg' := to_warblre_regex reg in
     match wreg' with
     | Error _ => True
     | Success wreg =>
+      Root wroot (wreg, ctx) ->
       match tCompileSubPattern wreg ctx rer forward with
       | Error _ => True
       | Success tm => forall (tmc: TMatcherContinuation) (regc: regex) (cont: continuation),
@@ -46,8 +49,7 @@ Section Main.
       end
     end.
   Proof.
-    intros reg ctx Hcasesenst.
-    revert ctx.
+    intro reg.
     induction reg as [
       |
       cd |
@@ -57,7 +59,7 @@ Section Main.
       id r IHr
     ].
     - (* Empty *)
-      simpl. intros _.
+      simpl. intros _ _.
       intros tmc regc cont Htmc_tree inp Hinp_compat.
       unfold tMC_is_tree.
       intros s Hvalids Hs_inp.
@@ -73,7 +75,7 @@ Section Main.
         rewrite Hchar.
         rewrite single_Char.
         simpl.
-        intros tmc regc cont Htmc_tree inp Hinp_compat.
+        intros Hroot tmc regc cont Htmc_tree inp Hinp_compat.
         specialize (Htmc_tree inp Hinp_compat).
         unfold tMC_is_tree.
         intros s Hsvalid Hs_inp.
@@ -120,10 +122,15 @@ Section Main.
       destruct (to_warblre_regex r1) as [wr1|] eqn:Hr1; simpl; try exact I.
       destruct (to_warblre_regex r2) as [wr2|] eqn:Hr2; simpl; try exact I.
       simpl in *.
+      intro Hroot.
       remember (@Disjunction_left LindenParameters wr2 :: ctx) as ctx1.
       remember (@Disjunction_right LindenParameters wr1 :: ctx) as ctx2.
       specialize (IHreg1 ctx1).
       specialize (IHreg2 ctx2).
+      assert (Root wroot (wr1, ctx1)) as Hroot1 by admit.
+      assert (Root wroot (wr2, ctx2)) as Hroot2 by admit.
+      specialize (IHreg1 Hroot1).
+      specialize (IHreg2 Hroot2).
       destruct (tCompileSubPattern wr1 ctx1 rer forward) as [tm1|] eqn:Htm1; simpl; try exact I.
       destruct (tCompileSubPattern wr2 ctx2 rer forward) as [tm2|] eqn:Htm2; simpl; try exact I.
       intros tmc regc cont Htmc_tree inp Hinp_compat.
@@ -145,10 +152,15 @@ Section Main.
       destruct (to_warblre_regex r1) as [wr1|] eqn:Hr1; simpl; try exact I.
       destruct (to_warblre_regex r2) as [wr2|] eqn:Hr2; simpl; try exact I.
       simpl in *.
+      intro Hroot.
       remember (@Seq_left LindenParameters wr2 :: ctx) as ctx1.
       remember (@Seq_right LindenParameters wr1 :: ctx) as ctx2.
       specialize (IHreg1 ctx1).
       specialize (IHreg2 ctx2).
+      assert (Root wroot (wr1, ctx1)) as Hroot1 by admit.
+      assert (Root wroot (wr2, ctx2)) as Hroot2 by admit.
+      specialize (IHreg1 Hroot1).
+      specialize (IHreg2 Hroot2).
       destruct (tCompileSubPattern wr1 ctx1 rer forward) as [tm1|] eqn:Htm1; simpl; try exact I.
       destruct (tCompileSubPattern wr2 ctx2 rer forward) as [tm2|] eqn:Htm2; simpl; try exact I.
       intros tmc regc cont Htmc_tree inp Hinp_compat.
@@ -174,5 +186,57 @@ Section Main.
     - (* Group *)
       intro ctx.
       simpl.
-      
+      destruct (to_warblre_regex r) as [wr|] eqn:Heqwr; simpl; try exact I.
+      intro Hroot.
+      remember (@Group_inner LindenParameters _ :: ctx) as rctx.
+      simpl in IHr.
+      specialize (IHr rctx).
+      assert (Root wroot (wr, rctx)) as Hrootr by admit.
+      specialize (IHr Hrootr).
+      destruct (tCompileSubPattern wr rctx rer forward) as [mr|] eqn:Heqmr; simpl; try exact I.
+      intros tmc regc cont Htmc_tree inp Hinp_compat.
+      unfold tMC_is_tree.
+      intros s Hvalids Hs_inp.
+      remember (fun y: MatchState => _) as tmc2.
+      (* Let's try something *)
+      specialize (IHr tmc2 Epsilon (Aclose id :: Areg regc :: cont)).
+      assert (StaticSemantics.countLeftCapturingParensBefore (Group None wr) ctx + 1 = id) as Heqid by admit.
+      assert (forall inp : input, input_compat inp -> tMC_is_tree tmc2 Epsilon (Aclose id :: Areg regc :: cont) inp) as Htmc2_tree.
+      {
+        intros inp' Hinp'_compat.
+        rewrite Heqtmc2.
+        unfold tMC_is_tree.
+        intros s' Hs'valid Hs'_inp.
+        destruct negb; simpl; try exact I.
+        rewrite Heqid.
+        replace (id =? 0) with false.
+        2: {
+          symmetry.
+          rewrite Nat.eqb_neq.
+          lia.
+        }
+        destruct (List.List.Update.Nat.One.update) as [cap|]; simpl; try exact I.
+        specialize (Htmc_tree inp' Hinp'_compat).
+        unfold tMC_is_tree in Htmc_tree.
+        remember (match_state _ _ cap) as s''.
+        specialize (Htmc_tree s'').
+        assert (Valid (MatchState.input s'') rer s'') as Hs''valid by admit. (* not entirely sure that this is actually true *)
+        specialize (Htmc_tree Hs''valid).
+        assert (ms_matches_inp s'' inp') as Hs''_inp' by admit.
+        specialize (Htmc_tree Hs''_inp').
+        destruct (tmc s'') as [subtree|] eqn:Heqsubtree; simpl; try exact I.
+        apply tree_pop_close.
+        apply tree_pop_reg.
+        assumption.
+      }
+      rewrite Heqid.
+      specialize (IHr Htmc2_tree inp Hinp_compat).
+      unfold tMC_is_tree in IHr.
+      specialize (IHr s Hvalids Hs_inp).
+      destruct (mr s tmc2) as [subtree|] eqn:Heqsubtree; simpl; try exact I.
+      apply tree_group.
+      (* Need to prove that adding Epsilon to a continuation does not change anything *)
       admit.
+  Admitted.
+
+End Main.

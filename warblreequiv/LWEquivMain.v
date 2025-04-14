@@ -1,8 +1,14 @@
-From Warblre Require Import Semantics Frontend Result.
+From Warblre Require Import Semantics Frontend Result Errors Base.
 From Linden Require Import LindenParameters RegexpTranslation Regex Chars Tree Groups Semantics Utils.
 From Coq Require Import List.
 Import ListNotations.
+Import Result.
+Import Result.Notations.
+Import Coercions.
 
+Local Open Scope result_flow.
+
+(* TODO Fix this *)
 Definition equiv_flags: RegExpFlags := {|
   RegExpFlags.d := true;
   RegExpFlags.g := false;
@@ -13,8 +19,8 @@ Definition equiv_flags: RegExpFlags := {|
   RegExpFlags.y := true
   |}.
 
-Definition warblre_exec (r: regex) (s: string): option ExecResult :=
-  let warblre_r := to_warblre_regex r in
+Definition warblre_exec (r: regex) (s: string): Result (option ExecResult) CompileError :=
+  let! warblre_r =<< to_warblre_regex r in
   match regExpInitialize (specParameters := LindenParameters) warblre_r equiv_flags with
   | Error _ => None
   | Success rei =>
@@ -38,8 +44,9 @@ Theorem linden_warblre_equiv:
   well_parenthesized r ->
   backtree (Group 0 r) s t ->
   match warblre_exec r s with
-  | None => False
-  | Some res => match res with
+  | Error _ => True
+  | Success None => False
+  | Success (Some res) => match res with
     | Null _ => first_branch t = None
     | Exotic {| ExecArrayExotic.indices_array := ia |} _ =>
       match ia with
