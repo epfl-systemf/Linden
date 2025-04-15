@@ -8,7 +8,6 @@ Import Coercions.
 
 Local Open Scope result_flow.
 
-(* TODO Fix this *)
 Definition equiv_flags: RegExpFlags := {|
   RegExpFlags.d := true;
   RegExpFlags.g := false;

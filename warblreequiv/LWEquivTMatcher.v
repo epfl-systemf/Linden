@@ -1,5 +1,5 @@
 From Coq Require Import PeanoNat ZArith Bool Lia Program.Equality List Program.Wf.
-From Linden Require Import Tree LindenParameters CharsWarblre TMatching Chars.
+From Linden Require Import Tree LindenParameters CharsWarblre TMatching Chars ListLemmas.
 From Warblre Require Import Patterns Result Notation Errors Node RegExpRecord Base Coercions Semantics Typeclasses.
 Import Patterns.
 Import Result.Result.
@@ -21,14 +21,12 @@ Definition advance_ms (s: MatchState): MatchState :=
     MatchState.endIndex := (MatchState.endIndex s + 1)%Z;
     MatchState.captures := MatchState.captures s |}.
 
-Fixpoint reset_groups_ms (gidl: list Groups.group_id) (s: MatchState): Result MatchState tree_res'_error :=
+(* TODO Zero group *)
+
+Definition reset_groups_ms (gidl: list Groups.group_id) (s: MatchState): Result MatchState tree_res'_error :=
   let '(match_state inp endInd cap) := s in
-  match gidl with
-  | nil => Success s
-  | x::q =>
-    set cap[x] := None in
-    reset_groups_ms q (match_state inp endInd cap)
-  end.
+  let! cap' =<< List.List.Update.Nat.Batch.update None cap (List.map (fun x => x-1) gidl) in
+  Success (match_state inp endInd cap').
 
 (* A list of currently open groups *)
 Definition open_groups := list (Groups.group_id * integer).
@@ -174,7 +172,22 @@ Section Main.
           destruct m as [res|] eqn:Heqres; simpl. 2: exact I.
           apply Hm_tm_equiv.
         }
-        assert ((reset_groups_ms (seq (parenIndex + 1) parenCount) x) = (@Success MatchState tree_res'_error s')) as RESET_GROUPS by admit.
+        assert ((reset_groups_ms (seq (parenIndex + 1) parenCount) x) = (@Success MatchState tree_res'_error s')) as RESET_GROUPS.
+        {
+          unfold reset_groups_ms.
+          destruct x.
+          rewrite <- List.List.Range.Nat.Length.range_seq.
+          unfold List.List.Range.Nat.Bounds.range in Heqcap'.
+          rewrite decr_range by lia.
+          replace (parenIndex + parenCount + 1 - 1 - (parenIndex + 1 - 1)) with parenCount in Heqcap' by lia.
+          pose proof List.List.Update.Nat.Batch.update_indep_error (option CaptureRange) MatchError tree_res'_error _ _ None captures (List.List.Range.Nat.Length.range (parenIndex + 1 - 1) parenCount) as H.
+          unfold Result.equiv_results in H.
+          simpl in Heqcap'.
+          rewrite Heqcap' in H.
+          destruct (@List.List.Update.Nat.Batch.update _ tree_res'_error); simpl in *.
+          - f_equal. subst s. subst input. symmetry. assumption.
+          - contradiction.
+        }
         destruct (negb (min =? 0)) eqn:Hmin_nonzero; simpl.
         (* Case min > 0 *)
         * unfold equiv_results in Hequivres.
@@ -222,7 +235,7 @@ Section Main.
                 destruct zmc; simpl.
                 ** reflexivity.
                 ** contradiction.
-  Admitted.
+  Qed.
 
 
   Theorem compile_tcompile: forall reg ctx rer,
@@ -392,8 +405,17 @@ Section Main.
         destruct (mc s') as [res|] eqn:Heqres; simpl; try exact I.
         rewrite EqDec.reflb. simpl.
         rewrite Hgid_nonzero.
-        (* Prove: the result of List.List.....Update does not depend on the type of the error that should be returned if any *)
-        replace (@List.List.Update.Nat.One.update _ tree_res'_error _ _ _ (gid - 1)) with (@Success _ tree_res'_error cap') by admit.
+        replace (@List.List.Update.Nat.One.update _ tree_res'_error _ _ _ (gid - 1)) with (@Success _ tree_res'_error cap').
+        2: {
+          symmetry.
+          pose proof @List.List.Update.Nat.One.update_indep_error (option CaptureRange) MatchError tree_res'_error as H.
+          specialize (H _ _ (capture_range i (MatchState.endIndex y)) (MatchState.captures y) (gid - 1)).
+          rewrite Hcapupd in H.
+          simpl in H.
+          destruct (@List.List.Update.Nat.One.update _ tree_res'_error).
+          - f_equal. symmetry. apply H.
+          - contradiction.
+        }
         simpl.
         specialize (Hequiv s').
         assert (MatchState.input s' = s0) as Hs's0.

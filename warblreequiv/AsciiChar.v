@@ -12,8 +12,6 @@ Parameter ascii_canonicalize: RegExpRecord -> ascii -> ascii.
 Definition ascii_of_nat_2 (n: nat): ascii :=
   if Nat.ltb n 256 then ascii_of_nat n else ascii_of_nat 255.
 
-Search (nat_of_ascii _ < 256).
-
 Lemma ascii_of_nat_2_lt256: forall n: nat, n < 256 -> ascii_of_nat_2 n = ascii_of_nat n.
 Proof.
   intros n Hlt.
