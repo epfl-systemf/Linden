@@ -1,6 +1,6 @@
 From Coq Require Import PeanoNat ZArith Bool Lia Program.Equality List Program.Wf.
 From Linden Require Import Tree LindenParameters CharsWarblre TMatching Chars Regex Semantics RegexpTranslation.
-From Warblre Require Import Patterns Result Notation Errors Node RegExpRecord Base Coercions Semantics Typeclasses.
+From Warblre Require Import Patterns Result Notation Errors Node RegExpRecord Base Coercions Semantics Typeclasses NodeProps.
 From Warblre.props Require Import Match.
 Import Match.MatchState.
 Import Patterns.
@@ -9,6 +9,9 @@ Import Result.Notations.
 Import Result.Notations.Boolean.
 Import Coercions.
 Import Notation.
+Import NodeProps.
+Import Zipper.
+Import Down.
 
 Local Open Scope result_flow.
 
@@ -100,8 +103,10 @@ Section Main.
         specialize (Htmc_valid s Hvalids Hs_inp).
         destruct tm as [z|] eqn:Heqz; simpl. 2: exact I.
         destruct tmc as [z'|] eqn:Heqz'; simpl. 2: exact I.
-        (* TODO Remove an epsilon *)
-        assert (is_tree reg (Acheck (ms_suffix s) :: Areg (Regex.Star true reg) :: Areg regc :: cont) inp z) as Htm_valid2 by admit.
+        assert (is_tree reg (Acheck (ms_suffix s) :: Areg (Regex.Star true reg) :: Areg regc :: cont) inp z) as Htm_valid2.
+        {
+          apply is_tree_eps with (cont1 := nil). apply Htm_valid.
+        }
         eapply tree_star.
         * symmetry. apply Hgroups_valid.
         * replace (current_str inp) with (ms_suffix s) by admit.
@@ -214,8 +219,19 @@ Section Main.
       remember (@Disjunction_right LindenParameters wr1 :: ctx) as ctx2.
       specialize (IHreg1 ctx1).
       specialize (IHreg2 ctx2).
-      assert (Root wroot (wr1, ctx1)) as Hroot1 by admit.
-      assert (Root wroot (wr2, ctx2)) as Hroot2 by admit.
+      assert (Root wroot (wr1, ctx1)) as Hroot1.
+      {
+        rewrite Heqctx1.
+        apply same_root_down0 with (r1 := Disjunction wr1 wr2) (ctx1 := ctx).
+        - apply (@Down_Disjunction_left LindenParameters).
+        - apply Hroot.
+      }
+      assert (Root wroot (wr2, ctx2)) as Hroot2.
+      {
+        apply same_root_down0 with (r1 := Disjunction wr1 wr2) (ctx1 := ctx).
+        - rewrite Heqctx2. apply (@Down_Disjunction_right LindenParameters).
+        - apply Hroot.
+      }
       specialize (IHreg1 Hroot1).
       specialize (IHreg2 Hroot2).
       destruct (tCompileSubPattern wr1 ctx1 rer forward) as [tm1|] eqn:Htm1; simpl; try exact I.
@@ -245,8 +261,18 @@ Section Main.
       remember (@Seq_right LindenParameters wr1 :: ctx) as ctx2.
       specialize (IHreg1 ctx1).
       specialize (IHreg2 ctx2).
-      assert (Root wroot (wr1, ctx1)) as Hroot1 by admit.
-      assert (Root wroot (wr2, ctx2)) as Hroot2 by admit.
+      assert (Root wroot (wr1, ctx1)) as Hroot1.
+      {
+        apply same_root_down0 with (r1 := Seq wr1 wr2) (ctx1 := ctx).
+        - rewrite Heqctx1. apply (@Down_Seq_left LindenParameters).
+        - apply Hroot.
+      }
+      assert (Root wroot (wr2, ctx2)) as Hroot2.
+      {
+        apply same_root_down0 with (r1 := Seq wr1 wr2) (ctx1 := ctx).
+        - rewrite Heqctx2. apply (@Down_Seq_right LindenParameters).
+        - apply Hroot.
+      }
       specialize (IHreg1 Hroot1).
       specialize (IHreg2 Hroot2).
       destruct (tCompileSubPattern wr1 ctx1 rer forward) as [tm1|] eqn:Htm1; simpl; try exact I.
@@ -282,7 +308,12 @@ Section Main.
         pose proof tRepeatMatcher'_valid true (StaticSemantics.countLeftCapturingParensBefore wr1 ctx)
         (StaticSemantics.countLeftCapturingParensWithin wr1 (Quantified_inner (Greedy Star) :: ctx)) m r1 as Hrepeat.
         specialize (IHreg1 (Quantified_inner (Greedy Star)::ctx)).
-        assert (Root wroot (wr1, Quantified_inner (Greedy Star)::ctx)) as Hroot1 by admit.
+        assert (Root wroot (wr1, Quantified_inner (Greedy Star)::ctx)) as Hroot1.
+        {
+          eapply same_root_down0.
+          - apply (@Down_Quantified_inner LindenParameters).
+          - apply Hroot.
+        }
         specialize (IHreg1 Hroot1).
         rewrite Heqm in IHreg1.
         specialize (Hrepeat IHreg1).
@@ -299,6 +330,7 @@ Section Main.
         specialize (Hrepeat tmc regc cont Htmc_valid).
         now apply Hrepeat.
       
+        (* Copy-pasting... *)
       + destruct tCompileSubPattern as [m|] eqn:Heqm; simpl. 2: exact I.
         unfold tRepeatMatcher.
         unfold tm_valid.
@@ -306,7 +338,12 @@ Section Main.
         pose proof tRepeatMatcher'_valid false (StaticSemantics.countLeftCapturingParensBefore wr1 ctx)
         (StaticSemantics.countLeftCapturingParensWithin wr1 (Quantified_inner (Lazy Star) :: ctx)) m r1 as Hrepeat.
         specialize (IHreg1 (Quantified_inner (Lazy Star)::ctx)).
-        assert (Root wroot (wr1, Quantified_inner (Lazy Star)::ctx)) as Hroot1 by admit.
+        assert (Root wroot (wr1, Quantified_inner (Lazy Star)::ctx)) as Hroot1.
+        {
+          eapply same_root_down0.
+          - apply (@Down_Quantified_inner LindenParameters).
+          - apply Hroot.
+        }
         specialize (IHreg1 Hroot1).
         rewrite Heqm in IHreg1.
         specialize (Hrepeat IHreg1).
@@ -332,7 +369,12 @@ Section Main.
       remember (@Group_inner LindenParameters _ :: ctx) as rctx.
       simpl in IHr.
       specialize (IHr rctx).
-      assert (Root wroot (wr, rctx)) as Hrootr by admit.
+      assert (Root wroot (wr, rctx)) as Hrootr.
+      {
+        eapply same_root_down0.
+        - subst rctx. apply (@Down_Group_inner LindenParameters).
+        - apply Hroot.
+      }
       specialize (IHr Hrootr).
       destruct (tCompileSubPattern wr rctx rer forward) as [mr|] eqn:Heqmr; simpl; try exact I.
       intros tmc regc cont Htmc_tree inp Hinp_compat.
@@ -376,8 +418,7 @@ Section Main.
       specialize (IHr s Hvalids Hs_inp).
       destruct (mr s tmc2) as [subtree|] eqn:Heqsubtree; simpl; try exact I.
       apply tree_group.
-      (* Need to prove that adding Epsilon to a continuation does not change anything *)
-      admit.
+      apply is_tree_eps with (cont1 := nil). apply IHr.
   Admitted.
 
 End Main.
