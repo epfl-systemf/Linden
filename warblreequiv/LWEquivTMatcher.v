@@ -185,7 +185,7 @@ Section Main.
           simpl in Heqcap'.
           rewrite Heqcap' in H.
           destruct (@List.List.Update.Nat.Batch.update _ tree_res'_error); simpl in *.
-          - f_equal. subst s. subst input. symmetry. assumption.
+          - congruence.
           - contradiction.
         }
         destruct (negb (min =? 0)) eqn:Hmin_nonzero; simpl.
@@ -194,7 +194,7 @@ Section Main.
           destruct tm as [subtree|] eqn:Heqsubtree; simpl. 2: exact I.
           destruct m as [res|] eqn:Heqres; simpl. 2: exact I.
           (* Resetting the groups from parenIndex + 1 to parenIndex + parenCount in x yields exactly state s',
-            see Heqs' and Heqcap'. Let's admit that for now *)
+            see Heqs' and Heqcap'. *)
           rewrite RESET_GROUPS.
           simpl.
           apply Hequivres.

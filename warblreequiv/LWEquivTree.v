@@ -302,18 +302,13 @@ Section Main.
       intro Hroot.
       destruct greedy eqn:Hgreedy; simpl in *.
       + destruct tCompileSubPattern as [m|] eqn:Heqm; simpl. 2: exact I.
-        unfold tRepeatMatcher.
-        unfold tm_valid.
+        (*unfold tRepeatMatcher, tm_valid.*)
         intros tmc regc cont Htmc_valid.
         pose proof tRepeatMatcher'_valid true (StaticSemantics.countLeftCapturingParensBefore wr1 ctx)
         (StaticSemantics.countLeftCapturingParensWithin wr1 (Quantified_inner (Greedy Star) :: ctx)) m r1 as Hrepeat.
         specialize (IHreg1 (Quantified_inner (Greedy Star)::ctx)).
-        assert (Root wroot (wr1, Quantified_inner (Greedy Star)::ctx)) as Hroot1.
-        {
-          eapply same_root_down0.
-          - apply (@Down_Quantified_inner LindenParameters).
-          - apply Hroot.
-        }
+        assert (Root wroot (wr1, Quantified_inner (Greedy Star)::ctx)) as Hroot1 by
+          eauto using same_root_down0, Down_Quantified_inner.
         specialize (IHreg1 Hroot1).
         rewrite Heqm in IHreg1.
         specialize (Hrepeat IHreg1).
