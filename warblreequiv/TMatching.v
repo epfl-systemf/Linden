@@ -10,22 +10,12 @@ Import Notation.
 
 Local Open Scope result_flow.
 
-Parameter axiom: forall A: Type, A.
-Arguments axiom {_}.
-
 Definition TMatchResult := Result tree MatchError.
 Definition TMatcherContinuation := Notation.MatchState -> TMatchResult.
 Definition TMatcher := Notation.MatchState -> TMatcherContinuation -> TMatchResult.
 
-Fixpoint suffix {A: Type} (n: nat) (l: list A): list A :=
-  match n, l with
-  | 0, _ => l
-  | _, nil => nil
-  | S n', x::q => suffix n' q
-  end.
-
 Definition ms_suffix (s: MatchState) :=
-  suffix (Z.to_nat (MatchState.endIndex s)) (MatchState.input s).
+  List.skipn (Z.to_nat (MatchState.endIndex s)) (MatchState.input s).
 
 
 (** >>
