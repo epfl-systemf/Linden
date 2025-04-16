@@ -389,8 +389,7 @@ Section Main.
       specialize (IH Htmc2_tree inp Hinp_compat).
       unfold tMC_is_tree in IH.
       specialize (IH s Hvalids Hs_inp).
-      destruct (mr s tmc2) as
-      (*end*) [subtree|] eqn:Heqsubtree; simpl; try exact I.
+      destruct (mr s tmc2) as [subtree|] eqn:Heqsubtree; simpl; try exact I.
       apply tree_group.
       apply is_tree_eps with (cont1 := nil). apply IH.
   Admitted.
