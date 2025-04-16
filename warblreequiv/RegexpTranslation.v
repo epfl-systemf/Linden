@@ -1,5 +1,5 @@
 From Warblre Require Import Patterns Result Errors Coercions Notation Base.
-From Linden Require Import Regex CharsWarblre LindenParameters.
+From Linden Require Import Regex CharsWarblre LindenParameters Chars.
 Import Notation.
 Import Result.
 Import Result.Notations.
@@ -44,3 +44,14 @@ Inductive well_parenthesized' : nat -> regex -> Prop :=
 | wp_group: forall n r, well_parenthesized' (S n) r -> well_parenthesized' n (Group (S n) r).
 
 Definition well_parenthesized (r: regex) := well_parenthesized' 0 r.
+
+
+Inductive equiv_regex: Patterns.Regex -> regex -> Prop :=
+| Equiv_empty: equiv_regex Patterns.Empty Epsilon
+| Equiv_char: forall c: Char, equiv_regex (Patterns.Char c) (Character (Chars.single c))
+| Equiv_dot: equiv_regex Patterns.Dot (Character Chars.dot)
+| Equiv_disj: forall wr1 wr2 r1 r2, equiv_regex wr1 r1 -> equiv_regex wr2 r2 -> equiv_regex (Patterns.Disjunction wr1 wr2) (Disjunction r1 r2)
+| Equiv_seq: forall wr1 wr2 r1 r2, equiv_regex wr1 r1 -> equiv_regex wr2 r2 -> equiv_regex (Patterns.Seq wr1 wr2) (Sequence r1 r2)
+| Equiv_star_lazy: forall wr r, equiv_regex wr r -> equiv_regex (Patterns.Quantified wr (Patterns.Lazy Patterns.Star)) (Star false r)
+| Equiv_star_greedy: forall wr r, equiv_regex wr r -> equiv_regex (Patterns.Quantified wr (Patterns.Greedy Patterns.Star)) (Star true r)
+| Equiv_group: forall name wr gid r, equiv_regex wr r -> equiv_regex (Patterns.Group name wr) (Group gid r).

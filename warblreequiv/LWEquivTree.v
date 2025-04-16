@@ -24,21 +24,30 @@ Inductive ms_matches_inp: MatchState -> input -> Prop :=
 Section Main.
   Context (s0: string) (rer: RegExpRecord) (root: regex) (wroot: Regex).
   Hypothesis Hcasesenst: RegExpRecord.ignoreCase rer = false.
-  Hypothesis root_translates: to_warblre_regex root = Success wroot.
+  Hypothesis root_translates: equiv_regex wroot root.
   Hypothesis Hwp_root: well_parenthesized root.
 
+  (* We say that an input is compatible when it represents the input string s0 we are considering. *)
   Inductive input_compat: input -> Prop :=
   | Input_compat: forall next pref, List.rev pref ++ next = s0 -> input_compat (Input next pref).
 
+  (* `tMC_is_tree tmc reg cont inp` means that the TMatcherContinuation tmc, when run with a MatchState
+    compatible with input inp, matches the regexp reg and continues with the continuation cont at each
+    leaf of the backtree that represents matching the regexp reg, and yields a valid backtree. *)
   Definition tMC_is_tree (tmc: TMatcherContinuation) (reg: regex) (cont: continuation) (inp: input) :=
     forall s: MatchState, Valid (MatchState.input s) rer s -> ms_matches_inp s inp -> match tmc s with
     | Error _ => True (* finer modeling? *)
     | Success t => is_tree reg cont inp t
     end.
   
+  (* `tMC_valid tmc reg cont` means that the TMatcherContinuation tmc, when run on any compatible input,
+     recognizes the regexp reg and continues with continuation cont at each leaf of the backtree that
+     represents matching the regexp reg, and yields a valid backtree. *)
   Definition tMC_valid (tmc: TMatcherContinuation) (reg: regex) (cont: continuation) :=
     forall inp, input_compat inp -> tMC_is_tree tmc reg cont inp.
 
+  (* `tm_valid tm reg` means that the TMatcher tm recognizes the regexp reg on any input that is compatible
+     with s0, and yields a valid backtree. *)
   Definition tm_valid (tm: TMatcher) (reg: regex) :=
     forall (tmc: TMatcherContinuation) (regc: regex) (cont: continuation),
     tMC_valid tmc regc cont ->
@@ -122,29 +131,25 @@ Section Main.
 
   (* Theorem is not true for case-insensitive matching, which is not supported (yet) by the tree semantics *)
   (* Validity of the context and regexp? *)
-  Theorem tmatcher_bt: forall reg ctx,
-    let wreg' := to_warblre_regex reg in
-    match wreg' with
-    | Error _ => True
-    | Success wreg =>
-      Root wroot (wreg, ctx) ->
-      match tCompileSubPattern wreg ctx rer forward with
-      | Error _ => True
-      | Success tm => tm_valid tm reg
-        (*forall (tmc: TMatcherContinuation) (regc: regex) (cont: continuation),
-        (forall inp, input_compat inp -> tMC_is_tree tmc regc cont inp) ->
-        forall inp, input_compat inp -> tMC_is_tree (fun s => tm s tmc) reg (Areg regc::cont) inp*)
-      end
+  Theorem tmatcher_bt: forall wreg reg ctx,
+    equiv_regex wreg reg ->
+    Root wroot (wreg, ctx) ->
+    match tCompileSubPattern wreg ctx rer forward with
+    | Error _ => True (* False? *)
+    | Success tm => tm_valid tm reg
     end.
   Proof.
-    intro reg.
-    induction reg as [
+    intros wreg reg ctx Hequiv.
+    revert ctx.
+    induction Hequiv as [
       |
-      cd |
-      r1 IHreg1 r2 IHreg2 |
-      r1 IHreg1 r2 IHreg2 |
-      greedy r1 IHreg1 |
-      id r IHr
+      c |
+      |
+      wr1 wr2 r1 r2 Hequiv1 IH1 Hequiv2 IH2 |
+      wr1 wr2 r1 r2 Hequiv1 IH1 Hequiv2 IH2 |
+      wr r Hequiv IH |
+      wr r Hequiv IH |
+      name wr gid r Hequiv IH
     ].
 
 
@@ -158,67 +163,51 @@ Section Main.
       apply tree_pop_reg. assumption.
     
 
-    - (* Character descriptor *)
+    - (* Character *)
       simpl.
       intro ctx.
-      destruct (char_descr_destruct cd) as [Hchar|[Hdot|[Hall|Herror]]].
-      (* Character *)
-      + destruct Hchar as [c Hchar].
-        rewrite Hchar.
-        rewrite single_Char.
-        simpl.
-        intros Hroot tmc regc cont Htmc_tree inp Hinp_compat.
-        specialize (Htmc_tree inp Hinp_compat).
-        unfold tMC_is_tree.
-        intros s Hsvalid Hs_inp.
-        destruct tCharacterSetMatcher as [t|e] eqn:Heqmatcher; simpl; try exact I.
-        unfold tCharacterSetMatcher in Heqmatcher.
-        simpl in Heqmatcher.
-        remember ((_ <? 0)%Z || _) as next_outofbounds in Heqmatcher.
-        destruct next_outofbounds eqn:Hoob; simpl.
-        * inversion Heqmatcher.
-          apply tree_char_fail.
-          (* Reading out of bounds fails *)
-          admit.
-        * replace (Z.min _ _) with (@MatchState.endIndex Chars.Char char_marker s) in Heqmatcher by lia.
-          destruct List.List.Indexing.Int.indexing as [chr|err] eqn:Hgetchr; simpl.
-          -- simpl in Heqmatcher.
-             destruct CharSet.exist_canonicalized eqn:Hcharmatch; simpl.
-             ++ remember (match_state _ _ _) as s' in Heqmatcher.
-                unfold tMC_is_tree in Htmc_tree.
-                assert (Valid (MatchState.input s') rer s') as Hs'valid by admit.
-                assert (ms_matches_inp s' inp) as Hs'_inp by admit.
-                specialize (Htmc_tree s' Hs'valid Hs'_inp).
-                destruct (tmc s') as [child|] eqn:Heqtmc; simpl; try discriminate.
-                simpl in Heqmatcher.
-                inversion Heqmatcher.
-                admit.
-             ++ admit.
-          -- discriminate.
-      (* Dot *)
-      + rewrite Hdot.
-        rewrite dot_Dot.
-        simpl.
+      intros Hroot tmc regc cont Htmc_tree inp Hinp_compat.
+      specialize (Htmc_tree inp Hinp_compat).
+      unfold tMC_is_tree.
+      intros s Hsvalid Hs_inp.
+      destruct tCharacterSetMatcher as [t|e] eqn:Heqmatcher; simpl; try exact I.
+      unfold tCharacterSetMatcher in Heqmatcher.
+      simpl in Heqmatcher.
+      remember ((_ <? 0)%Z || _) as next_outofbounds in Heqmatcher.
+      destruct next_outofbounds eqn:Hoob; simpl.
+      * inversion Heqmatcher.
+        apply tree_char_fail.
+        (* Reading out of bounds fails *)
         admit.
-      (* Character descriptor "all": untranslatable *)
-      + rewrite Hall.
-        rewrite all_error.
-        split.
-      (* Other unknown character descriptors *)
-      + rewrite Herror. split.
-
+      * replace (Z.min _ _) with (@MatchState.endIndex Chars.Char char_marker s) in Heqmatcher by lia.
+        destruct List.List.Indexing.Int.indexing as [chr|err] eqn:Hgetchr; simpl.
+        -- simpl in Heqmatcher.
+            destruct CharSet.exist_canonicalized eqn:Hcharmatch; simpl.
+            ++ remember (match_state _ _ _) as s' in Heqmatcher.
+              unfold tMC_is_tree in Htmc_tree.
+              assert (Valid (MatchState.input s') rer s') as Hs'valid by admit.
+              assert (ms_matches_inp s' inp) as Hs'_inp by admit.
+              specialize (Htmc_tree s' Hs'valid Hs'_inp).
+              destruct (tmc s') as [child|] eqn:Heqtmc; simpl; try discriminate.
+              simpl in Heqmatcher.
+              inversion Heqmatcher.
+              admit.
+            ++ admit.
+            -- discriminate.
+    
+      (* Dot *)
+    - simpl.
+      admit.
+      
 
     - (* Disjunction *)
       intro ctx.
-      simpl.
-      destruct (to_warblre_regex r1) as [wr1|] eqn:Hr1; simpl; try exact I.
-      destruct (to_warblre_regex r2) as [wr2|] eqn:Hr2; simpl; try exact I.
       simpl in *.
       intro Hroot.
       remember (@Disjunction_left LindenParameters wr2 :: ctx) as ctx1.
       remember (@Disjunction_right LindenParameters wr1 :: ctx) as ctx2.
-      specialize (IHreg1 ctx1).
-      specialize (IHreg2 ctx2).
+      specialize (IH1 ctx1).
+      specialize (IH2 ctx2).
       assert (Root wroot (wr1, ctx1)) as Hroot1.
       {
         rewrite Heqctx1.
@@ -232,18 +221,18 @@ Section Main.
         - rewrite Heqctx2. apply (@Down_Disjunction_right LindenParameters).
         - apply Hroot.
       }
-      specialize (IHreg1 Hroot1).
-      specialize (IHreg2 Hroot2).
+      specialize (IH1 Hroot1).
+      specialize (IH2 Hroot2).
       destruct (tCompileSubPattern wr1 ctx1 rer forward) as [tm1|] eqn:Htm1; simpl; try exact I.
       destruct (tCompileSubPattern wr2 ctx2 rer forward) as [tm2|] eqn:Htm2; simpl; try exact I.
       intros tmc regc cont Htmc_tree inp Hinp_compat.
       unfold tMC_is_tree.
       intros s Hsvalid Hs_inp.
-      specialize (IHreg1 tmc regc cont Htmc_tree inp Hinp_compat).
-      specialize (IHreg2 tmc regc cont Htmc_tree inp Hinp_compat).
-      unfold tMC_is_tree in IHreg1, IHreg2.
-      specialize (IHreg1 s Hsvalid Hs_inp).
-      specialize (IHreg2 s Hsvalid Hs_inp).
+      specialize (IH1 tmc regc cont Htmc_tree inp Hinp_compat).
+      specialize (IH2 tmc regc cont Htmc_tree inp Hinp_compat).
+      unfold tMC_is_tree in IH1, IH2.
+      specialize (IH1 s Hsvalid Hs_inp).
+      specialize (IH2 s Hsvalid Hs_inp).
       destruct (tm1 s tmc) as [t1|] eqn:Heqt1; simpl; try exact I.
       destruct (tm2 s tmc) as [t2|] eqn:Heqt2; simpl; try exact I.
       now apply tree_disj.
@@ -252,15 +241,12 @@ Section Main.
 
     - (* Sequence *)
       intro ctx.
-      simpl.
-      destruct (to_warblre_regex r1) as [wr1|] eqn:Hr1; simpl; try exact I.
-      destruct (to_warblre_regex r2) as [wr2|] eqn:Hr2; simpl; try exact I.
       simpl in *.
       intro Hroot.
       remember (@Seq_left LindenParameters wr2 :: ctx) as ctx1.
       remember (@Seq_right LindenParameters wr1 :: ctx) as ctx2.
-      specialize (IHreg1 ctx1).
-      specialize (IHreg2 ctx2).
+      specialize (IH1 ctx1).
+      specialize (IH2 ctx2).
       assert (Root wroot (wr1, ctx1)) as Hroot1.
       {
         apply same_root_down0 with (r1 := Seq wr1 wr2) (ctx1 := ctx).
@@ -273,8 +259,8 @@ Section Main.
         - rewrite Heqctx2. apply (@Down_Seq_right LindenParameters).
         - apply Hroot.
       }
-      specialize (IHreg1 Hroot1).
-      specialize (IHreg2 Hroot2).
+      specialize (IH1 Hroot1).
+      specialize (IH2 Hroot2).
       destruct (tCompileSubPattern wr1 ctx1 rer forward) as [tm1|] eqn:Htm1; simpl; try exact I.
       destruct (tCompileSubPattern wr2 ctx2 rer forward) as [tm2|] eqn:Htm2; simpl; try exact I.
       intros tmc regc cont Htmc_tree inp Hinp_compat.
@@ -285,101 +271,93 @@ Section Main.
       {
         intros inp' Hinp'_compat.
         rewrite Heqtmc2.
-        now apply IHreg2.
+        now apply IH2.
       }
-      specialize (IHreg1 tmc2 r2 (Areg regc :: cont) Htmc2_tree inp Hinp_compat).
-      unfold tMC_is_tree in IHreg1.
-      specialize (IHreg1 s Hsvalid Hs_inp).
+      specialize (IH1 tmc2 r2 (Areg regc :: cont) Htmc2_tree inp Hinp_compat).
+      unfold tMC_is_tree in IH1.
+      specialize (IH1 s Hsvalid Hs_inp).
       destruct (tm1 s tmc2) as [t|] eqn:Heqt; simpl; try exact I.
       now apply tree_sequence.
       (* DONE! 🎉 *)
 
 
-    - (* Quantifier *)
-      intro ctx.
+    - (* Lazy star *)
+      intros ctx Hroot.
       simpl.
-      destruct (to_warblre_regex r1) as [wr1|] eqn:Heqwr1; simpl. 2: exact I.
-      intro Hroot.
-      destruct greedy eqn:Hgreedy; simpl in *.
-      + destruct tCompileSubPattern as [m|] eqn:Heqm; simpl. 2: exact I.
-        (*unfold tRepeatMatcher, tm_valid.*)
-        intros tmc regc cont Htmc_valid.
-        pose proof tRepeatMatcher'_valid true (StaticSemantics.countLeftCapturingParensBefore wr1 ctx)
-        (StaticSemantics.countLeftCapturingParensWithin wr1 (Quantified_inner (Greedy Star) :: ctx)) m r1 as Hrepeat.
-        specialize (IHreg1 (Quantified_inner (Greedy Star)::ctx)).
-        assert (Root wroot (wr1, Quantified_inner (Greedy Star)::ctx)) as Hroot1 by
-          eauto using same_root_down0, Down_Quantified_inner.
-        specialize (IHreg1 Hroot1).
-        rewrite Heqm in IHreg1.
-        specialize (Hrepeat IHreg1).
-        remember (StaticSemantics.countLeftCapturingParensBefore _ ctx) as parenIndex.
-        remember (StaticSemantics.countLeftCapturingParensWithin _ _) as parenCount.
-        assert (def_groups r1 = seq (parenIndex + 1) parenCount) as Hgroups_valid by admit.
-        specialize (Hrepeat Hgroups_valid).
-        unfold tMC_valid.
-        intros inp Hinp_compat.
-        unfold tMC_is_tree.
-        intros s Hvalids Hs_inp.
-        specialize (Hrepeat (Semantics.repeatMatcherFuel 0 s)).
-        unfold tm_valid in Hrepeat.
-        specialize (Hrepeat tmc regc cont Htmc_valid).
-        now apply Hrepeat.
+      destruct tCompileSubPattern as [m|] eqn:Heqm; simpl. 2: exact I.
+      intros tmc regc cont Htmc_valid.
+      pose proof tRepeatMatcher'_valid false (StaticSemantics.countLeftCapturingParensBefore wr ctx)
+      (StaticSemantics.countLeftCapturingParensWithin wr (Quantified_inner (Lazy Star) :: ctx)) m r as Hrepeat.
+      specialize (IH (Quantified_inner (Lazy Star)::ctx)).
+      assert (Root wroot (wr, Quantified_inner (Lazy Star)::ctx)) as Hroot1 by
+        eauto using same_root_down0, Down_Quantified_inner.
+      specialize (IH Hroot1).
+      rewrite Heqm in IH.
+      specialize (Hrepeat IH).
+      remember (StaticSemantics.countLeftCapturingParensBefore _ ctx) as parenIndex.
+      remember (StaticSemantics.countLeftCapturingParensWithin _ _) as parenCount.
+      assert (def_groups r = seq (parenIndex + 1) parenCount) as Hgroups_valid by admit.
+      specialize (Hrepeat Hgroups_valid).
+      unfold tMC_valid.
+      intros inp Hinp_compat.
+      unfold tMC_is_tree.
+      intros s Hvalids Hs_inp.
+      specialize (Hrepeat (Semantics.repeatMatcherFuel 0 s)).
+      unfold tm_valid in Hrepeat.
+      specialize (Hrepeat tmc regc cont Htmc_valid).
+      now apply Hrepeat.
       
-        (* Copy-pasting... *)
-      + destruct tCompileSubPattern as [m|] eqn:Heqm; simpl. 2: exact I.
-        unfold tRepeatMatcher.
-        unfold tm_valid.
-        intros tmc regc cont Htmc_valid.
-        pose proof tRepeatMatcher'_valid false (StaticSemantics.countLeftCapturingParensBefore wr1 ctx)
-        (StaticSemantics.countLeftCapturingParensWithin wr1 (Quantified_inner (Lazy Star) :: ctx)) m r1 as Hrepeat.
-        specialize (IHreg1 (Quantified_inner (Lazy Star)::ctx)).
-        assert (Root wroot (wr1, Quantified_inner (Lazy Star)::ctx)) as Hroot1.
-        {
-          eapply same_root_down0.
-          - apply (@Down_Quantified_inner LindenParameters).
-          - apply Hroot.
-        }
-        specialize (IHreg1 Hroot1).
-        rewrite Heqm in IHreg1.
-        specialize (Hrepeat IHreg1).
-        remember (StaticSemantics.countLeftCapturingParensBefore _ ctx) as parenIndex.
-        remember (StaticSemantics.countLeftCapturingParensWithin _ _) as parenCount.
-        assert (def_groups r1 = seq (parenIndex + 1) parenCount) as Hgroups_valid by admit.
-        specialize (Hrepeat Hgroups_valid).
-        unfold tMC_valid.
-        intros inp Hinp_compat.
-        unfold tMC_is_tree.
-        intros s Hvalids Hs_inp.
-        specialize (Hrepeat (Semantics.repeatMatcherFuel 0 s)).
-        unfold tm_valid in Hrepeat.
-        specialize (Hrepeat tmc regc cont Htmc_valid).
-        now apply Hrepeat.
+      (* Greedy star: copy-pasting... *)
+    - intros ctx Hroot.
+      simpl.
+      destruct tCompileSubPattern as [m|] eqn:Heqm; simpl. 2: exact I.
+      intros tmc regc cont Htmc_valid.
+      pose proof tRepeatMatcher'_valid true (StaticSemantics.countLeftCapturingParensBefore wr ctx)
+      (StaticSemantics.countLeftCapturingParensWithin wr (Quantified_inner (Greedy Star) :: ctx)) m r as Hrepeat.
+      specialize (IH (Quantified_inner (Greedy Star)::ctx)).
+      assert (Root wroot (wr, Quantified_inner (Greedy Star)::ctx)) as Hroot1.
+      {
+        eapply same_root_down0.
+        - apply (@Down_Quantified_inner LindenParameters).
+        - apply Hroot.
+      }
+      specialize (IH Hroot1).
+      rewrite Heqm in IH.
+      specialize (Hrepeat IH).
+      remember (StaticSemantics.countLeftCapturingParensBefore _ ctx) as parenIndex.
+      remember (StaticSemantics.countLeftCapturingParensWithin _ _) as parenCount.
+      assert (def_groups r = seq (parenIndex + 1) parenCount) as Hgroups_valid by admit.
+      specialize (Hrepeat Hgroups_valid).
+      unfold tMC_valid.
+      intros inp Hinp_compat.
+      unfold tMC_is_tree.
+      intros s Hvalids Hs_inp.
+      specialize (Hrepeat (Semantics.repeatMatcherFuel 0 s)).
+      unfold tm_valid in Hrepeat.
+      specialize (Hrepeat tmc regc cont Htmc_valid).
+      now apply Hrepeat.
       
 
     - (* Group *)
-      intro ctx.
-      simpl.
-      destruct (to_warblre_regex r) as [wr|] eqn:Heqwr; simpl; try exact I.
-      intro Hroot.
+      intros ctx Hroot. simpl.
       remember (@Group_inner LindenParameters _ :: ctx) as rctx.
-      simpl in IHr.
-      specialize (IHr rctx).
+      specialize (IH rctx).
       assert (Root wroot (wr, rctx)) as Hrootr.
       {
         eapply same_root_down0.
         - subst rctx. apply (@Down_Group_inner LindenParameters).
         - apply Hroot.
       }
-      specialize (IHr Hrootr).
+      specialize (IH Hrootr).
       destruct (tCompileSubPattern wr rctx rer forward) as [mr|] eqn:Heqmr; simpl; try exact I.
       intros tmc regc cont Htmc_tree inp Hinp_compat.
       unfold tMC_is_tree.
       intros s Hvalids Hs_inp.
       remember (fun y: MatchState => _) as tmc2.
       (* Let's try something *)
-      specialize (IHr tmc2 Epsilon (Aclose id :: Areg regc :: cont)).
-      assert (StaticSemantics.countLeftCapturingParensBefore (Group None wr) ctx + 1 = id) as Heqid by admit.
-      assert (forall inp : input, input_compat inp -> tMC_is_tree tmc2 Epsilon (Aclose id :: Areg regc :: cont) inp) as Htmc2_tree.
+      specialize (IH tmc2 Epsilon (Aclose gid :: Areg regc :: cont)).
+      assert (StaticSemantics.countLeftCapturingParensBefore (Group name wr) ctx + 1 = gid) as Heqid by admit.
+      assert (forall inp : input, input_compat inp -> tMC_is_tree tmc2 Epsilon (Aclose gid :: Areg regc :: cont) inp) as Htmc2_tree.
       {
         intros inp' Hinp'_compat.
         rewrite Heqtmc2.
@@ -387,7 +365,7 @@ Section Main.
         intros s' Hs'valid Hs'_inp.
         destruct negb; simpl; try exact I.
         rewrite Heqid.
-        replace (id =? 0) with false.
+        replace (gid =? 0) with false.
         2: {
           symmetry.
           rewrite Nat.eqb_neq.
@@ -408,12 +386,13 @@ Section Main.
         assumption.
       }
       rewrite Heqid.
-      specialize (IHr Htmc2_tree inp Hinp_compat).
-      unfold tMC_is_tree in IHr.
-      specialize (IHr s Hvalids Hs_inp).
-      destruct (mr s tmc2) as [subtree|] eqn:Heqsubtree; simpl; try exact I.
+      specialize (IH Htmc2_tree inp Hinp_compat).
+      unfold tMC_is_tree in IH.
+      specialize (IH s Hvalids Hs_inp).
+      destruct (mr s tmc2) as
+      (*end*) [subtree|] eqn:Heqsubtree; simpl; try exact I.
       apply tree_group.
-      apply is_tree_eps with (cont1 := nil). apply IHr.
+      apply is_tree_eps with (cont1 := nil). apply IH.
   Admitted.
 
 End Main.
