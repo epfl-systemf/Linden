@@ -10,11 +10,6 @@ Import Notation.
 
 Local Open Scope result_flow.
 
-Inductive tree_res'_error :=
-  | MismatchingTree.
-
-Instance tree_res'_error_assert: AssertionError tree_res'_error := {| Result.f := MismatchingTree |}.
-
 (* Advance match state by one character *)
 Definition advance_ms (s: MatchState): MatchState :=
   {|
@@ -25,10 +20,13 @@ Definition advance_ms (s: MatchState): MatchState :=
 (* TODO Zero group *)
 
 (* Reset the given groups (indexed from 1) in the given MatchState *)
-Definition reset_groups_ms (gidl: list Groups.group_id) (s: MatchState): Result MatchState tree_res'_error :=
+Definition reset_groups_ms (gidl: list Groups.group_id) (s: MatchState): MatchState :=
   let '(match_state inp endInd cap) := s in
-  let! cap' =<< List.List.Update.Nat.Batch.update None cap (List.map (fun x => x-1) gidl) in
-  Success (match_state inp endInd cap').
+  let cap' := match List.List.Update.Nat.Batch.update None cap (List.map (fun x => x-1) gidl) with
+    | Success cap' => cap'
+    | Error _ => cap
+  end in
+  (match_state inp endInd cap').
 
 (* A list of currently open groups, with for each of them their ID and the position at which they were opened.
    This is needed because we want to be able to express the result of the first branch of a sub-backtracking tree,
@@ -45,77 +43,81 @@ Fixpoint has_group (id: Groups.group_id) (gl: open_groups): bool :=
   end.
 
 (* Close group id opened in gl at index end_index. If group id was indeed open, returns the new list of open groups
-   (where the closed group has been removed) and the capture range of the closed group. *)
-Fixpoint close_group (id: Groups.group_id) (gl: open_groups) end_index: Result (CaptureRange * open_groups) tree_res'_error :=
+   (where the closed group has been removed) and the capture range of the closed group.
+   Otherwise, return a dummy CaptureRange and the original list of open groups. *)
+Fixpoint close_group (id: Groups.group_id) (gl: open_groups) end_index: CaptureRange * open_groups :=
   match gl with
-  | nil => Error MismatchingTree
+  | nil => (capture_range (-1)%Z (-1)%Z, nil)
   | (id', start)::q =>
     if id == id' then
-      Success (capture_range start end_index, q)
+      (capture_range start end_index, q)
     else
-      let! (range, q') =<< close_group id q end_index in
-      Success (range, (id', start)::q')
+      let (range, q') := close_group id q end_index in
+      (range, (id', start)::q')
   end.
 
 (* TODO Direction *)
 (* Apply the given group action to the extended match state composed of a MatchState and a list of open groups with
-   opening indices. *)
-Definition group_effect' (g: groupaction) (s: MatchState) (gl: open_groups): Result (MatchState * open_groups) tree_res'_error :=
+   opening indices.
+   If we try to close a nonexisting group or clear nonexisting capture ranges, do nothing. *)
+Definition group_effect' (g: groupaction) (s: MatchState) (gl: open_groups): MatchState * open_groups :=
   match g with
   | Open gid =>
-      Success (s, (gid, MatchState.endIndex s)::gl)
+      (s, (gid, MatchState.endIndex s)::gl)
   | Close gid =>
       let cap := MatchState.captures s in
-      let! (range, gl') =<< close_group gid gl (MatchState.endIndex s) in
-      set cap[gid] := range in
-      Success (match_state (MatchState.input s) (MatchState.endIndex s) cap, gl')
+      let (range, gl') := close_group gid gl (MatchState.endIndex s) in
+      let cap' := match Base.update cap gid range with
+        | Success cap' => cap'
+        | Error _ => cap
+        end
+      in
+      (*set cap[gid] := range in*)
+      (match_state (MatchState.input s) (MatchState.endIndex s) cap', gl')
   | Reset gidl =>
-      let! s' =<< reset_groups_ms gidl s in
-      Success (s', gl)
+      let s' := reset_groups_ms gidl s in
+      (s', gl)
   end.
 
 (* We represent a call mc ms to some MatcherContinuation mc with match state ms as a sub-backtracking tree
    together with the match state ms and a list of groups that are open at that stage of matching. *)
 
 (* TODO Direction *)
-(* TODO Do not return an error (if possible) *)
 (* Given a sub-backtracking tree and an extended match state, retrieve the highest priority result represented
    by the subtree. *)
-Fixpoint tree_res' (t:tree) (s: MatchState) (gl: open_groups): Result (option MatchState) tree_res'_error :=
+Fixpoint tree_res' (t:tree) (s: MatchState) (gl: open_groups): option MatchState :=
   match t with
-  | Mismatch => Success None
-  | Match => Success (Some s)
+  | Mismatch => None
+  | Match => Some s
   | Choice t1 t2 =>
-      let! res1 =<< tree_res' t1 s gl in
+      let res1 := tree_res' t1 s gl in
       match res1 with
       | None => tree_res' t2 s gl
-      | Some _ => Success res1
+      | Some _ => res1
       end
   | Read c t1 =>
-    if List.nth (Z.to_nat (MatchState.endIndex s)) (MatchState.input s) c == c then
-      tree_res' t1 (advance_ms s) gl
-    else
-      Error MismatchingTree
-  | CheckFail _ => Success None
+    tree_res' t1 (advance_ms s) gl
+  | CheckFail _ => None
   | CheckPass _ t1 => tree_res' t1 s gl
   | GroupAction g t1 => 
-    let! (s', gl') =<< group_effect' g s gl in tree_res' t1 s' gl'
+    let (s', gl') := group_effect' g s gl in tree_res' t1 s' gl'
   end.
+
+
+(* Expresses the equivalence between the first branch of a sub-backtracking tree with its corresponding
+    extended match state on the one hand, with a MatchResult on the other hand.
+    This simply unwraps the error monad; we currently do not say anything when either match result is an error
+    (any error is equivalent to anything in both directions). *)
+Inductive equiv_results: TMatchResult -> MatchState -> open_groups -> MatchResult -> Prop :=
+| Equiv_results: forall (t: tree) (ms: MatchState) (open_gl: open_groups) (res: option MatchState),
+    res = tree_res' t ms open_gl ->
+    equiv_results (Success t) ms open_gl (Success res)
+| Equiv_results_errl: forall errl ms open_gl res', equiv_results (Error errl) ms open_gl res'
+| Equiv_results_errr: forall t' ms open_gl errr, equiv_results t' ms open_gl (Error errr).
 
 
 Section Main.
   Context (str0: string).
-
-  (* Expresses the equivalence between the first branch of a sub-backtracking tree with its corresponding
-     extended match state on the one hand, with a MatchResult on the other hand.
-     This simply unwraps the error monad; we currently do not say anything when either match result is an error
-     (any error is equivalent to anything in both directions). *)
-  Inductive equiv_results: TMatchResult -> MatchState -> open_groups -> MatchResult -> Prop :=
-  | Equiv_results: forall (t: tree) (ms: MatchState) (open_gl: open_groups) (res: option MatchState),
-      tree_res' t ms open_gl = Success res ->
-      equiv_results (Success t) ms open_gl (Success res)
-  | Equiv_results_errl: forall errl ms open_gl res', equiv_results (Error errl) ms open_gl res'
-  | Equiv_results_errr: forall t' ms open_gl errr, equiv_results t' ms open_gl (Error errr).
 
   (* A continuation is always called at a fixed position in the regexp, so with a fixed list of
      groups that are currently open.
@@ -127,7 +129,6 @@ Section Main.
     forall s: MatchState,
     MatchState.input s = str0 -> 
     equiv_results (tmc s) s gl (mc s).
-
 
   (* A (T)Matcher matches a regexp, then calls a continuation after matching the said regexp.
      We say that a Matcher m and a TMatcher tm are equivalent when given equivalent continuations,
@@ -143,7 +144,7 @@ Section Main.
   (* These two continuations are easily equivalent. *)
   Lemma id_equiv: equiv_tree_mcont id_mcont id_tmcont nil.
   Proof.
-    intros s Hsstr0. unfold id_mcont, id_tmcont. constructor. reflexivity.
+    intro s. unfold id_mcont, id_tmcont. constructor. reflexivity.
   Qed.
 
   Lemma repeatMatcher'_tRepeatMatcher': forall (m: Matcher) (tm: TMatcher),
@@ -163,12 +164,11 @@ Section Main.
       destruct (max =? 0)%NoI eqn:Hmax0; simpl.
       (* Case max = 0: use hypothesis on continuation *)
       + unfold equiv_tree_mcont in Hequivcont.
-        apply Hequivcont. assumption.
+        now apply Hequivcont.
       (* Case max > 0 *)
       + (* Assume that the capture reset succeeds *)
         destruct List.List.Update.Nat.Batch.update as [cap'|] eqn:Heqcap'; simpl. 2: constructor.
-        rewrite Hxstr0.
-        remember (match_state str0 (MatchState.endIndex x) cap') as s'.
+        remember (match_state (MatchState.input x) (MatchState.endIndex x) cap') as s'.
         remember (fun y: MatchState => _) as tmc'.
         remember (fun (y: MatchState) => (_: MatchResult)) as mc'.
         assert (equiv_tree_mcont mc' tmc' gl) as Hequiv'.
@@ -181,7 +181,7 @@ Section Main.
             remember (if (max =? +∞)%NoI then +∞ else (max - 1)%NoI) as max'.
             specialize (IHfuel min' max' greedy parenIndex parenCount mc tmc gl Hequivcont s Hsstr0).
             inversion IHfuel.
-            + constructor. simpl. assumption.
+            + simpl. constructor. simpl. assumption.
             + constructor.
             + constructor.
         }
@@ -191,14 +191,14 @@ Section Main.
           specialize (Hm_tm_equiv mc' tmc' gl Hequiv' s').
           assert (Hs'str0: MatchState.input s' = str0).
           {
-            rewrite Heqs'. reflexivity.
+            rewrite Heqs'. simpl. assumption.
           }
           specialize (Hm_tm_equiv Hs'str0).
           inversion Hm_tm_equiv.
           2,3: constructor.
           now constructor.
         }
-        assert ((reset_groups_ms (seq (parenIndex + 1) parenCount) x) = (@Success MatchState tree_res'_error s')) as RESET_GROUPS.
+        assert ((reset_groups_ms (seq (parenIndex + 1) parenCount) x) = s') as RESET_GROUPS.
         {
           unfold reset_groups_ms.
           destruct x.
@@ -206,13 +206,10 @@ Section Main.
           unfold List.List.Range.Nat.Bounds.range in Heqcap'.
           rewrite decr_range by lia.
           replace (parenIndex + parenCount + 1 - 1 - (parenIndex + 1 - 1)) with parenCount in Heqcap' by lia.
-          pose proof List.List.Update.Nat.Batch.update_indep_error (option CaptureRange) MatchError tree_res'_error _ _ None captures (List.List.Range.Nat.Length.range (parenIndex + 1 - 1) parenCount) as H.
-          unfold Result.equiv_results in H.
           simpl in Heqcap'.
-          rewrite Heqcap' in H.
-          destruct (@List.List.Update.Nat.Batch.update _ tree_res'_error); simpl in *.
-          - congruence.
-          - contradiction.
+          rewrite Heqcap'.
+          simpl in *.
+          congruence.
         }
         destruct (negb (min =? 0)) eqn:Hmin_nonzero; simpl.
         (* Case min > 0 *)
@@ -228,68 +225,69 @@ Section Main.
           all: try constructor.
           (* There must be a way to make this simpler *)
           -- subst ms open_gl ms0 open_gl0.
-             rename t0 into z.
-             rename t into z'.
-             rename res0 into zm.
-             unfold "!=?".
-             destruct (zm ==? None)%wt eqn:Hzm_None; simpl.
-             ++ constructor. simpl. rewrite RESET_GROUPS. simpl.
-                rewrite H8. simpl.
+              rename t0 into z.
+              rename t into z'.
+              rename res0 into zm.
+              unfold "!=?".
+              destruct (zm ==? None)%wt eqn:Hzm_None; simpl.
+              ++ constructor. simpl. rewrite RESET_GROUPS.
+                (* rewrite H8. simpl. *)
                 rewrite EqDec.inversion_true in Hzm_None.
+                rewrite <- H8.
                 rewrite Hzm_None.
                 assumption.
-             ++ constructor. simpl. rewrite RESET_GROUPS. simpl.
-                rewrite H8. simpl.
+              ++ constructor. simpl. rewrite RESET_GROUPS.
+                rewrite <- H8. simpl.
                 rewrite EqDec.inversion_false in Hzm_None.
                 destruct zm; simpl.
                 ** reflexivity.
                 ** contradiction.
           -- subst ms open_gl ms0 open_gl0.
-             rename t0 into z.
-             rename t into z'.
-             rename res0 into zm.
-             rename res into zmc.
-             unfold "!=?".
-             destruct (zmc ==? None)%wt eqn:Hzmc_None; simpl.
-             ++ constructor. simpl. rewrite H3. simpl.
+              rename t0 into z.
+              rename t into z'.
+              rename res0 into zm.
+              rename res into zmc.
+              unfold "!=?".
+              destruct (zmc ==? None)%wt eqn:Hzmc_None; simpl.
+              ++ constructor. simpl. rewrite <- H3. simpl.
                 rewrite EqDec.inversion_true in Hzmc_None.
                 rewrite Hzmc_None.
                 rewrite RESET_GROUPS.
                 simpl.
                 assumption.
-             ++ constructor. simpl. rewrite H3. simpl.
+              ++ constructor. simpl. rewrite <- H3. simpl.
                 rewrite EqDec.inversion_false in Hzmc_None.
                 destruct zmc; simpl.
                 ** reflexivity.
                 ** contradiction.
 
           -- subst ms open_gl ms0 open_gl0.
-             rewrite <- H4.
-             destruct t'.
-             ++ simpl.
+              rewrite <- H4.
+              destruct t'.
+              ++ simpl.
                 unfold "!=?".
                 destruct (res ==? None)%wt eqn:Hres_None; simpl.
                 ** constructor.
-                ** constructor. simpl. rewrite H3.
-                   simpl.
-                   rewrite EqDec.inversion_false in Hres_None.
-                   destruct res.
-                   --- reflexivity.
-                   --- contradiction.
-             ++ simpl. constructor.
+                ** constructor. simpl. rewrite <- H3.
+                    simpl.
+                    rewrite EqDec.inversion_false in Hres_None.
+                    destruct res.
+                    --- reflexivity.
+                    --- contradiction.
+              ++ simpl. constructor.
           
           -- subst ms open_gl ms0 open_gl0.
-             rewrite <- H.
-             destruct t'.
-             ++ simpl.
+              rewrite <- H.
+              destruct t'.
+              ++ simpl.
                 unfold "!=?".
                 destruct (res ==? None)%wt eqn:Hres_None; simpl.
                 ** constructor.
-                ** constructor. simpl. rewrite RESET_GROUPS. simpl.
-                   rewrite H7. simpl.
-                   rewrite EqDec.inversion_false in Hres_None.
-                   now destruct res.
-             ++ simpl. constructor.
+                ** constructor. simpl. rewrite RESET_GROUPS.
+                    rewrite <- H7. simpl.
+                    rewrite EqDec.inversion_false in Hres_None.
+                    now destruct res.
+              ++ simpl. constructor.
   Qed.
 
 
@@ -322,8 +320,8 @@ Section Main.
 
     - (* Empty *)
       intros. inversion Heqm as [Heqm']. inversion Heqtm as [Heqtm'].
-      intros mc tmc gl Hequiv ms Hsstr0.
-      now apply Hequiv.
+      intros mc tmc gl Hequiv ms Hmsstr0.
+      apply Hequiv. assumption.
     
     - (* Character *)
       intros. unfold equiv_tree_matcher. intros mc tmc gl Hequiv ms Hmsstr0.
@@ -353,13 +351,10 @@ Section Main.
         replace (Z.min (MatchState.endIndex ms) (MatchState.endIndex ms + 1)) with (MatchState.endIndex ms) in Heqindex by lia.
         rewrite Heqindex in Heqreadchr.
         simpl.
-        replace (nth _ _ readchr) with readchr by admit.
-        rewrite EqDec.reflb.
         inversion Hequiv as [child0 ms'0 gl0 res0 Hequiv' Heqchild0 Heqms'0 Heqgl0 Heqres0 | |].
-        rewrite <- Hequiv'.
-        f_equal.
         unfold advance_ms.
-        rewrite Heqms'.
+        rewrite <- Heqms'.
+        rewrite <- Hequiv'.
         reflexivity.
     
     - (* Dot; same as character *)
@@ -390,13 +385,10 @@ Section Main.
         replace (Z.min (MatchState.endIndex ms) (MatchState.endIndex ms + 1)) with (MatchState.endIndex ms) in Heqindex by lia.
         rewrite Heqindex in Heqreadchr.
         simpl.
-        replace (nth _ _ readchr) with readchr by admit.
-        rewrite EqDec.reflb.
         inversion Hequiv as [child0 ms'0 gl0 res0 Hequiv' Heqchild0 Heqms'0 Heqgl0 Heqres0 | |].
-        rewrite <- Hequiv'.
-        f_equal.
         unfold advance_ms.
-        rewrite Heqms'.
+        rewrite <- Heqms'.
+        rewrite <- Hequiv'.
         reflexivity.
     
     - (* Atom escape: unsupported *)
@@ -428,12 +420,12 @@ Section Main.
       destruct (m1 ms' mc) as [r|] eqn:Heqr; simpl. 2: constructor.
       destruct r eqn:?; simpl.
       + constructor. inversion IH1 as [t1' ms'' gl' res IH1' Heqt1' Heqms'' Heqgl' Heqres | |].
-        simpl. rewrite IH1'. simpl. reflexivity.
+        simpl. rewrite <- IH1'. reflexivity.
       + destruct (m2 ms' mc) as [r2|] eqn:Heqr2; simpl. 2: constructor.
         constructor.
         inversion IH1 as [t1' ms'' gl' res IH1' Heqt1' Heqms'' Heqgl' Heqres | |].
         clear t1' ms'' gl' res Heqt1' Heqms'' Heqgl' Heqres.
-        simpl. rewrite IH1'. simpl.
+        simpl. rewrite <- IH1'. simpl.
         inversion IH2 as [t2' ms''' gl'' res' IH2' Heqt2' Heqms''' Heqgl'' Heqres' | |].
         clear t2' ms''' gl'' res' Heqt2' Heqms''' Heqgl'' Heqres'. assumption.
     
@@ -448,7 +440,7 @@ Section Main.
       destruct negb; simpl. 1: discriminate.
       unfold equiv_tree_matcher.
       intros mc tmc gl Hequivcont. unfold equiv_tree_mcont.
-      intros ms Hmsstr0.
+      intro ms.
       unfold Semantics.repeatMatcher in Heqm.
       unfold tRepeatMatcher in Heqtm.
       inversion Heqm as [Heqm'].
@@ -468,9 +460,9 @@ Section Main.
       simpl in *.
       inversion Heqm as [Heqm'].
       inversion Heqtm as [Heqtm'].
-      intros mc tmc gl Hequiv ms Hmsstr0.
+      intros mc tmc gl Hequiv ms.
       specialize (IH2 m2 tm2 eq_refl eq_refl mc tmc gl Hequiv).
-      specialize (IH1 m1 tm1 eq_refl eq_refl (fun ms0 => m2 ms0 mc) (fun ms0 => tm2 ms0 tmc) gl IH2 ms Hmsstr0).
+      specialize (IH1 m1 tm1 eq_refl eq_refl (fun ms0 => m2 ms0 mc) (fun ms0 => tm2 ms0 tmc) gl IH2 ms).
       simpl in *.
       assumption.
     
@@ -491,7 +483,7 @@ Section Main.
       specialize (IH msub tmsub eq_refl eq_refl origcont treecont gl').
       assert (equiv_tree_mcont origcont treecont gl') as Hequivcont.
       {
-        intros y Hystr0.
+        intros y Hy_ms_sameinp.
         rewrite Heqtreecont, Heqorigcont.
         remember (MatchState.endIndex ms) as i.
         destruct negb eqn:Hi_le_y; simpl. 1: constructor.
@@ -503,18 +495,7 @@ Section Main.
         constructor. simpl.
         rewrite EqDec.reflb. simpl.
         rewrite Hgid_nonzero.
-        replace (@List.List.Update.Nat.One.update _ tree_res'_error _ _ _ (gid - 1)) with (@Success _ tree_res'_error cap').
-        2: {
-          symmetry.
-          pose proof @List.List.Update.Nat.One.update_indep_error (option CaptureRange) MatchError tree_res'_error as H.
-          specialize (H _ _ (capture_range i (MatchState.endIndex y)) (MatchState.captures y) (gid - 1)).
-          rewrite Hcapupd in H.
-          simpl in H.
-          destruct (@List.List.Update.Nat.One.update _ tree_res'_error).
-          - f_equal. symmetry. apply H.
-          - contradiction.
-        }
-        simpl.
+        rewrite Hcapupd.
         specialize (Hequiv ms').
         assert (MatchState.input ms' = str0) as Hms'str0.
         {
@@ -525,8 +506,8 @@ Section Main.
         inversion Hequiv as [t' ms'' gl'' res' Hequiv' Heqt' Heqms'' Heqgl'' Heqres' | |].
         clear t' ms'' gl'' res' Heqt' Heqms'' Heqgl'' Heqres'.
         rewrite Heqms' in Hequiv'.
+        rewrite Hy_ms_sameinp.
         rewrite Hmsstr0 in Hequiv'.
-        rewrite Hystr0.
         assumption.
       }
       specialize (IH Hequivcont ms Hmsstr0).
@@ -554,6 +535,6 @@ Section Main.
       discriminate.
     - (* Negative lookbehind: unsupported *)
       discriminate.
-  Admitted.
+  Qed.
 
 End Main.
