@@ -149,19 +149,16 @@ Section Main.
   Lemma repeatMatcher'_tRepeatMatcher': forall (m: Matcher) (tm: TMatcher),
     equiv_tree_matcher m tm ->
     forall fuel: nat,
-    forall (mc: MatcherContinuation) (tmc: TMatcherContinuation) (gl: open_groups),
-    equiv_tree_mcont mc tmc gl ->
     forall (min: non_neg_integer) (max: non_neg_integer_or_inf) (greedy: bool)
-    (x: MatchState) (parenIndex parenCount: non_neg_integer),
-    MatchState.input x = str0 ->
-    equiv_results 
-      (tRepeatMatcher' tm min max greedy x tmc parenIndex parenCount fuel) x gl
-      (Semantics.repeatMatcher' m min max greedy x mc parenIndex parenCount fuel).
+    (parenIndex parenCount: non_neg_integer),
+    equiv_tree_matcher
+      (fun ms mc => Semantics.repeatMatcher' m min max greedy ms mc parenIndex parenCount fuel)
+      (fun ms tmc => tRepeatMatcher' tm min max greedy ms tmc parenIndex parenCount fuel).
   Proof.
     intros m tm Hm_tm_equiv fuel.
     induction fuel as [|fuel IHfuel].
     - simpl. constructor.
-    - intros mc tmc gl Hequivcont min max greedy x parenIndex parenCount Hxstr0.
+    - intros min max greedy parenIndex parenCount mc tmc gl Hequivcont x Hxstr0.
       simpl.
       destruct (max =? 0)%NoI eqn:Hmax0; simpl.
       (* Case max = 0: use hypothesis on continuation *)
@@ -182,7 +179,7 @@ Section Main.
           - constructor. reflexivity.
           - remember (if (min ==? 0)%wt then 0 else min - 1) as min'.
             remember (if (max =? +∞)%NoI then +∞ else (max - 1)%NoI) as max'.
-            specialize (IHfuel mc tmc gl Hequivcont min' max' greedy s parenIndex parenCount Hsstr0).
+            specialize (IHfuel min' max' greedy parenIndex parenCount mc tmc gl Hequivcont s Hsstr0).
             inversion IHfuel.
             + constructor. simpl. assumption.
             + constructor.
@@ -227,7 +224,6 @@ Section Main.
           assumption.
         (* Case min = 0 *)
         * specialize (Hequivcont x Hxstr0).
-          Print equiv_results.
           inversion Hequivcont; inversion Hequivres; destruct greedy eqn:Hgreedy; simpl.
           all: try constructor.
           (* There must be a way to make this simpler *)
