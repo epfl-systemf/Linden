@@ -19,16 +19,20 @@ Inductive ms_matches_inp: MatchState -> input -> Prop :=
 | Ms_matches_inp: forall (s: string) (end_ind: nat) cap (next pref: string),
     List.length pref = end_ind -> List.rev pref ++ next = s ->
     ms_matches_inp {| MatchState.input := s; MatchState.endIndex := Z.of_nat end_ind;
-        MatchState.captures := cap |} (Input next pref).
+                                             MatchState.captures := cap |} (Input next pref).
 
+Lemma ms_matches_inp_invinp: forall ms pref next, ms_matches_inp ms (Input next pref) -> MatchState.input ms = List.rev pref ++ next.
+Proof.
+  intros ms pref next Hmatches.
+  inversion Hmatches.
+  symmetry.
+  assumption.
+Qed.
+  
 Lemma ms_suffix_current_str: forall ms inp, ms_matches_inp ms inp -> current_str inp = ms_suffix ms.
 Proof.
   intros ms inp Hmatches.
-  inversion Hmatches.
-  rename H into Hlpref.
-  rename H0 into Hcompats.
-  rename H1 into Heqms.
-  rename H2 into Heqinp.
+  inversion Hmatches as [s end_ind cap next pref Hlpref Hcompats Heqms Heqinp].
   simpl.
   unfold ms_suffix.
   simpl.
@@ -52,165 +56,163 @@ Proof.
   apply Hcompats.
 Qed.
 
+(* We say that an input is compatible when it represents the input string str0 we are considering. *)
+Inductive input_compat: input -> string -> Prop :=
+| Input_compat: forall next pref str0, List.rev pref ++ next = str0 -> input_compat (Input next pref) str0.
+
+Lemma inp_compat_ms_same_inp:
+  forall (str0: string) (inp1 inp2: input),
+    input_compat inp1 str0 -> input_compat inp2 str0 ->
+    forall ms1 ms2,
+      ms_matches_inp ms1 inp1 -> ms_matches_inp ms2 inp2 ->
+      MatchState.input ms1 = MatchState.input ms2.
+Proof.
+  intros str0 [next1 pref1] [next2 pref2] Hcompat1 Hcompat2 ms1 ms2 Hmatches1 Hmatches2.
+  apply ms_matches_inp_invinp in Hmatches1, Hmatches2.
+  inversion Hcompat1.
+  inversion Hcompat2.
+  congruence.
+Qed.
+
+(* `tMC_is_tree tmc rer lreg cont inp` means that the TMatcherContinuation tmc, when run with a MatchState
+  compatible with input inp and valid with respect to rer, matches the regexp lreg and continues with the continuation cont at each
+  leaf of the backtree that represents matching the regexp lreg, and yields a valid backtree. *)
+Definition tMC_is_tree (tmc: TMatcherContinuation) (rer: RegExpRecord) (lreg: regex) (cont: continuation) (inp: input) :=
+  forall (ms: MatchState) (t: tree), Valid (MatchState.input ms) rer ms -> ms_matches_inp ms inp -> tmc ms = Success t -> is_tree lreg cont inp t.
+
+(* `tMC_valid tmc rer lreg cont str0` means that the TMatcherContinuation tmc, when run on any input compatible with the string str0 under the flags in rer,
+   recognizes the regexp lreg and continues with continuation cont at each leaf of the backtree that
+   represents matching the regexp lreg, and yields a valid backtree. *)
+Definition tMC_valid (tmc: TMatcherContinuation) (rer: RegExpRecord) (lreg: regex) (cont: continuation) (str0: string) :=
+  forall inp, input_compat inp str0 -> tMC_is_tree tmc rer lreg cont inp.
+
+(* `tm_valid tm rer lreg` means that the TMatcher tm recognizes the regexp lreg on any input, and yields a valid backtree. *)
+Definition tm_valid (tm: TMatcher) (rer: RegExpRecord) (lreg: regex) :=
+  forall (tmc: TMatcherContinuation) (lregc: regex) (cont: continuation) (str0: string),
+  tMC_valid tmc rer lregc cont str0 ->
+  tMC_valid (fun s => tm s tmc) rer lreg (Areg lregc::cont) str0.
+
+Lemma tRepeatMatcher'_valid:
+  forall rer greedy parenIndex parenCount,
+  forall (tm: TMatcher) (lreg: regex),
+    tm_valid tm rer lreg -> def_groups lreg = List.seq (parenIndex + 1) parenCount ->
+    forall fuel, tm_valid (fun s tmc => tRepeatMatcher' tm 0 +∞ greedy s tmc parenIndex parenCount fuel) rer (Regex.Star greedy lreg).
+Proof.
+  (* We fix all of the following: in particular, we fix the regexp that is being starred as well as its context in terms of parentheses before. *)
+  intros rer greedy parenIndex parenCount tm lreg Htm_valid Hgroups_valid fuel.
+  induction fuel as [|fuel IHfuel].
+  - (* When the fuel is zero, tRepeatMatcher' never yields a tree, so there is nothing to prove. *)
+    simpl. unfold tm_valid, tMC_valid, tMC_is_tree. discriminate.
+  - (* Assume that the matcher yielded by tRepeatMatcher' with fuel fuel is valid, and let's prove it for fuel+1. *)
+    unfold tm_valid in *.
+    intros tmc lregc cont str0 Htmc_valid.
+    unfold tMC_valid.
+    intros inp Hinp_compat.
+    unfold tMC_is_tree.
+    intros ms t Hvalidms Hms_inp HmatchSuccess.
+    simpl in *.
+    (* Assume that the capture reset succeeds, otherwise there is nothing to prove. *)
+    destruct List.List.Update.Nat.Batch.update as [cap'|] eqn:Heqcap'; simpl in *. 2: discriminate.
+    destruct greedy.
+    + (* Greedy star *)
+      (* tmc' checks at the end of matching lreg whether progress has been made, and if so calls tRepeatMatcher' with one less fuel *)
+      remember (fun y => if (_ =? _)%Z then _ else _) as tmc'.
+      (* ms' is ms with the capture reset *)
+      remember (match_state _ _ cap') as ms'.
+      assert (tMC_valid tmc' rer Epsilon (Acheck (ms_suffix ms)::Areg (Regex.Star true lreg)::Areg lregc::cont) str0) as Htmc'_valid.
+      {
+        unfold tMC_valid.
+        (* Let inp' be an input compatible with str0. *)
+        intros inp' Hinp'_compat.
+        unfold tMC_is_tree.
+        (* Let ms1 be a MatchState that is valid and matches that input. *)
+        intros ms1 t1 Hms1valid Hms1_inp Htmc'_succeeds.
+        rewrite Heqtmc' in Htmc'_succeeds.
+        (* Then either the input has progressed or it has not. *)
+        destruct (_ =? _)%Z eqn:Heqcheck.
+        - (* Case 1: the input has not progressed *)
+          inversion Htmc'_succeeds as [Heqt1]. apply tree_pop_check_fail.
+          rewrite ms_suffix_current_str with (ms := ms1) by assumption.
+          unfold ms_suffix.
+          rewrite Z.eqb_eq in Heqcheck.
+          rewrite Heqcheck.
+          f_equal.
+          eapply inp_compat_ms_same_inp with (inp1 := inp') (inp2 := inp).
+          + apply Hinp'_compat.
+          + apply Hinp_compat.
+          + assumption.
+          + assumption.
+        - (* Case 2: the input has progressed *)
+          destruct tRepeatMatcher' as [subtree|] eqn:Heqsubtree; simpl.
+          2: discriminate.
+          inversion Htmc'_succeeds as [Htmc'_succeds'].
+          apply tree_pop_check.
+          + rewrite ms_suffix_current_str with (ms := ms1). 2: assumption.
+            intro Habs.
+            unfold ms_suffix in Habs.
+            replace (@MatchState.input Chars.Char char_marker ms1) with (MatchState.input ms) in Habs.
+            2: now apply inp_compat_ms_same_inp with (str0 := str0) (inp1 := inp) (inp2 := inp').
+          (* Need to prove: skipn (Z.to_nat (MatchState.endIndex ms1)) _ = skipn (Z.to_nat (MatchState.endIndex ms)) _ implies Z.to_nat (_ ms1) = Z.to_nat (_ ms), because both are less than the length of MatchState.input ms by validity of the match states. Then again by validity of the match states, the end indices are non-negative, so they are equal. *)
+            admit.
+          + specialize (IHfuel tmc lregc cont str0 Htmc_valid).
+            unfold tMC_valid in IHfuel.
+            specialize (IHfuel inp' Hinp'_compat).
+            unfold tMC_is_tree in IHfuel.
+            specialize (IHfuel ms1 subtree Hms1valid Hms1_inp Heqsubtree).
+            apply tree_pop_reg.
+            apply IHfuel.
+      }
+      specialize (Htm_valid tmc' Epsilon (Acheck (ms_suffix ms)::Areg (Regex.Star true lreg)::Areg lregc::cont) str0 Htmc'_valid).
+      unfold tMC_valid in Htm_valid, Htmc_valid.
+      specialize (Htm_valid inp Hinp_compat).
+      specialize (Htmc_valid inp Hinp_compat).
+      unfold tMC_is_tree in Htm_valid, Htmc_valid.
+      assert (Valid (MatchState.input ms') rer ms') as Hvalidms' by admit.
+      assert (ms_matches_inp ms' inp) as Hms'_inp.
+      {
+        rewrite Heqms'.
+        inversion Hms_inp.
+        simpl.
+        now constructor.
+      }
+      destruct tm as [z|] eqn:Heqz; simpl. 2: discriminate.
+      destruct tmc as [z'|] eqn:Heqz'; simpl. 2: discriminate.
+      specialize (Htm_valid ms' z Hvalidms' Hms'_inp Heqz).
+      specialize (Htmc_valid ms z' Hvalidms Hms_inp Heqz').
+      assert (is_tree lreg (Acheck (ms_suffix ms) :: Areg (Regex.Star true lreg) :: Areg lregc :: cont) inp z) as Htm_valid2.
+      {
+        apply is_tree_eps with (cont1 := nil). apply Htm_valid.
+      }
+      eapply tree_star.
+      * symmetry. apply Hgroups_valid.
+      * rewrite ms_suffix_current_str with (ms := ms). 2: assumption.
+        apply Htm_valid2.
+      * apply tree_pop_reg. apply Htmc_valid.
+      * inversion HmatchSuccess. reflexivity.
+
+    (* Lazy star *)
+    + (* Likely similar; TODO do it! *)
+      admit.
+Admitted.
+
+
 
 Section Main.
   Context (str0: string) (rer: RegExpRecord) (lroot: regex) (wroot: Regex).
   Hypothesis Hcasesenst: RegExpRecord.ignoreCase rer = false.
   Hypothesis root_equiv: equiv_regex wroot lroot.
 
-  (* We say that an input is compatible when it represents the input string str0 we are considering. *)
-  Inductive input_compat: input -> Prop :=
-  | Input_compat: forall next pref, List.rev pref ++ next = str0 -> input_compat (Input next pref).
-
-  (* `tMC_is_tree tmc reg cont inp` means that the TMatcherContinuation tmc, when run with a MatchState
-    compatible with input inp, matches the regexp reg and continues with the continuation cont at each
-    leaf of the backtree that represents matching the regexp reg, and yields a valid backtree. *)
-  Definition tMC_is_tree (tmc: TMatcherContinuation) (reg: regex) (cont: continuation) (inp: input) :=
-    forall s: MatchState, Valid (MatchState.input s) rer s -> ms_matches_inp s inp -> match tmc s with
-    | Error _ => True (* finer modeling? *)
-    | Success t => is_tree reg cont inp t
-    end.
-  
-  (* `tMC_valid tmc reg cont` means that the TMatcherContinuation tmc, when run on any compatible input,
-     recognizes the regexp reg and continues with continuation cont at each leaf of the backtree that
-     represents matching the regexp reg, and yields a valid backtree. *)
-  Definition tMC_valid (tmc: TMatcherContinuation) (reg: regex) (cont: continuation) :=
-    forall inp, input_compat inp -> tMC_is_tree tmc reg cont inp.
-
-  (* `tm_valid tm reg` means that the TMatcher tm recognizes the regexp reg on any input that is compatible
-     with s0, and yields a valid backtree. *)
-  Definition tm_valid (tm: TMatcher) (reg: regex) :=
-    forall (tmc: TMatcherContinuation) (regc: regex) (cont: continuation),
-    tMC_valid tmc regc cont ->
-    tMC_valid (fun s => tm s tmc) reg (Areg regc::cont).
-
-  Lemma tRepeatMatcher'_valid:
-    forall greedy parenIndex parenCount,
-    forall (tm: TMatcher) (reg: regex), tm_valid tm reg -> def_groups reg = List.seq (parenIndex + 1) parenCount ->
-    forall fuel, tm_valid (fun s tmc => tRepeatMatcher' tm 0 +∞ greedy s tmc parenIndex parenCount fuel) (Regex.Star greedy reg).
-  Proof.
-    intros greedy parenIndex parenCount tm reg Htm_valid Hgroups_valid fuel.
-    induction fuel as [|fuel IHfuel].
-    - simpl. unfold tm_valid, tMC_valid, tMC_is_tree. split.
-    - unfold tm_valid in *.
-      intros tmc regc cont Htmc_valid.
-      unfold tMC_valid.
-      intros inp Hinp_compat.
-      unfold tMC_is_tree.
-      intros s Hvalids Hs_inp.
-      simpl.
-      destruct List.List.Update.Nat.Batch.update as [cap'|] eqn:Heqcap'; simpl. 2: exact I.
-      destruct greedy.
-      (* Greedy star *)
-      + remember (fun y => if (_ =? _)%Z then _ else _) as tmc'.
-        remember (match_state _ _ cap') as s'.
-        assert (tMC_valid tmc' Epsilon (Acheck (ms_suffix s)::Areg (Regex.Star true reg)::Areg regc::cont)) as Htmc'_valid.
-        {
-          unfold tMC_valid.
-          intros inp' Hinp'_compat.
-          unfold tMC_is_tree.
-          intros s1 Hs1valid Hs1_inp.
-          rewrite Heqtmc'.
-          destruct (_ =? _)%Z eqn:Heqcheck.
-          - apply tree_pop_check_fail. rewrite ms_suffix_current_str with (ms := s).
-            + reflexivity.
-            + destruct s, inp'. destruct Hvalids as [_ [HindexOn [_ _]]].
-              simpl in *.
-              unfold Match.IteratorOn in HindexOn.
-              replace endIndex with (Z.of_nat (Z.to_nat endIndex)) by lia.
-              destruct inp.
-              inversion Hinp_compat.
-              inversion Hs_inp.
-              inversion Hs1_inp.
-              inversion Hinp'_compat.
-              subst.
-              simpl in *.
-              constructor.
-              * rewrite Z.eqb_eq in Heqcheck.
-                rewrite <- Heqcheck. rewrite Nat2Z.id. reflexivity.
-              * congruence.
-              (* This was painful *)
-          - destruct tRepeatMatcher' as [subtree|] eqn:Heqsubtree; simpl.
-            2: exact I.
-            apply tree_pop_check.
-            + rewrite <- ms_suffix_current_str with (inp := inp). 2: assumption.
-              intro Habs.
-              inversion Hs_inp.
-              inversion Hs1_inp.
-              inversion Hinp_compat.
-              inversion Hinp'_compat.
-              subst.
-              simpl in *.
-              inversion H10.
-              inversion H8.
-              subst.
-              assert (pref = pref0).
-              {
-                rewrite <- rev_involutive with (l := pref).
-                rewrite <- rev_involutive with (l := pref0).
-                f_equal.
-                eapply app_inv_tail.
-                rewrite <- H9 in H7.
-                apply H7.
-              }
-              subst.
-              replace (length pref0 =? length pref0)%Z with true in Heqcheck by lia.
-              discriminate.
-              (* This was painful *)
-            + specialize (IHfuel tmc regc cont Htmc_valid).
-              unfold tMC_valid in IHfuel.
-              specialize (IHfuel inp' Hinp'_compat).
-              unfold tMC_is_tree in IHfuel.
-              specialize (IHfuel s1 Hs1valid Hs1_inp).
-              rewrite Heqsubtree in IHfuel.
-              apply tree_pop_reg.
-              apply IHfuel.
-        }
-        specialize (Htm_valid tmc' Epsilon (Acheck (ms_suffix s)::Areg (Regex.Star true reg)::Areg regc::cont) Htmc'_valid).
-        unfold tMC_valid in Htm_valid, Htmc_valid.
-        specialize (Htm_valid inp Hinp_compat).
-        specialize (Htmc_valid inp Hinp_compat).
-        unfold tMC_is_tree in Htm_valid, Htmc_valid.
-        assert (Valid (MatchState.input s') rer s') as Hvalids' by admit.
-        assert (ms_matches_inp s' inp) as Hs'_inp.
-        {
-          rewrite Heqs'.
-          inversion Hs_inp.
-          simpl.
-          now constructor.
-        }
-        specialize (Htm_valid s' Hvalids' Hs'_inp).
-        specialize (Htmc_valid s Hvalids Hs_inp).
-        destruct tm as [z|] eqn:Heqz; simpl. 2: exact I.
-        destruct tmc as [z'|] eqn:Heqz'; simpl. 2: exact I.
-        assert (is_tree reg (Acheck (ms_suffix s) :: Areg (Regex.Star true reg) :: Areg regc :: cont) inp z) as Htm_valid2.
-        {
-          apply is_tree_eps with (cont1 := nil). apply Htm_valid.
-        }
-        eapply tree_star.
-        * symmetry. apply Hgroups_valid.
-        * rewrite ms_suffix_current_str with (ms := s). 2: assumption.
-          apply Htm_valid2.
-        * apply tree_pop_reg. apply Htmc_valid.
-        * reflexivity.
-      
-      (* Lazy star *)
-      + (* Likely similar; TODO do it! *)
-        admit.
-  Admitted.
-
 
   (* Theorem is not true for case-insensitive matching, which is not supported (yet) by the tree semantics *)
   (* Validity of the context and regexp? *)
-  Theorem tmatcher_bt: forall wreg reg ctx,
-    equiv_regex wreg reg ->
+  Theorem tmatcher_bt: forall wreg lreg ctx,
+    equiv_regex wreg lreg ->
     Root wroot (wreg, ctx) ->
-    match tCompileSubPattern wreg ctx rer forward with
-    | Error _ => True (* False? *)
-    | Success tm => tm_valid tm reg
-    end.
+    forall tm,
+      tCompileSubPattern wreg ctx rer forward = Success tm ->
+      tm_valid tm lreg.
   Proof.
-    intros wreg reg ctx Hequiv.
+    intros wreg lreg ctx Hequiv.
     revert ctx.
     induction Hequiv as [
       n |
