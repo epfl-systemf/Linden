@@ -1,5 +1,5 @@
 From Coq Require Import PeanoNat ZArith Bool Lia Program.Equality List Program.Wf.
-From Linden Require Import Tree LindenParameters CharsWarblre TMatching Chars Regex Semantics RegexpTranslation.
+From Linden Require Import Tree LindenParameters CharsWarblre TMatching Chars Regex Semantics RegexpTranslation MSInput.
 From Warblre Require Import Patterns Result Notation Errors Node RegExpRecord Base Coercions Semantics Typeclasses NodeProps.
 From Warblre.props Require Import Match.
 Import Match.MatchState.
@@ -14,65 +14,6 @@ Import Zipper.
 Import Down.
 
 Local Open Scope result_flow.
-
-Inductive ms_matches_inp: MatchState -> input -> Prop :=
-| Ms_matches_inp: forall (s: string) (end_ind: nat) cap (next pref: string),
-    List.length pref = end_ind -> List.rev pref ++ next = s ->
-    ms_matches_inp {| MatchState.input := s; MatchState.endIndex := Z.of_nat end_ind;
-                                             MatchState.captures := cap |} (Input next pref).
-
-Lemma ms_matches_inp_invinp: forall ms pref next, ms_matches_inp ms (Input next pref) -> MatchState.input ms = List.rev pref ++ next.
-Proof.
-  intros ms pref next Hmatches.
-  inversion Hmatches.
-  symmetry.
-  assumption.
-Qed.
-  
-Lemma ms_suffix_current_str: forall ms inp, ms_matches_inp ms inp -> current_str inp = ms_suffix ms.
-Proof.
-  intros ms inp Hmatches.
-  inversion Hmatches as [s end_ind cap next pref Hlpref Hcompats Heqms Heqinp].
-  simpl.
-  unfold ms_suffix.
-  simpl.
-  rewrite Nat2Z.id in *.
-  assert (length (rev pref) = end_ind) as Hlrevpref.
-  {
-    subst end_ind. apply rev_length.
-  }
-  pose proof firstn_app end_ind (rev pref) next as H.
-  subst end_ind.
-  replace (length pref - length (rev pref)) with 0 in H by lia.
-  rewrite Hcompats in H.
-  change (firstn 0 next) with (@nil Character) in H.
-  rewrite <- Hlrevpref in H at 2.
-  rewrite firstn_all in H.
-  rewrite app_nil_r in H.
-  rewrite <- H in Hcompats.
-  pose proof firstn_skipn (length pref) s as H2.
-  rewrite <- H2 in Hcompats at 2.
-  eapply app_inv_head.
-  apply Hcompats.
-Qed.
-
-(* We say that an input is compatible when it represents the input string str0 we are considering. *)
-Inductive input_compat: input -> string -> Prop :=
-| Input_compat: forall next pref str0, List.rev pref ++ next = str0 -> input_compat (Input next pref) str0.
-
-Lemma inp_compat_ms_same_inp:
-  forall (str0: string) (inp1 inp2: input),
-    input_compat inp1 str0 -> input_compat inp2 str0 ->
-    forall ms1 ms2,
-      ms_matches_inp ms1 inp1 -> ms_matches_inp ms2 inp2 ->
-      MatchState.input ms1 = MatchState.input ms2.
-Proof.
-  intros str0 [next1 pref1] [next2 pref2] Hcompat1 Hcompat2 ms1 ms2 Hmatches1 Hmatches2.
-  apply ms_matches_inp_invinp in Hmatches1, Hmatches2.
-  inversion Hcompat1.
-  inversion Hcompat2.
-  congruence.
-Qed.
 
 (* `tMC_is_tree tmc rer cont inp` means that the TMatcherContinuation tmc, when run with a MatchState
   compatible with input inp and valid with respect to rer, performs the actions in the continuation cont and yields a valid backtree. *)
