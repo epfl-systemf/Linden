@@ -1,70 +1,41 @@
-From Coq Require Import PeanoNat ZArith Bool Lia Program.Equality List Program.Wf.
-From Linden Require Import Tree LindenParameters CharsWarblre TMatching Chars ListLemmas MSInput TreeMSInterp.
-From Warblre Require Import Patterns Result Notation Errors Node RegExpRecord Base Coercions Semantics Typeclasses.
-Import Patterns.
-Import Result.Result.
-Import Result.Notations.
-Import Result.Notations.Boolean.
-Import Coercions.
+From Coq Require Import Lia PeanoNat.
+From Linden Require Import TMatcherEquivDef TMatcherEquivLemmas TMatching
+  LindenParameters Tree Chars TreeMSInterp ListLemmas.
+From Warblre Require Import Result Notation Base Semantics Coercions Errors.
 Import Notation.
+Import Coercions.
+Import Result.Notations.
 
 Local Open Scope result_flow.
 
 (* TODO Zero group *)
 
-(* Expresses the equivalence between the first branch of a sub-backtracking tree with its corresponding
-    extended match state on the one hand, with a MatchResult on the other hand.
-    This simply unwraps the error monad; we currently do not say anything when either match result is an error
-    (any error is equivalent to anything in both directions). *)
-Inductive equiv_results: TMatchResult -> MatchState -> open_groups -> MatchResult -> Prop :=
-| Equiv_results: forall (t: tree) (ms: MatchState) (open_gl: open_groups) (res: option MatchState),
-    res = tree_res' t ms open_gl ->
-    equiv_results (Success t) ms open_gl (Success res)
-| Equiv_results_errl: forall errl ms open_gl res', equiv_results (Error errl) ms open_gl res'
-| Equiv_results_errr: forall t' ms open_gl errr, equiv_results t' ms open_gl (Error errr).
-
-
-(* A continuation is always called at a fixed position in the regexp, so with a fixed list of
-   groups that are currently open.
-   We say that a MatcherContinuation mc and a TMatcherContinuation tmc are equivalent under a given input string str0 and the list of
-   open groups open_gl when given any MatchState ms compatible with the string str0 being matched,
-   the sub-backtree (tmc s) with extended match state (s, open_gl) is equivalent to the MatchResult
-   (mc s). *)
-Definition equiv_tree_mcont (str0: string) (mc: MatcherContinuation) (tmc: TMatcherContinuation) (gl: open_groups) :=
-  forall s: MatchState,
-  MatchState.input s = str0 -> 
-  equiv_results (tmc s) s gl (mc s).
-
-(* A (T)Matcher matches a regexp, then calls a continuation after matching the said regexp.
-   We say that a Matcher m and a TMatcher tm are equivalent under the input string str0 when given equivalent continuations,
-   we obtain back equivalent continuations. *)
-Definition equiv_tree_matcher (str0: string) (m: Matcher) (tm: TMatcher) :=
-  forall mc tmc gl, equiv_tree_mcont str0 mc tmc gl -> equiv_tree_mcont str0 (fun s => m s mc) (fun s => tm s tmc) gl.
-
-
 (* The identity continuations. *)
 Definition id_mcont: MatcherContinuation := fun x => Success (Some x).
 Definition id_tmcont: TMatcherContinuation := fun _ => Success Match.
 
-(* These two continuations are easily equivalent (under all input strings and with no groups opened). *)
+(* These two continuations are easily equivalent (under all input strings
+   and with no groups opened). *)
 Lemma id_equiv: forall str0, equiv_tree_mcont str0 id_mcont id_tmcont nil.
 Proof.
   constructor. reflexivity.
 Qed.
 
-Lemma repeatMatcher'_tRepeatMatcher': forall (str0: string) (m: Matcher) (tm: TMatcher),
+Lemma repeatMatcher'_tRepeatMatcher':
+  forall (str0: string) (m: Matcher) (tm: TMatcher) (greedy: bool)
+  (parenIndex parenCount: non_neg_integer),
   equiv_tree_matcher str0 m tm ->
   forall fuel: nat,
-  forall (min: non_neg_integer) (max: non_neg_integer_or_inf) (greedy: bool)
-  (parenIndex parenCount: non_neg_integer),
+  forall (min: non_neg_integer) (max: non_neg_integer_or_inf),
   equiv_tree_matcher str0
     (fun ms mc => Semantics.repeatMatcher' m min max greedy ms mc parenIndex parenCount fuel)
     (fun ms tmc => tRepeatMatcher' tm min max greedy ms tmc parenIndex parenCount fuel).
 Proof.
-  intros str0 m tm Hm_tm_equiv fuel.
+  intros str0 m tm greedy parenIndex parenCount Hm_tm_equiv fuel.
   induction fuel as [|fuel IHfuel].
-  - simpl. constructor.
-  - intros min max greedy parenIndex parenCount mc tmc gl Hequivcont x Hxstr0.
+  - constructor.
+  - intros min max.
+    intros mc tmc gl Hequivcont ms Hms_str0.
     simpl.
     destruct (max =? 0)%NoI eqn:Hmax0; simpl.
     (* Case max = 0: use hypothesis on continuation *)
@@ -73,40 +44,47 @@ Proof.
     (* Case max > 0 *)
     + (* Assume that the capture reset succeeds *)
       destruct List.List.Update.Nat.Batch.update as [cap'|] eqn:Heqcap'; simpl. 2: constructor.
-      remember (match_state (MatchState.input x) (MatchState.endIndex x) cap') as s'.
-      remember (fun y: MatchState => _) as tmc'.
-      remember (fun (y: MatchState) => (_: MatchResult)) as mc'.
-      assert (equiv_tree_mcont str0 mc' tmc' gl) as Hequiv'.
+      remember (match_state (MatchState.input ms) (MatchState.endIndex ms) cap')
+        as ms_reset.
+      (* tmc' and mc' perform the progress check, then if this check succeeds, *)
+      (* perform the recursive call with decreased min/max. *)
+      remember (fun y: MatchState => _) as tmcnext.
+      remember (fun (y: MatchState) => (_: MatchResult)) as mcnext.
+      (* These two continuations are equivalent. *)
+      assert (equiv_tree_mcont str0 mcnext tmcnext gl) as Hequivnext.
       {
-        intros s Hsstr0.
-        rewrite Heqmc', Heqtmc'.
-        destruct ((min ==? 0)%wt && _) eqn:Hprogress; simpl.
-        - constructor. reflexivity.
-        - remember (if (min ==? 0)%wt then 0 else min - 1) as min'.
-          remember (if (max =? +∞)%NoI then +∞ else (max - 1)%NoI) as max'.
-          specialize (IHfuel min' max' greedy parenIndex parenCount mc tmc gl Hequivcont s Hsstr0).
+        intros ms1 Hms1_str0.
+        rewrite Heqmcnext, Heqtmcnext.
+        (* Case analysis on whether the progress check fails *)
+        destruct ((min ==? 0)%wt && _)%bool eqn:Hprogress; simpl.
+        - (* Fails *) constructor. reflexivity.
+        - (* Succeeds *)
+          remember (if (min ==? 0)%wt then 0 else min - 1) as nextmin.
+          remember (if (max =? +∞)%NoI then +∞ else (max - 1)%NoI) as nextmax.
+          specialize (IHfuel nextmin nextmax mc tmc gl Hequivcont ms1 Hms1_str0).
           inversion IHfuel.
           + simpl. constructor. simpl. assumption.
           + constructor.
           + constructor.
       }
-      assert (equiv_results (tm s' tmc') s' gl (m s' mc')) as Hequivres.
+      (* Therefore, the results of matching the inner regexp, then looping, are *)
+      (* equivalent. *)
+      assert (equiv_results (tm ms_reset tmcnext) ms_reset gl
+                (m ms_reset mcnext))
+        as Hequiv_loop.
       {
         unfold equiv_tree_matcher in Hm_tm_equiv.
-        specialize (Hm_tm_equiv mc' tmc' gl Hequiv' s').
-        assert (Hs'str0: MatchState.input s' = str0).
-        {
-          rewrite Heqs'. simpl. assumption.
-        }
-        specialize (Hm_tm_equiv Hs'str0).
-        inversion Hm_tm_equiv.
-        2,3: constructor.
-        now constructor.
+        specialize (Hm_tm_equiv mcnext tmcnext gl Hequivnext ms_reset).
+        assert (Hms_reset_str0: MatchState.input ms_reset = str0) by
+          now rewrite Heqms_reset.
+        specialize (Hm_tm_equiv Hms_reset_str0).
+        inversion Hm_tm_equiv; now constructor.
       }
-      assert ((reset_groups_ms (seq (parenIndex + 1) parenCount) x) = s') as RESET_GROUPS.
+      (* A technical lemma *)
+      assert ((reset_groups_ms (F := MatchError) (List.seq (parenIndex + 1) parenCount) ms) = ms_reset) as RESET_GROUPS.
       {
         unfold reset_groups_ms.
-        destruct x.
+        destruct ms.
         rewrite <- List.List.Range.Nat.Length.range_seq.
         unfold List.List.Range.Nat.Bounds.range in Heqcap'.
         rewrite decr_range by lia.
@@ -116,83 +94,36 @@ Proof.
         simpl in *.
         congruence.
       }
+      (* By hypothesis, the results of exiting the loop are equivalent. *)
+      pose proof Hequivcont ms Hms_str0 as Hequiv_exit.
+      assert (equiv_results (let! z =<< tm ms_reset tmcnext
+                             in Success (GroupAction (Reset (List.seq (parenIndex + 1
+                                                               ) parenCount)) z)
+                ) ms gl (m ms_reset mcnext)) as Hequiv_loopreset. {
+        inversion Hequiv_loop.
+        - simpl. constructor. simpl. rewrite RESET_GROUPS. assumption.
+        - constructor.
+        - constructor.
+      }
       destruct (negb (min =? 0)) eqn:Hmin_nonzero; simpl.
-      (* Case min > 0 *)
-      * inversion Hequivres.
-        2,3: constructor.
-        constructor. simpl.
-        rewrite RESET_GROUPS.
-        simpl.
-        assumption.
-      (* Case min = 0 *)
-      * specialize (Hequivcont x Hxstr0).
-        inversion Hequivcont; inversion Hequivres; destruct greedy eqn:Hgreedy; simpl.
-        all: try constructor.
-        (* There must be a way to make this simpler *)
-        -- subst ms open_gl ms0 open_gl0.
-            rename t0 into z.
-            rename t into z'.
-            rename res0 into zm.
-            unfold "!=?".
-            destruct (zm ==? None)%wt eqn:Hzm_None; simpl.
-            ++ constructor. simpl. rewrite RESET_GROUPS.
-              (* rewrite H8. simpl. *)
-              rewrite EqDec.inversion_true in Hzm_None.
-              rewrite <- H8.
-              rewrite Hzm_None.
-              assumption.
-            ++ constructor. simpl. rewrite RESET_GROUPS.
-              rewrite <- H8. simpl.
-              rewrite EqDec.inversion_false in Hzm_None.
-              destruct zm; simpl.
-              ** reflexivity.
-              ** contradiction.
-        -- subst ms open_gl ms0 open_gl0.
-            rename t0 into z.
-            rename t into z'.
-            rename res0 into zm.
-            rename res into zmc.
-            unfold "!=?".
-            destruct (zmc ==? None)%wt eqn:Hzmc_None; simpl.
-            ++ constructor. simpl. rewrite <- H3. simpl.
-              rewrite EqDec.inversion_true in Hzmc_None.
-              rewrite Hzmc_None.
-              rewrite RESET_GROUPS.
-              simpl.
-              assumption.
-            ++ constructor. simpl. rewrite <- H3. simpl.
-              rewrite EqDec.inversion_false in Hzmc_None.
-              destruct zmc; simpl.
-              ** reflexivity.
-              ** contradiction.
-
-        -- subst ms open_gl ms0 open_gl0.
-            rewrite <- H4.
-            destruct t'.
-            ++ simpl.
-              unfold "!=?".
-              destruct (res ==? None)%wt eqn:Hres_None; simpl.
-              ** constructor.
-              ** constructor. simpl. rewrite <- H3.
-                  simpl.
-                  rewrite EqDec.inversion_false in Hres_None.
-                  destruct res.
-                  --- reflexivity.
-                  --- contradiction.
-            ++ simpl. constructor.
-
-        -- subst ms open_gl ms0 open_gl0.
-            rewrite <- H.
-            destruct t'.
-            ++ simpl.
-              unfold "!=?".
-              destruct (res ==? None)%wt eqn:Hres_None; simpl.
-              ** constructor.
-              ** constructor. simpl. rewrite RESET_GROUPS.
-                  rewrite <- H7. simpl.
-                  rewrite EqDec.inversion_false in Hres_None.
-                  now destruct res.
-            ++ simpl. constructor.
+      * (* Case min > 0: results from equivalence in loop case *)
+        apply Hequiv_loopreset.
+      * (* Case min = 0 *)
+        destruct greedy.
+        -- rewrite func_monad_swap
+             with (f1 := fun z => GroupAction (Reset (List.seq (parenIndex + 1)
+                                                             parenCount)) z)
+                  (f2 := id).
+           apply equiv_choice.
+           ++ assumption.
+           ++ rewrite monad_id. assumption.
+       -- rewrite func_monad_swap
+             with (f2 := fun z => GroupAction (Reset (List.seq (parenIndex + 1)
+                                                             parenCount)) z)
+                  (f1 := id).
+          apply equiv_choice.
+          ++ rewrite monad_id. assumption.
+          ++ assumption.
 Qed.
 
 
