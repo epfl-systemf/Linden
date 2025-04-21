@@ -1,5 +1,6 @@
 From Linden Require Import TMatching Tree Chars Semantics MSInput
-  Regex LindenParameters CharsWarblre RegexpTranslation.
+  Regex LindenParameters CharsWarblre RegexpTranslation ListLemmas
+  WarblreLemmas.
 From Warblre Require Import Result Notation RegExpRecord Match Base
   Patterns Node NodeProps Semantics.
 From Coq Require Import List ZArith Lia.
@@ -87,10 +88,42 @@ Proof.
           + rewrite ms_suffix_current_str with (ms := ms1). 2: assumption.
             intro Habs.
             unfold ms_suffix in Habs.
-            replace (@MatchState.input Chars.Char char_marker ms1) with (MatchState.input ms) in Habs.
-            2: now apply inp_compat_ms_same_inp with (str0 := str0) (inp1 := inp) (inp2 := inp').
-          (* Need to prove: skipn (Z.to_nat (MatchState.endIndex ms1)) _ = skipn (Z.to_nat (MatchState.endIndex ms)) _ implies Z.to_nat (_ ms1) = Z.to_nat (_ ms), because both are less than the length of MatchState.input ms by validity of the match states. Then again by validity of the match states, the end indices are non-negative, so they are equal. *)
-            admit.
+            assert (Hms1_ms_inp: @MatchState.input Chars.Char
+                                   char_marker ms1 = MatchState.input ms) by
+              now apply inp_compat_ms_same_inp
+                with (str0 := str0) (inp1 := inp') (inp2 := inp).
+            rewrite Hms1_ms_inp in Habs.
+            change Character with Chars.Char in *.
+            change (@Parameters.character_marker LindenParameters)
+                with char_marker in *.
+            (* Need to prove: skipn (Z.to_nat (MatchState.endIndex
+  ms1)) _ = skipn (Z.to_nat (MatchState.endIndex ms)) _ implies
+  Z.to_nat (_ ms1) = Z.to_nat (_ ms), because both are less than the
+  length of MatchState.input ms by validity of the match states. Then
+  again by validity of the match states, the end indices are
+  non-negative, so they are equal. *)
+            assert (Hindices_eq: MatchState.endIndex ms1
+                                 = MatchState.endIndex ms). {
+              Search Match.IteratorOn.
+              pose proof valid_inv_iteratoron _ _ _ Hms1valid as
+                Hms1_iton.
+              pose proof valid_inv_iteratoron _ _ _ Hvalidms as
+                Hms_iton.
+              unfold Match.IteratorOn in Hms1_iton, Hms_iton.
+              change (@MatchState.input Character
+                        (@Parameters.character_marker LindenParameters
+                        ) ms1) with (@MatchState.input Chars.Char
+                                       char_marker ms1) in Hms1_iton.
+              rewrite Hms1_ms_inp in Hms1_iton.
+              change Character with Chars.Char in *.
+              change (@Parameters.character_marker LindenParameters)
+                with char_marker in *.
+              apply skipn_ind_inv with (l := MatchState.input ms).
+              1-4: lia.
+              apply Habs.
+            }
+            rewrite Z.eqb_neq in Heqcheck.
+            contradiction.
           + specialize (IHfuel tmc cont str0 Htmc_valid).
             unfold tMC_valid in IHfuel.
             specialize (IHfuel inp' Hinp'_compat).
