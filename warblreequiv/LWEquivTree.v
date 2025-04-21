@@ -240,10 +240,10 @@ Proof.
     specialize (IH1 Hroot1).
     specialize (IH2 Hroot2).
     intros tm Hcompsucc.
-    destruct (tCompileSubPattern wr1 ctx1 rer forward) as [tm1|] eqn
-        :Htm1; simpl. 2: discriminate.
-    destruct (tCompileSubPattern wr2 ctx2 rer forward) as [tm2|] eqn:Htm2; simpl
-    . 2: discriminate.
+    destruct (tCompileSubPattern wr1 ctx1 rer forward) as [tm1|]
+      eqn:Htm1; simpl. 2: discriminate.
+    destruct (tCompileSubPattern wr2 ctx2 rer forward) as [tm2|] eqn:Htm2;
+      simpl. 2: discriminate.
     simpl in Hcompsucc.
     inversion Hcompsucc as [Hcompsucc'].
     intros tmc cont str0 Htmc_tree inp Hinp_compat.
@@ -289,10 +289,10 @@ Proof.
     }
     specialize (IH1 Hroot1).
     specialize (IH2 Hroot2).
-    destruct (tCompileSubPattern wr1 ctx1 rer forward) as [tm1|] eqn:Htm1; simpl
-    . 2: discriminate.
-    destruct (tCompileSubPattern wr2 ctx2 rer forward) as [tm2|] eqn:Htm2; simpl
-    . 2: discriminate.
+    destruct (tCompileSubPattern wr1 ctx1 rer forward) as [tm1|] eqn:Htm1;
+      simpl. 2: discriminate.
+    destruct (tCompileSubPattern wr2 ctx2 rer forward) as [tm2|] eqn:Htm2;
+      simpl. 2: discriminate.
     specialize (IH1 tm1 eq_refl).
     specialize (IH2 tm2 eq_refl).
     intros tmc cont str0 Htmc_tree inp Hinp_compat.
@@ -394,7 +394,6 @@ Proof.
     intros tmc cont str0 Htmc_tree inp Hinp_compat.
     intros ms t Hvalidms Hms_inp Heqt.
     remember (fun y: MatchState => _) as tmc2 in Heqt.
-    (* Let's try something *)
     specialize (IH tmc2 (Aclose (S n) :: cont)).
     assert (StaticSemantics.countLeftCapturingParensBefore (Group name wr) ctx + 1 = S n) as Heqid by admit.
     assert (tMC_valid tmc2 rer (Aclose (S n) :: cont) str0) as Htmc2_tree.
@@ -417,8 +416,8 @@ Proof.
       remember (match_state _ _ cap) as ms''.
       specialize (Htmc_tree ms'').
       assert (Valid (MatchState.input ms'') rer ms'') as Hs''valid by admit. (* not entirely sure that this is actually true *)
-      destruct (tmc ms'') as [subtree'|] eqn:Heqsubtree'; simpl in *. 2
-        : discriminate.
+      destruct (tmc ms'') as [subtree'|] eqn:Heqsubtree'; simpl in *.
+      2: discriminate.
       inversion Heqsubtree as [Heqsubtree0].
       specialize (Htmc_tree subtree' Hs''valid).
       assert (ms_matches_inp ms'' inp') as Hs''_inp' by admit.
@@ -430,8 +429,8 @@ Proof.
     apply tree_pop_reg.
     unfold tMC_valid in IH.
     specialize (IH inp Hinp_compat ms).
-    destruct (mr ms tmc2) as [subtree|] eqn:Heqsubtree; simpl in *. 2
-      : discriminate.
+    destruct (mr ms tmc2) as [subtree|] eqn:Heqsubtree; simpl in *.
+    2: discriminate.
     inversion Heqt as [Heqt'].
     rewrite Heqid.
     apply tree_group.
