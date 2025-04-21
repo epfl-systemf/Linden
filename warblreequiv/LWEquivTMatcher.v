@@ -1,10 +1,12 @@
-From Coq Require Import Lia PeanoNat.
+From Coq Require Import Lia PeanoNat ZArith.
 From Linden Require Import TMatcherEquivDef TMatcherEquivLemmas TMatching
-  LindenParameters Tree Chars TreeMSInterp ListLemmas.
-From Warblre Require Import Result Notation Base Semantics Coercions Errors.
+  LindenParameters Tree Chars TreeMSInterp ListLemmas MSInput CharsWarblre.
+From Warblre Require Import Result Notation Base Semantics Coercions
+  Errors Patterns Node.
 Import Notation.
 Import Coercions.
 Import Result.Notations.
+Import Patterns.
 
 Local Open Scope result_flow.
 
@@ -126,7 +128,6 @@ Proof.
           ++ assumption.
 Qed.
 
-
 Theorem compile_tcompile: forall reg ctx rer m tm
   (Heqm: Semantics.compileSubPattern reg ctx rer forward = Success m)
   (Heqtm: tCompileSubPattern reg ctx rer forward = Success tm),
@@ -165,7 +166,7 @@ Proof.
     inversion Heqm as [Heqm']. clear Heqm Heqm'.
     unfold tCharacterSetMatcher, Semantics.characterSetMatcher.
     simpl.
-    remember ((_ <? 0)%Z || _) as oob.
+    remember ((_ <? 0)%Z || _)%bool as oob.
     destruct oob eqn:Hoob.
     + constructor. reflexivity.
     + remember (Z.min _ _) as index.
@@ -199,7 +200,7 @@ Proof.
     inversion Heqm as [Heqm']. clear Heqm Heqm'.
     unfold tCharacterSetMatcher, Semantics.characterSetMatcher.
     simpl.
-    remember ((_ <? 0)%Z || _) as oob.
+    remember ((_ <? 0)%Z || _)%bool as oob.
     destruct oob eqn:Hoob.
     + constructor. reflexivity.
     + remember (Z.min _ _) as index.
@@ -235,8 +236,8 @@ Proof.
 
   - (* Disjunction *)
     intros.
-    remember (Disjunction_left wr2 :: ctx) as ctxleft.
-    remember (Disjunction_right wr1 :: ctx) as ctxright.
+    remember (Disjunction_left wr2 :: ctx)%list as ctxleft.
+    remember (Disjunction_right wr1 :: ctx)%list as ctxright.
     specialize (IH1 ctxleft).
     specialize (IH2 ctxright).
     destruct (Semantics.compileSubPattern wr1 _ _ _) as [m1|] eqn:Heqm1; simpl. 2: discriminate.
@@ -267,7 +268,7 @@ Proof.
 
   - (* Quantifier *)
     intros.
-    remember (Quantified_inner q :: ctx) as ctx'.
+    remember (Quantified_inner q :: ctx)%list as ctx'.
     specialize (IH ctx').
     destruct Semantics.compileSubPattern as [msub|] eqn:Heqmsub; simpl. 2: discriminate.
     destruct tCompileSubPattern as [tmsub|] eqn:Heqtmsub; simpl. 2: discriminate.
@@ -285,8 +286,8 @@ Proof.
 
   - (* Sequence *)
     intros.
-    remember (Seq_left wr2 :: ctx) as ctxleft.
-    remember (Seq_right wr1 :: ctx) as ctxright.
+    remember (Seq_left wr2 :: ctx)%list as ctxleft.
+    remember (Seq_right wr1 :: ctx)%list as ctxright.
     specialize (IH1 ctxleft).
     specialize (IH2 ctxright).
     destruct (Semantics.compileSubPattern wr1 _ _ _) as [m1|] eqn:Heqm1; simpl. 2: discriminate.
@@ -304,7 +305,7 @@ Proof.
 
   - (* Group *)
     intros.
-    remember (Group_inner name :: ctx) as ctx'.
+    remember (Group_inner name :: ctx)%list as ctx'.
     specialize (IH ctx').
     destruct (Semantics.compileSubPattern wr ctx' rer forward) as [msub|] eqn:Heqmsub; simpl. 2: discriminate.
     destruct (tCompileSubPattern wr ctx' rer forward) as [tmsub|] eqn:Heqtmsub; simpl. 2: discriminate.
@@ -315,7 +316,7 @@ Proof.
     remember (fun y : MatchState => _) as treecont.
     remember (fun y : MatchState => let! r =<< _ in let! cap =<< _ in mc _) as origcont.
     remember (StaticSemantics.countLeftCapturingParensBefore _ ctx + 1) as gid.
-    set (gl' := (gid, MatchState.endIndex ms)::gl).
+    set (gl' := ((gid, MatchState.endIndex ms)::gl)%list).
     specialize (IH msub tmsub eq_refl eq_refl str0 origcont treecont gl').
     assert (equiv_tree_mcont str0 origcont treecont gl') as Hequivcont.
     {
@@ -331,6 +332,7 @@ Proof.
       constructor. simpl.
       rewrite EqDec.reflb. simpl.
       rewrite Hgid_nonzero.
+      unfold CaptureRange_or_undefined in Hcapupd.
       rewrite Hcapupd.
       specialize (Hequiv ms').
       assert (MatchState.input ms' = str0) as Hms'str0.

@@ -2,7 +2,7 @@ From Coq Require Import List ZArith.
 Import ListNotations.
 From Warblre Require Import Notation Result Base.
 Import Notation.
-From Linden Require Import Groups Tree MSInput.
+From Linden Require Import Groups Tree MSInput LindenParameters.
 
 
 (* Reset the given groups (indexed from 1) in the given MatchState *)
@@ -88,5 +88,3 @@ Fixpoint tree_res' {F} `{Result.AssertionError F} (t:tree) (s: MatchState) (gl: 
   | GroupAction g t1 => 
     let (s', gl') := group_effect' g s gl in tree_res' t1 s' gl'
   end.
-
-

@@ -1,11 +1,11 @@
 From Coq Require Import List ZArith Lia.
-From Warblre Require Import Notation.
+From Warblre Require Import Notation Parameters.
 Import Notation.
 From Linden Require Import Chars LindenParameters TMatching.
 
 
 (* Advance match state by one character *)
-Definition advance_ms (s: MatchState): MatchState :=
+Definition advance_ms {H} `{CharacterMarker H} (s: MatchState): MatchState :=
   {|
     MatchState.input := MatchState.input s;
     MatchState.endIndex := (MatchState.endIndex s + 1)%Z;

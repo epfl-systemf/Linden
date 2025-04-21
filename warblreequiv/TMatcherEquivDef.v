@@ -1,5 +1,5 @@
-From Linden Require Import Chars TMatching TreeMSInterp Tree.
-From Warblre Require Import Notation Result Errors.
+From Linden Require Import Chars TMatching TreeMSInterp Tree LindenParameters.
+From Warblre Require Import Notation Result Errors Parameters.
 Import Notation.
 
 (* Expresses the equivalence between the first branch of a sub-backtracking tree

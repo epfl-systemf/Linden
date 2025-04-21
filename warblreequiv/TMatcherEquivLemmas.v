@@ -1,5 +1,5 @@
-From Linden Require Import TMatcherEquivDef TreeMSInterp Tree.
-From Warblre Require Import Result Notation Base Errors.
+From Linden Require Import TMatcherEquivDef TreeMSInterp Tree LindenParameters.
+From Warblre Require Import Result Notation Base Errors Parameters.
 Import Notation.
 Import Result.Notations.
 
@@ -71,4 +71,3 @@ Proof.
   intro res.
   now destruct res.
 Qed.
-
