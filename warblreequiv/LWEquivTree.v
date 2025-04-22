@@ -236,9 +236,8 @@ Proof.
           inversion Htm_succ as [Htm_succ'].
 
           (* Now we apply tree_char with the next input, whose existence we need to prove. *)
-          set (inp_adv_opt := advance_input inp).
-          destruct inp_adv_opt as [inp_adv|] eqn:Heqinp_adv.
-          2: { exfalso; admit. }
+          pose proof next_inbounds_nextinp ms inp Hms_inp Hoob as Hnextinp.
+          destruct Hnextinp as [inp_adv Hnextinp].
           apply tree_char with (nextinp := inp_adv).
           ** (* Reading the character succeeds indeed *)
             admit.

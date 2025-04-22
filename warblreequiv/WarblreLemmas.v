@@ -36,7 +36,6 @@ Lemma read_oob_fail:
     ms_matches_inp ms inp ->
     exists pref, inp = Input nil pref.
 Proof.
-  Print ms_matches_inp.
   intros ms inp Hoob Hmatches.
   inversion Hmatches as [s end_ind cap next pref Hlenpref Heqs Heqms Heqinp].
   subst ms. simpl in *.
@@ -70,7 +69,6 @@ Lemma read_oob_fail_bool:
     forall cd: char_descr, read_char cd inp = None.
 Proof.
   intros ms inp Hmatches Hoob.
-  Search ((_ || _)%bool).
   apply Bool.orb_true_elim in Hoob.
   destruct Hoob as [Hoob|Hoob].
   - exfalso. rewrite Z.ltb_lt in Hoob. apply (endInd_neg_abs _ _ Hmatches Hoob).
@@ -79,4 +77,26 @@ Proof.
     destruct H as [pref H].
     subst inp.
     simpl. reflexivity.
+Qed.
+
+Lemma next_inbounds_nextinp:
+  forall (ms: MatchState) (inp: input),
+    ms_matches_inp ms inp ->
+    ((MatchState.endIndex ms + 1 <? 0)%Z || (MatchState.endIndex ms + 1 >? Z.of_nat (length (MatchState.input ms)))%Z)%bool = false ->
+    exists inp', advance_input inp = Some inp'.
+Proof.
+  intros ms inp Hmatches Hinb.
+  inversion Hmatches as [s end_ind cap next pref Hlenpref Heqs Heqms Heqinp].
+  subst ms. simpl in *.
+  destruct next as [|c next'].
+  - exfalso.
+    apply Bool.orb_false_elim in Hinb.
+    destruct Hinb as [_ Hinb].
+    assert (Hinb': end_ind + 1 <= length s) by lia.
+    apply (f_equal (length (A := Chars.Char))) in Heqs.
+    rewrite List.app_length in Heqs.
+    rewrite List.rev_length in Heqs.
+    simpl in Heqs.
+    lia.
+  - eexists. reflexivity.
 Qed.
