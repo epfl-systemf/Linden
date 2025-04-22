@@ -136,7 +136,11 @@ Proof.
       specialize (Htm_valid inp Hinp_compat).
       specialize (Htmc_valid inp Hinp_compat).
       unfold tMC_is_tree in Htm_valid, Htmc_valid.
-      assert (Valid (MatchState.input ms') rer ms') as Hvalidms' by admit.
+      (* StrictlyNullable.capture_reset_preserve_validity *)
+      assert (Valid (MatchState.input ms') rer ms') as Hvalidms'. {
+        rewrite Heqms'. simpl.
+        now apply @capture_reset_preserve_validity with (specParameters := LindenParameters) (parenIndex := parenIndex) (parenCount := parenCount).
+      }
       assert (ms_matches_inp ms' inp) as Hms'_inp.
       {
         rewrite Heqms'.

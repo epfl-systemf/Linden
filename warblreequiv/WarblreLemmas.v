@@ -1,4 +1,4 @@
-From Warblre Require Import Match Notation Parameters RegExpRecord.
+From Warblre Require Import Match Notation Parameters RegExpRecord List Result.
 Import Notation.
 Import Match.MatchState.
 
@@ -9,4 +9,21 @@ Lemma valid_inv_iteratoron {specParameters: Parameters}:
 Proof.
   intros str rer ms [Hon [H []]].
   apply H.
+Qed.
+
+Lemma capture_reset_preserve_validity `{specParameters: Parameters}:
+  forall parenIndex parenCount (rer:RegExpRecord)
+    (x:MatchState) (VALID: Valid (MatchState.input x) rer x)
+    (xupd: list (option CaptureRange))
+    (UPD: @List.Update.Nat.Batch.update _ Errors.MatchError Errors.match_assertion_error None (MatchState.captures x) (List.Range.Nat.Bounds.range (parenIndex + 1 - 1) (parenIndex + parenCount + 1 - 1)) = Success xupd),
+    Valid (MatchState.input x) rer (match_state (MatchState.input x) (MatchState.endIndex x) xupd).
+Proof.
+  intros r ctx rer x VALID xupd UPD.
+  apply change_captures with (cap:=MatchState.captures x).
+    - apply List.Update.Nat.Batch.success_length in UPD. rewrite <- UPD.
+      destruct VALID as [_ [_ [LENGTH _]]]. auto.
+    - destruct VALID as [_ [_ [_ FORALL]]].
+      eapply List.Update.Nat.Batch.prop_preservation; eauto.
+      apply Match.CaptureRange.vCrUndefined.
+    - destruct x. now simpl in *.
 Qed.
