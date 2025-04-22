@@ -55,10 +55,8 @@ Proof.
     remember (fun y => if (_ =? _)%Z then _ else _) as tmc'.
     (* ms' is ms with the capture reset *)
     remember (match_state _ _ cap') as ms'.
-    destruct greedy.
-    + (* Greedy star *)
-      assert (tMC_valid tmc' rer (Acheck (ms_suffix ms)::Areg (Regex.Star true lreg)::cont) str0) as Htmc'_valid.
-      {
+    assert (tMC_valid tmc' rer (Acheck (ms_suffix ms)::Areg (Regex.Star greedy lreg)::cont) str0) as Htmc'_valid.
+    {
         unfold tMC_valid.
         (* Let inp' be an input compatible with str0. *)
         intros inp' Hinp'_compat.
@@ -123,23 +121,26 @@ Proof.
             unfold tMC_is_tree in IHfuel.
             specialize (IHfuel ms1 subtree Hms1valid Hms1_inp Heqsubtree).
             apply IHfuel.
-      }
-      specialize (Htm_valid tmc' (Acheck (ms_suffix ms)::Areg (Regex.Star true lreg)::cont) str0 Htmc'_valid).
-      unfold tMC_valid in Htm_valid, Htmc_valid.
-      specialize (Htm_valid inp Hinp_compat).
-      specialize (Htmc_valid inp Hinp_compat).
-      unfold tMC_is_tree in Htm_valid, Htmc_valid.
-      assert (Valid (MatchState.input ms') rer ms') as Hvalidms'. {
-        rewrite Heqms'. simpl.
-        now apply @capture_reset_preserve_validity with (specParameters := LindenParameters) (parenIndex := parenIndex) (parenCount := parenCount).
-      }
-      assert (ms_matches_inp ms' inp) as Hms'_inp.
-      {
-        rewrite Heqms'.
-        inversion Hms_inp.
-        simpl.
-        now constructor.
-      }
+    }
+    specialize (Htm_valid tmc' (Acheck (ms_suffix ms)::Areg (Regex.Star greedy lreg)::cont) str0 Htmc'_valid).
+    unfold tMC_valid in Htm_valid, Htmc_valid.
+    specialize (Htm_valid inp Hinp_compat).
+    specialize (Htmc_valid inp Hinp_compat).
+    unfold tMC_is_tree in Htm_valid, Htmc_valid.
+    assert (Valid (MatchState.input ms') rer ms') as Hvalidms'. {
+      rewrite Heqms'. simpl.
+      now apply @capture_reset_preserve_validity with (specParameters := LindenParameters) (parenIndex := parenIndex) (parenCount := parenCount).
+    }
+    assert (ms_matches_inp ms' inp) as Hms'_inp.
+    {
+      rewrite Heqms'.
+      inversion Hms_inp.
+      simpl.
+      now constructor.
+    }
+
+    destruct greedy.
+    + (* Greedy star *)
       destruct tm as [z|] eqn:Heqz; simpl. 2: discriminate.
       destruct tmc as [z'|] eqn:Heqz'; simpl. 2: discriminate.
       specialize (Htm_valid ms' z Hvalidms' Hms'_inp Heqz).
@@ -153,10 +154,20 @@ Proof.
       * apply Htmc_valid.
       * inversion HmatchSuccess. reflexivity.
 
-    (* Lazy star *)
-    + (* Likely similar; TODO do it! *)
-      admit.
-Admitted.
+    + (* Lazy star *)
+      destruct tmc as [z'|] eqn:Heqz'; simpl. 2: discriminate.
+      destruct tm as [z|] eqn:Heqz; simpl. 2: discriminate.
+      specialize (Htm_valid ms' z Hvalidms' Hms'_inp Heqz).
+      specialize (Htmc_valid ms z' Hvalidms Hms_inp Heqz').
+      apply tree_pop_reg.
+      eapply tree_star.
+      * symmetry. apply Hgroups_valid.
+      * rewrite ms_suffix_current_str with (ms := ms). 2: assumption.
+        inversion Htm_valid.
+        apply TREECONT.
+      * apply Htmc_valid.
+      * inversion HmatchSuccess. reflexivity.
+Qed.
 
 
 
