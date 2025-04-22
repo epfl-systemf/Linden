@@ -220,7 +220,7 @@ Proof.
       apply tree_pop_reg.
       apply tree_char_fail.
       (* Reading out of bounds fails *)
-      admit.
+      eapply read_oob_fail_bool; eauto.
     + replace (Z.min _ _) with (@MatchState.endIndex Chars.Char char_marker ms) in Htm_succ by lia.
       (* If we are in bounds, then getting the character should succeed. Since we don't prove anything in the case of errors, we just assume this here *)
       destruct List.List.Indexing.Int.indexing as [chr|err] eqn:Hgetchr; simpl in *.
