@@ -1,6 +1,6 @@
 From Linden Require Import TMatching Tree Chars Semantics MSInput
   Regex LindenParameters CharsWarblre RegexpTranslation ListLemmas
-  WarblreLemmas.
+  WarblreLemmas Tactics.
 From Warblre Require Import Result Notation RegExpRecord Match Base
   Patterns Node NodeProps Semantics.
 From Coq Require Import List ZArith Lia.
@@ -157,6 +157,14 @@ Proof.
       * inversion HmatchSuccess. reflexivity.
 Qed.
 
+Goal (1=1 -> True) -> True.
+  intro H.
+  specialize_prove H.
+  {
+    reflexivity.
+  }
+Abort.
+
 
 (* Theorem is not true for case-insensitive matching, which is not supported (yet) by the tree semantics *)
 (* Validity of the context and regexp? *)
@@ -165,14 +173,15 @@ Theorem tmatcher_bt:
     (Hcasesenst: RegExpRecord.ignoreCase rer = false)
     (root_equiv: equiv_regex wroot lroot),
   forall (wreg: Regex) (lreg: regex) ctx,
-    equiv_regex wreg lreg ->
+    equiv_regex' wreg lreg (StaticSemantics.countLeftCapturingParensBefore wreg ctx) ->
     Root wroot (wreg, ctx) ->
   forall tm,
     tCompileSubPattern wreg ctx rer forward = Success tm ->
     tm_valid tm rer lreg.
 Proof.
   intros rer lroot wroot Hcasesenst root_equiv wreg lreg ctx Hequiv.
-  revert ctx.
+  remember (StaticSemantics.countLeftCapturingParensBefore _ _) as n in Hequiv.
+  revert ctx Heqn.
   induction Hequiv as [
     n |
     n c |
@@ -185,7 +194,7 @@ Proof.
 
 
   - (* Empty *)
-    simpl. intros _ _.
+    simpl. intros _ _ _.
     intros tm Hcompsucc tmc cont str0 Htmc_tree inp Hinp_compat.
     inversion Hcompsucc as [Hcompsucc'].
     intros ms t Hvalidms Hms_inp Htmc_succ.
@@ -195,7 +204,7 @@ Proof.
 
   - (* Character *)
     simpl.
-    intro ctx.
+    intros ctx _.
     intros Hroot tm Hcompile_succ tmc cont str0 Htmc_tree inp Hinp_compat.
     intros ms t Hmsvalid Hms_inp Htm_succ.
     inversion Hcompile_succ as [Hcompile_succ'].
@@ -242,17 +251,24 @@ Proof.
 
 
   - (* Disjunction *)
-    intro ctx.
+    intros ctx Heqn.
     simpl in *.
     intro Hroot.
     specialize (IH1 (Disjunction_left wr2 :: ctx)).
     specialize (IH2 (Disjunction_right wr1 :: ctx)).
-    assert (Root wroot (wr1, (Disjunction_left wr2 :: ctx))) as Hroot1 by
-        eauto using same_root_down0, Down_Disjunction_left.
-    assert (Root wroot (wr2, (Disjunction_right wr1 :: ctx))) as Hroot2 by
-        eauto using same_root_down0, Down_Disjunction_right.
-    specialize (IH1 Hroot1).
-    specialize (IH2 Hroot2).
+    specialize_prove IH1. {
+      simpl.
+      unfold StaticSemantics.countLeftCapturingParensBefore in *.
+      lia.
+    }
+    specialize_prove IH1. { eauto using same_root_down0, Down_Disjunction_left. }
+    specialize_prove IH2. {
+      unfold StaticSemantics.countLeftCapturingParensBefore in *.
+      simpl.
+      assert (num_groups lr1 = StaticSemantics.countLeftCapturingParensWithin_impl wr1) by admit.
+      lia.
+    }
+    specialize_prove IH2. { eauto using same_root_down0, Down_Disjunction_right. }
     intros tm Hcompsucc.
     destruct (tCompileSubPattern wr1 _ rer forward) as [tm1|]
       eqn:Htm1; simpl. 2: discriminate.
@@ -278,21 +294,27 @@ Proof.
     inversion IH1.
     inversion IH2.
     now apply tree_disj.
-    (* DONE! 🎉 *)
 
 
   - (* Sequence *)
-    intro ctx.
+    intros ctx Heqn.
     simpl in *.
     intros Hroot tm Hcompsucc.
     specialize (IH1 (Seq_left wr2 :: ctx)).
     specialize (IH2 (Seq_right wr1 :: ctx)).
-    assert (Root wroot (wr1, (Seq_left wr2 :: ctx))) as Hroot1 by
-        eauto using same_root_down0, Down_Seq_left.
-    assert (Root wroot (wr2, (Seq_right wr1 :: ctx))) as Hroot2 by
-        eauto using same_root_down0, Down_Seq_right.
-    specialize (IH1 Hroot1).
-    specialize (IH2 Hroot2).
+    specialize_prove IH1. {
+      unfold StaticSemantics.countLeftCapturingParensBefore in *.
+      simpl.
+      lia.
+    }
+    specialize_prove IH1. { eauto using same_root_down0, Down_Seq_left. }
+    specialize_prove IH2. {
+      unfold StaticSemantics.countLeftCapturingParensBefore in *.
+      simpl.
+      assert (H: num_groups lr1 = StaticSemantics.countLeftCapturingParensWithin_impl wr1) by admit.
+      lia.
+    }
+    specialize_prove IH2. { eauto using same_root_down0, Down_Seq_right. }
     destruct (tCompileSubPattern wr1 _ rer forward) as [tm1|] eqn:Htm1;
       simpl. 2: discriminate.
     destruct (tCompileSubPattern wr2 _ rer forward) as [tm2|] eqn:Htm2;
@@ -319,7 +341,7 @@ Proof.
 
 
   - (* Quantifier *)
-    intros ctx Hroot.
+    intros ctx Heqn Hroot.
     simpl.
     intros tm Hcompsucc.
     destruct tCompileSubPattern as [m|] eqn:Heqm; simpl. 2: discriminate.
@@ -332,9 +354,11 @@ Proof.
     subst wquant lquant.
     pose proof tRepeatMatcher'_valid rer greedy parenIndex parenCount m lr as Hrepeat.
     specialize (IH (Quantified_inner (wgreedylazy Star)::ctx)).
-    assert (Root wroot (wr, Quantified_inner (wgreedylazy Star)::ctx)) as Hroot1 by
-      eauto using same_root_down0, Down_Quantified_inner.
-    specialize (IH Hroot1).
+    specialize_prove IH. {
+      unfold StaticSemantics.countLeftCapturingParensBefore in *. simpl.
+      lia.
+    }
+    specialize_prove IH. { eauto using same_root_down0, Down_Quantified_inner. }
     rewrite Heqm in IH.
     specialize (IH m eq_refl).
     specialize (Hrepeat IH).
@@ -347,11 +371,13 @@ Proof.
     inversion Hequivgreedy as [Heqwgl Heqgreedy|Heqwgl Heqgreedy]; subst wgreedylazy; subst greedy; inversion Hcompsucc as [Hcompsucc']; subst tm; simpl in *; specialize (Hrepeat Heqt); apply Hrepeat.
 
   - (* Group *)
-    intros ctx Hroot. simpl.
+    intros ctx Heqn Hroot. simpl.
     intros tm Hcompsucc.
     specialize (IH (Group_inner name :: ctx)).
-    assert (Root wroot (wr, (Group_inner name :: ctx))) as Hrootr by eauto using same_root_down0, Down_Group_inner.
-    specialize (IH Hrootr).
+    specialize_prove IH. {
+      unfold StaticSemantics.countLeftCapturingParensBefore in *. simpl. lia.
+    }
+    specialize_prove IH. { eauto using same_root_down0, Down_Group_inner. }
     destruct (tCompileSubPattern wr _ rer forward) as [mr|] eqn:Heqmr
     ; simpl. 2: discriminate.
     specialize (IH mr eq_refl).
