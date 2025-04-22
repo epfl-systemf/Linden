@@ -51,12 +51,12 @@ Proof.
     simpl in *.
     (* Assume that the capture reset succeeds, otherwise there is nothing to prove. *)
     destruct List.List.Update.Nat.Batch.update as [cap'|] eqn:Heqcap'; simpl in *. 2: discriminate.
+    (* tmc' checks at the end of matching lreg whether progress has been made, and if so calls tRepeatMatcher' with one less fuel *)
+    remember (fun y => if (_ =? _)%Z then _ else _) as tmc'.
+    (* ms' is ms with the capture reset *)
+    remember (match_state _ _ cap') as ms'.
     destruct greedy.
     + (* Greedy star *)
-      (* tmc' checks at the end of matching lreg whether progress has been made, and if so calls tRepeatMatcher' with one less fuel *)
-      remember (fun y => if (_ =? _)%Z then _ else _) as tmc'.
-      (* ms' is ms with the capture reset *)
-      remember (match_state _ _ cap') as ms'.
       assert (tMC_valid tmc' rer (Acheck (ms_suffix ms)::Areg (Regex.Star true lreg)::cont) str0) as Htmc'_valid.
       {
         unfold tMC_valid.
@@ -96,15 +96,8 @@ Proof.
             change Character with Chars.Char in *.
             change (@Parameters.character_marker LindenParameters)
                 with char_marker in *.
-            (* Need to prove: skipn (Z.to_nat (MatchState.endIndex
-  ms1)) _ = skipn (Z.to_nat (MatchState.endIndex ms)) _ implies
-  Z.to_nat (_ ms1) = Z.to_nat (_ ms), because both are less than the
-  length of MatchState.input ms by validity of the match states. Then
-  again by validity of the match states, the end indices are
-  non-negative, so they are equal. *)
             assert (Hindices_eq: MatchState.endIndex ms1
                                  = MatchState.endIndex ms). {
-              Search Match.IteratorOn.
               pose proof valid_inv_iteratoron _ _ _ Hms1valid as
                 Hms1_iton.
               pose proof valid_inv_iteratoron _ _ _ Hvalidms as
@@ -136,7 +129,6 @@ Proof.
       specialize (Htm_valid inp Hinp_compat).
       specialize (Htmc_valid inp Hinp_compat).
       unfold tMC_is_tree in Htm_valid, Htmc_valid.
-      (* StrictlyNullable.capture_reset_preserve_validity *)
       assert (Valid (MatchState.input ms') rer ms') as Hvalidms'. {
         rewrite Heqms'. simpl.
         now apply @capture_reset_preserve_validity with (specParameters := LindenParameters) (parenIndex := parenIndex) (parenCount := parenCount).
