@@ -170,7 +170,6 @@ Proof.
 Qed.
 
 
-
 (* Theorem is not true for case-insensitive matching, which is not supported (yet) by the tree semantics *)
 (* Validity of the context and regexp? *)
 Theorem tmatcher_bt:
@@ -192,8 +191,7 @@ Proof.
     n |
     n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
     n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
-    n wr lr Hequiv IH |
-    n wr lr Hequiv IH |
+    n wr lr wquant lquant wgreedylazy greedy Hequiv IH Hequivquant Hequivgreedy |
     name n wr lr Hequiv IH
   ].
 
@@ -357,18 +355,21 @@ Proof.
     (* DONE! 🎉 *)
 
 
-  - (* Lazy star *)
+  - (* Quantifier *)
     intros ctx Hroot.
     simpl.
     intros tm Hcompsucc.
     destruct tCompileSubPattern as [m|] eqn:Heqm; simpl. 2: discriminate.
-    inversion Hcompsucc as [Hcompsucc'].
+    simpl in Hcompsucc.
     intros tmc cont str0 Htmc_valid.
     remember (StaticSemantics.countLeftCapturingParensBefore _ ctx) as parenIndex.
     remember (StaticSemantics.countLeftCapturingParensWithin _ _) as parenCount.
-    pose proof tRepeatMatcher'_valid rer false parenIndex parenCount m lr as Hrepeat.
-    specialize (IH (Quantified_inner (Lazy Star)::ctx)).
-    assert (Root wroot (wr, Quantified_inner (Lazy Star)::ctx)) as Hroot1 by
+    (* Only star is supported for now *)
+    inversion Hequivquant as [Heqwquant Heqlquant].
+    subst wquant lquant.
+    pose proof tRepeatMatcher'_valid rer greedy parenIndex parenCount m lr as Hrepeat.
+    specialize (IH (Quantified_inner (wgreedylazy Star)::ctx)).
+    assert (Root wroot (wr, Quantified_inner (wgreedylazy Star)::ctx)) as Hroot1 by
       eauto using same_root_down0, Down_Quantified_inner.
     specialize (IH Hroot1).
     rewrite Heqm in IH.
@@ -381,36 +382,10 @@ Proof.
     specialize (Hrepeat (Semantics.repeatMatcherFuel 0 s)).
     specialize (Hrepeat tmc cont str0 Htmc_valid).
     simpl in Hrepeat.
-    specialize (Hrepeat inp Hinp_compat s t Hvalids Hs_inp Heqt).
-    apply Hrepeat.
-
-    (* Greedy star: copy-pasting... *)
-  - intros ctx Hroot.
-    simpl.
-    intros tm Hcompsucc.
-    destruct tCompileSubPattern as [m|] eqn:Heqm; simpl. 2: discriminate.
-    inversion Hcompsucc as [Hcompsucc'].
-    intros tmc cont str0 Htmc_valid.
-    remember (StaticSemantics.countLeftCapturingParensBefore _ ctx) as parenIndex.
-    remember (StaticSemantics.countLeftCapturingParensWithin _ _) as parenCount.
-    pose proof tRepeatMatcher'_valid rer true parenIndex parenCount m lr as Hrepeat.
-    specialize (IH (Quantified_inner (Greedy Star)::ctx)).
-    assert (Root wroot (wr, Quantified_inner (Greedy Star)::ctx)) as Hroot1 by
-      eauto using same_root_down0, Down_Quantified_inner.
-    specialize (IH Hroot1).
-    rewrite Heqm in IH.
-    specialize (IH m eq_refl).
-    specialize (Hrepeat IH).
-    assert (def_groups lr = seq (parenIndex + 1) parenCount) as Hgroups_valid by admit.
-    specialize (Hrepeat Hgroups_valid).
-    intros inp Hinp_compat.
-    intros s t Hvalids Hs_inp Heqt.
-    specialize (Hrepeat (Semantics.repeatMatcherFuel 0 s)).
-    specialize (Hrepeat tmc cont str0 Htmc_valid).
-    simpl in Hrepeat.
-    specialize (Hrepeat inp Hinp_compat s t Hvalids Hs_inp Heqt).
-    apply Hrepeat.
-
+    specialize (Hrepeat inp Hinp_compat).
+    unfold tMC_is_tree in Hrepeat.
+    specialize (Hrepeat s t Hvalids Hs_inp).
+    inversion Hequivgreedy as [Heqwgl Heqgreedy|Heqwgl Heqgreedy]; subst wgreedylazy; subst greedy; inversion Hcompsucc as [Hcompsucc']; subst tm; simpl in *; specialize (Hrepeat Heqt); apply Hrepeat.
 
   - (* Group *)
     intros ctx Hroot. simpl.
