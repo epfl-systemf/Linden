@@ -257,29 +257,18 @@ Proof.
     intro ctx.
     simpl in *.
     intro Hroot.
-    remember (@Disjunction_left LindenParameters wr2 :: ctx) as ctx1.
-    remember (@Disjunction_right LindenParameters wr1 :: ctx) as ctx2.
-    specialize (IH1 ctx1).
-    specialize (IH2 ctx2).
-    assert (Root wroot (wr1, ctx1)) as Hroot1.
-    {
-      rewrite Heqctx1.
-      apply same_root_down0 with (r1 := Disjunction wr1 wr2) (ctx1 := ctx).
-      - apply (@Down_Disjunction_left LindenParameters).
-      - apply Hroot.
-    }
-    assert (Root wroot (wr2, ctx2)) as Hroot2.
-    {
-      apply same_root_down0 with (r1 := Disjunction wr1 wr2) (ctx1 := ctx).
-      - rewrite Heqctx2. apply (@Down_Disjunction_right LindenParameters).
-      - apply Hroot.
-    }
+    specialize (IH1 (Disjunction_left wr2 :: ctx)).
+    specialize (IH2 (Disjunction_right wr1 :: ctx)).
+    assert (Root wroot (wr1, (Disjunction_left wr2 :: ctx))) as Hroot1 by
+        eauto using same_root_down0, Down_Disjunction_left.
+    assert (Root wroot (wr2, (Disjunction_right wr1 :: ctx))) as Hroot2 by
+        eauto using same_root_down0, Down_Disjunction_right.
     specialize (IH1 Hroot1).
     specialize (IH2 Hroot2).
     intros tm Hcompsucc.
-    destruct (tCompileSubPattern wr1 ctx1 rer forward) as [tm1|]
+    destruct (tCompileSubPattern wr1 _ rer forward) as [tm1|]
       eqn:Htm1; simpl. 2: discriminate.
-    destruct (tCompileSubPattern wr2 ctx2 rer forward) as [tm2|] eqn:Htm2;
+    destruct (tCompileSubPattern wr2 _ rer forward) as [tm2|] eqn:Htm2;
       simpl. 2: discriminate.
     simpl in Hcompsucc.
     inversion Hcompsucc as [Hcompsucc'].
