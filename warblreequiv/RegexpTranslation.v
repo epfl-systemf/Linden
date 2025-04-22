@@ -35,6 +35,15 @@ Fixpoint num_groups (r: regex): nat :=
   | Group _ r1 => S (num_groups r1)
   end.
 
+Inductive equiv_greedylazy: (Patterns.QuantifierPrefix -> Patterns.Quantifier) -> bool -> Prop :=
+| Equiv_greedy: equiv_greedylazy Patterns.Greedy true
+| Equiv_lazy: equiv_greedylazy Patterns.Lazy false.
+
+About Patterns.Star.
+About Star.
+
+Inductive equiv_quantifier: Patterns.QuantifierPrefix -> (bool -> regex -> regex) -> Prop :=
+  | Equiv_star: equiv_quantifier Patterns.Star Star.
 
 (* equiv_regex' wreg lreg n means that the two regexes wreg and lreg are equivalent, where the number of parentheses before wreg/lreg is n *)
 Inductive equiv_regex': Patterns.Regex -> regex -> nat -> Prop :=
@@ -47,8 +56,7 @@ Inductive equiv_regex': Patterns.Regex -> regex -> nat -> Prop :=
 | Equiv_seq: forall n wr1 wr2 lr1 lr2,
     equiv_regex' wr1 lr1 n -> equiv_regex' wr2 lr2 (num_groups lr1 + n) ->
     equiv_regex' (Patterns.Seq wr1 wr2) (Sequence lr1 lr2) n
-| Equiv_star_lazy: forall n wr lr, equiv_regex' wr lr n -> equiv_regex' (Patterns.Quantified wr (Patterns.Lazy Patterns.Star)) (Star false lr) n
-| Equiv_star_greedy: forall n wr lr, equiv_regex' wr lr n -> equiv_regex' (Patterns.Quantified wr (Patterns.Greedy Patterns.Star)) (Star true lr) n
+| Equiv_quant: forall n wr lr wquant lquant wgreedylazy greedy, equiv_regex' wr lr n -> equiv_quantifier wquant lquant -> equiv_greedylazy wgreedylazy greedy -> equiv_regex' (Patterns.Quantified wr (wgreedylazy wquant)) (lquant greedy lr) n
 | Equiv_group: forall name n wr lr, equiv_regex' wr lr (S n) -> equiv_regex' (Patterns.Group name wr) (Group (S n) lr) n.
 
 Definition equiv_regex (wreg: Patterns.Regex) (lreg: regex) := equiv_regex' wreg lreg 0.
