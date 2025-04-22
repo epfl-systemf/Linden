@@ -1,6 +1,6 @@
 From Linden Require Import TMatching Tree Chars Semantics MSInput
   Regex LindenParameters CharsWarblre RegexpTranslation ListLemmas
-  WarblreLemmas Tactics.
+  WarblreLemmas Tactics LWEquivTreeLemmas.
 From Warblre Require Import Result Notation RegExpRecord Match Base
   Patterns Node NodeProps Semantics.
 From Coq Require Import List ZArith Lia.
@@ -265,7 +265,7 @@ Proof.
     specialize_prove IH2. {
       unfold StaticSemantics.countLeftCapturingParensBefore in *.
       simpl.
-      assert (num_groups lr1 = StaticSemantics.countLeftCapturingParensWithin_impl wr1) by admit.
+      assert (num_groups lr1 = StaticSemantics.countLeftCapturingParensWithin_impl wr1) by (eapply num_groups_equiv; eassumption).
       lia.
     }
     specialize_prove IH2. { eauto using same_root_down0, Down_Disjunction_right. }
@@ -311,7 +311,7 @@ Proof.
     specialize_prove IH2. {
       unfold StaticSemantics.countLeftCapturingParensBefore in *.
       simpl.
-      assert (H: num_groups lr1 = StaticSemantics.countLeftCapturingParensWithin_impl wr1) by admit.
+      assert (H: num_groups lr1 = StaticSemantics.countLeftCapturingParensWithin_impl wr1) by (eapply num_groups_equiv; eassumption).
       lia.
     }
     specialize_prove IH2. { eauto using same_root_down0, Down_Seq_right. }
