@@ -46,23 +46,23 @@ Proof.
     (* Case max > 0 *)
     + (* Assume that the capture reset succeeds *)
       destruct List.List.Update.Nat.Batch.update as [cap'|] eqn:Heqcap'; simpl. 2: constructor.
-      remember (match_state (MatchState.input ms) (MatchState.endIndex ms) cap')
+      set (match_state (MatchState.input ms) (MatchState.endIndex ms) cap')
         as ms_reset.
       (* tmc' and mc' perform the progress check, then if this check succeeds, *)
       (* perform the recursive call with decreased min/max. *)
-      remember (fun y: MatchState => _) as tmcnext.
-      remember (fun (y: MatchState) => (_: MatchResult)) as mcnext.
+      set (fun y: MatchState => _) as tmcnext.
+      set (fun (y: MatchState) => (_: MatchResult)) as mcnext.
       (* These two continuations are equivalent. *)
       assert (equiv_tree_mcont str0 mcnext tmcnext gl) as Hequivnext.
       {
         intros ms1 Hms1_str0.
-        rewrite Heqmcnext, Heqtmcnext.
+        unfold mcnext, tmcnext.
         (* Case analysis on whether the progress check fails *)
         destruct ((min ==? 0)%wt && _)%bool eqn:Hprogress; simpl.
         - (* Fails *) constructor. reflexivity.
         - (* Succeeds *)
-          remember (if (min ==? 0)%wt then 0 else min - 1) as nextmin.
-          remember (if (max =? +∞)%NoI then +∞ else (max - 1)%NoI) as nextmax.
+          set (if (min ==? 0)%wt then 0 else min - 1) as nextmin.
+          set (if (max =? +∞)%NoI then +∞ else (max - 1)%NoI) as nextmax.
           specialize (IHfuel nextmin nextmax mc tmc gl Hequivcont ms1 Hms1_str0).
           inversion IHfuel.
           + simpl. constructor. simpl. assumption.
@@ -77,8 +77,7 @@ Proof.
       {
         unfold equiv_tree_matcher in Hm_tm_equiv.
         specialize (Hm_tm_equiv mcnext tmcnext gl Hequivnext ms_reset).
-        assert (Hms_reset_str0: MatchState.input ms_reset = str0) by
-          now rewrite Heqms_reset.
+        assert (Hms_reset_str0: MatchState.input ms_reset = str0) by now simpl.
         specialize (Hm_tm_equiv Hms_reset_str0).
         inversion Hm_tm_equiv; now constructor.
       }
@@ -94,7 +93,7 @@ Proof.
         simpl in Heqcap'.
         rewrite Heqcap'.
         simpl in *.
-        congruence.
+        reflexivity.
       }
       (* By hypothesis, the results of exiting the loop are equivalent. *)
       pose proof Hequivcont ms Hms_str0 as Hequiv_exit.
@@ -126,6 +125,46 @@ Proof.
           apply equiv_choice.
           ++ rewrite monad_id. assumption.
           ++ assumption.
+Qed.
+
+Lemma charset_tcharset:
+  forall rer m tm charset str0
+    (Heqm: Semantics.characterSetMatcher rer charset false forward = m)
+    (Heqtm: tCharacterSetMatcher rer charset false forward = tm),
+    equiv_tree_matcher str0 m tm.
+Proof.
+  intros. unfold equiv_tree_matcher. intros mc tmc gl Hequiv ms Hmsstr0.
+  inversion Heqtm as [Heqtm']. clear Heqtm Heqtm'.
+  inversion Heqm as [Heqm']. clear Heqm Heqm'.
+  unfold tCharacterSetMatcher, Semantics.characterSetMatcher.
+  simpl.
+  remember ((_ <? 0)%Z || _)%bool as oob.
+  destruct oob eqn:Hoob.
+  + constructor. reflexivity.
+  + remember (Z.min _ _) as index.
+    remember (List.List.Indexing.Int.indexing _ _) as readchr.
+    destruct readchr as [readchr|]; simpl. 2: constructor.
+    remember (CharSet.exist_canonicalized _ _ _) as read_matches.
+    destruct read_matches eqn:Hread_matches; simpl.
+    2: constructor; reflexivity.
+    remember (match_state _ _ _) as ms'.
+    specialize (Hequiv ms').
+    assert (MatchState.input ms' = str0) as Hms'str0.
+    {
+      rewrite Heqms'. simpl. apply Hmsstr0.
+    }
+    specialize (Hequiv Hms'str0).
+    destruct (tmc ms') as [child|]; simpl. 2: constructor.
+    destruct (mc ms') as [res|]; simpl. 2: constructor.
+    constructor.
+    replace (Z.min (MatchState.endIndex ms) (MatchState.endIndex ms + 1)) with (MatchState.endIndex ms) in Heqindex by lia.
+    rewrite Heqindex in Heqreadchr.
+    simpl.
+    inversion Hequiv as [child0 ms'0 gl0 res0 Hequiv' Heqchild0 Heqms'0 Heqgl0 Heqres0 | |].
+    unfold advance_ms.
+    rewrite <- Heqms'.
+    rewrite <- Hequiv'.
+    reflexivity.
 Qed.
 
 Theorem compile_tcompile: forall reg ctx rer m tm
@@ -161,72 +200,10 @@ Proof.
     apply Hequiv. assumption.
 
   - (* Character *)
-    intros. unfold equiv_tree_matcher. intros mc tmc gl Hequiv ms Hmsstr0.
-    inversion Heqtm as [Heqtm']. clear Heqtm Heqtm'.
-    inversion Heqm as [Heqm']. clear Heqm Heqm'.
-    unfold tCharacterSetMatcher, Semantics.characterSetMatcher.
-    simpl.
-    remember ((_ <? 0)%Z || _)%bool as oob.
-    destruct oob eqn:Hoob.
-    + constructor. reflexivity.
-    + remember (Z.min _ _) as index.
-      remember (List.List.Indexing.Int.indexing _ _) as readchr.
-      destruct readchr as [readchr|]; simpl. 2: constructor.
-      remember (CharSet.exist_canonicalized _ _ _) as read_matches.
-      destruct read_matches eqn:Hread_matches; simpl.
-      2: constructor; reflexivity.
-      remember (match_state _ _ _) as ms'.
-      specialize (Hequiv ms').
-      assert (MatchState.input ms' = str0) as Hms'str0.
-      {
-        rewrite Heqms'. simpl. apply Hmsstr0.
-      }
-      specialize (Hequiv Hms'str0).
-      destruct (tmc ms') as [child|]; simpl. 2: constructor.
-      destruct (mc ms') as [res|]; simpl. 2: constructor.
-      constructor.
-      replace (Z.min (MatchState.endIndex ms) (MatchState.endIndex ms + 1)) with (MatchState.endIndex ms) in Heqindex by lia.
-      rewrite Heqindex in Heqreadchr.
-      simpl.
-      inversion Hequiv as [child0 ms'0 gl0 res0 Hequiv' Heqchild0 Heqms'0 Heqgl0 Heqres0 | |].
-      unfold advance_ms.
-      rewrite <- Heqms'.
-      rewrite <- Hequiv'.
-      reflexivity.
-
+    intros. inversion Heqm as [Heqm']. inversion Heqtm as [Heqtm']. eapply charset_tcharset; reflexivity.
+    
   - (* Dot; same as character *)
-    intros. unfold equiv_tree_matcher. intros mc tmc gl Hequiv ms Hmsstr0.
-    inversion Heqtm as [Heqtm']. clear Heqtm Heqtm'.
-    inversion Heqm as [Heqm']. clear Heqm Heqm'.
-    unfold tCharacterSetMatcher, Semantics.characterSetMatcher.
-    simpl.
-    remember ((_ <? 0)%Z || _)%bool as oob.
-    destruct oob eqn:Hoob.
-    + constructor. reflexivity.
-    + remember (Z.min _ _) as index.
-      remember (List.List.Indexing.Int.indexing _ _) as readchr.
-      destruct readchr as [readchr|]; simpl. 2: constructor.
-      remember (CharSet.exist_canonicalized _ _ _) as read_matches.
-      destruct read_matches eqn:Hread_matches; simpl.
-      2: constructor; reflexivity.
-      remember (match_state _ _ _) as ms'.
-      specialize (Hequiv ms').
-      assert (MatchState.input ms' = str0) as Hms'str0.
-      {
-        rewrite Heqms'. simpl. apply Hmsstr0.
-      }
-      specialize (Hequiv Hms'str0).
-      destruct (tmc ms') as [child|]; simpl. 2: constructor.
-      destruct (mc ms') as [res|]; simpl. 2: constructor.
-      constructor.
-      replace (Z.min (MatchState.endIndex ms) (MatchState.endIndex ms + 1)) with (MatchState.endIndex ms) in Heqindex by lia.
-      rewrite Heqindex in Heqreadchr.
-      simpl.
-      inversion Hequiv as [child0 ms'0 gl0 res0 Hequiv' Heqchild0 Heqms'0 Heqgl0 Heqres0 | |].
-      unfold advance_ms.
-      rewrite <- Heqms'.
-      rewrite <- Hequiv'.
-      reflexivity.
+    intros. inversion Heqm as [Heqm']. inversion Heqtm as [Heqtm']. eapply charset_tcharset; reflexivity.
 
   - (* Atom escape: unsupported *)
     intros. destruct (match ae with | DecimalEsc de => _ | ACharacterClassEsc cce => _ | ACharacterEsc ce => _ | GroupEsc gn => _ end); discriminate.
