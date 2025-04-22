@@ -40,14 +40,10 @@ Proof.
   intros rer greedy parenIndex parenCount tm lreg Htm_valid Hgroups_valid fuel.
   induction fuel as [|fuel IHfuel].
   - (* When the fuel is zero, tRepeatMatcher' never yields a tree, so there is nothing to prove. *)
-    simpl. unfold tm_valid, tMC_valid, tMC_is_tree. discriminate.
+    discriminate. (* or simpl. unfold tm_valid, tMC_valid, tMC_is_tree. discriminate. ? *)
   - (* Assume that the matcher yielded by tRepeatMatcher' with fuel fuel is valid, and let's prove it for fuel+1. *)
     unfold tm_valid in *.
-    intros tmc cont str0 Htmc_valid.
-    unfold tMC_valid.
-    intros inp Hinp_compat.
-    unfold tMC_is_tree.
-    intros ms t Hvalidms Hms_inp HmatchSuccess.
+    intros tmc cont str0 Htmc_valid inp Hinp_compat ms t Hvalidms Hms_inp HmatchSuccess.
     simpl in *.
     (* Assume that the capture reset succeeds, otherwise there is nothing to prove. *)
     destruct List.List.Update.Nat.Batch.update as [cap'|] eqn:Heqcap'; simpl in *. 2: discriminate.
@@ -57,10 +53,8 @@ Proof.
     remember (match_state _ _ cap') as ms'.
     assert (tMC_valid tmc' rer (Acheck (ms_suffix ms)::Areg (Regex.Star greedy lreg)::cont) str0) as Htmc'_valid.
     {
-        unfold tMC_valid.
         (* Let inp' be an input compatible with str0. *)
         intros inp' Hinp'_compat.
-        unfold tMC_is_tree.
         (* Let ms1 be a MatchState that is valid and matches that input. *)
         intros ms1 t1 Hms1valid Hms1_inp Htmc'_succeeds.
         rewrite Heqtmc' in Htmc'_succeeds.
@@ -73,11 +67,7 @@ Proof.
           rewrite Z.eqb_eq in Heqcheck.
           rewrite Heqcheck.
           f_equal.
-          eapply inp_compat_ms_same_inp with (inp1 := inp') (inp2 := inp).
-          + apply Hinp'_compat.
-          + apply Hinp_compat.
-          + assumption.
-          + assumption.
+          eapply inp_compat_ms_same_inp with (inp1 := inp') (inp2 := inp); eauto.
         - (* Case 2: the input has progressed *)
           destruct tRepeatMatcher' as [subtree|] eqn:Heqsubtree; simpl.
           2: discriminate.
@@ -122,9 +112,7 @@ Proof.
             specialize (IHfuel ms1 subtree Hms1valid Hms1_inp Heqsubtree).
             apply IHfuel.
     }
-    specialize (Htm_valid tmc' (Acheck (ms_suffix ms)::Areg (Regex.Star greedy lreg)::cont) str0 Htmc'_valid).
-    unfold tMC_valid in Htm_valid, Htmc_valid.
-    specialize (Htm_valid inp Hinp_compat).
+    specialize (Htm_valid tmc' (Acheck (ms_suffix ms)::Areg (Regex.Star greedy lreg)::cont) str0 Htmc'_valid inp Hinp_compat).
     specialize (Htmc_valid inp Hinp_compat).
     unfold tMC_is_tree in Htm_valid, Htmc_valid.
     assert (Valid (MatchState.input ms') rer ms') as Hvalidms'. {
@@ -297,33 +285,21 @@ Proof.
     intro ctx.
     simpl in *.
     intros Hroot tm Hcompsucc.
-    remember (@Seq_left LindenParameters wr2 :: ctx) as ctx1.
-    remember (@Seq_right LindenParameters wr1 :: ctx) as ctx2.
-    specialize (IH1 ctx1).
-    specialize (IH2 ctx2).
-    assert (Root wroot (wr1, ctx1)) as Hroot1.
-    {
-      apply same_root_down0 with (r1 := Seq wr1 wr2) (ctx1 := ctx).
-      - rewrite Heqctx1. apply (@Down_Seq_left LindenParameters).
-      - apply Hroot.
-    }
-    assert (Root wroot (wr2, ctx2)) as Hroot2.
-    {
-      apply same_root_down0 with (r1 := Seq wr1 wr2) (ctx1 := ctx).
-      - rewrite Heqctx2. apply (@Down_Seq_right LindenParameters).
-      - apply Hroot.
-    }
+    specialize (IH1 (Seq_left wr2 :: ctx)).
+    specialize (IH2 (Seq_right wr1 :: ctx)).
+    assert (Root wroot (wr1, (Seq_left wr2 :: ctx))) as Hroot1 by
+        eauto using same_root_down0, Down_Seq_left.
+    assert (Root wroot (wr2, (Seq_right wr1 :: ctx))) as Hroot2 by
+        eauto using same_root_down0, Down_Seq_right.
     specialize (IH1 Hroot1).
     specialize (IH2 Hroot2).
-    destruct (tCompileSubPattern wr1 ctx1 rer forward) as [tm1|] eqn:Htm1;
+    destruct (tCompileSubPattern wr1 _ rer forward) as [tm1|] eqn:Htm1;
       simpl. 2: discriminate.
-    destruct (tCompileSubPattern wr2 ctx2 rer forward) as [tm2|] eqn:Htm2;
+    destruct (tCompileSubPattern wr2 _ rer forward) as [tm2|] eqn:Htm2;
       simpl. 2: discriminate.
     specialize (IH1 tm1 eq_refl).
     specialize (IH2 tm2 eq_refl).
-    intros tmc cont str0 Htmc_tree inp Hinp_compat.
-    unfold tMC_is_tree.
-    intros ms t Hmsvalid Hms_inp Heqt.
+    intros tmc cont str0 Htmc_tree inp Hinp_compat ms t Hmsvalid Hms_inp Heqt.
     simpl in Hcompsucc.
     inversion Hcompsucc as [Hcompsucc'].
     rewrite <- Hcompsucc' in Heqt.
@@ -335,9 +311,7 @@ Proof.
       unfold tm_valid, tMC_valid in IH2.
       now apply IH2 with (str0 := str0).
     }
-    specialize (IH1 tmc2 (Areg lr2 :: cont) str0 Htmc2_tree inp Hinp_compat).
-    unfold tMC_is_tree in IH1.
-    specialize (IH1 ms t Hmsvalid Hms_inp Heqt).
+    specialize (IH1 tmc2 (Areg lr2 :: cont) str0 Htmc2_tree inp Hinp_compat ms t Hmsvalid Hms_inp Heqt).
     apply tree_pop_reg.
     inversion IH1.
     now apply tree_sequence.
@@ -366,29 +340,19 @@ Proof.
     specialize (Hrepeat IH).
     assert (def_groups lr = seq (parenIndex + 1) parenCount) as Hgroups_valid by admit.
     specialize (Hrepeat Hgroups_valid).
-    intros inp Hinp_compat.
-    intros s t Hvalids Hs_inp Heqt.
-    specialize (Hrepeat (Semantics.repeatMatcherFuel 0 s)).
-    specialize (Hrepeat tmc cont str0 Htmc_valid).
+    intros inp Hinp_compat s t Hvalids Hs_inp Heqt.
+    specialize (Hrepeat (Semantics.repeatMatcherFuel 0 s) tmc cont str0 Htmc_valid).
     simpl in Hrepeat.
-    specialize (Hrepeat inp Hinp_compat).
-    unfold tMC_is_tree in Hrepeat.
-    specialize (Hrepeat s t Hvalids Hs_inp).
+    specialize (Hrepeat inp Hinp_compat s t Hvalids Hs_inp).
     inversion Hequivgreedy as [Heqwgl Heqgreedy|Heqwgl Heqgreedy]; subst wgreedylazy; subst greedy; inversion Hcompsucc as [Hcompsucc']; subst tm; simpl in *; specialize (Hrepeat Heqt); apply Hrepeat.
 
   - (* Group *)
     intros ctx Hroot. simpl.
     intros tm Hcompsucc.
-    remember (@Group_inner LindenParameters _ :: ctx) as rctx.
-    specialize (IH rctx).
-    assert (Root wroot (wr, rctx)) as Hrootr.
-    {
-      eapply same_root_down0.
-      - subst rctx. apply (@Down_Group_inner LindenParameters).
-      - apply Hroot.
-    }
+    specialize (IH (Group_inner name :: ctx)).
+    assert (Root wroot (wr, (Group_inner name :: ctx))) as Hrootr by eauto using same_root_down0, Down_Group_inner.
     specialize (IH Hrootr).
-    destruct (tCompileSubPattern wr rctx rer forward) as [mr|] eqn:Heqmr
+    destruct (tCompileSubPattern wr _ rer forward) as [mr|] eqn:Heqmr
     ; simpl. 2: discriminate.
     specialize (IH mr eq_refl).
     simpl in Hcompsucc.
@@ -411,7 +375,7 @@ Proof.
       2: {
         symmetry.
         rewrite Nat.eqb_neq.
-        lia.
+        discriminate.
       }
       destruct (List.List.Update.Nat.One.update) as [cap|]; simpl in *. 2: discriminate.
       specialize (Htmc_tree inp' Hinp'_compat).
