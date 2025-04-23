@@ -84,3 +84,13 @@ Proof.
     + apply Hcompat2.
     + apply Hmatches2.
 Qed.
+
+Lemma ms_matches_inp_capchg:
+  forall str endInd cap cap' inp,
+    ms_matches_inp (match_state str endInd cap) inp ->
+    ms_matches_inp (match_state str endInd cap') inp.
+Proof.
+  intros str endInd cap cap' inp Hmatches.
+  inversion Hmatches.
+  now constructor.
+Qed.

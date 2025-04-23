@@ -437,7 +437,12 @@ Proof.
       2: discriminate.
       inversion Heqsubtree as [Heqsubtree0].
       specialize (Htmc_tree subtree' Hmsupdvalid).
-      assert (ms_matches_inp msupd inpend) as Hmsupd_inp' by admit.
+      assert (ms_matches_inp msupd inpend) as Hmsupd_inp'. {
+        subst msupd.
+        eapply ms_matches_inp_capchg with (cap := MatchState.captures msend).
+        rewrite <- Hmsendstr0.
+        now destruct msend.
+      }
       specialize (Htmc_tree Hmsupd_inp' eq_refl).
       apply tree_pop_close.
       assumption.
