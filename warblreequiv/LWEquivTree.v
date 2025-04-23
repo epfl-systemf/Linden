@@ -259,14 +259,14 @@ Proof.
       unfold StaticSemantics.countLeftCapturingParensBefore in *.
       lia.
     }
-    specialize_prove IH1. { eauto using same_root_down0, Down_Disjunction_left. }
+    specialize_prove IH1 by eauto using same_root_down0, Down_Disjunction_left.
     specialize_prove IH2. {
       unfold StaticSemantics.countLeftCapturingParensBefore in *.
       simpl.
       assert (num_groups lr1 = StaticSemantics.countLeftCapturingParensWithin_impl wr1) by (eapply num_groups_equiv; eassumption).
       lia.
     }
-    specialize_prove IH2. { eauto using same_root_down0, Down_Disjunction_right. }
+    specialize_prove IH2 by eauto using same_root_down0, Down_Disjunction_right.
     intros tm Hcompsucc.
     destruct (tCompileSubPattern wr1 _ rer forward) as [tm1|]
       eqn:Htm1; simpl. 2: discriminate.
@@ -305,14 +305,14 @@ Proof.
       simpl.
       lia.
     }
-    specialize_prove IH1. { eauto using same_root_down0, Down_Seq_left. }
+    specialize_prove IH1 by eauto using same_root_down0, Down_Seq_left.
     specialize_prove IH2. {
       unfold StaticSemantics.countLeftCapturingParensBefore in *.
       simpl.
       assert (H: num_groups lr1 = StaticSemantics.countLeftCapturingParensWithin_impl wr1) by (eapply num_groups_equiv; eassumption).
       lia.
     }
-    specialize_prove IH2. { eauto using same_root_down0, Down_Seq_right. }
+    specialize_prove IH2 by eauto using same_root_down0, Down_Seq_right.
     destruct (tCompileSubPattern wr1 _ rer forward) as [tm1|] eqn:Htm1;
       simpl. 2: discriminate.
     destruct (tCompileSubPattern wr2 _ rer forward) as [tm2|] eqn:Htm2;
@@ -355,7 +355,7 @@ Proof.
       unfold StaticSemantics.countLeftCapturingParensBefore in *. simpl.
       lia.
     }
-    specialize_prove IH. { eauto using same_root_down0, Down_Quantified_inner. }
+    specialize_prove IH by eauto using same_root_down0, Down_Quantified_inner.
     rewrite Heqm in IH.
     specialize (IH m eq_refl).
     specialize (Hrepeat IH).
@@ -372,7 +372,7 @@ Proof.
     specialize_prove IH. {
       unfold StaticSemantics.countLeftCapturingParensBefore in *. simpl. lia.
     }
-    specialize_prove IH. { eauto using same_root_down0, Down_Group_inner. }
+    specialize_prove IH by eauto using same_root_down0, Down_Group_inner.
     destruct (tCompileSubPattern wr _ rer forward) as [mr|] eqn:Heqmr
     ; simpl. 2: discriminate.
     specialize (IH mr eq_refl).
@@ -402,8 +402,6 @@ Proof.
       unfold tMC_is_tree in Htmc_tree.
       remember (match_state _ _ cap) as msupd.
       specialize (Htmc_tree msupd).
-      Search MatchState.input.
-      About inp_compat_ms_str0.
       replace (MatchState.input ms) with str0 in *.
       2: {
         symmetry. eapply inp_compat_ms_str0.
