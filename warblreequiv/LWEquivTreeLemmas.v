@@ -165,6 +165,54 @@ Proof.
   now rewrite char_match_warblre with (rer := rer).
 Qed.
 
+Lemma char_mismatch_warblre:
+  forall rer chr c,
+    RegExpRecord.ignoreCase rer = false ->
+    CharSet.exist_canonicalized rer (CharSet.singleton c) (char_canonicalize rer chr) = false ->
+    char_match chr (single c) = false.
+Proof.
+  intros rer chr c Hcasesenst Hexist_false.
+  rewrite CharSet.exist_canonicalized_equiv in Hexist_false.
+  rewrite CharSet.singleton_exist in Hexist_false.
+  rewrite canonicalize_casesenst in Hexist_false. 2: assumption.
+  rewrite canonicalize_casesenst in Hexist_false. 2: assumption.
+  apply Typeclasses.EqDec.inversion_false in Hexist_false.
+  destruct char_match eqn:Hchar_match.
+  2: reflexivity.
+  rewrite single_match in Hchar_match.
+  congruence.
+Qed.
+
+Lemma read_char_fail:
+  forall rer ms chr inp c,
+    RegExpRecord.ignoreCase rer = false ->
+    ms_matches_inp ms inp ->
+    List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms) = Success chr ->
+    CharSet.exist_canonicalized rer (CharSet.singleton c) (char_canonicalize rer chr) = false ->
+    read_char (single c) inp = None.
+Proof.
+  intros rer ms chr inp c Hcasesenst Hms_inp Hreadsuccess Hnocorresp.
+  destruct inp as [next pref].
+  destruct ms as [str0 endInd cap].
+  inversion Hms_inp as [s end_ind cap0 next0 pref0 Hlenpref Hmatches Heqs Heqend_ind].
+  subst s cap0 pref0 next0 endInd.
+  simpl in *.
+  rewrite List.Indexing.Int.of_nat in Hreadsuccess.
+  subst str0.
+  subst end_ind.
+  apply List.Indexing.Nat.concat in Hreadsuccess.
+  destruct Hreadsuccess as [ [Habs _] | [_ Hreadsuccess] ].
+  1: {
+    rewrite List.rev_length in Habs. lia.
+  }
+  rewrite List.rev_length in Hreadsuccess.
+  replace (length pref - length pref) with 0 in Hreadsuccess by lia.
+  destruct next as [|x next'].
+  1: discriminate.
+  injection Hreadsuccess as <-.
+  now rewrite char_mismatch_warblre with (rer := rer).
+Qed.
+  
 
 Lemma advance_input_compat:
   forall inp str0 inp_adv,

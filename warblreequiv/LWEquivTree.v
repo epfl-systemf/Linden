@@ -237,7 +237,10 @@ Proof.
             --- eapply ms_matches_inp_adv; eauto.
             --- assumption.
         ++ (* Case 2: it is not equal. *)
-          admit.
+          injection Htm_succ as <-.
+          apply tree_pop_reg.
+          apply tree_char_fail.
+          eapply read_char_fail; eauto.
       -- discriminate.
 
     (* Dot *)
