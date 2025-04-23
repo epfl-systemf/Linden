@@ -164,3 +164,68 @@ Proof.
   injection Hreadsuccess as <-.
   now rewrite char_match_warblre with (rer := rer).
 Qed.
+
+
+Lemma advance_input_compat:
+  forall inp str0 inp_adv,
+    input_compat inp str0 ->
+    advance_input inp = Some inp_adv ->
+    input_compat inp_adv str0.
+Proof.
+  intros inp str0 inp_adv Hinpcompat Hadv.
+  inversion Hinpcompat as [next pref str1 Hcompat Heqinp Heqstr1].
+  subst str1 inp.
+  destruct next as [ | x next' ].
+  1: discriminate.
+  injection Hadv as <-.
+  constructor.
+  subst str0.
+  simpl.
+  rewrite <- List.app_assoc.
+  reflexivity.
+Qed.
+
+Lemma ms_advance_valid:
+  forall ms rer ms_adv,
+    MatchState.Valid (MatchState.input ms) rer ms ->
+    (MatchState.endIndex ms + 1 <= Z.of_nat (length (MatchState.input ms)))%Z ->
+    ms_adv = advance_ms ms ->
+    MatchState.Valid (MatchState.input ms_adv) rer ms_adv.
+Proof.
+  intros ms rer ms_adv [Honinp [Hiton [Hlencap Hcapvalid]]] Hinb Heqms_adv.
+  destruct ms as [input endIndex cap].
+  unfold advance_ms in Heqms_adv.
+  simpl in Heqms_adv.
+  subst ms_adv.
+  simpl in *.
+  split; [|split; [|split]].
+  - reflexivity.
+  - unfold IteratorOn in *. simpl. lia.
+  - apply Hlencap.
+  - apply Hcapvalid.
+Qed.
+
+Lemma ms_matches_inp_adv:
+  forall ms inp ms_adv inp_adv,
+    ms_matches_inp ms inp ->
+    ms_adv = advance_ms ms ->
+    advance_input inp = Some inp_adv ->
+    ms_matches_inp ms_adv inp_adv.
+Proof.
+  intros ms inp ms_adv inp_adv Hmatches Heqms_adv Hinp_adv.
+  destruct ms as [input endIndex cap].
+  destruct inp as [next pref].
+  destruct next as [|x next'].
+  1: discriminate.
+  injection Hinp_adv as <-.
+  unfold advance_ms in Heqms_adv.
+  simpl in *.
+  subst ms_adv.
+  inversion Hmatches as [s end_ind cap1 next1 pref1 Hlenpref Hmatches' Heqs Heqend_ind].
+  subst cap1 pref1 next1 s.
+  replace (Z.of_nat end_ind + 1)%Z with (Z.of_nat (end_ind + 1)) by lia.
+  constructor.
+  - simpl. lia.
+  - simpl. rewrite <- List.app_assoc. apply Hmatches'.
+Qed.
+

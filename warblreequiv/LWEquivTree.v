@@ -224,11 +224,18 @@ Proof.
           destruct Hnextinp as [inp_adv Hnextinp].
           apply tree_char with (nextinp := inp_adv).
           ** (* Reading the character succeeds indeed *)
-            Search read_char.
             eapply read_char_success; eassumption.
-          ** (* The subtree is valid. *)
+          ** (* The subtree is valid: results from three lemmas. *)
             apply Htmc_tree with (ms := ms_adv).
-            all: admit.
+            --- eapply advance_input_compat; eassumption.
+            --- eapply ms_advance_valid; eauto.
+                apply Bool.orb_false_elim in Hoob.
+                destruct Hoob as [_ Hinb].
+                pose proof Zgt_cases (MatchState.endIndex ms + 1)%Z (Z.of_nat (length (MatchState.input ms))) as Hinb'.
+                rewrite Hinb in Hinb'.
+                apply Hinb'.
+            --- eapply ms_matches_inp_adv; eauto.
+            --- assumption.
         ++ (* Case 2: it is not equal. *)
           admit.
       -- discriminate.
