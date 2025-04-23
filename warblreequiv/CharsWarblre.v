@@ -18,6 +18,8 @@ Parameter char_ascii_word_characters: list Char.
 Parameter char_numeric_pseudo_bij: forall c, char_from_numeric_value (char_numeric_value c) = c.
 Parameter char_numeric_round_trip_order: forall l r, l <= r -> (char_numeric_value (char_from_numeric_value l)) <= (char_numeric_value (char_from_numeric_value r)).
 
+Axiom canonicalize_casesenst: forall rer chr, RegExpRecord.ignoreCase rer = false -> char_canonicalize rer chr = chr.
+
 Instance CharCharacter: Character.class :=
   Character.make Char char_eqdec char_from_numeric_value char_numeric_value
   char_canonicalize char_all char_line_terminators char_digits

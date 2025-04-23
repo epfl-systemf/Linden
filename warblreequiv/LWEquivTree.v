@@ -224,7 +224,8 @@ Proof.
           destruct Hnextinp as [inp_adv Hnextinp].
           apply tree_char with (nextinp := inp_adv).
           ** (* Reading the character succeeds indeed *)
-            admit.
+            Search read_char.
+            eapply read_char_success; eassumption.
           ** (* The subtree is valid. *)
             apply Htmc_tree with (ms := ms_adv).
             all: admit.

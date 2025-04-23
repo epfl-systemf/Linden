@@ -1,5 +1,5 @@
-From Linden Require Import RegexpTranslation LindenParameters Regex.
-From Warblre Require Import StaticSemantics List Parameters Notation Match Result Errors.
+From Linden Require Import RegexpTranslation LindenParameters Regex MSInput CharsWarblre Chars.
+From Warblre Require Import StaticSemantics List Parameters Notation Match Result Errors RegExpRecord.
 From Coq Require Import Lia ZArith.
 Import Notation.
 Import MatchState.
@@ -115,4 +115,52 @@ Proof.
     subst parenCount.
     replace (n + 1) with (S n) by lia.
     apply List.cons_seq.
+Qed.
+
+
+Lemma char_match_warblre:
+  forall rer chr c,
+    RegExpRecord.ignoreCase rer = false ->
+    CharSet.exist_canonicalized rer (CharSet.singleton c) (char_canonicalize rer chr) = true ->
+    char_match chr (single c) = true.
+Proof.
+  intros rer chr c Hcasesenst Hexist_canon.
+  apply <- single_match.
+  rewrite canonicalize_casesenst in Hexist_canon. 2: assumption.
+  rewrite CharSet.exist_canonicalized_equiv in Hexist_canon.
+  rewrite CharSet.singleton_exist in Hexist_canon.
+  rewrite canonicalize_casesenst in Hexist_canon. 2: assumption.
+  symmetry. now apply Typeclasses.EqDec.inversion_true.
+Qed.
+
+
+Lemma read_char_success:
+  forall ms inp chr c rer inp_adv,
+    RegExpRecord.ignoreCase rer = false ->
+    ms_matches_inp ms inp ->
+    List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms) = Success chr ->
+    CharSet.exist_canonicalized rer (CharSet.singleton c) (char_canonicalize rer chr) = true ->
+    advance_input inp = Some inp_adv ->
+    read_char (single c) inp = Some (chr, inp_adv).
+Proof.
+  intros ms inp chr c rer inp_adv Hcasesenst Hms_inp Hreadsuccess Hcharcorresp Hadv.
+  destruct inp as [next pref].
+  destruct next as [|x next'].
+  1: discriminate.
+  injection Hadv as <-.
+  simpl.
+  inversion Hms_inp as [str0 end_ind cap next2 pref2 Hlenpref Heqstr0 Heqms Heqnext2].
+  subst next2 pref2.
+  subst ms str0.
+  simpl in *.
+  rewrite List.Indexing.Int.of_nat in Hreadsuccess.
+  apply List.Indexing.Nat.concat in Hreadsuccess.
+  destruct Hreadsuccess as [ [Habs _] | [Hzero Hreadsuccess] ].
+  1: {
+    rewrite List.rev_length in Habs. lia.
+  }
+  rewrite List.rev_length in Hreadsuccess.
+  replace (end_ind - length pref) with 0 in Hreadsuccess by lia.
+  injection Hreadsuccess as <-.
+  now rewrite char_match_warblre with (rer := rer).
 Qed.
