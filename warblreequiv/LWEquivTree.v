@@ -365,9 +365,7 @@ Proof.
     assert (def_groups lr = seq (parenIndex + 1) parenCount) as Hgroups_valid by admit.
     specialize (Hrepeat Hgroups_valid).
     intros inp Hinp_compat s t Hvalids Hs_inp Heqt.
-    specialize (Hrepeat (Semantics.repeatMatcherFuel 0 s) tmc cont str0 Htmc_valid).
-    simpl in Hrepeat.
-    specialize (Hrepeat inp Hinp_compat s t Hvalids Hs_inp).
+    specialize (Hrepeat (Semantics.repeatMatcherFuel 0 s) tmc cont str0 Htmc_valid inp Hinp_compat s t Hvalids Hs_inp).
     inversion Hequivgreedy as [Heqwgl Heqgreedy|Heqwgl Heqgreedy]; subst wgreedylazy; subst greedy; inversion Hcompsucc as [Hcompsucc']; subst tm; simpl in *; specialize (Hrepeat Heqt); apply Hrepeat.
 
   - (* Group *)
@@ -388,14 +386,14 @@ Proof.
     intros ms t Hvalidms Hms_inp Heqt.
     remember (fun y: MatchState => _) as tmc2 in Heqt.
     specialize (IH tmc2 (Aclose (S n) :: cont)).
-    assert (StaticSemantics.countLeftCapturingParensBefore (Group name wr) ctx + 1 = S n) as Heqid by admit.
+    assert (StaticSemantics.countLeftCapturingParensBefore (Group name wr) ctx + 1 = S n) as Heqid by lia.
     assert (tMC_valid tmc2 rer (Aclose (S n) :: cont) str0) as Htmc2_tree.
     {
-      intros inp' Hinp'_compat.
-      rewrite Heqtmc2.
+      intros inpend Hinpend_compat.
+      subst tmc2. clear Heqt.
       unfold tMC_is_tree.
-      intros ms' subtree Hms'valid Hms'_inp Heqsubtree.
-      destruct negb; simpl in *. 1: discriminate.
+      intros msend subtree Hmsendvalid Hmsend_inp Heqsubtree.
+      destruct negb eqn:Hcapvalid; simpl in *. 1: discriminate.
       rewrite Heqid in Heqsubtree.
       replace ((S n) =? 0) with false in Heqsubtree.
       2: {
@@ -403,18 +401,44 @@ Proof.
         rewrite Nat.eqb_neq.
         discriminate.
       }
-      destruct (List.List.Update.Nat.One.update) as [cap|]; simpl in *. 2: discriminate.
-      specialize (Htmc_tree inp' Hinp'_compat).
+      destruct (List.List.Update.Nat.One.update) as [cap|] eqn:Heqcap; simpl in *. 2: discriminate.
+      specialize (Htmc_tree inpend Hinpend_compat).
       unfold tMC_is_tree in Htmc_tree.
-      remember (match_state _ _ cap) as ms''.
-      specialize (Htmc_tree ms'').
-      assert (Valid (MatchState.input ms'') rer ms'') as Hs''valid by admit. (* not entirely sure that this is actually true *)
-      destruct (tmc ms'') as [subtree'|] eqn:Heqsubtree'; simpl in *.
+      remember (match_state _ _ cap) as msupd.
+      specialize (Htmc_tree msupd).
+      Search MatchState.input.
+      About inp_compat_ms_str0.
+      replace (MatchState.input ms) with str0 in *.
+      2: {
+        symmetry. eapply inp_compat_ms_str0.
+        - apply Hinp_compat.
+        - apply Hms_inp.
+      }
+      assert (MatchState.input msend = str0) as Hmsendstr0. {
+        eapply inp_compat_ms_str0.
+        - apply Hinpend_compat.
+        - assumption.
+      }
+      assert (Valid (MatchState.input msupd) rer msupd) as Hmsupdvalid. {
+        subst msupd. simpl.
+        eapply capupd_valid with (str := str0) (nrange := Some (capture_range (MatchState.endIndex ms) (MatchState.endIndex msend))).
+        - replace str0 with (MatchState.input msend) by assumption.
+          assumption.
+        - rewrite Hmsendstr0 in Hmsendvalid.
+          apply grouprange_valid with (str0 := str0) (rer := rer).
+          1-2: assumption.
+          apply (f_equal negb) in Hcapvalid.
+          rewrite Bool.negb_involutive in Hcapvalid.
+          simpl in Hcapvalid.
+          now apply Z.leb_le.
+        - apply Heqcap.
+      }
+      destruct (tmc msupd) as [subtree'|] eqn:Heqsubtree'; simpl in *.
       2: discriminate.
       inversion Heqsubtree as [Heqsubtree0].
-      specialize (Htmc_tree subtree' Hs''valid).
-      assert (ms_matches_inp ms'' inp') as Hs''_inp' by admit.
-      specialize (Htmc_tree Hs''_inp' eq_refl).
+      specialize (Htmc_tree subtree' Hmsupdvalid).
+      assert (ms_matches_inp msupd inpend) as Hmsupd_inp' by admit.
+      specialize (Htmc_tree Hmsupd_inp' eq_refl).
       apply tree_pop_close.
       assumption.
     }

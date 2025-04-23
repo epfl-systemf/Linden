@@ -57,6 +57,17 @@ Qed.
 Inductive input_compat: input -> string -> Prop :=
 | Input_compat: forall next pref str0, List.rev pref ++ next = str0 -> input_compat (Input next pref) str0.
 
+Lemma inp_compat_ms_str0:
+  forall (str0: string) (inp: input),
+    input_compat inp str0 ->
+    forall ms, ms_matches_inp ms inp -> MatchState.input ms = str0.
+Proof.
+  intros str0 [next pref] Hcompat ms Hmatches.
+  apply ms_matches_inp_invinp in Hmatches.
+  inversion Hcompat.
+  congruence.
+Qed.
+
 Lemma inp_compat_ms_same_inp:
   forall (str0: string) (inp1 inp2: input),
     input_compat inp1 str0 -> input_compat inp2 str0 ->
@@ -65,8 +76,11 @@ Lemma inp_compat_ms_same_inp:
       MatchState.input ms1 = MatchState.input ms2.
 Proof.
   intros str0 [next1 pref1] [next2 pref2] Hcompat1 Hcompat2 ms1 ms2 Hmatches1 Hmatches2.
-  apply ms_matches_inp_invinp in Hmatches1, Hmatches2.
-  inversion Hcompat1.
-  inversion Hcompat2.
-  congruence.
+  transitivity str0.
+  - eapply inp_compat_ms_str0.
+    + apply Hcompat1.
+    + apply Hmatches1.
+  - symmetry. eapply inp_compat_ms_str0.
+    + apply Hcompat2.
+    + apply Hmatches2.
 Qed.
