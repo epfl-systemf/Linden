@@ -53,64 +53,60 @@ Proof.
     remember (match_state _ _ cap') as ms'.
     assert (tMC_valid tmc' rer (Acheck (ms_suffix ms)::Areg (Regex.Star greedy lreg)::cont) str0) as Htmc'_valid.
     {
-        (* Let inp' be an input compatible with str0. *)
-        intros inp' Hinp'_compat.
-        (* Let ms1 be a MatchState that is valid and matches that input. *)
-        intros ms1 t1 Hms1valid Hms1_inp Htmc'_succeeds.
-        rewrite Heqtmc' in Htmc'_succeeds.
-        (* Then either the input has progressed or it has not. *)
-        destruct (_ =? _)%Z eqn:Heqcheck.
-        - (* Case 1: the input has not progressed *)
-          inversion Htmc'_succeeds as [Heqt1]. apply tree_pop_check_fail.
-          rewrite ms_suffix_current_str with (ms := ms1) by assumption.
-          unfold ms_suffix.
-          rewrite Z.eqb_eq in Heqcheck.
-          rewrite Heqcheck.
-          f_equal.
-          eapply inp_compat_ms_same_inp with (inp1 := inp') (inp2 := inp); eauto.
-        - (* Case 2: the input has progressed *)
-          destruct tRepeatMatcher' as [subtree|] eqn:Heqsubtree; simpl.
-          2: discriminate.
-          inversion Htmc'_succeeds as [Htmc'_succeds'].
-          apply tree_pop_check.
-          + rewrite ms_suffix_current_str with (ms := ms1). 2: assumption.
-            intro Habs.
-            unfold ms_suffix in Habs.
-            assert (Hms1_ms_inp: @MatchState.input Chars.Char
-                                   char_marker ms1 = MatchState.input ms) by
-              now apply inp_compat_ms_same_inp
-                with (str0 := str0) (inp1 := inp') (inp2 := inp).
-            rewrite Hms1_ms_inp in Habs.
+      (* Let inp' be an input compatible with str0. *)
+      intros inp' Hinp'_compat.
+      (* Let ms1 be a MatchState that is valid and matches that input. *)
+      intros ms1 t1 Hms1valid Hms1_inp Htmc'_succeeds.
+      rewrite Heqtmc' in Htmc'_succeeds.
+      (* Then either the input has progressed or it has not. *)
+      destruct (_ =? _)%Z eqn:Heqcheck.
+      - (* Case 1: the input has not progressed *)
+        inversion Htmc'_succeeds as [Heqt1]. apply tree_pop_check_fail.
+        rewrite ms_suffix_current_str with (ms := ms1) by assumption.
+        unfold ms_suffix.
+        rewrite Z.eqb_eq in Heqcheck.
+        rewrite Heqcheck.
+        f_equal.
+        eapply inp_compat_ms_same_inp with (inp1 := inp') (inp2 := inp); eauto.
+      - (* Case 2: the input has progressed *)
+        destruct tRepeatMatcher' as [subtree|] eqn:Heqsubtree; simpl.
+        2: discriminate.
+        inversion Htmc'_succeeds as [Htmc'_succeds'].
+        apply tree_pop_check.
+        + rewrite ms_suffix_current_str with (ms := ms1). 2: assumption.
+          intro Habs.
+          unfold ms_suffix in Habs.
+          assert (Hms1_ms_inp: @MatchState.input Chars.Char
+                                 char_marker ms1 = MatchState.input ms) by
+            now apply inp_compat_ms_same_inp
+              with (str0 := str0) (inp1 := inp') (inp2 := inp).
+          rewrite Hms1_ms_inp in Habs.
+          change Character with Chars.Char in *.
+          change (@Parameters.character_marker LindenParameters)
+              with char_marker in *.
+          assert (Hindices_eq: MatchState.endIndex ms1
+                               = MatchState.endIndex ms). {
+            pose proof valid_inv_iteratoron _ _ _ Hms1valid as
+              Hms1_iton.
+            pose proof valid_inv_iteratoron _ _ _ Hvalidms as
+              Hms_iton.
+            unfold Match.IteratorOn in Hms1_iton, Hms_iton.
+            change (@MatchState.input Character
+                      (@Parameters.character_marker LindenParameters
+                      ) ms1) with (@MatchState.input Chars.Char
+                                     char_marker ms1) in Hms1_iton.
+            rewrite Hms1_ms_inp in Hms1_iton.
             change Character with Chars.Char in *.
             change (@Parameters.character_marker LindenParameters)
-                with char_marker in *.
-            assert (Hindices_eq: MatchState.endIndex ms1
-                                 = MatchState.endIndex ms). {
-              pose proof valid_inv_iteratoron _ _ _ Hms1valid as
-                Hms1_iton.
-              pose proof valid_inv_iteratoron _ _ _ Hvalidms as
-                Hms_iton.
-              unfold Match.IteratorOn in Hms1_iton, Hms_iton.
-              change (@MatchState.input Character
-                        (@Parameters.character_marker LindenParameters
-                        ) ms1) with (@MatchState.input Chars.Char
-                                       char_marker ms1) in Hms1_iton.
-              rewrite Hms1_ms_inp in Hms1_iton.
-              change Character with Chars.Char in *.
-              change (@Parameters.character_marker LindenParameters)
-                with char_marker in *.
-              apply skipn_ind_inv with (l := MatchState.input ms).
-              1-4: lia.
-              apply Habs.
-            }
-            rewrite Z.eqb_neq in Heqcheck.
-            contradiction.
-          + specialize (IHfuel tmc cont str0 Htmc_valid).
-            unfold tMC_valid in IHfuel.
-            specialize (IHfuel inp' Hinp'_compat).
-            unfold tMC_is_tree in IHfuel.
-            specialize (IHfuel ms1 subtree Hms1valid Hms1_inp Heqsubtree).
-            apply IHfuel.
+              with char_marker in *.
+            apply skipn_ind_inv with (l := MatchState.input ms).
+            1-4: lia.
+            apply Habs.
+          }
+          rewrite Z.eqb_neq in Heqcheck.
+          contradiction.
+        + specialize (IHfuel tmc cont str0 Htmc_valid inp' Hinp'_compat ms1 subtree Hms1valid Hms1_inp Heqsubtree).
+          apply IHfuel.
     }
     specialize (Htm_valid tmc' (Acheck (ms_suffix ms)::Areg (Regex.Star greedy lreg)::cont) str0 Htmc'_valid inp Hinp_compat).
     specialize (Htmc_valid inp Hinp_compat).
@@ -156,14 +152,6 @@ Proof.
       * apply Htmc_valid.
       * inversion HmatchSuccess. reflexivity.
 Qed.
-
-Goal (1=1 -> True) -> True.
-  intro H.
-  specialize_prove H.
-  {
-    reflexivity.
-  }
-Abort.
 
 
 (* Theorem is not true for case-insensitive matching, which is not supported (yet) by the tree semantics *)
@@ -268,14 +256,11 @@ Proof.
     }
     specialize_prove IH2 by eauto using same_root_down0, Down_Disjunction_right.
     intros tm Hcompsucc.
-    destruct (tCompileSubPattern wr1 _ rer forward) as [tm1|]
-      eqn:Htm1; simpl. 2: discriminate.
-    destruct (tCompileSubPattern wr2 _ rer forward) as [tm2|] eqn:Htm2;
-      simpl. 2: discriminate.
+    destruct (tCompileSubPattern wr1 _ rer forward) as [tm1|] eqn:Htm1; simpl. 2: discriminate.
+    destruct (tCompileSubPattern wr2 _ rer forward) as [tm2|] eqn:Htm2; simpl. 2: discriminate.
     simpl in Hcompsucc.
     injection Hcompsucc as <-.
-    intros tmc cont str0 Htmc_tree inp Hinp_compat.
-    intros s t Hsvalid Hs_inp Heqt.
+    intros tmc cont str0 Htmc_tree inp Hinp_compat s t Hsvalid Hs_inp Heqt.
     specialize (IH1 tm1 eq_refl tmc cont str0 Htmc_tree inp Hinp_compat).
     specialize (IH2 tm2 eq_refl tmc cont str0 Htmc_tree inp Hinp_compat).
     destruct (tm1 s tmc) as [t1|] eqn:Heqt1; simpl. 2: discriminate.
@@ -286,7 +271,7 @@ Proof.
     rewrite Heqt1 in IH1.
     rewrite Heqt2 in IH2.
     apply tree_pop_reg.
-    inversion Heqt as [Heqt'].
+    injection Heqt as <-.
     specialize (IH1 eq_refl).
     specialize (IH2 eq_refl).
     inversion IH1.
@@ -313,10 +298,8 @@ Proof.
       lia.
     }
     specialize_prove IH2 by eauto using same_root_down0, Down_Seq_right.
-    destruct (tCompileSubPattern wr1 _ rer forward) as [tm1|] eqn:Htm1;
-      simpl. 2: discriminate.
-    destruct (tCompileSubPattern wr2 _ rer forward) as [tm2|] eqn:Htm2;
-      simpl. 2: discriminate.
+    destruct (tCompileSubPattern wr1 _ rer forward) as [tm1|] eqn:Htm1; simpl. 2: discriminate.
+    destruct (tCompileSubPattern wr2 _ rer forward) as [tm2|] eqn:Htm2; simpl. 2: discriminate.
     specialize (IH1 tm1 eq_refl).
     specialize (IH2 tm2 eq_refl).
     intros tmc cont str0 Htmc_tree inp Hinp_compat ms t Hmsvalid Hms_inp Heqt.
@@ -376,13 +359,11 @@ Proof.
       unfold StaticSemantics.countLeftCapturingParensBefore in *. simpl. lia.
     }
     specialize_prove IH by eauto using same_root_down0, Down_Group_inner.
-    destruct (tCompileSubPattern wr _ rer forward) as [mr|] eqn:Heqmr
-    ; simpl. 2: discriminate.
+    destruct (tCompileSubPattern wr _ rer forward) as [mr|] eqn:Heqmr; simpl. 2: discriminate.
     specialize (IH mr eq_refl).
     simpl in Hcompsucc.
     injection Hcompsucc as <-.
-    intros tmc cont str0 Htmc_tree inp Hinp_compat.
-    intros ms t Hvalidms Hms_inp Heqt.
+    intros tmc cont str0 Htmc_tree inp Hinp_compat ms t Hvalidms Hms_inp Heqt.
     remember (fun y: MatchState => _) as tmc2 in Heqt.
     specialize (IH tmc2 (Aclose (S n) :: cont)).
     assert (StaticSemantics.countLeftCapturingParensBefore (Group name wr) ctx + 1 = S n) as Heqid by lia.
@@ -394,12 +375,7 @@ Proof.
       intros msend subtree Hmsendvalid Hmsend_inp Heqsubtree.
       destruct negb eqn:Hcapvalid; simpl in *. 1: discriminate.
       rewrite Heqid in Heqsubtree.
-      replace ((S n) =? 0) with false in Heqsubtree.
-      2: {
-        symmetry.
-        rewrite Nat.eqb_neq.
-        discriminate.
-      }
+      change ((S n) =? 0) with false in Heqsubtree.
       destruct (List.List.Update.Nat.One.update) as [cap|] eqn:Heqcap; simpl in *. 2: discriminate.
       specialize (Htmc_tree inpend Hinpend_compat).
       unfold tMC_is_tree in Htmc_tree.
@@ -444,10 +420,8 @@ Proof.
       apply tree_pop_close.
       assumption.
     }
-    specialize (IH str0 Htmc2_tree).
+    specialize (IH str0 Htmc2_tree inp Hinp_compat ms).
     apply tree_pop_reg.
-    unfold tMC_valid in IH.
-    specialize (IH inp Hinp_compat ms).
     destruct (mr ms tmc2) as [subtree|] eqn:Heqsubtree; simpl in *.
     2: discriminate.
     injection Heqt as <-.
