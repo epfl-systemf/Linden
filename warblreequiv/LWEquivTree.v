@@ -359,7 +359,10 @@ Proof.
     rewrite Heqm in IH.
     specialize (IH m eq_refl).
     specialize (Hrepeat IH).
-    assert (def_groups lr = seq (parenIndex + 1) parenCount) as Hgroups_valid by admit.
+    assert (def_groups lr = seq (parenIndex + 1) parenCount) as Hgroups_valid. {
+      subst n.
+      eapply equiv_def_groups; eassumption.
+    }
     specialize (Hrepeat Hgroups_valid).
     intros inp Hinp_compat s t Hvalids Hs_inp Heqt.
     specialize (Hrepeat (Semantics.repeatMatcherFuel 0 s) tmc cont str0 Htmc_valid inp Hinp_compat s t Hvalids Hs_inp).
