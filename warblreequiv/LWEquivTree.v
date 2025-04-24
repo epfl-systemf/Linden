@@ -61,7 +61,7 @@ Proof.
       (* Then either the input has progressed or it has not. *)
       destruct (_ =? _)%Z eqn:Heqcheck.
       - (* Case 1: the input has not progressed *)
-        inversion Htmc'_succeeds as [Heqt1]. apply tree_pop_check_fail.
+        injection Htmc'_succeeds as <-. apply tree_pop_check_fail.
         rewrite ms_suffix_current_str with (ms := ms1) by assumption.
         unfold ms_suffix.
         rewrite Z.eqb_eq in Heqcheck.
@@ -71,40 +71,12 @@ Proof.
       - (* Case 2: the input has progressed *)
         destruct tRepeatMatcher' as [subtree|] eqn:Heqsubtree; simpl.
         2: discriminate.
-        inversion Htmc'_succeeds as [Htmc'_succeds'].
+        injection Htmc'_succeeds as <-.
         apply tree_pop_check.
-        + rewrite ms_suffix_current_str with (ms := ms1). 2: assumption.
-          intro Habs.
-          unfold ms_suffix in Habs.
-          assert (Hms1_ms_inp: @MatchState.input Chars.Char
-                                 char_marker ms1 = MatchState.input ms) by
-            now apply inp_compat_ms_same_inp
-              with (str0 := str0) (inp1 := inp') (inp2 := inp).
-          rewrite Hms1_ms_inp in Habs.
-          change Character with Chars.Char in *.
-          change (@Parameters.character_marker LindenParameters)
-              with char_marker in *.
-          assert (Hindices_eq: MatchState.endIndex ms1
-                               = MatchState.endIndex ms). {
-            pose proof valid_inv_iteratoron _ _ _ Hms1valid as
-              Hms1_iton.
-            pose proof valid_inv_iteratoron _ _ _ Hvalidms as
-              Hms_iton.
-            unfold Match.IteratorOn in Hms1_iton, Hms_iton.
-            change (@MatchState.input Character
-                      (@Parameters.character_marker LindenParameters
-                      ) ms1) with (@MatchState.input Chars.Char
-                                     char_marker ms1) in Hms1_iton.
-            rewrite Hms1_ms_inp in Hms1_iton.
-            change Character with Chars.Char in *.
-            change (@Parameters.character_marker LindenParameters)
-              with char_marker in *.
-            apply skipn_ind_inv with (l := MatchState.input ms).
-            1-4: lia.
-            apply Habs.
-          }
-          rewrite Z.eqb_neq in Heqcheck.
-          contradiction.
+        + eapply endInd_neq_advanced; eauto.
+          eapply inp_compat_ms_str0.
+          * apply Hinp_compat.
+          * apply Hms_inp.
         + specialize (IHfuel tmc cont str0 Htmc_valid inp' Hinp'_compat ms1 subtree Hms1valid Hms1_inp Heqsubtree).
           apply IHfuel.
     }

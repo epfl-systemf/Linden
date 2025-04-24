@@ -26,3 +26,22 @@ Proof.
   do 2 rewrite skipn_length in Hskipn.
   lia.
 Qed.
+
+
+Lemma skipn_lenpref_input {A: Type}:
+  forall (pref next: list A) (str0: list A) (endInd1: Z),
+    rev pref ++ next = str0 ->
+    Z.of_nat (length pref) = endInd1 ->
+    next = skipn (Z.to_nat endInd1) str0.
+Proof.
+  intros pref next str0 endInd1 Hconcat Hlenpref.
+  apply (f_equal (skipn (Z.to_nat endInd1))) in Hconcat.
+  rewrite skipn_app in Hconcat.
+  rewrite rev_length in Hconcat.
+  replace (Z.to_nat endInd1 - length pref) with 0 in Hconcat by lia.
+  simpl in Hconcat.
+  replace (Z.to_nat endInd1) with (length pref) in Hconcat by lia.
+  rewrite <- rev_length in Hconcat at 1.
+  rewrite skipn_all in Hconcat.
+  now replace (Z.to_nat endInd1) with (length pref) by lia.
+Qed.

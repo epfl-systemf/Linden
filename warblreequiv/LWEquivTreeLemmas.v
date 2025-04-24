@@ -1,4 +1,4 @@
-From Linden Require Import RegexpTranslation LindenParameters Regex MSInput CharsWarblre Chars.
+From Linden Require Import RegexpTranslation LindenParameters Regex MSInput CharsWarblre Chars ListLemmas.
 From Warblre Require Import StaticSemantics List Parameters Notation Match Result Errors RegExpRecord.
 From Coq Require Import Lia ZArith.
 Import Notation.
@@ -277,3 +277,36 @@ Proof.
   - simpl. rewrite <- List.app_assoc. apply Hmatches'.
 Qed.
 
+
+Lemma endInd_neq_advanced:
+  forall ms ms1 inp' str0 rer,
+    MatchState.Valid (input ms) rer ms ->
+    MatchState.Valid (input ms1) rer ms1 ->
+    (MatchState.endIndex ms1 =? MatchState.endIndex ms)%Z = false ->
+    ms_matches_inp ms1 inp' -> input_compat inp' str0 ->
+    MatchState.input ms = str0 ->
+    current_str inp' <> TMatching.ms_suffix ms.
+Proof.
+  intros ms ms1 inp' str0 rer [_ [Hmsiton _]] [_ [Hms1iton _]] HendInd_neq Hms1matches Hinp'compat Hmsstr0.
+  unfold IteratorOn in *.
+  destruct inp' as [next pref]; simpl.
+  rewrite Z.eqb_neq in HendInd_neq.
+  pose proof inp_compat_ms_str0 _ _ Hinp'compat ms1 Hms1matches as Hms1str0.
+  destruct ms1 as [str1 endInd1 cap1].
+  destruct ms as [str endInd cap].
+  simpl in *.
+  subst str1 str.
+  inversion Hms1matches as [str0' endInd1' cap1' next' pref' Hlenpref Hmatchs Heqstr0' Heqend1'].
+  subst str0' endInd1' cap1' next' pref'.
+  unfold TMatching.ms_suffix.
+  simpl.
+  pose proof skipn_lenpref_input _ _ _ _ Hmatchs H.
+  intro Habs.
+  subst next.
+  assert (endInd1 = endInd). {
+    eapply skipn_ind_inv.
+    5: apply Habs.
+    all: lia.
+  }
+  contradiction.
+Qed.
