@@ -39,9 +39,6 @@ Inductive equiv_greedylazy: (Patterns.QuantifierPrefix -> Patterns.Quantifier) -
 | Equiv_greedy: equiv_greedylazy Patterns.Greedy true
 | Equiv_lazy: equiv_greedylazy Patterns.Lazy false.
 
-About Patterns.Star.
-About Star.
-
 Inductive equiv_quantifier: Patterns.QuantifierPrefix -> (bool -> regex -> regex) -> Prop :=
   | Equiv_star: equiv_quantifier Patterns.Star Star.
 
@@ -49,7 +46,8 @@ Inductive equiv_quantifier: Patterns.QuantifierPrefix -> (bool -> regex -> regex
 Inductive equiv_regex': Patterns.Regex -> regex -> nat -> Prop :=
 | Equiv_empty: forall n: nat, equiv_regex' Patterns.Empty Epsilon n
 | Equiv_char: forall (n: nat) (c: Char), equiv_regex' (Patterns.Char c) (Character (Chars.single c)) n
-| Equiv_dot: forall n: nat, equiv_regex' Patterns.Dot (Character Chars.dot) n
+(* Dot is not axiomatized for now in Linden.
+| Equiv_dot: forall n: nat, equiv_regex' Patterns.Dot (Character Chars.dot) n *)
 | Equiv_disj: forall n wr1 wr2 lr1 lr2,
     equiv_regex' wr1 lr1 n -> equiv_regex' wr2 lr2 (num_groups lr1 + n) ->
     equiv_regex' (Patterns.Disjunction wr1 wr2) (Disjunction lr1 lr2) n

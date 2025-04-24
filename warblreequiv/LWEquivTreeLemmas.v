@@ -16,7 +16,7 @@ Proof.
   induction Hequiv as [
     n |
     n c |
-    n |
+    (*n | *) (* Dot *)
     n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
     n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
     n wr lr wquant lquant wgreedylazy greedy Hequiv IH Hequivquant Hequivgreedy |
@@ -24,7 +24,7 @@ Proof.
     ].
   - reflexivity.
   - reflexivity.
-  - reflexivity.
+  (*- reflexivity.*)
   - simpl. lia.
   - simpl. lia.
   - inversion Hequivquant; inversion Hequivgreedy; simpl; assumption.
@@ -70,7 +70,7 @@ Proof.
   induction Hequiv as [
     n |
     n c |
-    n |
+    (*n |*)
     n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
     n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
     n wr lr wquant lquant wgreedylazy greedy Hequiv IH Hequivquant Hequivgreedy |
@@ -80,8 +80,8 @@ Proof.
     simpl in *. subst parenCount. reflexivity.
   - intros parenCount ctx Hcount.
     simpl in *. subst parenCount. reflexivity.
-  - intros parenCount ctx Hcount.
-    simpl in *. subst parenCount. reflexivity.
+  (*- intros parenCount ctx Hcount.
+    simpl in *. subst parenCount. reflexivity.*) (* Dot *)
   - intros parenCount ctx Hcount.
     simpl in *.
     specialize (IH1 (countLeftCapturingParensWithin wr1 ctx) ctx eq_refl).

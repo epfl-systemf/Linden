@@ -145,7 +145,7 @@ Proof.
   induction Hequiv as [
     n |
     n c |
-    n |
+    (*n |*) (* Dot *)
     n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
     n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
     n wr lr wquant lquant wgreedylazy greedy Hequiv IH Hequivquant Hequivgreedy |
@@ -164,9 +164,7 @@ Proof.
 
   - (* Character *)
     simpl.
-    intros ctx _.
-    intros Hroot tm Hcompile_succ tmc cont str0 Htmc_tree inp Hinp_compat.
-    intros ms t Hmsvalid Hms_inp Htm_succ.
+    intros ctx _ Hroot tm Hcompile_succ tmc cont str0 Htmc_tree inp Hinp_compat ms t Hmsvalid Hms_inp Htm_succ.
     injection Hcompile_succ as <-.
     unfold tCharacterSetMatcher in Htm_succ.
     simpl in Htm_succ.
@@ -216,7 +214,7 @@ Proof.
       -- discriminate.
 
     (* Dot *)
-  - admit.
+  (*- admit.*)
 
 
   - (* Disjunction *)
@@ -300,7 +298,6 @@ Proof.
     apply tree_pop_reg.
     inversion IH1.
     now apply tree_sequence.
-    (* DONE! 🎉 *)
 
 
   - (* Quantifier *)
@@ -413,4 +410,4 @@ Proof.
     specialize (IH subtree Hvalidms Hms_inp eq_refl).
     inversion IH.
     assumption.
-Admitted.
+Qed.
