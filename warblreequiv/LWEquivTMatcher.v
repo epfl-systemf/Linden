@@ -1,5 +1,5 @@
 From Coq Require Import Lia PeanoNat ZArith.
-From Linden Require Import TMatcherEquivDef TMatcherEquivLemmas TMatching
+From Linden Require Import TMatcherEquivDef LWEquivTMatcherLemmas TMatching
   LindenParameters Tree Chars TreeMSInterp ListLemmas MSInput.
 From Warblre Require Import Result Notation Base Semantics Coercions
   Errors Patterns Node.
@@ -10,6 +10,10 @@ Import Patterns.
 
 Local Open Scope result_flow.
 
+
+(** * First part of equivalence proof: Warblre's matchers and the corresponding tree matchers yield equivalent results *)
+(* This file contains the theorems stating the first part of the equivalence.
+   The equivalence itself is defined in TMatcherEquivDef.v. *)
 (* TODO Zero group *)
 
 (* The identity continuations. *)
@@ -23,15 +27,21 @@ Proof.
   constructor. reflexivity.
 Qed.
 
+
+(* Lemma for repeated matching. *)
 Lemma repeatMatcher'_tRepeatMatcher':
+  (* For all pairs of a matcher m and a tree matcher tm *)
   forall (str0: string) (m: Matcher) (tm: TMatcher) (greedy: bool)
-  (parenIndex parenCount: non_neg_integer),
-  equiv_tree_matcher str0 m tm ->
-  forall fuel: nat,
-  forall (min: non_neg_integer) (max: non_neg_integer_or_inf),
-  equiv_tree_matcher str0
-    (fun ms mc => Semantics.repeatMatcher' m min max greedy ms mc parenIndex parenCount fuel)
-    (fun ms tmc => tRepeatMatcher' tm min max greedy ms tmc parenIndex parenCount fuel).
+    (parenIndex parenCount: non_neg_integer),
+    (* that are equivalent, *)
+    equiv_tree_matcher str0 m tm ->
+    (* for any fuel, min and max, *)
+    forall fuel: nat,
+    forall (min: non_neg_integer) (max: non_neg_integer_or_inf),
+      (* the corresponding repeat matcher and tree matcher are equivalent. *)
+      equiv_tree_matcher str0
+        (fun ms mc => Semantics.repeatMatcher' m min max greedy ms mc parenIndex parenCount fuel)
+        (fun ms tmc => tRepeatMatcher' tm min max greedy ms tmc parenIndex parenCount fuel).
 Proof.
   intros str0 m tm greedy parenIndex parenCount Hm_tm_equiv fuel.
   induction fuel as [|fuel IHfuel].
@@ -127,6 +137,8 @@ Proof.
           ++ assumption.
 Qed.
 
+
+(* Lemma for character set matchers. *)
 Lemma charset_tcharset:
   forall rer m tm charset str0
     (Heqm: Semantics.characterSetMatcher rer charset false forward = m)
@@ -167,9 +179,14 @@ Proof.
     reflexivity.
 Qed.
 
-Theorem compile_tcompile: forall reg ctx rer m tm
-  (Heqm: Semantics.compileSubPattern reg ctx rer forward = Success m)
-  (Heqtm: tCompileSubPattern reg ctx rer forward = Success tm),
+
+(* Main theorem: *)
+Theorem compile_tcompile:
+  forall reg ctx rer m tm (* for all regexes, contexts and RegExoRecords, *)
+    (* if the compilations of the regexes into a matcher and a tree matcher succeed, *)
+    (Heqm: Semantics.compileSubPattern reg ctx rer forward = Success m)
+    (Heqtm: tCompileSubPattern reg ctx rer forward = Success tm),
+    (* then the resulting matcher and tree matcher are equivalent. *)
   forall str0, equiv_tree_matcher str0 m tm.
 Proof.
   intros reg ctx rer.
@@ -192,7 +209,7 @@ Proof.
     wr IH |
     wr IH |
     wr IH
-  ]; simpl.
+  ]; simpl; try discriminate.
 
   - (* Empty *)
     intros. inversion Heqm as [Heqm']. inversion Heqtm as [Heqtm'].
@@ -204,12 +221,6 @@ Proof.
     
   - (* Dot; same as character *)
     intros. inversion Heqm as [Heqm']. inversion Heqtm as [Heqtm']. eapply charset_tcharset; reflexivity.
-
-  - (* Atom escape: unsupported *)
-    intros. destruct (match ae with | DecimalEsc de => _ | ACharacterClassEsc cce => _ | ACharacterEsc ce => _ | GroupEsc gn => _ end); discriminate.
-
-  - (* Character class: unsupported *)
-    intros. destruct (let! _ =<< _ in _); discriminate.
 
   - (* Disjunction *)
     intros.
@@ -333,21 +344,4 @@ Proof.
     simpl.
     assumption.
 
-
-  - (* Unsupported *)
-    discriminate.
-  - (* Unsupported *)
-    discriminate.
-  - (* Unsupported *)
-    discriminate.
-  - (* Unsupported *)
-    discriminate.
-  - (* Lookahead: unsupported *)
-    discriminate.
-  - (* Negative lookahead: unsupported *)
-    discriminate.
-  - (* Lookbehind: unsupported *)
-    discriminate.
-  - (* Negative lookbehind: unsupported *)
-    discriminate.
 Qed.

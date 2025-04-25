@@ -27,7 +27,7 @@ Lemma skipn_ind_inv {A: Type}:
     skipn (Z.to_nat i1) l = skipn (Z.to_nat i2) l ->
     i1 = i2.
 Proof.
-  intros i1 i2 l Hi1_nneg Hi1_le_n Hi2_nneg Hi2_le_n Hskipn.
+  intros i1 i2 l Hi1valid Hi2valid Hskipn.
   apply (f_equal (length (A := A))) in Hskipn.
   do 2 rewrite skipn_length in Hskipn.
   lia.
