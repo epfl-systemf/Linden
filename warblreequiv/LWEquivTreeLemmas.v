@@ -24,14 +24,8 @@ Proof.
     n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
     n wr lr wquant lquant wgreedylazy greedy Hequiv IH Hequivquant Hequivgreedy |
     name n wr lr Hequiv IH
-    ].
-  - reflexivity.
-  - reflexivity.
-  (*- reflexivity.*)
-  - simpl. lia.
-  - simpl. lia.
-  - inversion Hequivquant; inversion Hequivgreedy; simpl; assumption.
-  - simpl. f_equal. assumption.
+    ]; simpl; try lia; try reflexivity.
+  inversion Hequivquant; inversion Hequivgreedy; simpl; assumption.
 Qed.
 
 
@@ -44,9 +38,7 @@ Lemma capupd_valid `{specParameters: Parameters}:
     MatchState.Valid str rer (match_state str (endIndex msend) cap).
 Proof.
   intros str rer msend nrange n cap [Honinp [Hiton [Hlencap Hcapvalid]]] Hnrangevalid Hupdsucc.
-  split; [|split; [|split]].
-  - reflexivity.
-  - assumption.
+  split; [|split; [|split]]; try easy.
   - transitivity (length (captures msend)).
     2: assumption.
     symmetry.
@@ -94,8 +86,7 @@ Proof.
     simpl in *. subst parenCount. reflexivity.
   (*- intros parenCount ctx Hcount.
     simpl in *. subst parenCount. reflexivity.*) (* Dot *)
-  - intros parenCount ctx Hcount.
-    simpl in *.
+  - intros parenCount ctx Hcount. simpl in *.
     specialize (IH1 (countLeftCapturingParensWithin wr1 ctx) ctx eq_refl).
     specialize (IH2 (countLeftCapturingParensWithin wr2 ctx) ctx eq_refl).
     rewrite IH1, IH2.
@@ -106,8 +97,7 @@ Proof.
     replace (countLeftCapturingParensWithin_impl _ + n + 1) with ((n + 1) + countLeftCapturingParensWithin_impl wr1) by lia.
     apply List.seq_app.
   - (* Sequence: same as disjunction *)
-    intros parenCount ctx Hcount.
-    simpl in *.
+    intros parenCount ctx Hcount. simpl in *.
     specialize (IH1 (countLeftCapturingParensWithin wr1 ctx) ctx eq_refl).
     specialize (IH2 (countLeftCapturingParensWithin wr2 ctx) ctx eq_refl).
     rewrite IH1, IH2.
@@ -117,13 +107,10 @@ Proof.
     symmetry.
     replace (countLeftCapturingParensWithin_impl _ + n + 1) with ((n + 1) + countLeftCapturingParensWithin_impl wr1) by lia.
     apply List.seq_app.
-  - intros parenCount ctx Hcount.
-    simpl in *.
+  - intros parenCount ctx Hcount. simpl in *.
     inversion Hequivquant; inversion Hequivgreedy; simpl in *; eapply IH; eassumption.
-  - intros parenCount ctx Hcount.
-    simpl in *.
-    specialize (IH (countLeftCapturingParensWithin wr ctx) ctx eq_refl).
-    rewrite IH.
+  - intros parenCount ctx Hcount. simpl in *.
+    specialize (IH (countLeftCapturingParensWithin wr ctx) ctx eq_refl). rewrite IH.
     subst parenCount.
     replace (n + 1) with (S n) by lia.
     apply List.cons_seq.
@@ -168,18 +155,13 @@ Proof.
   destruct inp as [next pref].
   destruct next as [|x next'].
   1: discriminate.
-  injection Hadv as <-.
-  simpl.
+  injection Hadv as <-. simpl.
   inversion Hms_inp as [str0 end_ind cap next2 pref2 Hlenpref Heqstr0 Heqms Heqnext2].
-  subst next2 pref2.
-  subst ms str0.
-  simpl in *.
+  subst next2 pref2 ms str0. simpl in *.
   rewrite List.Indexing.Int.of_nat in Hreadsuccess.
   apply List.Indexing.Nat.concat in Hreadsuccess.
   destruct Hreadsuccess as [ [Habs _] | [Hzero Hreadsuccess] ].
-  1: {
-    rewrite List.rev_length in Habs. lia.
-  }
+  1: { rewrite List.rev_length in Habs. lia. }
   rewrite List.rev_length in Hreadsuccess.
   replace (end_ind - length pref) with 0 in Hreadsuccess by lia.
   injection Hreadsuccess as <-.
@@ -200,8 +182,7 @@ Proof.
   rewrite canonicalize_casesenst in Hexist_false. 2: assumption.
   rewrite canonicalize_casesenst in Hexist_false. 2: assumption.
   apply Typeclasses.EqDec.inversion_false in Hexist_false.
-  destruct char_match eqn:Hchar_match.
-  2: reflexivity.
+  destruct char_match eqn:Hchar_match. 2: reflexivity.
   rewrite single_match in Hchar_match.
   congruence.
 Qed.
@@ -220,20 +201,15 @@ Proof.
   destruct inp as [next pref].
   destruct ms as [str0 endInd cap].
   inversion Hms_inp as [s end_ind cap0 next0 pref0 Hlenpref Hmatches Heqs Heqend_ind].
-  subst s cap0 pref0 next0 endInd.
-  simpl in *.
+  subst s cap0 pref0 next0 endInd. simpl in *.
   rewrite List.Indexing.Int.of_nat in Hreadsuccess.
-  subst str0.
-  subst end_ind.
+  subst str0 end_ind.
   apply List.Indexing.Nat.concat in Hreadsuccess.
   destruct Hreadsuccess as [ [Habs _] | [_ Hreadsuccess] ].
-  1: {
-    rewrite List.rev_length in Habs. lia.
-  }
+  1: { rewrite List.rev_length in Habs. lia. }
   rewrite List.rev_length in Hreadsuccess.
   replace (length pref - length pref) with 0 in Hreadsuccess by lia.
-  destruct next as [|x next'].
-  1: discriminate.
+  destruct next as [|x next']. 1: discriminate.
   injection Hreadsuccess as <-.
   now rewrite char_mismatch_warblre with (rer := rer).
 Qed.
@@ -249,13 +225,10 @@ Proof.
   intros inp str0 inp_adv Hinpcompat Hadv.
   inversion Hinpcompat as [next pref str1 Hcompat Heqinp Heqstr1].
   subst str1 inp.
-  destruct next as [ | x next' ].
-  1: discriminate.
+  destruct next as [ | x next' ]. 1: discriminate.
   injection Hadv as <-.
   constructor.
-  subst str0.
-  simpl.
-  rewrite <- List.app_assoc.
+  subst str0. simpl. rewrite <- List.app_assoc.
   reflexivity.
 Qed.
 
@@ -270,15 +243,10 @@ Lemma ms_advance_valid:
 Proof.
   intros ms rer ms_adv [Honinp [Hiton [Hlencap Hcapvalid]]] Hinb Heqms_adv.
   destruct ms as [input endIndex cap].
-  unfold advance_ms in Heqms_adv.
-  simpl in Heqms_adv.
-  subst ms_adv.
+  unfold advance_ms in Heqms_adv. simpl in Heqms_adv. subst ms_adv.
   simpl in *.
-  split; [|split; [|split]].
-  - reflexivity.
-  - unfold IteratorOn in *. simpl. lia.
-  - apply Hlencap.
-  - apply Hcapvalid.
+  split; [|split; [|split]]; try easy.
+  unfold IteratorOn in *. simpl. lia.
 Qed.
 
 
@@ -293,12 +261,9 @@ Proof.
   intros ms inp ms_adv inp_adv Hmatches Heqms_adv Hinp_adv.
   destruct ms as [input endIndex cap].
   destruct inp as [next pref].
-  destruct next as [|x next'].
-  1: discriminate.
+  destruct next as [|x next']. 1: discriminate.
   injection Hinp_adv as <-.
-  unfold advance_ms in Heqms_adv.
-  simpl in *.
-  subst ms_adv.
+  unfold advance_ms in Heqms_adv. simpl in *. subst ms_adv.
   inversion Hmatches as [s end_ind cap1 next1 pref1 Hlenpref Hmatches' Heqs Heqend_ind].
   subst cap1 pref1 next1 s.
   replace (Z.of_nat end_ind + 1)%Z with (Z.of_nat (end_ind + 1)) by lia.
@@ -328,20 +293,15 @@ Proof.
   destruct inp' as [next pref]; simpl.
   rewrite Z.eqb_neq in HendInd_neq.
   pose proof inp_compat_ms_str0 _ _ Hinp'compat ms1 Hms1matches as Hms1str0.
-  destruct ms1 as [str1 endInd1 cap1].
-  destruct ms as [str endInd cap].
-  simpl in *.
+  destruct ms1 as [str1 endInd1 cap1]. destruct ms as [str endInd cap]. simpl in *.
   subst str1 str.
   inversion Hms1matches as [str0' endInd1' cap1' next' pref' Hlenpref Hmatchs Heqstr0' Heqend1'].
   subst str0' endInd1' cap1' next' pref'.
-  unfold TMatching.ms_suffix.
-  simpl.
+  unfold TMatching.ms_suffix. simpl.
   pose proof skipn_lenpref_input _ _ _ _ Hmatchs H.
   intro Habs.
   subst next.
-  assert (endInd1 = endInd). {
-    eapply skipn_ind_inv; eauto.
-  }
+  assert (endInd1 = endInd). { eapply skipn_ind_inv; eauto. }
   contradiction.
 Qed.
 
@@ -375,8 +335,7 @@ Lemma endInd_neg_abs:
 Proof.
   intros ms inp Hmatches.
   inversion Hmatches as [s end_ind cap next pref Hlenpref Heqs Heqms Heqinp].
-  subst ms.
-  simpl in *.
+  subst ms. simpl in *.
   lia.
 Qed.
 
@@ -395,8 +354,7 @@ Proof.
   - rewrite Z.gtb_gt in Hoob.
     pose proof read_oob_fail ms inp Hoob Hmatches.
     destruct H as [pref H].
-    subst inp.
-    simpl. reflexivity.
+    subst inp. simpl. reflexivity.
 Qed.
 
 (* If we can read forward inbounds (in the Warblre sense), this means that we can successfully advance our input (in the Linden sense). *)

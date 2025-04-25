@@ -27,10 +27,7 @@ Inductive ms_matches_inp: MatchState -> input -> Prop :=
 (* Inversion lemma: when a MatchState matches an input, we have MatchState.input ms = List.rev pref ++ next. *)
 Lemma ms_matches_inp_invinp: forall ms pref next, ms_matches_inp ms (Input next pref) -> MatchState.input ms = List.rev pref ++ next.
 Proof.
-  intros ms pref next Hmatches.
-  inversion Hmatches.
-  symmetry.
-  assumption.
+  intros ms pref next Hmatches. inversion Hmatches. symmetry. assumption.
 Qed.
 
 (* Linking the suffixes of corresponding MatchStates and Linden inputs. *)
@@ -38,27 +35,20 @@ Lemma ms_suffix_current_str: forall ms inp, ms_matches_inp ms inp -> current_str
 Proof.
   intros ms inp Hmatches.
   inversion Hmatches as [s end_ind cap next pref Hlpref Hcompats Heqms Heqinp].
-  simpl.
-  unfold ms_suffix.
-  simpl.
+  simpl. unfold ms_suffix. simpl.
   rewrite Nat2Z.id in *.
-  assert (length (rev pref) = end_ind) as Hlrevpref.
-  {
+  assert (length (rev pref) = end_ind) as Hlrevpref. {
     subst end_ind. apply rev_length.
   }
   pose proof firstn_app end_ind (rev pref) next as H.
   subst end_ind.
-  replace (length pref - length (rev pref)) with 0 in H by lia.
-  rewrite Hcompats in H.
+  replace (length pref - length (rev pref)) with 0 in H by lia. rewrite Hcompats in H.
   change (firstn 0 next) with (@nil Parameters.Character) in H.
-  rewrite <- Hlrevpref in H at 2.
-  rewrite firstn_all in H.
-  rewrite app_nil_r in H.
+  rewrite <- Hlrevpref in H at 2. rewrite firstn_all in H. rewrite app_nil_r in H.
   rewrite <- H in Hcompats.
   pose proof firstn_skipn (length pref) s as H2.
   rewrite <- H2 in Hcompats at 2.
-  eapply app_inv_head.
-  apply Hcompats.
+  eapply app_inv_head. apply Hcompats.
 Qed.
 
 
@@ -74,8 +64,7 @@ Lemma inp_compat_ms_str0:
 Proof.
   intros str0 [next pref] Hcompat ms Hmatches.
   apply ms_matches_inp_invinp in Hmatches.
-  inversion Hcompat.
-  congruence.
+  inversion Hcompat. congruence.
 Qed.
 
 (* As a consequence, if two MatchStates ms1 and ms2 respectively match inputs inp1 and inp2
@@ -104,6 +93,5 @@ Lemma ms_matches_inp_capchg:
     ms_matches_inp (match_state str endInd cap') inp.
 Proof.
   intros str endInd cap cap' inp Hmatches.
-  inversion Hmatches.
-  now constructor.
+  inversion Hmatches. now constructor.
 Qed.
