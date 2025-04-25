@@ -2,6 +2,11 @@ From Linden Require Import Chars TMatching TreeMSInterp Tree LindenParameters.
 From Warblre Require Import Notation Result Errors Parameters.
 Import Notation.
 
+(** * Definition of the equivalence of Matchers and TMatchers *)
+(* and of TMatcherContinuations and MatcherContinuations, and of
+   TMatchResults and MatchResults *)
+
+
 (* Expresses the equivalence between the first branch of a sub-backtracking tree
    with its corresponding extended match state on the one hand, with a
    MatchResult on the other hand.
