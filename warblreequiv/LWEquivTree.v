@@ -319,6 +319,7 @@ Proof.
     specialize (Hrepeat (Semantics.repeatMatcherFuel 0 s) tmc cont str0 Htmc_valid inp Hinp_compat s t Hvalids Hs_inp).
     inversion Hequivgreedy as [Heqwgl Heqgreedy|Heqwgl Heqgreedy]; subst wgreedylazy; subst greedy; injection Hcompsucc as <-; simpl in *; specialize (Hrepeat Heqt); apply Hrepeat.
 
+    
   - (* Group *)
     intros ctx Hroot Heqn. simpl. intros tm Hcompsucc.
     specialize (IH (Group_inner name :: ctx)).
