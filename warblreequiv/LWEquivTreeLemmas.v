@@ -7,6 +7,9 @@ Import Match.
 Import Result.
 Import Result.Notations.
 
+(** * Lemmas for 2nd part of equivalence proof *)
+
+(* Two equivalent regexes have the same number of capturing groups. *)
 Lemma num_groups_equiv:
   forall wreg lreg n,
     equiv_regex' wreg lreg n ->
@@ -31,6 +34,8 @@ Proof.
   - simpl. f_equal. assumption.
 Qed.
 
+
+(* Successfully updating a valid MatchState with a valid CaptureRange yields a valid MatchState. *)
 Lemma capupd_valid `{specParameters: Parameters}:
   forall str rer msend nrange n cap,
     MatchState.Valid str rer msend ->
@@ -49,6 +54,8 @@ Proof.
   - eapply List.Update.Nat.One.prop_preservation; eassumption.
 Qed.
 
+
+(* A capture range created from two valid match states with the second one progressing wrt. the first one is valid. *)
 Lemma grouprange_valid `{specParameters: Parameters}:
   forall str0 rer ms msend,
     MatchState.Valid str0 rer ms -> MatchState.Valid str0 rer msend ->
@@ -59,10 +66,15 @@ Proof.
   constructor; assumption.
 Qed.
 
+
+(* Lemma to determine the list of defined groups of a Linden regex. *)
 Lemma equiv_def_groups:
   forall wr lr n parenCount ctx,
+    (* If wr and lr are equivalent with n left capturing parentheses before them, *)
     equiv_regex' wr lr n ->
+    (* and if wr contains parenCount left capturing parentheses, *)
     parenCount = StaticSemantics.countLeftCapturingParensWithin wr ctx ->
+    (* then the groups defined by lr are exactly the groups n+1, n+2, ..., n+parenCount. *)
     def_groups lr = List.seq (n+1) parenCount.
 Proof.
   intros wr lr n parenCount ctx Hequiv.
@@ -118,10 +130,14 @@ Proof.
 Qed.
 
 
+(* Lemma linking the character matching conditions of Linden and Warblre. *)
 Lemma char_match_warblre:
   forall rer chr c,
+    (* If we do not ignore case, *)
     RegExpRecord.ignoreCase rer = false ->
+    (* and chr corresponds to c in the Warblre sense, *)
     CharSet.exist_canonicalized rer (CharSet.singleton c) (char_canonicalize rer chr) = true ->
+    (* then chr corresponds to c in the Linden sense. *)
     char_match chr (single c) = true.
 Proof.
   intros rer chr c Hcasesenst Hexist_canon.
@@ -134,12 +150,17 @@ Proof.
 Qed.
 
 
+(* If reading a character succeeds in the Warblre sense, then it succeeds in the Linden sense as well. *)
 Lemma read_char_success:
   forall ms inp chr c rer inp_adv,
+    (* If we do not ignore case, *)
     RegExpRecord.ignoreCase rer = false ->
+    (* then for any match state and corresponding Linden input, *)
     ms_matches_inp ms inp ->
+    (* if reading character c succeeds in the Warblre sense, *)
     List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms) = Success chr ->
     CharSet.exist_canonicalized rer (CharSet.singleton c) (char_canonicalize rer chr) = true ->
+    (* then reading character c succeeds in the Linden sense. *)
     advance_input inp = Some inp_adv ->
     read_char (single c) inp = Some (chr, inp_adv).
 Proof.
@@ -165,6 +186,8 @@ Proof.
   now rewrite char_match_warblre with (rer := rer).
 Qed.
 
+
+(* Same as char_match_warblre, but in the mismatching case. *)
 Lemma char_mismatch_warblre:
   forall rer chr c,
     RegExpRecord.ignoreCase rer = false ->
@@ -183,6 +206,8 @@ Proof.
   congruence.
 Qed.
 
+
+(* Same as read_char_success, but in the mismatching case. *)
 Lemma read_char_fail:
   forall rer ms chr inp c,
     RegExpRecord.ignoreCase rer = false ->
@@ -214,6 +239,7 @@ Proof.
 Qed.
   
 
+(* Advancing an input preserves compatibility with an input string. *)
 Lemma advance_input_compat:
   forall inp str0 inp_adv,
     input_compat inp str0 ->
@@ -233,6 +259,8 @@ Proof.
   reflexivity.
 Qed.
 
+
+(* Advancing a valid MatchState yields a valid MatchState when we remain in bounds. *)
 Lemma ms_advance_valid:
   forall ms rer ms_adv,
     MatchState.Valid (MatchState.input ms) rer ms ->
@@ -253,6 +281,8 @@ Proof.
   - apply Hcapvalid.
 Qed.
 
+
+(* Advancing corresponding MatchStates and inputs yields corresponding MatchStates and inputs. *)
 Lemma ms_matches_inp_adv:
   forall ms inp ms_adv inp_adv,
     ms_matches_inp ms inp ->
@@ -278,16 +308,22 @@ Proof.
 Qed.
 
 
+(* If a MatchState has advanced and corresponds to a new Linden input, then the current string of this Linden input is different from the suffix of the original MatchState. *)
 Lemma endInd_neq_advanced:
+  (* For all valid MatchStates ms and ms1 and Linden input inp' *)
   forall ms ms1 inp' str0 rer,
     MatchState.Valid (input ms) rer ms ->
     MatchState.Valid (input ms1) rer ms1 ->
+    (* such that ms1 and inp' correspond, *)
+    ms_matches_inp ms1 inp' ->
+    (* ms and ms1 share the same input string, *)
+    input_compat inp' str0 -> MatchState.input ms = str0 ->
+    (* and ms1 has advanced (or regressed...) wrt ms, *)
     (MatchState.endIndex ms1 =? MatchState.endIndex ms)%Z = false ->
-    ms_matches_inp ms1 inp' -> input_compat inp' str0 ->
-    MatchState.input ms = str0 ->
+    (* the current input string of inp' is different from the suffix of ms. *)
     current_str inp' <> TMatching.ms_suffix ms.
 Proof.
-  intros ms ms1 inp' str0 rer [_ [Hmsiton _]] [_ [Hms1iton _]] HendInd_neq Hms1matches Hinp'compat Hmsstr0.
+  intros ms ms1 inp' str0 rer [_ [Hmsiton _]] [_ [Hms1iton _]] Hms1matches Hinp'compat Hmsstr0 HendInd_neq.
   unfold IteratorOn in *.
   destruct inp' as [next pref]; simpl.
   rewrite Z.eqb_neq in HendInd_neq.
@@ -304,9 +340,7 @@ Proof.
   intro Habs.
   subst next.
   assert (endInd1 = endInd). {
-    eapply skipn_ind_inv.
-    5: apply Habs.
-    all: lia.
+    eapply skipn_ind_inv; eauto.
   }
   contradiction.
 Qed.
