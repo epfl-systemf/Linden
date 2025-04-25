@@ -8,3 +8,5 @@
 .depend
 _build
 _opam
+\#*.*\#
+*.v~
