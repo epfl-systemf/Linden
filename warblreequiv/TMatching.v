@@ -10,12 +10,29 @@ Import Notation.
 
 Local Open Scope result_flow.
 
+(** * Definitions of tree matchers *)
+
+(* We define here an alternative version of the Warblre functions compileSubPattern and others that, instead of producing
+   Matchers that take a MatchState as input and return a MatchResult (i.e. an option MatchState wrapped in an error monad),
+   produce a TMatcher that also takes as input a MatchState but instead return the priority tree corresponding to matching
+   some regexp on the input.
+
+   The functions follow the structure of the original functions as much as possible.
+
+   Intuitively, a TMatcher, when called with some input and TMatcherContinuation, computes the tree of matching a regex on
+   the input, then performing the actions described by the continuation. The continuation will compute subtrees that will
+   be plugged into the leaves of the subtree produced by the TMatcher. *)
+
+(* We return a tree instead of a MatchState. *)
 Definition TMatchResult := Result tree MatchError.
+
+(* Tree analogues of MatcherContinuation and Matcher. *)
 Definition TMatcherContinuation := Notation.MatchState -> TMatchResult.
 Definition TMatcher := Notation.MatchState -> TMatcherContinuation -> TMatchResult.
 
-Definition ms_suffix (s: MatchState) :=
-  List.skipn (Z.to_nat (MatchState.endIndex s)) (MatchState.input s).
+(* Computation of the current suffix of a MatchState; this is used when computing check strings. *)
+Definition ms_suffix (ms: MatchState) :=
+  List.skipn (Z.to_nat (MatchState.endIndex ms)) (MatchState.input ms).
 
 
 (** >>
@@ -68,6 +85,7 @@ match fuel with
   if (min !=? 0)%nat
     then 
       let! subtree =<< m xr d in
+      (* xr had its groups reset, so we need to add this to the tree *)
       Success (GroupAction (Reset (List.seq (parenIndex + 1) parenCount)) subtree)
     else
     (*>> 9. If greedy is false, then <<*)
@@ -77,6 +95,7 @@ match fuel with
       (*>> b. If z is not failure, return z. <<*)
       (*>> c. Return m(xr, d). <<*)
       let! z' =<< m xr d in
+      (* Only xr had its groups reset, not x, so we only add the group reset action to the branch corresponding to xr. *)
       Success (Choice z (GroupAction (Reset (List.seq (parenIndex + 1) parenCount)) z'))
     else
       (*>> 10. Let z be m(xr, d). <<*)
@@ -273,6 +292,7 @@ match self with
       (*>> d. Return m(x, d). <<*)
       let! subtree =<< m x d in
       Success (GroupAction (Open (parenIndex + 1)) subtree)): TMatcher)
+(* Computing a tree for the other cases is currently unsupported: we return a compilation failure in these cases. *)
 | _ => Error CompileError.AssertionFailed
 end.
 

@@ -4,6 +4,9 @@ Import Notation.
 From Linden Require Import Chars LindenParameters TMatching.
 
 
+(** * Definitions and lemmas linking Warblre MatchStates with Linden inputs *)
+
+
 (* Advance match state by one character *)
 Definition advance_ms {H} `{CharacterMarker H} (s: MatchState): MatchState :=
   {|
@@ -12,12 +15,16 @@ Definition advance_ms {H} `{CharacterMarker H} (s: MatchState): MatchState :=
     MatchState.captures := MatchState.captures s |}.
 
 
+(* We say that a MatchState ms matches an input Input next pref when they represent the same
+   string and the same position; in other words, when rev pref ++ next = MatchState.input ms
+   and len pref = MatchState.endIndex ms. *)
 Inductive ms_matches_inp: MatchState -> input -> Prop :=
 | Ms_matches_inp: forall (s: string) (end_ind: nat) cap (next pref: string),
     List.length pref = end_ind -> List.rev pref ++ next = s ->
     ms_matches_inp {| MatchState.input := s; MatchState.endIndex := Z.of_nat end_ind;
                                              MatchState.captures := cap |} (Input next pref).
 
+(* Inversion lemma: when a MatchState matches an input, we have MatchState.input ms = List.rev pref ++ next. *)
 Lemma ms_matches_inp_invinp: forall ms pref next, ms_matches_inp ms (Input next pref) -> MatchState.input ms = List.rev pref ++ next.
 Proof.
   intros ms pref next Hmatches.
@@ -25,7 +32,8 @@ Proof.
   symmetry.
   assumption.
 Qed.
-  
+
+(* Linking the suffixes of corresponding MatchStates and Linden inputs. *)
 Lemma ms_suffix_current_str: forall ms inp, ms_matches_inp ms inp -> current_str inp = ms_suffix ms.
 Proof.
   intros ms inp Hmatches.
@@ -53,10 +61,12 @@ Proof.
   apply Hcompats.
 Qed.
 
-(* We say that an input is compatible when it represents the input string str0 we are considering. *)
+
+(* Definition of when an input is compatible with (i.e. represents) a given input string str0. *)
 Inductive input_compat: input -> string -> Prop :=
 | Input_compat: forall next pref str0, List.rev pref ++ next = str0 -> input_compat (Input next pref) str0.
 
+(* A transitivity lemma: a MatchState ms that matches an input inp that is itself compatible with a string str0 has str0 as its input string. *)
 Lemma inp_compat_ms_str0:
   forall (str0: string) (inp: input),
     input_compat inp str0 ->
@@ -68,6 +78,8 @@ Proof.
   congruence.
 Qed.
 
+(* As a consequence, if two MatchStates ms1 and ms2 respectively match inputs inp1 and inp2
+   that are both compatible with str0, then ms1 and ms2 have the same input string. *)
 Lemma inp_compat_ms_same_inp:
   forall (str0: string) (inp1 inp2: input),
     input_compat inp1 str0 -> input_compat inp2 str0 ->
@@ -85,6 +97,7 @@ Proof.
     + apply Hmatches2.
 Qed.
 
+(* Whether a MatchState matches an input does not depend on its captures. *)
 Lemma ms_matches_inp_capchg:
   forall str endInd cap cap' inp,
     ms_matches_inp (match_state str endInd cap) inp ->

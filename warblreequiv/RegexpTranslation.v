@@ -5,27 +5,9 @@ Import Result.
 Import Result.Notations.
 Local Open Scope result_flow.
 
-(*Fixpoint to_warblre_regex (r: regex): Result Patterns.Regex CompileError :=
-  match r with
-  | Epsilon => Success Patterns.Empty
-  | Character cd => char_descr_to_regex cd
-  | Disjunction r1 r2 =>
-    let! wr1 =<< to_warblre_regex r1 in
-    let! wr2 =<< to_warblre_regex r2 in
-    Success (Patterns.Disjunction wr1 wr2)
-  | Sequence r1 r2 =>
-    let! wr1 =<< to_warblre_regex r1 in
-    let! wr2 =<< to_warblre_regex r2 in
-    Success (Patterns.Seq wr1 wr2)
-  | Star greedy r1 =>
-    let! wr1 =<< to_warblre_regex r1 in
-    Success (Patterns.Quantified wr1 (if greedy then Patterns.Greedy Patterns.Star else Patterns.Lazy Patterns.Star))
-  | Group id r =>
-    let! wr =<< to_warblre_regex r in
-    Success (Patterns.Group None wr)
-  end.*)
+(** * Relation defining equivalence between Warblre regexes and Linden regexes *)
 
-(* Ensuring that the group IDs of the translation correspond to those of the original regexp *)
+(* Computes the number of capture groups of the regex r. *)
 Fixpoint num_groups (r: regex): nat :=
   match r with
   | Epsilon | Character _ => 0
@@ -35,14 +17,16 @@ Fixpoint num_groups (r: regex): nat :=
   | Group _ r1 => S (num_groups r1)
   end.
 
+(* Equivalence of greedy/lazy quantifier prefixes. *)
 Inductive equiv_greedylazy: (Patterns.QuantifierPrefix -> Patterns.Quantifier) -> bool -> Prop :=
 | Equiv_greedy: equiv_greedylazy Patterns.Greedy true
 | Equiv_lazy: equiv_greedylazy Patterns.Lazy false.
 
+(* Equivalence of quantifiers. *)
 Inductive equiv_quantifier: Patterns.QuantifierPrefix -> (bool -> regex -> regex) -> Prop :=
   | Equiv_star: equiv_quantifier Patterns.Star Star.
 
-(* equiv_regex' wreg lreg n means that the two regexes wreg and lreg are equivalent, where the number of parentheses before wreg/lreg is n *)
+(* equiv_regex' wreg lreg n means that the two regexes wreg and lreg are equivalent, where the number of left capturing parentheses before wreg/lreg is n. *)
 Inductive equiv_regex': Patterns.Regex -> regex -> nat -> Prop :=
 | Equiv_empty: forall n: nat, equiv_regex' Patterns.Empty Epsilon n
 | Equiv_char: forall (n: nat) (c: Char), equiv_regex' (Patterns.Char c) (Character (Chars.single c)) n
@@ -54,7 +38,13 @@ Inductive equiv_regex': Patterns.Regex -> regex -> nat -> Prop :=
 | Equiv_seq: forall n wr1 wr2 lr1 lr2,
     equiv_regex' wr1 lr1 n -> equiv_regex' wr2 lr2 (num_groups lr1 + n) ->
     equiv_regex' (Patterns.Seq wr1 wr2) (Sequence lr1 lr2) n
-| Equiv_quant: forall n wr lr wquant lquant wgreedylazy greedy, equiv_regex' wr lr n -> equiv_quantifier wquant lquant -> equiv_greedylazy wgreedylazy greedy -> equiv_regex' (Patterns.Quantified wr (wgreedylazy wquant)) (lquant greedy lr) n
+| Equiv_quant:
+  forall n wr lr wquant lquant wgreedylazy greedy,
+    equiv_regex' wr lr n ->
+    equiv_quantifier wquant lquant -> equiv_greedylazy wgreedylazy greedy ->
+    equiv_regex' (Patterns.Quantified wr (wgreedylazy wquant)) (lquant greedy lr) n
 | Equiv_group: forall name n wr lr, equiv_regex' wr lr (S n) -> equiv_regex' (Patterns.Group name wr) (Group (S n) lr) n.
 
+
+(* Equivalence of root regexes. *)
 Definition equiv_regex (wreg: Patterns.Regex) (lreg: regex) := equiv_regex' wreg lreg 0.

@@ -4,6 +4,8 @@ From Warblre Require Import Notation Result Base.
 Import Notation.
 From Linden Require Import Groups Tree MSInput LindenParameters.
 
+(** * Interpretation of Linden trees using extended Warblre MatchStates instead of Linden group maps *)
+
 
 (* Reset the given groups (indexed from 1) in the given MatchState *)
 Definition reset_groups_ms {F H} `{CharacterMarker H} `{Result.AssertionError F} (gidl: list Groups.group_id) (s: MatchState): MatchState :=
@@ -18,15 +20,10 @@ Definition reset_groups_ms {F H} `{CharacterMarker H} `{Result.AssertionError F}
    This is needed because we want to be able to express the result of the first branch of a sub-backtracking tree,
    which can close groups that are not opened within this tree and whose opening indices the Matchers and TMatchers
    do not record in the MatchStates passed to subsequent calls.
-   An extended match state is a MatchState with a list of open groups with indices. It allows to model the capture
+   *An extended match state is a MatchState with a list of open groups with indices.* It allows to model the capture
    of group opening indices in continuations. *)
 Definition open_groups := list (Groups.group_id * integer).
 
-Fixpoint has_group (id: Groups.group_id) (gl: open_groups): bool :=
-  match gl with
-  | nil => false
-  | (id', _)::q => if id == id' then true else has_group id q
-  end.
 
 (* Close group id opened in gl at index end_index. If group id was indeed open, returns the new list of open groups
    (where the closed group has been removed) and the capture range of the closed group.
@@ -58,7 +55,6 @@ Definition group_effect' {F H} `{CharacterMarker H} `{Result.AssertionError F} (
         | Error _ => cap
         end
       in
-      (*set cap[gid] := range in*)
       (match_state (MatchState.input s) (MatchState.endIndex s) cap', gl')
   | Reset gidl =>
       let s' := reset_groups_ms gidl s in
