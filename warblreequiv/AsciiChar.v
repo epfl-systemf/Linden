@@ -3,6 +3,9 @@ Require Import List.
 Import ListNotations.
 Require Import Ascii.
 
+(** * Instantiation of Character typeclass with Coq ASCII characters *)
+(* This file remains unused for now *)
+
 Definition all_ascii := List.map ascii_of_nat (List.seq 0 256).
 Definition ascii_digits := (["0"; "1"; "2"; "3"; "4"; "5"; "6"; "7"; "8"; "9"])%char.
 Definition ascii_whitespaces := ([" "; "009"; "010"])%char.

@@ -1,5 +1,5 @@
 From Linden Require Import TMatching Tree Chars Semantics MSInput
-  Regex LindenParameters CharsWarblre RegexpTranslation ListLemmas
+  Regex LindenParameters RegexpTranslation ListLemmas
   WarblreLemmas Tactics LWEquivTreeLemmas.
 From Warblre Require Import Result Notation RegExpRecord Match Base
   Patterns Node NodeProps Semantics.

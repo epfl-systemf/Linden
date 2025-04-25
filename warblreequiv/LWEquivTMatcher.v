@@ -1,6 +1,6 @@
 From Coq Require Import Lia PeanoNat ZArith.
 From Linden Require Import TMatcherEquivDef TMatcherEquivLemmas TMatching
-  LindenParameters Tree Chars TreeMSInterp ListLemmas MSInput CharsWarblre.
+  LindenParameters Tree Chars TreeMSInterp ListLemmas MSInput.
 From Warblre Require Import Result Notation Base Semantics Coercions
   Errors Patterns Node.
 Import Notation.

@@ -1,5 +1,5 @@
 From Coq Require Import PeanoNat ZArith Bool Lia Program.Equality List Program.Wf.
-From Linden Require Import Tree LindenParameters CharsWarblre.
+From Linden Require Import Tree LindenParameters.
 From Warblre Require Import Patterns Result Notation Errors Node RegExpRecord Base Coercions Semantics Typeclasses.
 Import Patterns.
 Import Result.Result.

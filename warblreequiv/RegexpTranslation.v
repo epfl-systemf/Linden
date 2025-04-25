@@ -1,5 +1,5 @@
 From Warblre Require Import Patterns Result Errors Coercions Notation Base.
-From Linden Require Import Regex CharsWarblre LindenParameters Chars.
+From Linden Require Import Regex LindenParameters Chars.
 Import Notation.
 Import Result.
 Import Result.Notations.
