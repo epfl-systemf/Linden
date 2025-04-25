@@ -1,5 +1,5 @@
 From Coq Require Import Lia PeanoNat ZArith.
-From Linden Require Import TMatcherEquivDef LWEquivTMatcherLemmas TMatching
+From Linden Require Import LWEquivTMatcherDef LWEquivTMatcherLemmas TMatching
   LindenParameters Tree Chars TreeMSInterp ListLemmas MSInput.
 From Warblre Require Import Result Notation Base Semantics Coercions
   Errors Patterns Node.
@@ -13,7 +13,7 @@ Local Open Scope result_flow.
 
 (** * First part of equivalence proof: Warblre's matchers and the corresponding tree matchers yield equivalent results *)
 (* This file contains the theorems stating the first part of the equivalence.
-   The equivalence itself is defined in TMatcherEquivDef.v. *)
+   The equivalence itself is defined in LWEquivTMatcherDef.v. *)
 (* TODO Zero group *)
 
 (* The identity continuations. *)
