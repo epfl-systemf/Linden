@@ -1,7 +1,8 @@
-From Linden Require Import LWEquivTMatcherDef TreeMSInterp Tree LindenParameters.
-From Warblre Require Import Result Notation Base Errors Parameters.
+From Linden Require Import LWEquivTMatcherDef TreeMSInterp Tree LindenParameters ListLemmas.
+From Warblre Require Import Result Notation Base Errors Parameters List.
 Import Notation.
 Import Result.Notations.
+From Coq Require Import Lia.
 
 Local Open Scope result_flow.
 
@@ -88,4 +89,25 @@ Lemma monad_id {T F} `{Result.AssertionError F}:
 Proof.
   intro res.
   now destruct res.
+Qed.
+
+
+(* The capture reset defined in TreeMSInterp.v does the same thing as the capture reset used in Warblre. *)
+Lemma capture_reset_lw_same:
+  forall (ms ms_reset: MatchState) (parenIndex parenCount: nat) (cap': list (option CaptureRange)),
+    ms_reset = match_state (MatchState.input ms) (MatchState.endIndex ms) cap' ->
+    List.Update.Nat.Batch.update None (MatchState.captures ms) (List.Range.Nat.Bounds.range (parenIndex + 1 - 1) (parenIndex + parenCount + 1 - 1)) = Success cap' ->
+    reset_groups_ms (F := MatchError) (List.seq (parenIndex + 1) parenCount) ms = ms_reset.
+Proof.
+  intros ms ms_reset parenIndex parenCount cap' Heqms_reset Hupdatesucc.
+  unfold reset_groups_ms.
+  destruct ms.
+  rewrite <- List.List.Range.Nat.Length.range_seq.
+  unfold List.List.Range.Nat.Bounds.range in Hupdatesucc.
+  rewrite decr_range by lia.
+  replace (parenIndex + parenCount + 1 - 1 - (parenIndex + 1 - 1)) with parenCount in Hupdatesucc by lia.
+  simpl in Hupdatesucc.
+  rewrite Hupdatesucc.
+  simpl in *.
+  congruence.
 Qed.
