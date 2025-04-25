@@ -121,14 +121,14 @@ Proof.
         apply Hequiv_loopreset.
       * (* Case min = 0 *)
         destruct greedy.
-        -- rewrite func_monad_swap
+        -- setoid_rewrite func_monad_swap
              with (f1 := fun z => GroupAction (Reset (List.seq (parenIndex + 1)
                                                              parenCount)) z)
                   (f2 := id).
            apply equiv_choice.
            ++ assumption.
            ++ rewrite monad_id. assumption.
-       -- rewrite func_monad_swap
+        -- setoid_rewrite func_monad_swap
              with (f2 := fun z => GroupAction (Reset (List.seq (parenIndex + 1)
                                                              parenCount)) z)
                   (f1 := id).
