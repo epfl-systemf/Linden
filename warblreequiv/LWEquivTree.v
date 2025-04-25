@@ -346,27 +346,17 @@ Proof.
       unfold tMC_is_tree in Htmc_tree.
       remember (match_state _ _ cap) as msupd. specialize (Htmc_tree msupd).
       replace (MatchState.input ms) with str0 in *.
-      2: {
-        symmetry. eapply inp_compat_ms_str0.
-        - apply Hinp_compat.
-        - apply Hms_inp.
-      }
+      2: { symmetry. eapply inp_compat_ms_str0. - apply Hinp_compat. - apply Hms_inp. }
       assert (MatchState.input msend = str0) as Hmsendstr0. {
-        eapply inp_compat_ms_str0.
-        - apply Hinpend_compat.
-        - assumption.
+        eapply inp_compat_ms_str0. - apply Hinpend_compat. - assumption.
       }
       assert (Valid (MatchState.input msupd) rer msupd) as Hmsupdvalid. {
         subst msupd. simpl.
         eapply capupd_valid with (str := str0) (nrange := Some (capture_range (MatchState.endIndex ms) (MatchState.endIndex msend))).
-        - replace str0 with (MatchState.input msend) by assumption.
-          assumption.
+        - replace str0 with (MatchState.input msend) by assumption. assumption.
         - rewrite Hmsendstr0 in Hmsendvalid.
-          apply grouprange_valid with (str0 := str0) (rer := rer).
-          1-2: assumption.
-          apply (f_equal negb) in Hcapvalid.
-          rewrite Bool.negb_involutive in Hcapvalid.
-          simpl in Hcapvalid.
+          apply grouprange_valid with (str0 := str0) (rer := rer). 1-2: assumption.
+          apply (f_equal negb) in Hcapvalid. rewrite Bool.negb_involutive in Hcapvalid. simpl in Hcapvalid.
           now apply Z.leb_le.
         - apply Heqcap.
       }
@@ -376,8 +366,7 @@ Proof.
       assert (ms_matches_inp msupd inpend) as Hmsupd_inp'. {
         subst msupd.
         eapply ms_matches_inp_capchg with (cap := MatchState.captures msend).
-        rewrite <- Hmsendstr0.
-        now destruct msend.
+        rewrite <- Hmsendstr0. now destruct msend.
       }
       specialize (Htmc_tree Hmsupd_inp' eq_refl).
       apply tree_pop_close. assumption.

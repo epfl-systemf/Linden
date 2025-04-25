@@ -247,8 +247,7 @@ Proof.
     intros mc tmc gl Hequiv ms.
     specialize (IH2 m2 tm2 eq_refl eq_refl str0 mc tmc gl Hequiv).
     specialize (IH1 m1 tm1 eq_refl eq_refl str0 (fun ms0 => m2 ms0 mc) (fun ms0 => tm2 ms0 tmc) gl IH2 ms).
-    simpl in *.
-    assumption.
+    auto.
 
   - (* Group *)
     intros.
@@ -289,6 +288,5 @@ Proof.
     specialize (IH ms Hmsstr0). simpl in *.
     destruct (tmsub ms treecont) as [t|] eqn:Heqt; simpl. 2: constructor.
     destruct (msub ms origcont) as [res|] eqn:Heqres; simpl. 2: constructor.
-    constructor. inversion IH. simpl. assumption.
-
+    constructor. inversion IH. auto.
 Qed.
