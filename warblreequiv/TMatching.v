@@ -68,7 +68,11 @@ match fuel with
     in
     (*>> e. Return RepeatMatcher(m, min2, max2, greedy, y, c, parenIndex, parenCount). <<*)
     let! subtree =<< tRepeatMatcher' m min2 max2 greedy y c parenIndex parenCount fuel' in
-    Success (CheckPass (ms_suffix x) subtree)
+    (* We only add a CheckPass if min is zero, else we directly yield the subtree *)
+    if (min == 0)%nat then
+      Success (CheckPass (ms_suffix x) subtree)
+    else
+      Success subtree
   in
   (*>> 3. Let cap be a copy of x's captures List. <<*)
   let cap := MatchState.captures x in

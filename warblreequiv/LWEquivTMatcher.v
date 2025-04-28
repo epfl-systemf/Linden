@@ -51,8 +51,8 @@ Proof.
   destruct (max =? 0)%NoI eqn:Hmax0; simpl.
   (* Case max = 0: use hypothesis on continuation *)
   1: { unfold equiv_tree_mcont in Hequivcont. now apply Hequivcont. }
+
   (* Case max > 0 *)
-  (* Assume that the capture reset succeeds *)
   destruct List.List.Update.Nat.Batch.update as [cap'|] eqn:Heqcap'; simpl. 2: constructor.
   set (match_state (MatchState.input ms) (MatchState.endIndex ms) cap')
     as ms_reset.
@@ -71,7 +71,7 @@ Proof.
       set (if (min ==? 0)%wt then 0 else min - 1) as nextmin.
       set (if (max =? +∞)%NoI then +∞ else (max - 1)%NoI) as nextmax.
       specialize (IHfuel nextmin nextmax mc tmc gl Hequivcont ms1 Hms1_str0).
-      inversion IHfuel; simpl; constructor; auto.
+      destruct (min ==? 0)%wt; inversion IHfuel; simpl; constructor; auto.
   }
   (* Therefore, the results of matching the inner regexp, then looping, are *)
   (* equivalent. *)
