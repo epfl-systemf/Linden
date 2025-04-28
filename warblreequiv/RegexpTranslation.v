@@ -13,7 +13,7 @@ Fixpoint num_groups (r: regex): nat :=
   | Epsilon | Character _ => 0
   | Disjunction r1 r2 => num_groups r1 + num_groups r2
   | Sequence r1 r2 => num_groups r1 + num_groups r2
-  | Star _ r1 => num_groups r1
+  | Quantified _ _ _ r1 => num_groups r1
   | Group _ r1 => S (num_groups r1)
   end.
 
@@ -24,7 +24,12 @@ Inductive equiv_greedylazy: (Patterns.QuantifierPrefix -> Patterns.Quantifier) -
 
 (* Equivalence of quantifiers. *)
 Inductive equiv_quantifier: Patterns.QuantifierPrefix -> (bool -> regex -> regex) -> Prop :=
-  | Equiv_star: equiv_quantifier Patterns.Star Star.
+| Equiv_star: equiv_quantifier Patterns.Star (fun greedy => Quantified greedy 0 +∞)
+| Equiv_plus: equiv_quantifier Patterns.Plus (fun greedy => Quantified greedy 1 +∞)
+| Equiv_question: equiv_quantifier Patterns.Question (fun greedy => Quantified greedy 0 (NoI.N 1))
+| Equiv_repexact: forall n, equiv_quantifier (Patterns.RepExact n) (fun greedy => Quantified greedy n (NoI.N n))
+| Equiv_reppartialrange: forall n, equiv_quantifier (Patterns.RepPartialRange n) (fun greedy => Quantified greedy n +∞)
+| Equiv_reprange: forall mini maxi, equiv_quantifier (Patterns.RepRange mini maxi) (fun greedy => Quantified greedy mini (NoI.N maxi)).
 
 (* equiv_regex' wreg lreg n means that the two regexes wreg and lreg are equivalent, where the number of left capturing parentheses before wreg/lreg is n. *)
 Inductive equiv_regex': Patterns.Regex -> regex -> nat -> Prop :=
