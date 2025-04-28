@@ -3,6 +3,9 @@ Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree.
+From Linden Require Import NumericLemmas.
+From Warblre Require Import Numeric.
+From Coq Require Import Lia.
 
 (* This relates a regex and a string to their backtracking tree *)
 
@@ -66,7 +69,7 @@ Inductive is_tree: regex -> continuation -> input -> tree -> Prop :=
   forall r1 r2 cont t inp
     (CONT: is_tree r1 (Areg r2 :: cont) inp t),
     is_tree (Sequence r1 r2) cont inp t
-| tree_star:
+(*| tree_star:
   forall r1 greedy cont titer tskip tquant inp gidl
     (* the list of capture groups to reset *)
     (RESET: gidl = def_groups r1)
@@ -75,7 +78,28 @@ Inductive is_tree: regex -> continuation -> input -> tree -> Prop :=
     (* skipping the star entirely *)
     (SKIP: is_tree Epsilon cont inp tskip)
     (CHOICE: tquant = greedy_choice greedy (GroupAction (Reset gidl) titer) tskip),
-    is_tree (Star greedy r1) cont inp tquant
+    is_tree (Star greedy r1) cont inp tquant*)
+| tree_quant_minpos:
+  forall r1 greedy min plus cont titer inp gidl
+    (* the list of capture groups to reset *)
+    (RESET: gidl = def_groups r1)
+    (* doing one iteration *)
+    (ISTREE1: is_tree r1 (Areg (Quantified greedy min plus r1)::cont) inp titer),
+    is_tree (Quantified greedy (S min) plus r1) cont inp (GroupAction (Reset gidl) titer)
+| tree_quant_minzero_pluszero:
+  forall r1 greedy cont tskip inp
+    (SKIP: is_tree Epsilon cont inp tskip),
+    is_tree (Quantified greedy 0 (NoI.N 0) r1) cont inp tskip
+| tree_quant_minzero_pluspos:
+  forall r1 greedy plus cont titer tskip tquant inp gidl
+    (* the list of capture groups to reset *)
+    (RESET: gidl = def_groups r1)
+    (* doing one iteration, then a check, then executing the next quantifier *)
+    (ISTREE1: is_tree r1 (Acheck (current_str inp)::Areg (Quantified greedy 0 plus r1)::cont) inp titer)
+    (* skipping the quantifier entirely *)
+    (SKIP: is_tree Epsilon cont inp tskip)
+    (CHOICE: tquant = greedy_choice greedy (GroupAction (Reset gidl) titer) tskip),
+    is_tree (Quantified greedy 0 (NoI.N 1 + plus)%NoI r1) cont inp tquant
 | tree_group:
   forall r1 cont treecont inp gid
     (TREECONT: is_tree r1 (Aclose gid :: cont) inp treecont),
@@ -86,7 +110,7 @@ Definition backtree (r:regex) (str:string) (t:tree): Prop :=
   is_tree r [] (init_input str) t.
 
 (* Adding Epsilon to the list of continuations *)
-Lemma is_tree_eps':
+(*Lemma is_tree_eps':
   forall reg cont inp t, is_tree reg cont inp t -> forall cont1 cont2, cont = cont1 ++ (Areg Epsilon::cont2) -> is_tree reg (cont1 ++ cont2) inp t.
 Proof.
   intros reg cont inp t His_tree.
@@ -157,7 +181,7 @@ Proof.
   eapply is_tree_eps'.
   - apply H.
   - reflexivity.
-Qed.
+Qed.*)
 
 
 (** * Determinism  *)
@@ -187,10 +211,15 @@ Proof.
   - inversion H1; subst; auto.
     apply IHis_tree1 in ISTREE1. apply IHis_tree2 in ISTREE2. subst. auto.
   - inversion H0; subst; auto.
-  - inversion H1; subst; auto.
-    apply IHis_tree2 in SKIP.
-    apply IHis_tree1 in ISTREE1.
+  - inversion H0; subst; auto.
+    apply IHis_tree in ISTREE1.
     subst. auto.
+  - inversion H0; subst; auto.
+    destruct plus; discriminate.
+  - inversion H1; subst; auto.
+    + destruct plus; discriminate.
+    + apply plus_one_inj in H4. subst plus0.
+      apply IHis_tree1 in ISTREE1. apply IHis_tree2 in SKIP. subst. auto.
   - inversion H0; subst; auto.
     apply IHis_tree in TREECONT. subst. auto.
 Qed.
