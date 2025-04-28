@@ -1,6 +1,6 @@
 From Linden Require Import TMatching Tree Chars Semantics MSInput
   Regex LindenParameters RegexpTranslation ListLemmas
-  WarblreLemmas Tactics LWEquivTreeLemmas LWEquivTMatcher.
+  WarblreLemmas Tactics LWEquivTreeLemmas LWEquivTMatcher LWEquivTMatcherLemmas NumericLemmas.
 From Warblre Require Import Result Notation RegExpRecord Match Base
   Patterns Node NodeProps Semantics.
 From Coq Require Import List ZArith Lia.
@@ -44,42 +44,91 @@ Proof.
   injection Heqt as <-. apply tree_epsilon.
 Qed.
 
-(** ** Lemma for repeated matching: *)
-Lemma tRepeatMatcher'_valid:
-  (* for all repeat matcher parameters, *)
-  forall rer greedy parenIndex parenCount,
-    (* for any TMatcher tm that is valid with respect to some Linden regex lreg, *)
+
+(** ** Lemmas for repeated matching: *)
+(* Lemma for the case where the min is nonzero *)
+Lemma tRepeatMatcher'_minnonzero_valid:
+  forall rer greedy parenIndex parenCount plus,
   forall (tm: TMatcher) (lreg: regex),
     tm_valid tm rer lreg ->
-    (* such that the defined groups of lreg correspond to the capture reset parameters of the repeat matcher, *)
     def_groups lreg = List.seq (parenIndex + 1) parenCount ->
-    (* the corresponding tree repeat matcher recognizes lreg star (for any fuel, provided the matcher does not run out of fuel). *)
-    forall fuel, tm_valid (fun s tmc => tRepeatMatcher' tm 0 +∞ greedy s tmc parenIndex parenCount fuel) rer (Regex.Star greedy lreg).
+    (forall fuel, tm_valid (fun s tmc => tRepeatMatcher' tm 0 plus greedy s tmc parenIndex parenCount fuel) rer (Regex.Quantified greedy 0 plus lreg)) ->
+    forall mini fuel, tm_valid (fun s tmc => tRepeatMatcher' tm mini (NoI.N mini + plus)%NoI greedy s tmc parenIndex parenCount fuel) rer (Regex.Quantified greedy mini plus lreg).
 Proof.
-  (* We fix all of the following: in particular, we fix the regexp that is being starred as well as its context in terms of parentheses before. *)
-  intros rer greedy parenIndex parenCount tm lreg Htm_valid Hgroups_valid fuel.
+  intros rer greedy parenIndex parenCount plus tm lreg Htm_valid Hgroups_valid Hminzero_valid.
+  intro mini. induction mini as [|mini' IHmini'].
+  1: { simpl. replace (match plus with | NoI.N r' => _ | +∞ => _ end) with plus by now destruct plus. apply Hminzero_valid. }
+
+  intros [|fuel].
+  1: { simpl. now constructor. }
+  unfold tm_valid. intros tmc cont str0 Htmc_valid. unfold tMC_valid. intros inp Hinp_compat. unfold tMC_is_tree. intros ms t Hvalidms Hmsinp.
+  simpl.
+  replace (match plus with | NoI.N r' => _ | +∞ => _ end =? NoI.N (nat_to_nni 0))%NoI with false by now destruct plus.
+  destruct List.List.Update.Nat.Batch.update as [cap'|] eqn:Hcapsucc; simpl. 2: discriminate.
+  replace (mini' - 0) with mini' by lia.
+  pose proof mini_plus_plusminus_one mini' plus as Hplusminusone. simpl in Hplusminusone. rewrite Hplusminusone. clear Hplusminusone.
+  set (nextplus := match plus with | NoI.N r' => _ | +∞ => _ end).
+  set (tmcnext := fun y => _).
+  unfold tm_valid in Htm_valid. specialize (Htm_valid tmcnext (Areg (Regex.Quantified greedy mini' plus lreg)::cont) str0).
+  specialize_prove Htm_valid. {
+    specialize (IHmini' fuel tmc cont str0 Htmc_valid). simpl in IHmini'. (* Morally, apply IHmini', but there is a monad rewrite under a lambda which we cannot do... *)
+    unfold tMC_valid, tMC_is_tree. intros inp' Hinp'compat ms' t' Hms'valid Hms'inp.
+    unfold tmcnext. rewrite (@monad_id _ _ Errors.match_assertion_error). now apply IHmini'.
+  }
+  unfold tMC_valid in Htm_valid. specialize (Htm_valid inp Hinp_compat).
+  set (msreset := match_state _ _ cap'). unfold tMC_is_tree in Htm_valid.
+  specialize (Htm_valid msreset).
+  destruct tm as [subtree|]; simpl. 2: discriminate.
+  specialize (Htm_valid subtree). 2: reflexivity. (* ??? *)
+  specialize_prove Htm_valid. { eapply capture_reset_preserve_validity with (x := ms); eauto. }
+  specialize_prove Htm_valid. { apply ms_matches_inp_capchg with (cap := MatchState.captures ms). now destruct ms. }
+  specialize (Htm_valid eq_refl).
+  intro Heqt. injection Heqt as <-.
+  apply tree_pop_reg. Print is_tree. apply tree_quant_minpos. 1: congruence. now inversion Htm_valid.
+Qed.
+
+
+(* Lemma for the case where both the min and the max are zero *)
+Lemma tRepeatMatcher'_zero_valid:
+  forall rer greedy parenIndex parenCount,
+  forall (tm: TMatcher) (lreg: regex),
+    tm_valid tm rer lreg ->
+    def_groups lreg = List.seq (parenIndex + 1) parenCount ->
+    forall fuel, tm_valid (fun s tmc => tRepeatMatcher' tm 0 (NoI.N 0) greedy s tmc parenIndex parenCount fuel) rer (Regex.Quantified greedy 0 (NoI.N 0) lreg).
+Proof.
+  intros rer greedy parenIndex parenCount tm lreg Htmvalid Hgroupsvalid fuel.
+  destruct fuel as [|fuel]. 1: discriminate.
+  simpl. unfold tm_valid, tMC_valid, tMC_is_tree. intros tmc cont str0 Htmctree inp Hinpcompat ms t Hvalidms Hmsinp Heqt.
+  apply tree_pop_reg. apply tree_quant_minzero_pluszero. eapply Htmctree; eauto.
+Qed.
+  
+
+(* Lemma for the case where the min is zero but the max is arbitrary *)
+Lemma tRepeatMatcher'_minzero_valid:
+  forall rer greedy parenIndex parenCount,
+  forall (tm: TMatcher) (lreg: regex),
+    tm_valid tm rer lreg ->
+    def_groups lreg = List.seq (parenIndex + 1) parenCount ->
+    forall fuel plus, tm_valid (fun s tmc => tRepeatMatcher' tm 0 plus greedy s tmc parenIndex parenCount fuel) rer (Regex.Quantified greedy 0 plus lreg).
+Proof.
+  intros rer greedy parenIndex parenCount tm lreg Htmvalid Hgroupsvalid fuel.
   induction fuel as [|fuel IHfuel].
   1: discriminate.
-  
-  unfold tm_valid in *.
-  intros tmc cont str0 Htmc_valid inp Hinp_compat ms t Hvalidms Hms_inp HmatchSuccess. simpl in *.
-  (* Assume that the capture reset succeeds, otherwise there is nothing to prove. *)
+
+  intro plus.
+  destruct (plus =? NoI.N (nat_to_nni 0))%NoI eqn:Hpluszero.
+  1: { rewrite noi_eqb_eq in Hpluszero. subst plus. now apply tRepeatMatcher'_zero_valid. }
+  simpl. rewrite Hpluszero.
+  intros tmc cont str0 Htmc_valid inp Hinp_compat ms t Hvalidms Hms_inp HmatchSuccess.
   destruct List.List.Update.Nat.Batch.update as [cap'|] eqn:Heqcap'; simpl in *. 2: discriminate.
-  (* tmc' checks at the end of matching lreg whether progress has been made, and if so calls tRepeatMatcher' with one less fuel *)
-  remember (fun y => if (_ =? _)%Z then _ else _) as tmc'.
-  (* ms' is ms with the capture reset *)
-  remember (match_state _ _ cap') as ms'.
-  assert (tMC_valid tmc' rer (Acheck (ms_suffix ms)::Areg (Regex.Star greedy lreg)::cont) str0) as Htmc'_valid.
-  {
-    (* Let inp' be an input compatible with str0. *)
-    intros inp' Hinp'_compat.
-    (* Let ms1 be a MatchState that is valid and matches that input. *)
-    intros ms1 t1 Hms1valid Hms1_inp Htmc'_succeeds.
-    rewrite Heqtmc' in Htmc'_succeeds.
-    (* Then either the input has progressed or it has not. *)
+  set (tmcloop := fun y: MatchState => if (_ =? _)%Z then _ else _) in HmatchSuccess.
+  set (msreset := match_state _ _ cap') in HmatchSuccess.
+  assert (tMC_valid tmcloop rer (Acheck (ms_suffix ms)::Areg (Regex.Quantified greedy 0 (plus - 1)%NoI lreg)::cont) str0) as Htmcloop_valid. {
+    intros inp' Hinp'_compat ms1 t1 Hms1valid Hms1_inp Htmcloop_succeeds.
+    unfold tmcloop in Htmcloop_succeeds.
     destruct (_ =? _)%Z eqn:Heqcheck.
     - (* Case 1: the input has not progressed *)
-      injection Htmc'_succeeds as <-. apply tree_pop_check_fail.
+      injection Htmcloop_succeeds as <-. apply tree_pop_check_fail.
       rewrite ms_suffix_current_str with (ms := ms1) by assumption.
       unfold ms_suffix.
       rewrite Z.eqb_eq in Heqcheck.
@@ -87,38 +136,39 @@ Proof.
       f_equal.
       eapply inp_compat_ms_same_inp with (inp1 := inp') (inp2 := inp); eauto.
     - (* Case 2: the input has progressed *)
-      destruct tRepeatMatcher' as [subtree|] eqn:Heqsubtree; simpl.
+      destruct tRepeatMatcher' as [subtree|] eqn:Heqsubtree; simpl in *.
       2: discriminate.
-      injection Htmc'_succeeds as <-.
+      injection Htmcloop_succeeds as <-.
       apply tree_pop_check.
       + eapply endInd_neq_advanced; eauto.
         eapply inp_compat_ms_str0. (* eauto, eassumption do not work here *)
         * apply Hinp_compat.
         * apply Hms_inp.
-      + specialize (IHfuel tmc cont str0 Htmc_valid inp' Hinp'_compat ms1 subtree Hms1valid Hms1_inp Heqsubtree). apply IHfuel.
+      + rewrite noi_decr in Heqsubtree. specialize (IHfuel (plus - 1)%NoI tmc cont str0 Htmc_valid inp' Hinp'_compat ms1 subtree Hms1valid Hms1_inp Heqsubtree). apply IHfuel.
   }
-  specialize (Htm_valid tmc' (Acheck (ms_suffix ms)::Areg (Regex.Star greedy lreg)::cont) str0 Htmc'_valid inp Hinp_compat).
+  specialize (Htmvalid tmcloop (Acheck (ms_suffix ms)::Areg (Regex.Quantified greedy 0 (plus-1)%NoI lreg)::cont) str0 Htmcloop_valid inp Hinp_compat).
   specialize (Htmc_valid inp Hinp_compat).
-  unfold tMC_is_tree in Htm_valid, Htmc_valid.
-  assert (Valid (MatchState.input ms') rer ms') as Hvalidms'. {
-    rewrite Heqms'. simpl.
-    now apply @capture_reset_preserve_validity with (specParameters := LindenParameters) (parenIndex := parenIndex) (parenCount := parenCount).
+  unfold tMC_is_tree in Htmvalid, Htmc_valid.
+  assert (Valid (MatchState.input msreset) rer msreset) as Hvalidmsreset. {
+    now apply @capture_reset_preserve_validity with (specParameters := LindenParameters) (parenIndex := parenIndex) (parenCount := parenCount) (x := ms).
   }
-  assert (ms_matches_inp ms' inp) as Hms'_inp. {
-    rewrite Heqms'. inversion Hms_inp. simpl. now constructor.
+  assert (ms_matches_inp msreset inp) as Hmsreset_inp. {
+    unfold msreset. inversion Hms_inp. simpl. now constructor.
   }
 
   destruct greedy.
   + (* Greedy star *)
     destruct tm as [z|] eqn:Heqz; simpl. 2: discriminate.
     destruct tmc as [z'|] eqn:Heqz'; simpl. 2: discriminate.
-    specialize (Htm_valid ms' z Hvalidms' Hms'_inp Heqz).
+    specialize (Htmvalid msreset z Hvalidmsreset Hmsreset_inp Heqz).
     specialize (Htmc_valid ms z' Hvalidms Hms_inp Heqz').
     apply tree_pop_reg.
-    eapply tree_star.
-    * symmetry. apply Hgroups_valid.
+    Print is_tree. Check tree_quant_minzero_pluspos.
+    rewrite noi_nonzero_succprec with (x := plus). 2: now apply noi_eqb_neq.
+    eapply tree_quant_minzero_pluspos.
+    * symmetry. apply Hgroupsvalid.
     * rewrite ms_suffix_current_str with (ms := ms). 2: assumption.
-      inversion Htm_valid.
+      inversion Htmvalid.
       apply TREECONT.
     * apply Htmc_valid.
     * inversion HmatchSuccess. reflexivity.
@@ -126,15 +176,34 @@ Proof.
   + (* Lazy star *)
     destruct tmc as [z'|] eqn:Heqz'; simpl. 2: discriminate.
     destruct tm as [z|] eqn:Heqz; simpl. 2: discriminate.
-    specialize (Htm_valid ms' z Hvalidms' Hms'_inp Heqz).
+    specialize (Htmvalid msreset z Hvalidmsreset Hmsreset_inp Heqz).
     specialize (Htmc_valid ms z' Hvalidms Hms_inp Heqz').
     apply tree_pop_reg.
-    eapply tree_star.
-    * symmetry. apply Hgroups_valid.
+    rewrite noi_nonzero_succprec with (x := plus). 2: now apply noi_eqb_neq.
+    eapply tree_quant_minzero_pluspos.
+    * symmetry. apply Hgroupsvalid.
     * rewrite ms_suffix_current_str with (ms := ms). 2: assumption.
-      inversion Htm_valid. apply TREECONT.
+      inversion Htmvalid. apply TREECONT.
     * apply Htmc_valid.
     * inversion HmatchSuccess. reflexivity.
+Qed.
+
+(* Main theorem *)
+Lemma tRepeatMatcher'_valid:
+  (* for all repeat matcher parameters, *)
+  forall rer greedy parenIndex parenCount mini plus,
+    (* for any TMatcher tm that is valid with respect to some Linden regex lreg, *)
+  forall (tm: TMatcher) (lreg: regex),
+    tm_valid tm rer lreg ->
+    (* such that the defined groups of lreg correspond to the capture reset parameters of the repeat matcher, *)
+    def_groups lreg = List.seq (parenIndex + 1) parenCount ->
+    (* the corresponding tree repeat matcher recognizes lreg star (for any fuel, provided the matcher does not run out of fuel). *)
+    forall fuel, tm_valid (fun s tmc => tRepeatMatcher' tm mini (NoI.N mini + plus)%NoI greedy s tmc parenIndex parenCount fuel) rer (Regex.Quantified greedy mini plus lreg).
+Proof.
+  intros rer greedy parenIndex parenCount mini plus tm lreg Htmvalid Hgroupsvalid fuel.
+  destruct mini as [|mini'].
+  - replace (NoI.N 0 + plus)%NoI with plus by now destruct plus. now apply tRepeatMatcher'_minzero_valid.
+  - apply tRepeatMatcher'_minnonzero_valid; auto. intro fuel0. now apply tRepeatMatcher'_minzero_valid.
 Qed.
 
 
