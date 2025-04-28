@@ -1,6 +1,7 @@
 From Coq Require Import List ZArith Lia.
-From Warblre Require Import Notation Parameters.
+From Warblre Require Import Notation Parameters Match.
 Import Notation.
+Import Match.
 From Linden Require Import Chars LindenParameters TMatching.
 
 
@@ -23,6 +24,13 @@ Inductive ms_matches_inp: MatchState -> input -> Prop :=
     List.length pref = end_ind -> List.rev pref ++ next = s ->
     ms_matches_inp {| MatchState.input := s; MatchState.endIndex := Z.of_nat end_ind;
                                              MatchState.captures := cap |} (Input next pref).
+
+(* The initial state wrt a string matches the initial input wrt this string. *)
+Lemma init_ms_matches_inp:
+  forall str rer, ms_matches_inp (MatchState.init rer str 0) (init_input str).
+Proof.
+  intros str rer. now constructor.
+Qed.
 
 (* Inversion lemma: when a MatchState matches an input, we have MatchState.input ms = List.rev pref ++ next. *)
 Lemma ms_matches_inp_invinp: forall ms pref next, ms_matches_inp ms (Input next pref) -> MatchState.input ms = List.rev pref ++ next.
@@ -55,6 +63,13 @@ Qed.
 (* Definition of when an input is compatible with (i.e. represents) a given input string str0. *)
 Inductive input_compat: input -> string -> Prop :=
 | Input_compat: forall next pref str0, List.rev pref ++ next = str0 -> input_compat (Input next pref) str0.
+
+(* The initial input of a string is compatible with the string. *)
+Lemma init_input_compat:
+  forall str, input_compat (init_input str) str.
+Proof.
+  intro str. constructor. reflexivity.
+Qed.
 
 (* A transitivity lemma: a MatchState ms that matches an input inp that is itself compatible with a string str0 has str0 as its input string. *)
 Lemma inp_compat_ms_str0:

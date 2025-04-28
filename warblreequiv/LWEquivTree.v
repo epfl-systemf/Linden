@@ -1,6 +1,6 @@
 From Linden Require Import TMatching Tree Chars Semantics MSInput
   Regex LindenParameters RegexpTranslation ListLemmas
-  WarblreLemmas Tactics LWEquivTreeLemmas.
+  WarblreLemmas Tactics LWEquivTreeLemmas LWEquivTMatcher.
 From Warblre Require Import Result Notation RegExpRecord Match Base
   Patterns Node NodeProps Semantics.
 From Coq Require Import List ZArith Lia.
@@ -36,6 +36,13 @@ Definition tm_valid (tm: TMatcher) (rer: RegExpRecord) (lreg: regex) :=
   tMC_valid (fun s => tm s tmc) rer (Areg lreg::cont) str0.
 
 
+(* Validity of empty continuation *)
+Lemma id_tmcont_valid:
+  forall rer str, tMC_valid id_tmcont rer [] str.
+Proof.
+  intros rer str inp Hinp_compat ms t Hvalid Hmsinp Heqt.
+  injection Heqt as <-. apply tree_epsilon.
+Qed.
 
 (** ** Lemma for repeated matching: *)
 Lemma tRepeatMatcher'_valid:
