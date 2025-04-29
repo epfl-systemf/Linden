@@ -1,5 +1,5 @@
 From Linden Require Import RegexpTranslation LindenParameters Regex MSInput Chars ListLemmas.
-From Warblre Require Import StaticSemantics List Parameters Notation Match Result Errors RegExpRecord.
+From Warblre Require Import StaticSemantics List Parameters Notation Match Result Errors RegExpRecord Patterns Semantics.
 From Coq Require Import Lia ZArith.
 Import Notation.
 Import MatchState.
@@ -378,4 +378,14 @@ Proof.
     simpl in Heqs.
     lia.
   - eexists. reflexivity.
+Qed.
+
+(* If wgreedylazy is equivalent to greedy, then compiling a corresponding quantifier yields the boolean greedy. *)
+Lemma compilequant_greedy:
+  forall (wquant: Patterns.QuantifierPrefix) (wgreedylazy: Patterns.QuantifierPrefix -> Patterns.Quantifier) (lquant: bool -> regex -> regex) (greedy: bool),
+    equiv_greedylazy wgreedylazy greedy -> equiv_quantifier wquant lquant ->
+    Semantics.CompiledQuantifier_greedy (Semantics.compileQuantifier (wgreedylazy wquant)) = greedy.
+Proof.
+  intros wquant wgreedylazy lquant greedy Hequivgreedy Hequivquant.
+  inversion Hequivgreedy; inversion Hequivquant; reflexivity.
 Qed.

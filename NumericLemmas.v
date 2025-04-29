@@ -60,3 +60,13 @@ Proof.
   intros [ [|n] | ]; simpl. 1: contradiction. 2: reflexivity.
   - intros _. f_equal. lia.
 Qed.
+
+
+(* Used in repeat matching proof *)
+Lemma noi_add_diff:
+  forall (x: non_neg_integer) (y: non_neg_integer_or_inf),
+    (x <=? y)%NoI = true -> (NoI.N x + (y - x))%NoI = y.
+Proof.
+  intros x [n|] Hle. 2: reflexivity.
+  simpl in *. f_equal. rewrite PeanoNat.Nat.leb_le in Hle. lia.
+Qed.

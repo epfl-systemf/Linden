@@ -188,7 +188,7 @@ Proof.
     * inversion HmatchSuccess. reflexivity.
 Qed.
 
-(* Main theorem *)
+(* Main theorem for repeated matching *)
 Lemma tRepeatMatcher'_valid:
   (* for all repeat matcher parameters, *)
   forall rer greedy parenIndex parenCount mini plus,
@@ -376,24 +376,37 @@ Proof.
     destruct tCompileSubPattern as [m|] eqn:Heqm; simpl. 2: discriminate.
     simpl in Hcompsucc.
     intros tmc cont str0 Htmc_valid.
-    remember (StaticSemantics.countLeftCapturingParensBefore _ ctx) as parenIndex.
-    remember (StaticSemantics.countLeftCapturingParensWithin _ _) as parenCount.
-    (* Only star is supported for now *)
-    inversion Hequivquant as [Heqwquant Heqlquant]. subst wquant lquant.
-    pose proof tRepeatMatcher'_valid rer greedy parenIndex parenCount m lr as Hrepeat.
-    specialize (IH (Quantified_inner (wgreedylazy Star)::ctx)).
+    set (StaticSemantics.countLeftCapturingParensBefore _ ctx) as parenIndex in Hcompsucc.
+    set (StaticSemantics.countLeftCapturingParensWithin _ _) as parenCount in Hcompsucc.
+    set (Semantics.CompiledQuantifier_min _) as mini in Hcompsucc.
+    set (Semantics.CompiledQuantifier_max _) as maxi in Hcompsucc.
+    rewrite compilequant_greedy with (lquant := lquant) (greedy := greedy) in Hcompsucc by assumption.
+    specialize (IH (Quantified_inner (wgreedylazy wquant)::ctx)).
     specialize_prove IH by eauto using same_root_down0, Down_Quantified_inner.
     specialize_prove IH. {
       unfold StaticSemantics.countLeftCapturingParensBefore in *. simpl. lia.
     }
-    rewrite Heqm in IH.
-    specialize (IH m eq_refl). specialize (Hrepeat IH).
+    specialize (IH m Heqm).
+    pose proof tRepeatMatcher'_valid rer greedy parenIndex parenCount mini (maxi-mini)%NoI m lr IH as Hrepeat.
     specialize_prove Hrepeat. {
-      subst n. eapply equiv_def_groups; eassumption.
+      subst n. apply equiv_def_groups with (wr := wr) (ctx := ctx); auto.
     }
-    intros inp Hinp_compat s t Hvalids Hs_inp Heqt.
-    specialize (Hrepeat (Semantics.repeatMatcherFuel 0 s) tmc cont str0 Htmc_valid inp Hinp_compat s t Hvalids Hs_inp).
-    inversion Hequivgreedy as [Heqwgl Heqgreedy|Heqwgl Heqgreedy]; subst wgreedylazy; subst greedy; injection Hcompsucc as <-; simpl in *; specialize (Hrepeat Heqt); apply Hrepeat.
+    destruct (mini <=? maxi)%NoI eqn:Hmini_le_maxi. 2: discriminate.
+    injection Hcompsucc as <-.
+    unfold tRepeatMatcher.
+    intros inp Hinpcompat ms t Hvalidms Hmsinp Heqt.
+    specialize (Hrepeat (Semantics.repeatMatcherFuel mini ms) tmc cont str0 Htmc_valid inp Hinpcompat ms t Hvalidms Hmsinp).
+    Search (NoI.N ?A + (_ - ?A))%NoI.
+    rewrite noi_add_diff in Hrepeat by assumption. specialize (Hrepeat Heqt).
+    inversion Hequivquant as [
+        Heqwquant Heqlquant |
+        Heqwquant Heqlquant |
+        Heqwquant Heqlquant |
+        nrep Heqwquant Heqlquant |
+        nmin Heqwquant Heqlquant |
+        mini' maxi' Hle' Heqwquant Heqlquant]; subst wquant lquant;
+    inversion Hequivgreedy as [Heqwgl Heqgreedy | Heqwgl Heqgreedy]; subst wgreedylazy greedy; simpl in *; try apply Hrepeat.
+    all: replace (nrep - mini) with 0 in Hrepeat by lia; apply Hrepeat.
 
     
   - (* Group *)
