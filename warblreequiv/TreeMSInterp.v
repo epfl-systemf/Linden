@@ -86,13 +86,13 @@ Fixpoint tree_res' {F} `{Result.AssertionError F} (t:tree) (s: MatchState) (gl: 
   | LK lk tlk t =>
       match positivity lk with
       | true =>
-          match tree_res' tlk s gl with
+          match tree_res' tlk s nil with (* Contrary to the original tree_res, and to respect the ECMA semantics, we use the empty open group list instead of the original one. In practical situations, this does not change anything as tlk cannot close any group that it itself does not open, but now we don't have to prove it. *)
           | Some mslk =>
               (* using the captures defined in the first branch of the lookahead; the open groups remain unchanged because the lookaround is well-parenthesized *)
               tree_res' t (match_state (MatchState.input s) (MatchState.endIndex s) (MatchState.captures mslk)) gl
           | None => None
           end
-      | false => match tree_res' tlk s gl with
+      | false => match tree_res' tlk s nil with (* Same here *)
           (* using previous captures *)
           | Some _ => None
           | None => tree_res' t s gl

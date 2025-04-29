@@ -289,4 +289,44 @@ Proof.
     destruct (tmsub ms treecont) as [t|] eqn:Heqt; simpl. 2: constructor.
     destruct (msub ms origcont) as [res|] eqn:Heqres; simpl. 2: constructor.
     constructor. inversion IH. auto.
+
+    (* Positive lookahead *)
+  - intros ctx m tm.
+    destruct Semantics.compileSubPattern as [msub|] eqn:Hcompsucc. 2: discriminate.
+    destruct tCompileSubPattern as [tmsub|] eqn:Htcompsucc. 2: discriminate.
+    specialize (IH _ msub tmsub Hcompsucc Htcompsucc).
+    simpl. intros Heqm Heqtm. injection Heqm as <-. injection Heqtm as <-.
+    intro str0. specialize (IH str0). unfold equiv_tree_matcher in *.
+    specialize (IH id_mcont id_tmcont nil (id_equiv str0)).
+    intros mc tmc gl Hcontequiv.
+    unfold equiv_tree_mcont. unfold equiv_tree_mcont in IH. intros ms Hmsstr0.
+    specialize (IH ms Hmsstr0). unfold id_mcont, id_tmcont in IH.
+    destruct tmsub as [tlk|] eqn:Htlk; try solve[constructor]. simpl.
+    destruct msub as [mslkopt|] eqn:Hmslkopt; try solve[constructor]. simpl.
+    inversion IH as [tlk' ms' nil' mslkopt' IH' | |]. subst tlk' ms' nil' mslkopt'.
+    rewrite <- IH'. destruct mslkopt as [mslk|]; simpl. 2: now constructor.
+    unfold equiv_tree_mcont in Hcontequiv. set (msafterlk := match_state _ _ _). specialize (Hcontequiv msafterlk Hmsstr0).
+    inversion Hcontequiv as [t1 msafterlk' gl' r Hcontequiv' | |]. 2,3: constructor.
+    constructor. simpl. rewrite <- IH'. auto.
+    
+    
+
+    (* Negative lookahead *)
+  - intros ctx m tm.
+    destruct Semantics.compileSubPattern as [msub|] eqn:Hcompsucc. 2: discriminate.
+    destruct tCompileSubPattern as [tmsub|] eqn:Htcompsucc. 2: discriminate.
+    specialize (IH _ msub tmsub Hcompsucc Htcompsucc).
+    simpl. intros Heqm Heqtm. injection Heqm as <-. injection Heqtm as <-.
+    intro str0. specialize (IH str0). unfold equiv_tree_matcher in *.
+    specialize (IH id_mcont id_tmcont nil (id_equiv str0)).
+    intros mc tmc gl Hcontequiv.
+    unfold equiv_tree_mcont. unfold equiv_tree_mcont in IH. intros ms Hmsstr0.
+    specialize (IH ms Hmsstr0). unfold id_mcont, id_tmcont in IH.
+    destruct tmsub as [tlk|] eqn:Htlk; try solve[constructor]. simpl.
+    destruct msub as [mslkopt|] eqn:Hmslkopt; try solve[constructor]. simpl.
+    inversion IH as [tlk' ms' nil' mslkopt' IH' | |]. subst tlk' ms' nil' mslkopt'.
+    rewrite <- IH'. destruct mslkopt as [mslk|]; simpl. 1: now constructor.
+    unfold equiv_tree_mcont in Hcontequiv. specialize (Hcontequiv ms Hmsstr0).
+    inversion Hcontequiv as [t1 msafterlk' gl' r Hcontequiv' | |]. 2,3: constructor.
+    constructor. simpl. rewrite <- IH'. auto.
 Qed.
