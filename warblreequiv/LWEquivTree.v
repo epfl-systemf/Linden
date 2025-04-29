@@ -48,11 +48,16 @@ Qed.
 (** ** Lemmas for repeated matching: *)
 (* Lemma for the case where the min is nonzero *)
 Lemma tRepeatMatcher'_minnonzero_valid:
+  (* For all repeat matcher parameters (except min), *)
   forall rer greedy parenIndex parenCount plus,
   forall (tm: TMatcher) (lreg: regex),
+    (* if the TMatcher tm is valid wrt lreg, *)
     tm_valid tm rer lreg ->
+    (* the list of capture groups of lreg matches the repeat matcher parameters, *)
     def_groups lreg = List.seq (parenIndex + 1) parenCount ->
+    (* and the repeat matcher with min=0 is valid wrt Quantified greedy 0 plus lreg, *)
     (forall fuel, tm_valid (fun s tmc => tRepeatMatcher' tm 0 plus greedy s tmc parenIndex parenCount fuel) rer (Regex.Quantified greedy 0 plus lreg)) ->
+    (* then all repeat matchers with any min are valid wrt Quantified greedy min plus lreg. *)
     forall mini fuel, tm_valid (fun s tmc => tRepeatMatcher' tm mini (NoI.N mini + plus)%NoI greedy s tmc parenIndex parenCount fuel) rer (Regex.Quantified greedy mini plus lreg).
 Proof.
   intros rer greedy parenIndex parenCount plus tm lreg Htm_valid Hgroups_valid Hminzero_valid.
@@ -197,7 +202,7 @@ Lemma tRepeatMatcher'_valid:
     tm_valid tm rer lreg ->
     (* such that the defined groups of lreg correspond to the capture reset parameters of the repeat matcher, *)
     def_groups lreg = List.seq (parenIndex + 1) parenCount ->
-    (* the corresponding tree repeat matcher recognizes lreg star (for any fuel, provided the matcher does not run out of fuel). *)
+    (* the corresponding tree repeat matcher recognizes lreg quantified accordingly to the parameters (for any fuel, provided the matcher does not run out of fuel). *)
     forall fuel, tm_valid (fun s tmc => tRepeatMatcher' tm mini (NoI.N mini + plus)%NoI greedy s tmc parenIndex parenCount fuel) rer (Regex.Quantified greedy mini plus lreg).
 Proof.
   intros rer greedy parenIndex parenCount mini plus tm lreg Htmvalid Hgroupsvalid fuel.
