@@ -69,16 +69,6 @@ Inductive is_tree: regex -> continuation -> input -> tree -> Prop :=
   forall r1 r2 cont t inp
     (CONT: is_tree r1 (Areg r2 :: cont) inp t),
     is_tree (Sequence r1 r2) cont inp t
-(*| tree_star:
-  forall r1 greedy cont titer tskip tquant inp gidl
-    (* the list of capture groups to reset *)
-    (RESET: gidl = def_groups r1)
-    (* doing one iteration, then a check, then executing the next quantifier *)
-    (ISTREE1: is_tree r1 (Acheck (current_str inp)::Areg (Star greedy r1)::cont) inp titer)
-    (* skipping the star entirely *)
-    (SKIP: is_tree Epsilon cont inp tskip)
-    (CHOICE: tquant = greedy_choice greedy (GroupAction (Reset gidl) titer) tskip),
-    is_tree (Star greedy r1) cont inp tquant*)
 | tree_quant_minpos:
   forall r1 greedy min plus cont titer inp gidl
     (* the list of capture groups to reset *)

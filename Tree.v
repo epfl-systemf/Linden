@@ -66,6 +66,8 @@ Inductive tree : Type :=
 | CheckFail (str:string) (* failed to make progress wrt some string *)
 | CheckPass (str:string) (t:tree)
 | GroupAction (g:groupaction) (t: tree)
+| LK (lk: lookaround) (tlk: tree) (t: tree) (* First tree is the lookaround tree. *)
+| LKFail (lk: lookaround) (tlk: tree)
 .
 
 (** * Greedy and Lazy Choice *)
@@ -100,6 +102,22 @@ Fixpoint tree_res (t:tree) (gm:group_map) (idx:nat): option leaf :=
   | CheckFail _ => None
   | CheckPass _ t1 => tree_res t1 gm idx
   | GroupAction g t1 => tree_res t1 (group_effect g gm idx) idx
+  | LK lk tlk t1 =>
+      match (positivity lk) with
+      | true => 
+          match tree_res tlk gm idx with
+          | None => None
+          (* using the captures defined in the first branch of the lookahead *)
+          | Some gm' => tree_res t1 gm' idx
+          end
+      | false =>
+          match tree_res tlk gm idx with
+          (* using previous captures *)
+          | None => tree_res t1 gm idx
+          | Some _ => None
+          end
+      end
+  | LKFail _ _ => None
   end.
 
 (* initializing on a the empty group map *)
@@ -120,7 +138,29 @@ Fixpoint tree_leaves (t:tree) (gm:group_map) (idx:nat): list leaf :=
   | CheckFail _ => []
   | CheckPass _ t1 => tree_leaves t1 gm idx
   | GroupAction g t1 => tree_leaves t1 (group_effect g gm idx) idx
+  | LK lk tlk t1 =>
+      match (positivity lk) with (* Do we want to explore all the branches of the lookahead tree that succeed? *)
+      | true =>
+          match (tree_leaves tlk gm idx) with
+          | [] => []             (* should not happen *)
+          (* using the captures defined in the first branch of the lookaround *)
+          | gm'::_ => tree_leaves t1 gm' idx
+          end
+      | false =>
+          match (tree_leaves tlk gm idx) with
+          (* using previous captures *)
+          | [] => tree_leaves t1 gm idx
+          | _ => []              (* should not happen *)
+          end
+      end
+  | LKFail _ _ => []
   end.
+
+
+(* Property that this definition coincides on the first element with the previous definition given a tree. *)
+Definition first_tree_leaf_prop (t: tree): Prop :=
+  forall gm idx, tree_res t gm idx = hd_error (tree_leaves t gm idx).
+
 
 (* intermediate lemma about hd_error *)
 Lemma hd_error_app:
@@ -134,15 +174,39 @@ Proof.
   intros A l1 l2. induction l1; simpl; auto.
 Qed.
 
+(* Intermediate lemma for positive lookarounds *)
+Lemma first_tree_leaf_poslk:
+  forall lk tlk t1,
+    positivity lk = true -> first_tree_leaf_prop tlk -> first_tree_leaf_prop t1 ->
+    first_tree_leaf_prop (LK lk tlk t1).
+Proof.
+  intros lk tlk t1 Hpos IHtlk IHt1.
+  unfold first_tree_leaf_prop in *. intros gm idx. simpl. rewrite Hpos.
+  specialize (IHtlk gm idx). destruct (tree_res tlk gm idx); destruct (tree_leaves tlk gm idx); try discriminate; simpl in *. 2: reflexivity.
+  injection IHtlk as <-; auto.
+Qed.
+
+(* Intermediate lemma for negative lookarounds *)
+Lemma first_tree_leaf_neglk:
+  forall lk tlk t1,
+    positivity lk = false -> first_tree_leaf_prop tlk -> first_tree_leaf_prop t1 ->
+    first_tree_leaf_prop (LK lk tlk t1).
+Proof.
+  intros lk tlk t1 Hpos IHtlk IHt1.
+  unfold first_tree_leaf_prop in *. intros gm idx. simpl. rewrite Hpos.
+  specialize (IHtlk gm idx). destruct (tree_res tlk gm idx); destruct (tree_leaves tlk gm idx); try discriminate; auto.
+Qed.
+
 
 (* this definition coincides on the first element with the previous definition *)
 Theorem first_tree_leaf:
   forall t gm idx,
     tree_res t gm idx = hd_error (tree_leaves t gm idx).
 Proof.
-  intros t. induction t; intros; simpl; auto.
+  intros t. induction t; intros. 1-7,9: simpl; auto.
   - rewrite IHt1. rewrite IHt2. rewrite hd_error_app. unfold seqop.
     destruct (hd_error (tree_leaves t1 gm idx)) eqn:HD; auto.
+  - destruct (positivity lk) eqn:Hlkpos. + now apply first_tree_leaf_poslk. + now apply first_tree_leaf_neglk.
 Qed.
       
 (** * Group Map irrelevance  *)
@@ -152,15 +216,50 @@ Qed.
 
 (* warning: actually so far I don't need this theorem *)
 
+(* Group map irrelevance property for a given tree. *)
+Definition leaves_group_map_indep_prop (t: tree): Prop :=
+  forall gm1 gm2 idx1 idx2,
+    tree_leaves t gm1 idx1 = [] -> tree_leaves t gm2 idx2 = [].
+
+(* Intermediate lemma for positive lookarounds *)
+Lemma leaves_group_map_indep_poslk:
+  forall lk tlk t1,
+    positivity lk = true -> leaves_group_map_indep_prop tlk -> leaves_group_map_indep_prop t1 ->
+    leaves_group_map_indep_prop (LK lk tlk t1).
+Proof.
+  intros lk tlk t1 Hposlk IHtlk IHt1; unfold leaves_group_map_indep_prop in *; simpl.
+  rewrite Hposlk. intros gm1 gm2 idx1 idx2 Hnil1.
+  specialize (IHtlk gm1 gm2 idx1 idx2). destruct (tree_leaves tlk gm1 idx1) as [|gm' q]; simpl in *.
+  1: { specialize (IHtlk eq_refl). now rewrite IHtlk. }
+  destruct (tree_leaves tlk gm2 idx2) as [|gm'0 q0]; simpl in *. 1: reflexivity.
+  eapply IHt1; eauto.
+Qed.
+
+(* Intermediate lemma for negative lookarounds *)
+Lemma leaves_group_map_indep_neglk:
+  forall lk tlk t1,
+    positivity lk = false -> leaves_group_map_indep_prop tlk -> leaves_group_map_indep_prop t1 ->
+    leaves_group_map_indep_prop (LK lk tlk t1).
+Proof.
+  intros lk tlk t1 Hposlk IHtlk IHt1; unfold leaves_group_map_indep_prop in *; simpl.
+  rewrite Hposlk. intros gm1 gm2 idx1 idx2 Hnil1.
+  destruct (tree_leaves tlk gm1 idx1) as [|gm' q] eqn:Hnilsub1; simpl in *.
+  1: { specialize (IHtlk gm1 gm2 idx1 idx2 Hnilsub1). rewrite IHtlk. eapply IHt1; eauto. }
+  destruct (tree_leaves tlk gm2 idx2) as [|gm'0 q0] eqn:Hnilsub2; simpl in *. 2: reflexivity.
+  exfalso. apply IHtlk with (gm2 := gm1) (idx2 := idx1) in Hnilsub2. congruence.
+Qed.
+
+
 Lemma leaves_group_map_indep:
   forall t gm1 gm2 idx1 idx2,
     tree_leaves t gm1 idx1 = [] -> tree_leaves t gm2 idx2 = [].
 Proof.
   intros t.
-  induction t; intros; simpl; auto;
+  induction t; intros. 1-7,9: simpl; auto;
     simpl in H; try solve[inversion H];
     try solve[eapply IHt in H; eauto].
   - apply app_eq_nil in H as [NIL1 NIL2].
     apply IHt1 with (gm2:=gm2) (idx2:=idx2) in NIL1. apply IHt2 with (gm2:=gm2) (idx2:=idx2) in NIL2.
     rewrite NIL1. rewrite NIL2. auto.
+  - destruct (positivity lk) eqn:Hlkpos. + eapply leaves_group_map_indep_poslk; eauto. + eapply leaves_group_map_indep_neglk; eauto.
 Qed.

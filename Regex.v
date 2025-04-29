@@ -10,6 +10,31 @@ From Warblre Require Import Base.
    for instance, the star termination criteria is not the same as in other languages
    and capture groups are reset at each iteration *)
 
+(** * Directions *)
+Inductive direction: Type :=
+| Forward
+| Backward.
+
+(** * Lookarounds *)
+Inductive lookaround: Type :=
+| LookAhead
+| LookBehind
+| NegLookAhead
+| NegLookBehind.
+
+Definition lk_dir (lk: lookaround): direction :=
+  match lk with
+  | LookAhead | NegLookAhead => Forward
+  | LookBehind | NegLookBehind => Backward
+  end.
+
+Definition positivity (lk: lookaround): bool :=
+  match lk with
+  | LookAhead | LookBehind => true
+  | NegLookAhead | NegLookBehind => false
+  end.
+
+
 (** * Regex Syntax  *)
 Inductive regex : Type :=
 | Epsilon 
@@ -17,6 +42,7 @@ Inductive regex : Type :=
 | Disjunction (r1 r2 : regex) 
 | Sequence (r1 r2 : regex)
 | Quantified (greedy:bool) (min: nat) (plus: non_neg_integer_or_inf) (r1: regex)
+| Lookaround (lk: lookaround) (r: regex)
 | Group (id : group_id) (r : regex).
 
 Definition regex_eq_dec : forall (x y : regex), { x = y } + { x <> y }.
@@ -26,6 +52,7 @@ Proof.
   - decide equality. apply PeanoNat.Nat.eq_dec.
   - apply PeanoNat.Nat.eq_dec.
   - destruct greedy; destruct greedy0; auto. right. lia.
+  - decide equality.
   - apply PeanoNat.Nat.eq_dec. 
 Defined.
 
@@ -37,5 +64,6 @@ Fixpoint def_groups (r:regex) : list group_id :=
   | Epsilon | Character _  => []
   | Sequence r1 r2 | Disjunction r1 r2 => def_groups r1 ++ def_groups r2
   | Quantified _ _ _ r1 => def_groups r1
+  | Lookaround _ r => def_groups r
   | Group id r1 => id::(def_groups r1)  
   end.

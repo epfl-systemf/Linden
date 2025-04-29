@@ -8,13 +8,14 @@ Local Open Scope result_flow.
 (** * Relation defining equivalence between Warblre regexes and Linden regexes *)
 
 (* Computes the number of capture groups of the regex r. *)
-Fixpoint num_groups (r: regex): nat :=
+Fixpoint num_groups (r: regex): nat := (* actually len (def_groups r); TODO replace later or prove lemma *)
   match r with
   | Epsilon | Character _ => 0
   | Disjunction r1 r2 => num_groups r1 + num_groups r2
   | Sequence r1 r2 => num_groups r1 + num_groups r2
   | Quantified _ _ _ r1 => num_groups r1
   | Group _ r1 => S (num_groups r1)
+  | Lookaround _ r1 => num_groups r1
   end.
 
 (* Equivalence of greedy/lazy quantifier prefixes. *)

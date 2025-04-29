@@ -2,7 +2,7 @@ From Coq Require Import List ZArith.
 Import ListNotations.
 From Warblre Require Import Notation Result Base.
 Import Notation.
-From Linden Require Import Groups Tree MSInput LindenParameters.
+From Linden Require Import Groups Tree MSInput LindenParameters Regex.
 
 (** * Interpretation of Linden trees using extended Warblre MatchStates instead of Linden group maps *)
 
@@ -82,5 +82,21 @@ Fixpoint tree_res' {F} `{Result.AssertionError F} (t:tree) (s: MatchState) (gl: 
   | CheckFail _ => None
   | CheckPass _ t1 => tree_res' t1 s gl
   | GroupAction g t1 => 
-    let (s', gl') := group_effect' g s gl in tree_res' t1 s' gl'
+      let (s', gl') := group_effect' g s gl in tree_res' t1 s' gl'
+  | LK lk tlk t =>
+      match positivity lk with
+      | true =>
+          match tree_res' tlk s gl with
+          | Some mslk =>
+              (* using the captures defined in the first branch of the lookahead; the open groups remain unchanged because the lookaround is well-parenthesized *)
+              tree_res' t (match_state (MatchState.input s) (MatchState.endIndex s) (MatchState.captures mslk)) gl
+          | None => None
+          end
+      | false => match tree_res' tlk s gl with
+          (* using previous captures *)
+          | Some _ => None
+          | None => tree_res' t s gl
+          end
+      end
+  | LKFail _ _ => None
   end.
