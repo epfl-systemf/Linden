@@ -89,7 +89,7 @@ Proof.
   specialize_prove Htm_valid. { apply ms_matches_inp_capchg with (cap := MatchState.captures ms). now destruct ms. }
   specialize (Htm_valid eq_refl).
   intro Heqt. injection Heqt as <-.
-  apply tree_pop_reg. Print is_tree. apply tree_quant_minpos. 1: congruence. now inversion Htm_valid.
+  apply tree_pop_reg. apply tree_quant_minpos. 1: congruence. now inversion Htm_valid.
 Qed.
 
 
@@ -168,7 +168,6 @@ Proof.
     specialize (Htmvalid msreset z Hvalidmsreset Hmsreset_inp Heqz).
     specialize (Htmc_valid ms z' Hvalidms Hms_inp Heqz').
     apply tree_pop_reg.
-    Print is_tree. Check tree_quant_minzero_pluspos.
     rewrite noi_nonzero_succprec with (x := plus). 2: now apply noi_eqb_neq.
     eapply tree_quant_minzero_pluspos.
     * symmetry. apply Hgroupsvalid.
@@ -401,7 +400,6 @@ Proof.
     unfold tRepeatMatcher.
     intros inp Hinpcompat ms t Hvalidms Hmsinp Heqt.
     specialize (Hrepeat (Semantics.repeatMatcherFuel mini ms) tmc cont str0 Htmc_valid inp Hinpcompat ms t Hvalidms Hmsinp).
-    Search (NoI.N ?A + (_ - ?A))%NoI.
     rewrite noi_add_diff in Hrepeat by assumption. specialize (Hrepeat Heqt).
     inversion Hequivquant as [
         Heqwquant Heqlquant |
