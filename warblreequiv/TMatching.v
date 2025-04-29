@@ -1,5 +1,5 @@
 From Coq Require Import PeanoNat ZArith Bool Lia Program.Equality List Program.Wf.
-From Linden Require Import Tree LindenParameters TreeMSInterp Regex.
+From Linden Require Import Tree LindenParameters TreeMSInterp Regex MSInput.
 From Warblre Require Import Patterns Result Notation Errors Node RegExpRecord Base Coercions Semantics Typeclasses.
 Import Patterns.
 Import Result.Result.
@@ -29,10 +29,6 @@ Definition TMatchResult := Result tree MatchError.
 (* Tree analogues of MatcherContinuation and Matcher. *)
 Definition TMatcherContinuation := Notation.MatchState -> TMatchResult.
 Definition TMatcher := Notation.MatchState -> TMatcherContinuation -> TMatchResult.
-
-(* Computation of the current suffix of a MatchState; this is used when computing check strings. *)
-Definition ms_suffix (ms: MatchState) :=
-  List.skipn (Z.to_nat (MatchState.endIndex ms)) (MatchState.input ms).
 
 
 (** >>

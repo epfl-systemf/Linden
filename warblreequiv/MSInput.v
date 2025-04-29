@@ -2,7 +2,7 @@ From Coq Require Import List ZArith Lia.
 From Warblre Require Import Notation Parameters Match.
 Import Notation.
 Import Match.
-From Linden Require Import Chars LindenParameters TMatching.
+From Linden Require Import Chars LindenParameters.
 
 
 (** * Definitions and lemmas linking Warblre MatchStates with Linden inputs *)
@@ -14,6 +14,12 @@ Definition advance_ms {H} `{CharacterMarker H} (s: MatchState): MatchState :=
     MatchState.input := MatchState.input s;
     MatchState.endIndex := (MatchState.endIndex s + 1)%Z;
     MatchState.captures := MatchState.captures s |}.
+
+
+(* Computation of the current suffix of a MatchState; this is used when computing check strings. *)
+Definition ms_suffix (ms: MatchState) :=
+  List.skipn (Z.to_nat (MatchState.endIndex ms)) (MatchState.input ms).
+
 
 
 (* We say that a MatchState ms matches an input Input next pref when they represent the same
