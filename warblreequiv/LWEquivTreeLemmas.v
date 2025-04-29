@@ -23,9 +23,10 @@ Proof.
     n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
     n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
     n wr lr wquant lquant wgreedylazy greedy Hequiv IH Hequivquant Hequivgreedy |
-    name n wr lr Hequiv IH
-    ]; simpl; try lia; try reflexivity.
-  inversion Hequivquant; inversion Hequivgreedy; simpl; assumption.
+    name n wr lr Hequiv IH |
+    n wr lr wlk llk Hequiv IH Hequivlk]; simpl; try lia; try reflexivity.
+  - inversion Hequivquant; inversion Hequivgreedy; auto.
+  - inversion Hequivlk; auto.
 Qed.
 
 
@@ -78,8 +79,8 @@ Proof.
     n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
     n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
     n wr lr wquant lquant wgreedylazy greedy Hequiv IH Hequivquant Hequivgreedy |
-    name n wr lr Hequiv IH
-    ].
+    name n wr lr Hequiv IH |
+    n wr lr wlk llk Hequiv IH Hequivlk].
   - intros parenCount ctx Hcount.
     simpl in *. subst parenCount. reflexivity.
   - intros parenCount ctx Hcount.
@@ -114,6 +115,7 @@ Proof.
     subst parenCount.
     replace (n + 1) with (S n) by lia.
     apply List.cons_seq.
+  - intros parenCount ctx. inversion Hequivlk; simpl in *; eapply IH; eauto.
 Qed.
 
 
@@ -286,7 +288,7 @@ Lemma endInd_neq_advanced:
     (* and ms1 has advanced (or regressed...) wrt ms, *)
     (MatchState.endIndex ms1 =? MatchState.endIndex ms)%Z = false ->
     (* the current input string of inp' is different from the suffix of ms. *)
-    current_str inp' <> TMatching.ms_suffix ms.
+    current_str inp' <> ms_suffix ms.
 Proof.
   intros ms ms1 inp' str0 rer [_ [Hmsiton _]] [_ [Hms1iton _]] Hms1matches Hinp'compat Hmsstr0 HendInd_neq.
   unfold IteratorOn in *.
@@ -297,7 +299,7 @@ Proof.
   subst str1 str.
   inversion Hms1matches as [str0' endInd1' cap1' next' pref' Hlenpref Hmatchs Heqstr0' Heqend1'].
   subst str0' endInd1' cap1' next' pref'.
-  unfold TMatching.ms_suffix. simpl.
+  unfold ms_suffix. simpl.
   pose proof skipn_lenpref_input _ _ _ _ Hmatchs H.
   intro Habs.
   subst next.
