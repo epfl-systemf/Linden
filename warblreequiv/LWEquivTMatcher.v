@@ -21,8 +21,8 @@ Definition id_mcont: MatcherContinuation := fun x => Success (Some x).
 Definition id_tmcont: TMatcherContinuation := fun _ => Success Match.
 
 (* These two continuations are easily equivalent (under all input strings
-   and with no groups opened). *)
-Lemma id_equiv: forall str0, equiv_tree_mcont str0 id_mcont id_tmcont nil.
+   and both directions and with no groups opened). *)
+Lemma id_equiv: forall str0 dir, equiv_tree_mcont str0 id_mcont id_tmcont nil dir.
 Proof.
   constructor. reflexivity.
 Qed.
@@ -31,19 +31,19 @@ Qed.
 (* Lemma for repeated matching. *)
 Lemma repeatMatcher'_tRepeatMatcher':
   (* For all pairs of a matcher m and a tree matcher tm *)
-  forall (str0: string) (m: Matcher) (tm: TMatcher) (greedy: bool)
+  forall (str0: string) (m: Matcher) (tm: TMatcher) (dir: Direction) (greedy: bool)
     (parenIndex parenCount: non_neg_integer),
     (* that are equivalent, *)
-    equiv_tree_matcher str0 m tm ->
+    equiv_tree_matcher str0 m tm dir ->
     (* for any fuel, min and max, *)
     forall fuel: nat,
     forall (min: non_neg_integer) (max: non_neg_integer_or_inf),
-      (* the corresponding repeat matcher and tree matcher are equivalent. *)
+      (* the corresponding repeat matcher and tree matcher are equivalent with the same direction. *)
       equiv_tree_matcher str0
         (fun ms mc => Semantics.repeatMatcher' m min max greedy ms mc parenIndex parenCount fuel)
-        (fun ms tmc => tRepeatMatcher' tm min max greedy ms tmc parenIndex parenCount fuel).
+        (fun ms tmc => tRepeatMatcher' tm min max greedy ms tmc parenIndex parenCount fuel) dir.
 Proof.
-  intros str0 m tm greedy parenIndex parenCount Hm_tm_equiv fuel.
+  intros str0 m tm dir greedy parenIndex parenCount Hm_tm_equiv fuel.
   induction fuel as [|fuel IHfuel].
   1: constructor.
   
@@ -61,7 +61,7 @@ Proof.
   set (fun y: MatchState => _) as tmcnext.
   set (fun (y: MatchState) => (_: MatchResult)) as mcnext.
   (* These two continuations are equivalent. *)
-  assert (equiv_tree_mcont str0 mcnext tmcnext gl) as Hequivnext. {
+  assert (equiv_tree_mcont str0 mcnext tmcnext gl dir) as Hequivnext. {
     intros ms1 Hms1_str0.
     unfold mcnext, tmcnext.
     (* Case analysis on whether the progress check fails *)
@@ -75,7 +75,7 @@ Proof.
   }
   (* Therefore, the results of matching the inner regexp, then looping, are *)
   (* equivalent. *)
-  assert (equiv_results (tm ms_reset tmcnext) ms_reset gl
+  assert (equiv_results (tm ms_reset tmcnext) ms_reset gl dir
             (m ms_reset mcnext))
     as Hequiv_loop. {
     specialize (Hm_tm_equiv mcnext tmcnext gl Hequivnext ms_reset).
@@ -88,7 +88,7 @@ Proof.
   pose proof Hequivcont ms Hms_str0 as Hequiv_exit.
   assert (equiv_results
             (let! z =<< tm ms_reset tmcnext in Success (GroupAction (Reset (List.seq (parenIndex + 1) parenCount)) z))
-            ms gl (m ms_reset mcnext)) as Hequiv_loopreset. {
+            ms gl dir (m ms_reset mcnext)) as Hequiv_loopreset. {
     inversion Hequiv_loop; simpl; constructor.
     simpl. rewrite RESET_GROUPS. assumption.
   }
@@ -115,7 +115,7 @@ Lemma charset_tcharset:
   forall rer m tm charset str0 dir
     (Heqm: Semantics.characterSetMatcher rer charset false dir = m)
     (Heqtm: tCharacterSetMatcher rer charset false dir = tm),
-    equiv_tree_matcher str0 m tm.
+    equiv_tree_matcher str0 m tm dir.
 Proof.
   intros. intros mc tmc gl Hequiv ms Hmsstr0.
   subst m tm.
@@ -135,26 +135,22 @@ Proof.
   specialize_prove Hequiv. { rewrite Heqms'; auto. }
   destruct (tmc ms') as [child|]; simpl. 2: constructor.
   destruct (mc ms') as [res|]; simpl. 2: constructor.
-  constructor. (* HERE *)
-  (*replace (Z.min (MatchState.endIndex ms) (MatchState.endIndex ms + 1)) with (MatchState.endIndex ms) in Heqindex by lia.
-  rewrite Heqindex in Heqreadchr.
-  simpl.
-  inversion Hequiv as [child0 ms'0 gl0 res0 Hequiv' Heqchild0 Heqms'0 Heqgl0 Heqres0 | |].
-  unfold advance_ms.
-  rewrite <- Heqms'. rewrite <- Hequiv'.
-  reflexivity.*)
-  admit.
-Admitted.
+  constructor.
+  (*replace index with (MatchState.endIndex ms) in Heqreadchr by lia.*)
+  inversion Hequiv as [child0 ms'0 gl0 dir0 res0 Hequiv' Heqchild0 Heqms'0 Heqgl0 Heqdir0 Heqres0 | |].
+  unfold nextend in Heqms'.
+  destruct dir; simpl in *; unfold advance_ms; rewrite <- Heqms'; rewrite <- Hequiv'; reflexivity.
+Qed.
 
 
 (* Main theorem: *)
 Theorem compile_tcompile:
-  forall reg ctx rer m tm (* for all regexes, contexts and RegExpRecords, *)
+  forall reg ctx rer m tm dir (* for all regexes, contexts, RegExpRecords and directions, *)
     (* if the compilations of the regexes into a matcher and a tree matcher succeed, *)
-    (Heqm: Semantics.compileSubPattern reg ctx rer forward = Success m)
-    (Heqtm: tCompileSubPattern reg ctx rer forward = Success tm),
+    (Heqm: Semantics.compileSubPattern reg ctx rer dir = Success m)
+    (Heqtm: tCompileSubPattern reg ctx rer dir = Success tm),
     (* then the resulting matcher and tree matcher are equivalent. *)
-  forall str0, equiv_tree_matcher str0 m tm.
+  forall str0, equiv_tree_matcher str0 m tm dir.
 Proof.
   intros reg ctx rer.
   revert ctx.
@@ -201,8 +197,8 @@ Proof.
     destruct (tCompileSubPattern wr2 _ _ _) as [tm2|] eqn:Heqtm2; simpl. 2: discriminate.
     simpl in *.
     intros mc tmc gl Hequiv ms' Hms'str0.
-    specialize (IH1 m1 tm1 eq_refl eq_refl str0 mc tmc gl Hequiv ms' Hms'str0).
-    specialize (IH2 m2 tm2 eq_refl eq_refl str0 mc tmc gl Hequiv ms' Hms'str0).
+    specialize (IH1 m1 tm1 dir Heqm1 Heqtm1 str0 mc tmc gl Hequiv ms' Hms'str0).
+    specialize (IH2 m2 tm2 dir Heqm2 Heqtm2 str0 mc tmc gl Hequiv ms' Hms'str0).
     simpl in *.
     injection Heqtm as <-.
     destruct (tm1 ms' tmc) as [t1|] eqn:Heqt1; simpl. 2: constructor.
@@ -210,15 +206,14 @@ Proof.
     injection Heqm as <-.
     destruct (m1 ms' mc) as [r|] eqn:Heqr; simpl. 2: constructor.
     destruct r eqn:?; simpl.
-    + constructor. inversion IH1 as [t1' ms'' gl' res IH1' Heqt1' Heqms'' Heqgl' Heqres | |].
+    + constructor. inversion IH1 as [t1' ms'' gl' dir' res IH1' Heqt1' Heqms'' Heqgl' Heqdir' Heqres | |].
       simpl. rewrite <- IH1'. reflexivity.
     + destruct (m2 ms' mc) as [r2|] eqn:Heqr2; simpl. 2: constructor.
       constructor.
-      inversion IH1 as [t1' ms'' gl' res IH1' Heqt1' Heqms'' Heqgl' Heqres | |].
-      clear t1' ms'' gl' res Heqt1' Heqms'' Heqgl' Heqres.
+      inversion IH1 as [t1' ms'' gl' dir' res IH1' Heqt1' Heqms'' Heqgl' Heqdir' Heqres | |].
+      clear t1' ms'' gl' dir' res Heqt1' Heqms'' Heqgl' Heqdir' Heqres.
       simpl. rewrite <- IH1'. simpl.
-      inversion IH2 as [t2' ms''' gl'' res' IH2' Heqt2' Heqms''' Heqgl'' Heqres' | |].
-      clear t2' ms''' gl'' res' Heqt2' Heqms''' Heqgl'' Heqres'. assumption.
+      now inversion IH2.
 
   - (* Quantifier *)
     intros.
@@ -226,7 +221,7 @@ Proof.
     specialize (IH ctx').
     destruct Semantics.compileSubPattern as [msub|] eqn:Heqmsub; simpl. 2: discriminate.
     destruct tCompileSubPattern as [tmsub|] eqn:Heqtmsub; simpl. 2: discriminate.
-    specialize (IH msub tmsub eq_refl eq_refl).
+    specialize (IH msub tmsub dir Heqmsub Heqtmsub).
     simpl in *.
     destruct negb; simpl. 1: discriminate.
     unfold equiv_tree_matcher. intros mc tmc gl Hequivcont.
@@ -244,12 +239,11 @@ Proof.
     destruct (Semantics.compileSubPattern wr2 _ _ _) as [m2|] eqn:Heqm2; simpl. 2: discriminate.
     destruct (tCompileSubPattern wr1 _ _ _) as [tm1|] eqn:Heqtm1; simpl. 2: discriminate.
     destruct (tCompileSubPattern wr2 _ _ _) as [tm2|] eqn:Heqtm2; simpl. 2: discriminate.
-    simpl in *.
-    injection Heqm as <-. injection Heqtm as <-.
-    intros mc tmc gl Hequiv ms.
-    specialize (IH2 m2 tm2 eq_refl eq_refl str0 mc tmc gl Hequiv).
-    specialize (IH1 m1 tm1 eq_refl eq_refl str0 (fun ms0 => m2 ms0 mc) (fun ms0 => tm2 ms0 tmc) gl IH2 ms).
-    auto.
+    simpl in *. destruct dir; injection Heqm as <-; injection Heqtm as <-; intros mc tmc gl Hequiv ms.
+    + specialize (IH2 m2 tm2 forward Heqm2 Heqtm2 str0 mc tmc gl Hequiv).
+      specialize (IH1 m1 tm1 forward Heqm1 Heqtm1 str0 (fun ms0 => m2 ms0 mc) (fun ms0 => tm2 ms0 tmc) gl IH2 ms). auto.
+    + specialize (IH1 m1 tm1 backward Heqm1 Heqtm1 str0 mc tmc gl Hequiv).
+      specialize (IH2 m2 tm2 backward Heqm2 Heqtm2 str0 (fun ms0 => m1 ms0 mc) (fun ms0 => tm1 ms0 tmc) gl IH1 ms). auto.
 
   - (* Group *)
     intros.

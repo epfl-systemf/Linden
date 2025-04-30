@@ -25,17 +25,17 @@ Definition match_choice {F} `{Result.AssertionError F} (resopt1 resopt2: Result 
 
 (* Equivalence lemma for the case of a choice between two branches. *)
 Lemma equiv_choice:
-  forall (ms: MatchState) (gl: open_groups) resopt1 topt1 resopt2 topt2,
-    equiv_results topt1 ms gl resopt1 -> equiv_results topt2 ms gl resopt2 ->
-    equiv_results (tree_choice topt1 topt2) ms gl (match_choice resopt1 resopt2).
+  forall (ms: MatchState) (gl: open_groups) (dir: Direction) resopt1 topt1 resopt2 topt2,
+    equiv_results topt1 ms gl dir resopt1 -> equiv_results topt2 ms gl dir resopt2 ->
+    equiv_results (tree_choice topt1 topt2) ms gl dir (match_choice resopt1 resopt2).
 Proof.
-  intros ms gl resopt1 topt1 resopt2 topt2 Hequiv1 Hequiv2.
+  intros ms gl dir resopt1 topt1 resopt2 topt2 Hequiv1 Hequiv2.
   unfold tree_choice, match_choice.
-  inversion Hequiv1 as [ t1 ms' gl' res1 Hequiv1' Heqt1 Heqms' Heqgl' Heqres1 |
+  inversion Hequiv1 as [ t1 ms' gl' dir' res1 Hequiv1' Heqt1 Heqms' Heqgl' Heqdir' Heqres1 |
                        | ].
   2,3: constructor.
-  subst ms' gl'.
-  inversion Hequiv2 as [ t2 ms' gl' res2 Hequiv2' Heqt2 Heqms' Heqgl' Heqres2 |
+  subst ms' gl' dir'.
+  inversion Hequiv2 as [ t2 ms' gl' dir' res2 Hequiv2' Heqt2 Heqms' Heqgl' Heqdir' Heqres2 |
                        | ]; simpl.
   - replace (if (res1 !=? None)%wt then _ else _)
       with (Success (F := MatchError) (if (res1 !=? None)%wt then res1 else res2
