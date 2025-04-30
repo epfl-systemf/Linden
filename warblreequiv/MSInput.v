@@ -1,5 +1,5 @@
 From Coq Require Import List ZArith Lia.
-From Warblre Require Import Notation Parameters Match.
+From Warblre Require Import Notation Parameters Match Base.
 Import Notation.
 Import Match.
 From Linden Require Import Chars LindenParameters.
@@ -9,10 +9,15 @@ From Linden Require Import Chars LindenParameters.
 
 
 (* Advance match state by one character *)
-Definition advance_ms {H} `{CharacterMarker H} (s: MatchState): MatchState :=
+Definition advance_ms {H} `{CharacterMarker H} (s: MatchState) (dir: Direction): MatchState :=
+  let newend :=
+    match dir with
+    | forward => (MatchState.endIndex s + 1)%Z
+    | backward => (MatchState.endIndex s - 1)%Z
+    end in
   {|
     MatchState.input := MatchState.input s;
-    MatchState.endIndex := (MatchState.endIndex s + 1)%Z;
+    MatchState.endIndex := newend;
     MatchState.captures := MatchState.captures s |}.
 
 

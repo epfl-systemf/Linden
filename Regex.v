@@ -10,10 +10,7 @@ From Warblre Require Import Base.
    for instance, the star termination criteria is not the same as in other languages
    and capture groups are reset at each iteration *)
 
-(** * Directions *)
-Inductive direction: Type :=
-| Forward
-| Backward.
+(** ** We use Warblre's directions *)
 
 (** * Lookarounds *)
 Inductive lookaround: Type :=
@@ -22,10 +19,10 @@ Inductive lookaround: Type :=
 | NegLookAhead
 | NegLookBehind.
 
-Definition lk_dir (lk: lookaround): direction :=
+Definition lk_dir (lk: lookaround): Direction :=
   match lk with
-  | LookAhead | NegLookAhead => Forward
-  | LookBehind | NegLookBehind => Backward
+  | LookAhead | NegLookAhead => forward
+  | LookBehind | NegLookBehind => backward
   end.
 
 Definition positivity (lk: lookaround): bool :=
