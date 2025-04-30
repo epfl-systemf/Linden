@@ -100,3 +100,33 @@ Fixpoint tree_res' {F} `{Result.AssertionError F} (t:tree) (s: MatchState) (gl: 
       end
   | LKFail _ _ => None
   end.
+
+
+(* First branch with an initial state with a dummy input (tree_res' does not inspect the input) and a large enough capture list *)
+Definition first_branch' {F} `{Result.AssertionError F} (t: tree) :=
+  let dummystr := [] in
+  let cap := List.repeat undefined (1 + max_gid_tree t) in
+  tree_res' t (match_state dummystr 0%Z cap) [].
+
+
+(** * Independence of presence or absence of result from the MatchState and open groups *)
+Lemma result_indep_gm {F} `{Result.AssertionError F}:
+  forall t ms1 gl1 ms2 gl2,
+    tree_res' t ms1 gl1 = None -> tree_res' t ms2 gl2 = None.
+Proof.
+  intro t. induction t; eauto.
+  - discriminate.
+  - intros. simpl in *.
+    destruct (tree_res' t1 ms1 gl1) eqn:H11. 1: discriminate.
+    erewrite IHt1 by eauto. eauto.
+  - intros. simpl in *. do 2 destruct group_effect'; eauto.
+  - intros. simpl in *. destruct positivity.
+    + destruct (tree_res' t1 ms1 []) eqn:Hr1.
+      * destruct (tree_res' t1 ms2 []). 2: reflexivity. eauto.
+      * erewrite IHt1 by eauto. eauto.
+    + destruct (tree_res' t1 ms1 []) eqn:Hr11.
+      * destruct (tree_res' t1 ms2 []) eqn:Hr12. 1: reflexivity.
+        apply IHt1 with (ms2 := ms1) (gl2 := []) in Hr12. congruence.
+      * erewrite IHt1 by eauto. eauto.
+Qed.
+    

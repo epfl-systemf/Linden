@@ -2,6 +2,7 @@ Require Import List.
 Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
+From Coq Require Import PeanoNat.
 
 
 (* A tree represents all the possible paths that could be explored by a backtracking engine *)
@@ -69,6 +70,34 @@ Inductive tree : Type :=
 | LK (lk: lookaround) (tlk: tree) (t: tree) (* First tree is the lookaround tree. *)
 | LKFail (lk: lookaround) (tlk: tree)
 .
+
+(** ** Maximum group ID of a tree *)
+(* Maximum group ID of a list of group IDs *)
+Fixpoint max_gid_list (gl: list group_id) :=
+  match gl with
+  | [] => 0
+  | gid::q => max gid (max_gid_list q)
+  end.
+
+(* Maximum group ID of a groupaction *)
+Definition max_gid_groupaction (act: groupaction) :=
+  match act with
+  | Open gid => gid
+  | Close gid => gid
+  | Reset gl => max_gid_list gl
+  end.
+
+(* Maximum group ID of a tree *)
+Fixpoint max_gid_tree (t: tree) :=
+  match t with
+  | Mismatch | Match | CheckFail _ => 0
+  | Choice t1 t2 => max (max_gid_tree t1) (max_gid_tree t2)
+  | Read _ t | CheckPass _ t => max_gid_tree t
+  | GroupAction act t => max (max_gid_groupaction act) (max_gid_tree t)
+  | LK _ tlk t => max (max_gid_tree tlk) (max_gid_tree t)
+  | LKFail _ tlk => max_gid_tree tlk
+  end.
+
 
 (** * Greedy and Lazy Choice *)
 

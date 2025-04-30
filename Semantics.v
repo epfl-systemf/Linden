@@ -4,10 +4,20 @@ Import ListNotations.
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree.
 From Linden Require Import NumericLemmas.
-From Warblre Require Import Numeric.
+From Linden Require Import TreeMSInterp.
+From Warblre Require Import Numeric Errors. (* we don't really care about the kind of error that first_branch' may need, but we need an instance of these errors *)
 From Coq Require Import Lia.
 
 (* This relates a regex and a string to their backtracking tree *)
+
+(** * Lookaround tree correctness  *)
+(* Positive lookarounds expect trees with a result, and negative ones expect trees without results *)
+
+Definition lk_result (lk:lookaround) (t:tree) : Prop :=
+  match (positivity lk) with
+  | true => exists res, first_branch' t = Some res
+  | false => first_branch' t = None
+  end.
 
 (** * Continuation Semantics *)
 
@@ -93,7 +103,20 @@ Inductive is_tree: regex -> continuation -> input -> tree -> Prop :=
 | tree_group:
   forall r1 cont treecont inp gid
     (TREECONT: is_tree r1 (Aclose gid :: cont) inp treecont),
-    is_tree (Group gid r1) cont inp (GroupAction (Open gid) treecont).    
+    is_tree (Group gid r1) cont inp (GroupAction (Open gid) treecont)
+| tree_lk:
+  forall lk r1 cont treecont treelk inp (*dir*)
+    (* there is a tree for the lookaround *)
+    (TREELK: is_tree r1 [] inp (*(lk_dir lk)*) treelk)
+  (* this tree has the correct expected result (positivity) *)
+    (RES_LK: lk_result lk treelk)
+    (TREECONT: is_tree Epsilon cont inp (*dir*) treecont),
+    is_tree (Lookaround lk r1) cont inp (*dir*) (LK lk treelk treecont)
+| tree_lk_fail:
+  forall lk r1 cont treelk inp (*dir*)
+    (TREELK: is_tree r1 [] inp (*(lk_dir lk)*) treelk)
+    (FAIL_LK: ~ lk_result lk treelk),
+    is_tree (Lookaround lk r1) cont inp (*dir*) (LKFail lk treelk).    
 
 
 Definition backtree (r:regex) (str:string) (t:tree): Prop :=
@@ -212,6 +235,13 @@ Proof.
       apply IHis_tree1 in ISTREE1. apply IHis_tree2 in SKIP. subst. auto.
   - inversion H0; subst; auto.
     apply IHis_tree in TREECONT. subst. auto.
+  (* Following two bullets copied from backtree repo *)
+  - inversion H1; subst; auto.
+    2: { apply IHis_tree1 in TREELK. subst. exfalso. apply FAIL_LK. auto. }
+    apply IHis_tree1 in TREELK. apply IHis_tree2 in TREECONT. subst. auto.
+  - inversion H0; subst; auto.
+    { apply IHis_tree in TREELK. subst. exfalso. apply FAIL_LK. auto. }
+    apply IHis_tree in TREELK. subst. auto.
 Qed.
 
 Corollary backtree_determ:

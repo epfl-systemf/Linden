@@ -240,7 +240,8 @@ Proof.
     n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
     n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
     n wr lr wquant lquant wgreedylazy greedy Hequiv IH Hequivquant Hequivgreedy |
-    name n wr lr Hequiv IH
+    name n wr lr Hequiv IH |
+    n wr lr wlk llk Hequiv IH Hequivlk
   ].
 
 
@@ -471,4 +472,77 @@ Proof.
     rewrite Heqid.
     apply tree_group.
     specialize (IH subtree Hvalidms Hms_inp eq_refl). inversion IH. assumption.
-Qed.
+
+  - (* Lookarounds *)
+    (* Let's try proving one of the two/four cases *)
+    inversion Hequivlk as [Heqwlk Heqllk | Heqwlk Heqllk].
+    (* Positive lookahead *)
+    -- simpl. intros ctx Hroot Hparen tm.
+       specialize (IH (Lookahead_inner :: ctx)).
+       specialize_prove IH by eauto using same_root_down0, Down_Lookahead_inner.
+       specialize_prove IH. {
+         unfold StaticSemantics.countLeftCapturingParensBefore in *; simpl. lia.
+       }
+       destruct tCompileSubPattern as [tmsub|] eqn:Hcompilesucc; simpl. 2: discriminate.
+       specialize (IH tmsub eq_refl).
+       intro Heqtm. injection Heqtm as <-.
+       unfold tm_valid in *. specialize (IH id_tmcont []).
+       intros tmc cont str0 Htmcvalid.
+       specialize (IH str0 (id_tmcont_valid rer str0)). unfold tMC_valid in *.
+       intros inp Hinpcompat ms t Hvalidms Hmsinp.
+       unfold tMC_is_tree in IH. specialize (IH inp Hinpcompat ms).
+       destruct (tmsub ms _) as [tlk|] eqn:Htlk; simpl. 2: discriminate.
+       specialize (IH tlk Hvalidms Hmsinp eq_refl).
+       destruct TreeMSInterp.tree_res' as [mslk|] eqn:Hmslk; simpl.
+       + (* Lookahead succeeds *)
+         specialize (Htmcvalid inp Hinpcompat).
+         set (msafterlk := match_state _ _ _). specialize (Htmcvalid msafterlk).
+         destruct (tmc msafterlk) as [tafterlk|]; simpl. 2: discriminate.
+         specialize (Htmcvalid tafterlk).
+         (* The captures found by the tree version of the lookaround are valid *)
+         specialize_prove Htmcvalid by admit.
+         specialize_prove Htmcvalid. { unfold msafterlk. inversion Hmsinp. now constructor. }
+         specialize (Htmcvalid eq_refl).
+         intro H. injection H as <-.
+         apply tree_pop_reg. apply tree_lk.
+         * now inversion IH.
+         * unfold lk_result. simpl. unfold TreeMSInterp.first_branch'. set (msdummy := match_state _ _ _).
+           destruct (TreeMSInterp.tree_res' tlk msdummy []) eqn:Heqdummy. 1: eauto.
+           apply TreeMSInterp.result_indep_gm with (ms2 := ms) (gl2 := []) in Heqdummy. congruence.
+         * assumption.
+       + (* Lookahead fails *)
+         intro H. injection H as <-.
+         apply tree_pop_reg. apply tree_lk_fail.
+         * now inversion IH.
+         * unfold lk_result. simpl. unfold TreeMSInterp.first_branch'. set (msdummy := match_state _ _ _).
+           erewrite TreeMSInterp.result_indep_gm by eauto. intros [res]; discriminate.
+    -- simpl. intros ctx Hroot Hparen tm.
+       specialize (IH (NegativeLookahead_inner :: ctx)).
+       specialize_prove IH by eauto using same_root_down0, Down_NegativeLookahead_inner.
+       specialize_prove IH. {
+         unfold StaticSemantics.countLeftCapturingParensBefore in *; simpl. lia.
+       }
+       destruct tCompileSubPattern as [tmsub|] eqn:Hcompilesucc; simpl. 2: discriminate.
+       specialize (IH tmsub eq_refl).
+       intro Heqtm. injection Heqtm as <-.
+       unfold tm_valid in *. specialize (IH id_tmcont []).
+       intros tmc cont str0 Htmcvalid.
+       specialize (IH str0 (id_tmcont_valid rer str0)). unfold tMC_valid in *.
+       intros inp Hinpcompat ms t Hvalidms Hmsinp.
+       unfold tMC_is_tree in IH. specialize (IH inp Hinpcompat ms).
+       destruct (tmsub ms _) as [tlk|] eqn:Htlk; simpl. 2: discriminate.
+       specialize (IH tlk Hvalidms Hmsinp eq_refl).
+       destruct TreeMSInterp.tree_res' as [mslk|] eqn:Hmslk; simpl.
+       + intro H. injection H as <-.
+         apply tree_pop_reg. apply tree_lk_fail.
+         1: now inversion IH.
+         unfold lk_result, TreeMSInterp.first_branch'. simpl. intro H.
+         apply TreeMSInterp.result_indep_gm with (ms2 := ms) (gl2 := []) in H. congruence.
+       + specialize (Htmcvalid inp Hinpcompat ms).
+         destruct (tmc ms) as [tnext|] eqn:Heqnext; simpl. 2: discriminate.
+         intro H. injection H as <-.
+         specialize (Htmcvalid tnext Hvalidms Hmsinp eq_refl).
+         apply tree_pop_reg. apply tree_lk; auto. 1: now inversion IH.
+         unfold lk_result, TreeMSInterp.first_branch'. simpl.
+         eapply TreeMSInterp.result_indep_gm; eauto.
+Admitted.
