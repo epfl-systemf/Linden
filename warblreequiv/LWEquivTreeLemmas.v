@@ -278,33 +278,23 @@ Qed.
 (* If a MatchState has advanced and corresponds to a new Linden input, then the current string of this Linden input is different from the suffix of the original MatchState. *)
 Lemma endInd_neq_advanced:
   (* For all valid MatchStates ms and ms1 and Linden input inp' *)
-  forall ms ms1 inp' str0 rer,
-    MatchState.Valid (input ms) rer ms ->
-    MatchState.Valid (input ms1) rer ms1 ->
+  forall ms ms1 inp inp1 str0,
+    ms_matches_inp ms inp -> input_compat inp str0 ->
     (* such that ms1 and inp' correspond, *)
-    ms_matches_inp ms1 inp' ->
-    (* ms and ms1 share the same input string, *)
-    input_compat inp' str0 -> MatchState.input ms = str0 ->
+    ms_matches_inp ms1 inp1 -> input_compat inp1 str0 ->
     (* and ms1 has advanced (or regressed...) wrt ms, *)
     (MatchState.endIndex ms1 =? MatchState.endIndex ms)%Z = false ->
     (* the current input string of inp' is different from the suffix of ms. *)
-    current_str inp' <> ms_suffix ms.
+    current_str inp1 <> ms_suffix ms.
 Proof.
-  intros ms ms1 inp' str0 rer [_ [Hmsiton _]] [_ [Hms1iton _]] Hms1matches Hinp'compat Hmsstr0 HendInd_neq.
-  unfold IteratorOn in *.
-  destruct inp' as [next pref]; simpl.
-  rewrite Z.eqb_neq in HendInd_neq.
-  pose proof inp_compat_ms_str0 _ _ Hinp'compat ms1 Hms1matches as Hms1str0.
-  destruct ms1 as [str1 endInd1 cap1]. destruct ms as [str endInd cap]. simpl in *.
-  subst str1 str.
-  inversion Hms1matches as [str0' endInd1' cap1' next' pref' Hlenpref Hmatchs Heqstr0' Heqend1'].
-  subst str0' endInd1' cap1' next' pref'.
-  unfold ms_suffix. simpl.
-  pose proof skipn_lenpref_input _ _ _ _ Hmatchs H.
-  intro Habs.
-  subst next.
-  assert (endInd1 = endInd). { eapply skipn_ind_inv; eauto. }
-  contradiction.
+  intros [input endInd cap] [input1 endInd1 cap1] [next pref] [next1 pref1] str0 Hmsinp Hinpcompat Hms1inp1 Hinp1compat HendInd_neq. simpl.
+  inversion Hmsinp. inversion Hms1inp1. subst next2 pref2 next0 pref0 s s0 cap0 cap2.
+  inversion Hinpcompat. inversion Hinp1compat. subst next0 pref0 str1 next2 pref2 str2.
+  replace input with str0 in * by congruence. replace input1 with str0 in * by congruence. simpl in *.
+  intro Habs. subst endInd endInd1. erewrite <- ms_suffix_current_str in Habs by eauto. simpl in *.
+  subst next1.
+  rewrite Z.eqb_neq in HendInd_neq. assert (end_ind0 <> end_ind) by lia.
+  apply (f_equal (@length Char)) in H5, H12. rewrite List.app_length, List.rev_length in H5, H12. lia.
 Qed.
 
 

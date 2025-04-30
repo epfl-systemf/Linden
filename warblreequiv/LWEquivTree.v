@@ -23,7 +23,7 @@ Local Open Scope result_flow.
   compatible with input inp and valid with respect to rer, performs the actions in the continuation cont and yields a valid backtree. *)
 Definition tMC_is_tree (tmc: TMatcherContinuation) (rer: RegExpRecord) (cont: continuation) (inp: input) :=
   forall (ms: MatchState) (t: tree),
-    Valid (MatchState.input ms) rer ms ->
+    (* Valid (MatchState.input ms) rer ms -> *) (* Testing *)
     ms_matches_inp ms inp ->
     tmc ms = Success t ->
     is_tree Epsilon cont inp t.
@@ -44,7 +44,7 @@ Definition tm_valid (tm: TMatcher) (rer: RegExpRecord) (lreg: regex) :=
 Lemma id_tmcont_valid:
   forall rer str, tMC_valid id_tmcont rer [] str.
 Proof.
-  intros rer str inp Hinp_compat ms t Hvalid Hmsinp Heqt.
+  intros rer str inp Hinp_compat ms t Hmsinp Heqt.
   injection Heqt as <-. apply tree_epsilon.
 Qed.
 
@@ -70,7 +70,7 @@ Proof.
 
   intros [|fuel].
   1: { simpl. now constructor. }
-  unfold tm_valid. intros tmc cont str0 Htmc_valid. unfold tMC_valid. intros inp Hinp_compat. unfold tMC_is_tree. intros ms t Hvalidms Hmsinp.
+  unfold tm_valid. intros tmc cont str0 Htmc_valid. unfold tMC_valid. intros inp Hinp_compat. unfold tMC_is_tree. intros ms t Hmsinp.
   simpl.
   replace (match plus with | NoI.N r' => _ | +∞ => _ end =? NoI.N (nat_to_nni 0))%NoI with false by now destruct plus.
   destruct List.List.Update.Nat.Batch.update as [cap'|] eqn:Hcapsucc; simpl. 2: discriminate.
@@ -81,7 +81,7 @@ Proof.
   unfold tm_valid in Htm_valid. specialize (Htm_valid tmcnext (Areg (Regex.Quantified greedy mini' plus lreg)::cont) str0).
   specialize_prove Htm_valid. {
     specialize (IHmini' fuel tmc cont str0 Htmc_valid). simpl in IHmini'. (* Morally, apply IHmini', but there is a monad rewrite under a lambda which we cannot do... *)
-    unfold tMC_valid, tMC_is_tree. intros inp' Hinp'compat ms' t' Hms'valid Hms'inp.
+    unfold tMC_valid, tMC_is_tree. intros inp' Hinp'compat ms' t' Hms'inp.
     unfold tmcnext. rewrite (@monad_id _ _ Errors.match_assertion_error). now apply IHmini'.
   }
   unfold tMC_valid in Htm_valid. specialize (Htm_valid inp Hinp_compat).
@@ -89,7 +89,7 @@ Proof.
   specialize (Htm_valid msreset).
   destruct tm as [subtree|]; simpl. 2: discriminate.
   specialize (Htm_valid subtree). 2: reflexivity. (* ??? *)
-  specialize_prove Htm_valid. { eapply capture_reset_preserve_validity with (x := ms); eauto. }
+  (*specialize_prove Htm_valid. { eapply capture_reset_preserve_validity with (x := ms); eauto. }*)
   specialize_prove Htm_valid. { apply ms_matches_inp_capchg with (cap := MatchState.captures ms). now destruct ms. }
   specialize (Htm_valid eq_refl).
   intro Heqt. injection Heqt as <-.
@@ -107,7 +107,7 @@ Lemma tRepeatMatcher'_zero_valid:
 Proof.
   intros rer greedy parenIndex parenCount tm lreg Htmvalid Hgroupsvalid fuel.
   destruct fuel as [|fuel]. 1: discriminate.
-  simpl. unfold tm_valid, tMC_valid, tMC_is_tree. intros tmc cont str0 Htmctree inp Hinpcompat ms t Hvalidms Hmsinp Heqt.
+  simpl. unfold tm_valid, tMC_valid, tMC_is_tree. intros tmc cont str0 Htmctree inp Hinpcompat ms t Hmsinp Heqt.
   apply tree_pop_reg. apply tree_quant_minzero_pluszero. eapply Htmctree; eauto.
 Qed.
   
@@ -128,12 +128,12 @@ Proof.
   destruct (plus =? NoI.N (nat_to_nni 0))%NoI eqn:Hpluszero.
   1: { rewrite noi_eqb_eq in Hpluszero. subst plus. now apply tRepeatMatcher'_zero_valid. }
   simpl. rewrite Hpluszero.
-  intros tmc cont str0 Htmc_valid inp Hinp_compat ms t Hvalidms Hms_inp HmatchSuccess.
+  intros tmc cont str0 Htmc_valid inp Hinp_compat ms t Hms_inp HmatchSuccess.
   destruct List.List.Update.Nat.Batch.update as [cap'|] eqn:Heqcap'; simpl in *. 2: discriminate.
   set (tmcloop := fun y: MatchState => if (_ =? _)%Z then _ else _) in HmatchSuccess.
   set (msreset := match_state _ _ cap') in HmatchSuccess.
   assert (tMC_valid tmcloop rer (Acheck (ms_suffix ms)::Areg (Regex.Quantified greedy 0 (plus - 1)%NoI lreg)::cont) str0) as Htmcloop_valid. {
-    intros inp' Hinp'_compat ms1 t1 Hms1valid Hms1_inp Htmcloop_succeeds.
+    intros inp' Hinp'_compat ms1 t1 Hms1_inp Htmcloop_succeeds.
     unfold tmcloop in Htmcloop_succeeds.
     destruct (_ =? _)%Z eqn:Heqcheck.
     - (* Case 1: the input has not progressed *)
@@ -150,17 +150,14 @@ Proof.
       injection Htmcloop_succeeds as <-.
       apply tree_pop_check.
       + eapply endInd_neq_advanced; eauto.
-        eapply inp_compat_ms_str0. (* eauto, eassumption do not work here *)
-        * apply Hinp_compat.
-        * apply Hms_inp.
-      + rewrite noi_decr in Heqsubtree. specialize (IHfuel (plus - 1)%NoI tmc cont str0 Htmc_valid inp' Hinp'_compat ms1 subtree Hms1valid Hms1_inp Heqsubtree). apply IHfuel.
+      + rewrite noi_decr in Heqsubtree. specialize (IHfuel (plus - 1)%NoI tmc cont str0 Htmc_valid inp' Hinp'_compat ms1 subtree Hms1_inp Heqsubtree). apply IHfuel.
   }
   specialize (Htmvalid tmcloop (Acheck (ms_suffix ms)::Areg (Regex.Quantified greedy 0 (plus-1)%NoI lreg)::cont) str0 Htmcloop_valid inp Hinp_compat).
   specialize (Htmc_valid inp Hinp_compat).
   unfold tMC_is_tree in Htmvalid, Htmc_valid.
-  assert (Valid (MatchState.input msreset) rer msreset) as Hvalidmsreset. {
+  (*assert (Valid (MatchState.input msreset) rer msreset) as Hvalidmsreset. {
     now apply @capture_reset_preserve_validity with (specParameters := LindenParameters) (parenIndex := parenIndex) (parenCount := parenCount) (x := ms).
-  }
+  }*)
   assert (ms_matches_inp msreset inp) as Hmsreset_inp. {
     unfold msreset. inversion Hms_inp. simpl. now constructor.
   }
@@ -169,8 +166,8 @@ Proof.
   + (* Greedy star *)
     destruct tm as [z|] eqn:Heqz; simpl. 2: discriminate.
     destruct tmc as [z'|] eqn:Heqz'; simpl. 2: discriminate.
-    specialize (Htmvalid msreset z Hvalidmsreset Hmsreset_inp Heqz).
-    specialize (Htmc_valid ms z' Hvalidms Hms_inp Heqz').
+    specialize (Htmvalid msreset z Hmsreset_inp Heqz).
+    specialize (Htmc_valid ms z' Hms_inp Heqz').
     apply tree_pop_reg.
     rewrite noi_nonzero_succprec with (x := plus). 2: now apply noi_eqb_neq.
     eapply tree_quant_minzero_pluspos.
@@ -184,8 +181,8 @@ Proof.
   + (* Lazy star *)
     destruct tmc as [z'|] eqn:Heqz'; simpl. 2: discriminate.
     destruct tm as [z|] eqn:Heqz; simpl. 2: discriminate.
-    specialize (Htmvalid msreset z Hvalidmsreset Hmsreset_inp Heqz).
-    specialize (Htmc_valid ms z' Hvalidms Hms_inp Heqz').
+    specialize (Htmvalid msreset z Hmsreset_inp Heqz).
+    specialize (Htmc_valid ms z' Hms_inp Heqz').
     apply tree_pop_reg.
     rewrite noi_nonzero_succprec with (x := plus). 2: now apply noi_eqb_neq.
     eapply tree_quant_minzero_pluspos.

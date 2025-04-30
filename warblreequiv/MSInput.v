@@ -116,3 +116,15 @@ Proof.
   intros str endInd cap cap' inp Hmatches.
   inversion Hmatches. now constructor.
 Qed.
+
+(* If a MatchState matches an input which is compatible with some string str0, then the endIndex of the MatchState is in bounds. *)
+Lemma ms_matches_inp_inbounds:
+  forall ms inp str0,
+    ms_matches_inp ms inp -> input_compat inp str0 ->
+    (0 <= MatchState.endIndex ms <= Z.of_nat (length str0))%Z.
+Proof.
+  intros ms [next pref] str0 Hmsinp Hinpcompat.
+  inversion Hmsinp. inversion Hinpcompat. subst next1 pref1 str1 next0 pref0. simpl.
+  subst end_ind. split. 1: lia.
+  rewrite <- H7, app_length, rev_length. lia.
+Qed.
