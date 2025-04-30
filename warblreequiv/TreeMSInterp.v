@@ -64,6 +64,7 @@ Definition group_effect' {F H} `{CharacterMarker H} `{Result.AssertionError F} (
 (* We represent a call mc ms to some MatcherContinuation mc with match state ms as a sub-backtracking tree
    together with the match state ms and a list of groups that are open at that stage of matching. *)
 
+
 (* TODO Direction *)
 (* Given a sub-backtracking tree and an extended match state, retrieve the highest priority result represented
    by the subtree. *)
@@ -90,11 +91,11 @@ Fixpoint tree_res' {F} `{Result.AssertionError F} (t:tree) (s: MatchState) (gl: 
           | Some mslk =>
               (* using the captures defined in the first branch of the lookahead; the open groups remain unchanged because the lookaround is well-parenthesized *)
               tree_res' t (match_state (MatchState.input s) (MatchState.endIndex s) (MatchState.captures mslk)) gl
-          | None => None
+          | None => None (* unreachable in valid trees *)
           end
       | false => match tree_res' tlk s nil with (* Same here *)
           (* using previous captures *)
-          | Some _ => None
+          | Some _ => None (* unreachable in valid trees *)
           | None => tree_res' t s gl
           end
       end

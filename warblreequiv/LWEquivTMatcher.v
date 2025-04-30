@@ -112,21 +112,22 @@ Qed.
 
 (* Lemma for character set matchers. *)
 Lemma charset_tcharset:
-  forall rer m tm charset str0
-    (Heqm: Semantics.characterSetMatcher rer charset false forward = m)
-    (Heqtm: tCharacterSetMatcher rer charset false forward = tm),
+  forall rer m tm charset str0 dir
+    (Heqm: Semantics.characterSetMatcher rer charset false dir = m)
+    (Heqtm: tCharacterSetMatcher rer charset false dir = tm),
     equiv_tree_matcher str0 m tm.
 Proof.
   intros. intros mc tmc gl Hequiv ms Hmsstr0.
   subst m tm.
   unfold tCharacterSetMatcher, Semantics.characterSetMatcher. simpl.
-  remember ((_ <? 0)%Z || _)%bool as oob. destruct oob eqn:Hoob.
+  set (nextend := if (dir ==? forward)%wt then _ else _).
+  set ((_ <? 0)%Z || _)%bool as oob. destruct oob eqn:Hoob.
   1: { constructor. reflexivity. }
   
-  remember (Z.min _ _) as index.
+  set (Z.min _ _) as index.
   remember (List.List.Indexing.Int.indexing _ _) as readchr.
   destruct readchr as [readchr|]; simpl. 2: constructor.
-  remember (CharSet.exist_canonicalized _ _ _) as read_matches.
+  set (CharSet.exist_canonicalized _ _ _) as read_matches.
   destruct read_matches eqn:Hread_matches; simpl.
   2: constructor; reflexivity.
   remember (match_state _ _ _) as ms'.
@@ -134,15 +135,16 @@ Proof.
   specialize_prove Hequiv. { rewrite Heqms'; auto. }
   destruct (tmc ms') as [child|]; simpl. 2: constructor.
   destruct (mc ms') as [res|]; simpl. 2: constructor.
-  constructor.
-  replace (Z.min (MatchState.endIndex ms) (MatchState.endIndex ms + 1)) with (MatchState.endIndex ms) in Heqindex by lia.
+  constructor. (* HERE *)
+  (*replace (Z.min (MatchState.endIndex ms) (MatchState.endIndex ms + 1)) with (MatchState.endIndex ms) in Heqindex by lia.
   rewrite Heqindex in Heqreadchr.
   simpl.
   inversion Hequiv as [child0 ms'0 gl0 res0 Hequiv' Heqchild0 Heqms'0 Heqgl0 Heqres0 | |].
   unfold advance_ms.
   rewrite <- Heqms'. rewrite <- Hequiv'.
-  reflexivity.
-Qed.
+  reflexivity.*)
+  admit.
+Admitted.
 
 
 (* Main theorem: *)
@@ -329,4 +331,10 @@ Proof.
     unfold equiv_tree_mcont in Hcontequiv. specialize (Hcontequiv ms Hmsstr0).
     inversion Hcontequiv as [t1 msafterlk' gl' r Hcontequiv' | |]. 2,3: constructor.
     constructor. simpl. rewrite <- IH'. auto.
-Qed.
+
+    (* Positive lookbehind *)
+  - admit.
+
+    (* Negative lookbehind *)
+  - admit.
+Admitted.

@@ -22,7 +22,11 @@ Local Open Scope result_flow.
 (* `tMC_is_tree tmc rer cont inp` means that the TMatcherContinuation tmc, when run with a MatchState
   compatible with input inp and valid with respect to rer, performs the actions in the continuation cont and yields a valid backtree. *)
 Definition tMC_is_tree (tmc: TMatcherContinuation) (rer: RegExpRecord) (cont: continuation) (inp: input) :=
-  forall (ms: MatchState) (t: tree), Valid (MatchState.input ms) rer ms -> ms_matches_inp ms inp -> tmc ms = Success t -> is_tree Epsilon cont inp t.
+  forall (ms: MatchState) (t: tree),
+    Valid (MatchState.input ms) rer ms ->
+    ms_matches_inp ms inp ->
+    tmc ms = Success t ->
+    is_tree Epsilon cont inp t.
 
 (* `tMC_valid tmc rer cont str0` means that the TMatcherContinuation tmc, when run on any input compatible with the string str0 under the flags in rer,
    performs the actions in the continuation cont and yields a valid backtree. *)
