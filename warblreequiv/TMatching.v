@@ -309,13 +309,14 @@ match self with
       in
       (*>> d. Let r be m(x, d). <<*)
       let! r =<< m x d in
+      let rstate := tree_res' r x nil forward in
       (*>> e. If r is failure, return failure. <<*)
       (* Ugh, we need to call tree_res' here, and we can't get the list of open groups from c, so we pass nil *)
-      if tree_res' r x nil == None then
+      if rstate == None then
         Success (LKFail LookAhead r)
       else
       (*>> f. Let y be r's MatchState. <<*)
-      destruct! (Some y) <- tree_res' r x nil in
+      destruct! (Some y) <- rstate in
       (*>> g. Let cap be y's captures List. <<*)
       let cap := MatchState.captures y in
       (*>> h. Let Input be x's input. <<*)
@@ -346,7 +347,7 @@ match self with
       let! r =<< m x d in
       (*>> e. If r is not failure, return failure. <<*)
       (* Ugh, again *)
-      if tree_res' r x nil != None then
+      if tree_res' r x nil forward != None then
         Success (LKFail NegLookAhead r)
       else
       (*>> f. Return c(x). <<*)
@@ -369,12 +370,13 @@ match self with
       in
       (*>> d. Let r be m(x, d). <<*)
       let! r =<< m x d in
+      let rstate := tree_res' r x nil backward in
       (*>> e. If r is failure, return failure. <<*)
-      if tree_res' r x nil == None then
+      if rstate == None then
         Success (LKFail LookBehind r)
       else
       (*>> f. Let y be r's MatchState. <<*)
-      destruct! (Some y) <- tree_res' r x nil in
+      destruct! (Some y) <- rstate in
       (*>> g. Let cap be y's captures List. <<*)
       let cap := MatchState.captures y in
       (*>> h. Let Input be x's input. <<*)
@@ -404,7 +406,7 @@ match self with
       (*>> d. Let r be m(x, d). <<*)
       let! r =<< m x d in
       (*>> e. If r is not failure, return failure. <<*)
-      if tree_res' r x nil != failure then
+      if tree_res' r x nil backward != failure then
         Success (LKFail NegLookBehind r)
       else
       (*>> f. Return c(x). <<*)
