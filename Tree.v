@@ -52,6 +52,7 @@ Lemma seqop_assoc:
 Proof. intros. unfold seqop. destruct o1; destruct o2; auto. Qed.
 
 (** * Priority Trees  *)
+(* TODO Direction *)
 
 Inductive groupaction : Type :=
 | Open (g:group_id)
