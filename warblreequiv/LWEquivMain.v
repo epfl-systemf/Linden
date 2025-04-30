@@ -52,7 +52,6 @@ Proof.
   - specialize (Hbt id_tmcont [] str (id_tmcont_valid rer str)).
     specialize (Hbt (init_input str) (MSInput.init_input_compat str)).
     set (ms := match_state str 0 _). specialize (Hbt ms t).
-    specialize_prove Hbt. { apply MatchState.valid_init. lia. }
     specialize_prove Hbt by apply MSInput.init_ms_matches_inp. simpl in Hbt.
     intro Hsucctm. specialize (Hbt Hsucctm). now inversion Hbt.
 Qed.
