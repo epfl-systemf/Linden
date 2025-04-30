@@ -352,6 +352,64 @@ match self with
       (*>> f. Return c(x). <<*)
         let! t =<< c x in
         Success (LK NegLookAhead r t)): TMatcher)
+
+(** >> Assertion :: (?<= Disjunction ) <<*)
+| Lookbehind r =>
+    (*>> 1. Let m be CompileSubpattern of Disjunction with arguments rer and backward. <<*)
+    let! m =<< tCompileSubPattern r (Lookbehind_inner :: ctx) rer backward in
+    (*>> 2. Return a new Matcher with parameters (x, c) that captures m and performs the following steps when called: <<*)
+    Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
+      (*>> a. Assert: x is a MatchState. <<*)
+      (*>> b. Assert: c is a MatcherContinuation. <<*)
+      (*>> c. Let d be a new MatcherContinuation with parameters (y) that captures nothing and performs the following steps when called: <<*)
+      let d: TMatcherContinuation := fun (y: MatchState) =>
+        (*>> i. Assert: y is a MatchState. <<*)
+        (*>> ii. Return y. <<*)
+        Success Match
+      in
+      (*>> d. Let r be m(x, d). <<*)
+      let! r =<< m x d in
+      (*>> e. If r is failure, return failure. <<*)
+      if tree_res' r x nil == None then
+        Success (LKFail LookBehind r)
+      else
+      (*>> f. Let y be r's MatchState. <<*)
+      destruct! (Some y) <- tree_res' r x nil in
+      (*>> g. Let cap be y's captures List. <<*)
+      let cap := MatchState.captures y in
+      (*>> h. Let Input be x's input. <<*)
+      let input := MatchState.input x in
+      (*>> i. Let xe be x's endIndex. <<*)
+      let xe := MatchState.endIndex x in
+      (*>> j. Let z be the MatchState (Input, xe, cap). <<*)
+      let z := match_state input xe cap in
+      (*>> k. Return c(z). <<*)
+      let! t =<< c z in
+      Success (LK LookBehind r t)): TMatcher)
+
+(** >> Assertion :: (?<! Disjunction ) <<*)
+| NegativeLookbehind r =>
+    (*>> 1. Let m be CompileSubpattern of Disjunction with arguments rer and backward. <<*)
+    let! m =<< tCompileSubPattern r (NegativeLookbehind_inner :: ctx) rer backward in
+    (*>> 2. Return a new Matcher with parameters (x, c) that captures m and performs the following steps when called: <<*)
+    Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
+      (*>> a. Assert: x is a MatchState. <<*)
+      (*>> b. Assert: c is a MatcherContinuation. <<*)
+      (*>> c. Let d be a new MatcherContinuation with parameters (y) that captures nothing and performs the following steps when called: <<*)
+      let d: TMatcherContinuation := fun (y: MatchState) =>
+        (*>> i. Assert: y is a MatchState. <<*)
+        (*>> ii. Return y. <<*)
+        Success Match
+      in
+      (*>> d. Let r be m(x, d). <<*)
+      let! r =<< m x d in
+      (*>> e. If r is not failure, return failure. <<*)
+      if tree_res' r x nil != failure then
+        Success (LKFail NegLookBehind r)
+      else
+      (*>> f. Return c(x). <<*)
+      let! t =<< c x in
+      Success (LK NegLookBehind r t)): TMatcher)
 (* Computing a tree for the other cases is currently unsupported: we return a compilation failure in these cases. *)
 | _ => Error CompileError.AssertionFailed
 end.
