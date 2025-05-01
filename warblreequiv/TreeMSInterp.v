@@ -35,7 +35,7 @@ Fixpoint close_group (id: Groups.group_id) (gl: open_groups) end_index: CaptureR
       if id == id' then
         let start := match dir with forward => ind | backward => end_index end in
         let groupEnd := match dir with forward => end_index | backward => ind end in
-      (capture_range start end_index, q)
+      (capture_range start groupEnd, q)
     else
       let (range, q') := close_group id q end_index in
       (range, (id', ind, dir)::q')
