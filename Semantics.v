@@ -5,7 +5,7 @@ From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree.
 From Linden Require Import NumericLemmas.
 From Linden Require Import TreeMSInterp.
-From Warblre Require Import Numeric Errors. (* we don't really care about the kind of error that first_branch' may need, but we need an instance of these errors *)
+From Warblre Require Import Numeric Base Errors. (* we don't really care about the kind of error that first_branch' may need, but we need an instance of these errors *)
 From Coq Require Import Lia.
 
 (* This relates a regex and a string to their backtracking tree *)
@@ -34,93 +34,98 @@ Definition continuation: Type := list action.
 
 (* `is_tree r cont str t` means that `t` is a correct backtracking tree for `r` on `s`,
    where we have to execute `cont` at each leaf *)
-Inductive is_tree: regex -> continuation -> input -> tree -> Prop :=
+Inductive is_tree: regex -> continuation -> input -> Direction -> tree -> Prop :=
 | tree_epsilon:
   (* on an empty continuation *)
-  forall inp,
-    is_tree Epsilon [] inp Match
+  forall inp dir,
+    is_tree Epsilon [] inp dir Match
 | tree_pop_reg:
   (* pops a regex from the continuation list *)
-  forall inp regcont tailcont treecont
-    (TREECONT: is_tree regcont tailcont inp treecont),
-    is_tree Epsilon (Areg regcont :: tailcont) inp treecont
+  forall inp dir regcont tailcont treecont
+    (TREECONT: is_tree regcont tailcont inp dir treecont),
+    is_tree Epsilon (Areg regcont :: tailcont) inp dir treecont
 | tree_pop_check:
 (* pops a successful check from the continuation list *)
-  forall inp strcheck tailcont treecont
-    (PROGRESS: current_str inp <> strcheck)
-    (TREECONT: is_tree Epsilon tailcont inp treecont),
-    is_tree Epsilon (Acheck strcheck :: tailcont) inp (CheckPass strcheck treecont)
+  forall inp dir strcheck tailcont treecont
+    (PROGRESS: current_str inp dir <> strcheck)
+    (TREECONT: is_tree Epsilon tailcont inp dir treecont),
+    is_tree Epsilon (Acheck strcheck :: tailcont) inp dir (CheckPass strcheck treecont)
 | tree_pop_check_fail:
 (* pops a failing check from the continuation list *)
-  forall inp strcheck tailcont
-    (CHECKFAIL: current_str inp = strcheck),
-    is_tree Epsilon (Acheck strcheck :: tailcont) inp (CheckFail strcheck)
+  forall inp dir strcheck tailcont
+    (CHECKFAIL: current_str inp dir = strcheck),
+    is_tree Epsilon (Acheck strcheck :: tailcont) inp dir (CheckFail strcheck)
 | tree_pop_close:
 (* pops the closing of a group from the continuation list *)
-  forall inp tailcont treecont gid
-    (TREECONT: is_tree Epsilon tailcont inp treecont),
-    is_tree Epsilon (Aclose gid :: tailcont) inp (GroupAction (Close gid) treecont)
+  forall inp dir tailcont treecont gid
+    (TREECONT: is_tree Epsilon tailcont inp dir treecont),
+    is_tree Epsilon (Aclose gid :: tailcont) inp dir (GroupAction (Close gid) treecont)
 | tree_char:
-  forall c cd inp nextinp cont tcont
-    (READ: read_char cd inp = Some (c, nextinp))
-    (TREECONT: is_tree Epsilon cont nextinp tcont),
-    is_tree (Character cd) cont inp (Read c tcont)
+  forall c cd inp nextinp dir cont tcont
+    (READ: read_char cd inp dir = Some (c, nextinp))
+    (TREECONT: is_tree Epsilon cont nextinp dir tcont),
+    is_tree (Regex.Character cd) cont inp dir (Read c tcont)
 | tree_char_fail:
-  forall cd inp cont
-    (READ: read_char cd inp = None),
-    is_tree (Character cd) cont inp Mismatch
+  forall cd inp dir cont
+    (READ: read_char cd inp dir = None),
+    is_tree (Regex.Character cd) cont inp dir Mismatch
 | tree_disj:
-  forall r1 r2 cont t1 t2 inp
-    (ISTREE1: is_tree r1 cont inp t1)
-    (ISTREE2: is_tree r2 cont inp t2),
-    is_tree (Disjunction r1 r2) cont inp (Choice t1 t2)
-| tree_sequence:
+  forall r1 r2 cont t1 t2 inp dir
+    (ISTREE1: is_tree r1 cont inp dir t1)
+    (ISTREE2: is_tree r2 cont inp dir t2),
+    is_tree (Disjunction r1 r2) cont inp dir (Choice t1 t2)
+| tree_sequence_fwd:
   (* adding next regex to the continuation *)
   forall r1 r2 cont t inp
-    (CONT: is_tree r1 (Areg r2 :: cont) inp t),
-    is_tree (Sequence r1 r2) cont inp t
+    (CONT: is_tree r1 (Areg r2 :: cont) inp forward t),
+    is_tree (Sequence r1 r2) cont inp forward t
+| tree_sequence_bwd:
+  (* adding next regex to the continuation, reversing the order of regexes *)
+  forall r1 r2 cont t inp
+    (CONT: is_tree r2 (Areg r1 :: cont) inp backward t),
+    is_tree (Sequence r1 r2) cont inp backward t
 | tree_quant_minpos:
-  forall r1 greedy min plus cont titer inp gidl
+  forall r1 greedy min plus cont titer inp dir gidl
     (* the list of capture groups to reset *)
     (RESET: gidl = def_groups r1)
     (* doing one iteration *)
-    (ISTREE1: is_tree r1 (Areg (Quantified greedy min plus r1)::cont) inp titer),
-    is_tree (Quantified greedy (S min) plus r1) cont inp (GroupAction (Reset gidl) titer)
+    (ISTREE1: is_tree r1 (Areg (Quantified greedy min plus r1)::cont) inp dir titer),
+    is_tree (Quantified greedy (S min) plus r1) cont inp dir (GroupAction (Reset gidl) titer)
 | tree_quant_minzero_pluszero:
-  forall r1 greedy cont tskip inp
-    (SKIP: is_tree Epsilon cont inp tskip),
-    is_tree (Quantified greedy 0 (NoI.N 0) r1) cont inp tskip
+  forall r1 greedy cont tskip inp dir
+    (SKIP: is_tree Epsilon cont inp dir tskip),
+    is_tree (Quantified greedy 0 (NoI.N 0) r1) cont inp dir tskip
 | tree_quant_minzero_pluspos:
-  forall r1 greedy plus cont titer tskip tquant inp gidl
+  forall r1 greedy plus cont titer tskip tquant inp dir gidl
     (* the list of capture groups to reset *)
     (RESET: gidl = def_groups r1)
     (* doing one iteration, then a check, then executing the next quantifier *)
-    (ISTREE1: is_tree r1 (Acheck (current_str inp)::Areg (Quantified greedy 0 plus r1)::cont) inp titer)
+    (ISTREE1: is_tree r1 (Acheck (current_str inp dir)::Areg (Quantified greedy 0 plus r1)::cont) inp dir titer)
     (* skipping the quantifier entirely *)
-    (SKIP: is_tree Epsilon cont inp tskip)
+    (SKIP: is_tree Epsilon cont inp dir tskip)
     (CHOICE: tquant = greedy_choice greedy (GroupAction (Reset gidl) titer) tskip),
-    is_tree (Quantified greedy 0 (NoI.N 1 + plus)%NoI r1) cont inp tquant
+    is_tree (Quantified greedy 0 (NoI.N 1 + plus)%NoI r1) cont inp dir tquant
 | tree_group:
-  forall r1 cont treecont inp gid
-    (TREECONT: is_tree r1 (Aclose gid :: cont) inp treecont),
-    is_tree (Group gid r1) cont inp (GroupAction (Open gid) treecont)
+  forall r1 cont treecont inp dir gid
+    (TREECONT: is_tree r1 (Aclose gid :: cont) inp dir treecont),
+    is_tree (Group gid r1) cont inp dir (GroupAction (Open gid) treecont)
 | tree_lk:
-  forall lk r1 cont treecont treelk inp (*dir*)
+  forall lk r1 cont treecont treelk inp dir
     (* there is a tree for the lookaround *)
-    (TREELK: is_tree r1 [] inp (*(lk_dir lk)*) treelk)
+    (TREELK: is_tree r1 [] inp (lk_dir lk) treelk)
   (* this tree has the correct expected result (positivity) *)
     (RES_LK: lk_result lk treelk)
-    (TREECONT: is_tree Epsilon cont inp (*dir*) treecont),
-    is_tree (Lookaround lk r1) cont inp (*dir*) (LK lk treelk treecont)
+    (TREECONT: is_tree Epsilon cont inp dir treecont),
+    is_tree (Lookaround lk r1) cont inp dir (LK lk treelk treecont)
 | tree_lk_fail:
-  forall lk r1 cont treelk inp (*dir*)
-    (TREELK: is_tree r1 [] inp (*(lk_dir lk)*) treelk)
+  forall lk r1 cont treelk inp dir
+    (TREELK: is_tree r1 [] inp (lk_dir lk) treelk)
     (FAIL_LK: ~ lk_result lk treelk),
-    is_tree (Lookaround lk r1) cont inp (*dir*) (LKFail lk treelk).    
+    is_tree (Lookaround lk r1) cont inp dir (LKFail lk treelk).
 
 
 Definition backtree (r:regex) (str:string) (t:tree): Prop :=
-  is_tree r [] (init_input str) t.
+  is_tree r [] (init_input str) forward t.
 
 (* Adding Epsilon to the list of continuations *)
 (*Lemma is_tree_eps':
@@ -200,12 +205,12 @@ Qed.*)
 (** * Determinism  *)
 
 Theorem is_tree_determ:
-  forall r cont i t1 t2,
-    is_tree r cont i t1 ->
-    is_tree r cont i t2 ->
+  forall r cont i dir t1 t2,
+    is_tree r cont i dir t1 ->
+    is_tree r cont i dir t2 ->
     t1 = t2.
 Proof.
-  intros r cont i t1 t2 H.
+  intros r cont i dir t1 t2 H.
   generalize dependent t2.
   induction H; intros.
   - inversion H; subst; auto.
@@ -223,6 +228,7 @@ Proof.
     rewrite READ0 in READ. inversion READ.
   - inversion H1; subst; auto.
     apply IHis_tree1 in ISTREE1. apply IHis_tree2 in ISTREE2. subst. auto.
+  - inversion H0; subst; auto.
   - inversion H0; subst; auto.
   - inversion H0; subst; auto.
     apply IHis_tree in ISTREE1.
