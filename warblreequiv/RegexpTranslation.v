@@ -32,11 +32,12 @@ Inductive equiv_quantifier: Patterns.QuantifierPrefix -> (bool -> regex -> regex
 | Equiv_reppartialrange: forall n, equiv_quantifier (Patterns.RepPartialRange n) (fun greedy => Quantified greedy n +∞)
 | Equiv_reprange: forall mini maxi, mini <= maxi -> equiv_quantifier (Patterns.RepRange mini maxi) (fun greedy => Quantified greedy mini (NoI.N (maxi-mini))).
 
-(* Equivalence of lookaheads. *)
-Inductive equiv_lookahead: (Patterns.Regex -> Patterns.Regex) -> lookaround -> Prop :=
-| Equiv_lookahead: equiv_lookahead Patterns.Lookahead LookAhead
-| Equiv_neglookahead: equiv_lookahead Patterns.NegativeLookahead NegLookAhead.
-(* TODO Lookbehinds *)
+(* Equivalence of lookarounds. *)
+Inductive equiv_lookaround: (Patterns.Regex -> Patterns.Regex) -> lookaround -> Prop :=
+| Equiv_lookahead: equiv_lookaround Patterns.Lookahead LookAhead
+| Equiv_neglookahead: equiv_lookaround Patterns.NegativeLookahead NegLookAhead
+| Equiv_lookbehind: equiv_lookaround Patterns.Lookbehind LookBehind
+| Equiv_neglookbehind: equiv_lookaround Patterns.NegativeLookbehind NegLookBehind.
 
 (* equiv_regex' wreg lreg n means that the two regexes wreg and lreg are equivalent, where the number of left capturing parentheses before wreg/lreg is n. *)
 Inductive equiv_regex': Patterns.Regex -> regex -> nat -> Prop :=
@@ -56,7 +57,7 @@ Inductive equiv_regex': Patterns.Regex -> regex -> nat -> Prop :=
     equiv_quantifier wquant lquant -> equiv_greedylazy wgreedylazy greedy ->
     equiv_regex' (Patterns.Quantified wr (wgreedylazy wquant)) (lquant greedy lr) n
 | Equiv_group: forall name n wr lr, equiv_regex' wr lr (S n) -> equiv_regex' (Patterns.Group name wr) (Group (S n) lr) n
-| Equiv_lk: forall n wr lr wlk llk, equiv_regex' wr lr n -> equiv_lookahead wlk llk -> equiv_regex' (wlk wr) (Lookaround llk lr) n.
+| Equiv_lk: forall n wr lr wlk llk, equiv_regex' wr lr n -> equiv_lookaround wlk llk -> equiv_regex' (wlk wr) (Lookaround llk lr) n.
 
 
 (* Equivalence of root regexes. *)
