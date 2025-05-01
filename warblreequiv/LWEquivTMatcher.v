@@ -1,14 +1,16 @@
-From Coq Require Import Lia PeanoNat ZArith.
+From Coq Require Import Lia PeanoNat ZArith List.
+Import ListNotations.
 From Linden Require Import LWEquivTMatcherDef LWEquivTMatcherLemmas TMatching
   LindenParameters Tree Chars TreeMSInterp ListLemmas MSInput Tactics.
 From Warblre Require Import Result Notation Base Semantics Coercions
-  Errors Patterns Node.
+  Errors Patterns Node RegExpRecord.
 Import Notation.
 Import Coercions.
 Import Result.Notations.
 Import Patterns.
 
 Local Open Scope result_flow.
+Local Open Scope bool_scope.
 
 
 (** * First part of equivalence proof: Warblre's matchers and the corresponding tree matchers yield equivalent results *)
@@ -141,6 +143,88 @@ Proof.
   unfold nextend in Heqms'.
   destruct dir; simpl in *; unfold advance_ms; rewrite <- Heqms'; rewrite <- Hequiv'; reflexivity.
 Qed.
+
+
+(** ** Lemma for lookarounds *)
+Definition lookaround_cons (lkdir: Direction) (pos: bool) : Regex -> Regex :=
+  match lkdir, pos with
+  | forward, true => Lookahead
+  | forward, false => NegativeLookahead
+  | backward, true => Lookbehind
+  | backward, false => NegativeLookbehind
+  end.
+
+(* Factorization of cases of Semantics.compileSubPattern corresponding to lookarounds. *)
+Definition lookaroundMatcher (compileSubPattern: Regex -> RegexContext -> RegExpRecord -> Direction -> Result Matcher CompileError) (lkdir: Direction) (pos: bool) (lkreg: Regex) (ctx: RegexContext) (rer: RegExpRecord) (direction: Direction): Result Matcher CompileError :=
+  let! m =<< compileSubPattern lkreg (lkCtx lkdir pos :: ctx) rer lkdir in
+  Success ((fun (x: MatchState) (c: MatcherContinuation) =>
+    let d: MatcherContinuation := fun (y: MatchState) => Success (Some y) in
+    let! r =<< m x d in
+    if (pos && r == None) || (negb pos && r != None) then
+      Success None
+    else if pos then
+      destruct! (Some y) <- r in
+      let cap := MatchState.captures y in
+      let input := MatchState.input x in
+      let xe := MatchState.endIndex x in
+      let z := match_state input xe cap in
+      c z
+    else
+      c x): Matcher).
+
+(* This is indeed a factorization of said cases. *)
+Lemma lookaroundMatcher_fact:
+  forall lkdir pos lkreg ctx rer dir c x,
+    (match Semantics.compileSubPattern ((lookaround_cons lkdir pos) lkreg) ctx rer dir with
+     | Success m => Success (m x c)
+     | Error e => Error e
+     end) =
+      (match lookaroundMatcher Semantics.compileSubPattern lkdir pos lkreg ctx rer dir with
+       | Success m => Success (m x c)
+       | Error e => Error e
+       end).
+Proof.
+  intros [|] [|] lkreg ctx rer dir c x; unfold lookaroundMatcher; simpl; destruct Semantics.compileSubPattern as [msub|]; simpl; try reflexivity.
+  - destruct msub; simpl; auto. rewrite Bool.orb_false_r. reflexivity.
+  - destruct msub; simpl; auto. rewrite Bool.orb_false_r. reflexivity.
+Qed.
+
+(* A dummy match state to be able to discriminate; probably not strictly necessary. *)
+Definition dummy_match_state: MatchState := match_state nil 0%Z nil.
+
+(* The lemma; lkdir is the lookaround direction, pos is the lookaround positivity, lkreg is the lookaround regex. *)
+Lemma compile_tcompile_lk:
+  forall lkdir pos lkreg rer
+    (IH:
+      forall ctx m tm dir
+        (Heqm: Semantics.compileSubPattern lkreg ctx rer dir = Success m)
+        (Heqtm: tCompileSubPattern lkreg ctx rer dir = Success tm),
+        forall str0, equiv_tree_matcher str0 m tm dir),
+  forall ctx m tm dir
+    (Heqm: Semantics.compileSubPattern ((lookaround_cons lkdir pos) lkreg) ctx rer dir = Success m)
+    (Heqtm: tLookaroundMatcher tCompileSubPattern lkdir pos lkreg ctx rer dir = Success tm),
+  forall str0, equiv_tree_matcher str0 m tm dir.
+Proof.
+  intros. pose proof (lookaroundMatcher_fact lkdir pos lkreg ctx rer dir) as Hfact. rewrite Heqm in Hfact. clear Heqm.
+  unfold tLookaroundMatcher in Heqtm. unfold lookaroundMatcher in Hfact.
+  destruct Semantics.compileSubPattern as [mlk|] eqn:Heqmlk; simpl in *. 2: discriminate (Hfact id_mcont dummy_match_state).
+  destruct tCompileSubPattern as [tmlk|] eqn:Heqtmlk; simpl in *. 2: discriminate.
+  injection Heqtm as <-. unfold equiv_tree_matcher.
+  intros mc tmc gl Hequivcont. unfold equiv_tree_mcont.
+  intros ms Hmsstr0. specialize (Hfact mc ms). injection Hfact as ->.
+  specialize (IH _ mlk tmlk lkdir Heqmlk Heqtmlk str0 id_mcont id_tmcont nil (id_equiv str0 lkdir) ms Hmsstr0). simpl in *.
+  destruct tmlk as [tlk|] eqn:Htlk; try solve[constructor]. simpl.
+  destruct mlk as [mslkopt|] eqn:Hmslkopt; try solve[constructor]. simpl.
+  inversion IH as [tlk' ms' nil' lkdir' mslkopt' IH' | |]. subst tlk' ms' nil' lkdir' mslkopt'.
+  rewrite <- IH'. unfold equiv_tree_mcont in Hequivcont.
+  destruct pos; destruct mslkopt as [mslk|]; simpl; try solve[now constructor].
+  - set (msafterlk := match_state _ _ _). specialize (Hequivcont msafterlk Hmsstr0).
+    inversion Hequivcont as [t1 msafterlk' gl' r Hcontequiv' | |]. 2,3: constructor.
+    constructor. simpl. replace (Regex.positivity _) with true by now destruct lkdir. replace (Regex.lk_dir _) with lkdir by now destruct lkdir. rewrite <- IH'. auto.
+  - specialize (Hequivcont ms Hmsstr0). inversion Hequivcont as [t1 msafterlk' gl' r Hcontequiv' | |]. 2,3: constructor.
+    simpl. constructor. simpl. replace (Regex.positivity _) with false by now destruct lkdir. replace (Regex.lk_dir _) with lkdir by now destruct lkdir. rewrite <- IH'. auto.
+Qed.
+  
 
 
 (* Main theorem: *)
@@ -288,80 +372,14 @@ Proof.
     constructor. inversion IH. auto.
 
     (* Positive lookahead *)
-  - intros ctx m tm.
-    destruct Semantics.compileSubPattern as [msub|] eqn:Hcompsucc. 2: discriminate.
-    destruct tCompileSubPattern as [tmsub|] eqn:Htcompsucc. 2: discriminate.
-    specialize (IH _ msub tmsub forward Hcompsucc Htcompsucc).
-    simpl. intros dir Heqm Heqtm. injection Heqm as <-. injection Heqtm as <-.
-    intro str0. specialize (IH str0). unfold equiv_tree_matcher in *.
-    specialize (IH id_mcont id_tmcont nil (id_equiv str0 forward)).
-    intros mc tmc gl Hcontequiv.
-    unfold equiv_tree_mcont. unfold equiv_tree_mcont in IH. intros ms Hmsstr0.
-    specialize (IH ms Hmsstr0). unfold id_mcont, id_tmcont in IH.
-    destruct tmsub as [tlk|] eqn:Htlk; try solve[constructor]. simpl.
-    destruct msub as [mslkopt|] eqn:Hmslkopt; try solve[constructor]. simpl.
-    inversion IH as [tlk' ms' nil' forward' mslkopt' IH' | |]. subst tlk' ms' nil' forward' mslkopt'.
-    rewrite <- IH'. destruct mslkopt as [mslk|]; simpl. 2: now constructor.
-    unfold equiv_tree_mcont in Hcontequiv. set (msafterlk := match_state _ _ _). specialize (Hcontequiv msafterlk Hmsstr0).
-    inversion Hcontequiv as [t1 msafterlk' gl' r Hcontequiv' | |]. 2,3: constructor.
-    constructor. simpl. rewrite <- IH'. auto.
-    
-    
+  - intros. apply compile_tcompile_lk with (lkdir := forward) (pos := true) (lkreg := wr) (rer := rer) (ctx := ctx); auto.
 
     (* Negative lookahead *)
-  - intros ctx m tm.
-    destruct Semantics.compileSubPattern as [msub|] eqn:Hcompsucc. 2: discriminate.
-    destruct tCompileSubPattern as [tmsub|] eqn:Htcompsucc. 2: discriminate.
-    specialize (IH _ msub tmsub forward Hcompsucc Htcompsucc).
-    simpl. intros dir Heqm Heqtm. injection Heqm as <-. injection Heqtm as <-.
-    intro str0. specialize (IH str0). unfold equiv_tree_matcher in *.
-    specialize (IH id_mcont id_tmcont nil (id_equiv str0 forward)).
-    intros mc tmc gl Hcontequiv.
-    unfold equiv_tree_mcont. unfold equiv_tree_mcont in IH. intros ms Hmsstr0.
-    specialize (IH ms Hmsstr0). unfold id_mcont, id_tmcont in IH.
-    destruct tmsub as [tlk|] eqn:Htlk; try solve[constructor]. simpl.
-    destruct msub as [mslkopt|] eqn:Hmslkopt; try solve[constructor]. simpl.
-    inversion IH as [tlk' ms' nil' forward' mslkopt' IH' | |]. subst tlk' ms' nil' forward' mslkopt'.
-    rewrite <- IH'. destruct mslkopt as [mslk|]; simpl. 1: now constructor.
-    unfold equiv_tree_mcont in Hcontequiv. specialize (Hcontequiv ms Hmsstr0).
-    inversion Hcontequiv as [t1 msafterlk' gl' r Hcontequiv' | |]. 2,3: constructor.
-    constructor. simpl. rewrite <- IH'. auto.
+  - intros. apply compile_tcompile_lk with (lkdir := forward) (pos := false) (lkreg := wr) (rer := rer) (ctx := ctx); auto.
 
     (* Positive lookbehind *)
-  - intros ctx m tm dir.
-    destruct Semantics.compileSubPattern as [msub|] eqn:Hcompsucc. 2: discriminate.
-    destruct tCompileSubPattern as [tmsub|] eqn:Htcompsucc. 2: discriminate.
-    specialize (IH _ msub tmsub backward Hcompsucc Htcompsucc).
-    simpl. intros Heqm Heqtm. injection Heqm as <-. injection Heqtm as <-.
-    intro str0. specialize (IH str0). unfold equiv_tree_matcher in *.
-    specialize (IH id_mcont id_tmcont nil (id_equiv str0 backward)).
-    intros mc tmc gl Hcontequiv.
-    unfold equiv_tree_mcont. unfold equiv_tree_mcont in IH. intros ms Hmsstr0.
-    specialize (IH ms Hmsstr0). unfold id_mcont, id_tmcont in IH.
-    destruct tmsub as [tlk|] eqn:Htlk; try solve[constructor]. simpl.
-    destruct msub as [mslkopt|] eqn:Hmslkopt; try solve[constructor]. simpl.
-    inversion IH as [tlk' ms' nil' backward' mslkopt' IH' | |]. subst tlk' ms' nil' backward' mslkopt'.
-    rewrite <- IH'. destruct mslkopt as [mslk|]; simpl. 2: now constructor.
-    unfold equiv_tree_mcont in Hcontequiv. set (msafterlk := match_state _ _ _). specialize (Hcontequiv msafterlk Hmsstr0).
-    inversion Hcontequiv as [t1 msafterlk' gl' r Hcontequiv' | |]. 2,3: constructor.
-    constructor. simpl. rewrite <- IH'. auto.
+  - intros. apply compile_tcompile_lk with (lkdir := backward) (pos := true) (lkreg := wr) (rer := rer) (ctx := ctx); auto.
 
     (* Negative lookbehind *)
-  - intros ctx m tm.
-    destruct Semantics.compileSubPattern as [msub|] eqn:Hcompsucc. 2: discriminate.
-    destruct tCompileSubPattern as [tmsub|] eqn:Htcompsucc. 2: discriminate.
-    specialize (IH _ msub tmsub backward Hcompsucc Htcompsucc).
-    simpl. intros dir Heqm Heqtm. injection Heqm as <-. injection Heqtm as <-.
-    intro str0. specialize (IH str0). unfold equiv_tree_matcher in *.
-    specialize (IH id_mcont id_tmcont nil (id_equiv str0 backward)).
-    intros mc tmc gl Hcontequiv.
-    unfold equiv_tree_mcont. unfold equiv_tree_mcont in IH. intros ms Hmsstr0.
-    specialize (IH ms Hmsstr0). unfold id_mcont, id_tmcont in IH.
-    destruct tmsub as [tlk|] eqn:Htlk; try solve[constructor]. simpl.
-    destruct msub as [mslkopt|] eqn:Hmslkopt; try solve[constructor]. simpl.
-    inversion IH as [tlk' ms' nil' backward' mslkopt' IH' | |]. subst tlk' ms' nil' backward' mslkopt'.
-    rewrite <- IH'. destruct mslkopt as [mslk|]; simpl. 1: now constructor.
-    unfold equiv_tree_mcont in Hcontequiv. specialize (Hcontequiv ms Hmsstr0).
-    inversion Hcontequiv as [t1 msafterlk' gl' r Hcontequiv' | |]. 2,3: constructor.
-    constructor. simpl. rewrite <- IH'. auto.
+  - intros. apply compile_tcompile_lk with (lkdir := backward) (pos := false) (lkreg := wr) (rer := rer) (ctx := ctx); auto.
 Qed.
