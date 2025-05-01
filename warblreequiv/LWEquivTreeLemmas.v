@@ -141,33 +141,50 @@ Qed.
 
 (* If reading a character succeeds in the Warblre sense, then it succeeds in the Linden sense as well. *)
 Lemma read_char_success:
-  forall ms inp chr c rer inp_adv,
+  forall ms inp chr c rer dir inp_adv,
     (* If we do not ignore case, *)
     RegExpRecord.ignoreCase rer = false ->
     (* then for any match state and corresponding Linden input, *)
     ms_matches_inp ms inp ->
     (* if reading character c succeeds in the Warblre sense, *)
-    List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms) = Success chr ->
+    List.Indexing.Int.indexing (MatchState.input ms) (
+        match dir with forward => MatchState.endIndex ms | backward => MatchState.endIndex ms - 1 end) = Success chr ->
     CharSet.exist_canonicalized rer (CharSet.singleton c) (char_canonicalize rer chr) = true ->
     (* then reading character c succeeds in the Linden sense. *)
-    advance_input inp = Some inp_adv ->
-    read_char (single c) inp = Some (chr, inp_adv).
+    advance_input inp dir = Some inp_adv ->
+    read_char (single c) inp dir = Some (chr, inp_adv).
 Proof.
-  intros ms inp chr c rer inp_adv Hcasesenst Hms_inp Hreadsuccess Hcharcorresp Hadv.
+  intros ms inp chr c rer dir inp_adv Hcasesenst Hms_inp Hreadsuccess Hcharcorresp Hadv.
   destruct inp as [next pref].
-  destruct next as [|x next'].
-  1: discriminate.
-  injection Hadv as <-. simpl.
-  inversion Hms_inp as [str0 end_ind cap next2 pref2 Hlenpref Heqstr0 Heqms Heqnext2].
-  subst next2 pref2 ms str0. simpl in *.
-  rewrite List.Indexing.Int.of_nat in Hreadsuccess.
-  apply List.Indexing.Nat.concat in Hreadsuccess.
-  destruct Hreadsuccess as [ [Habs _] | [Hzero Hreadsuccess] ].
-  1: { rewrite List.rev_length in Habs. lia. }
-  rewrite List.rev_length in Hreadsuccess.
-  replace (end_ind - length pref) with 0 in Hreadsuccess by lia.
-  injection Hreadsuccess as <-.
-  now rewrite char_match_warblre with (rer := rer).
+  destruct dir.
+  - destruct next as [|x next']. 1: discriminate.
+    injection Hadv as <-. simpl.
+    inversion Hms_inp as [str0 end_ind cap next2 pref2 Hlenpref Heqstr0 Heqms Heqnext2].
+    subst next2 pref2 ms str0. simpl in *.
+    rewrite List.Indexing.Int.of_nat in Hreadsuccess.
+    apply List.Indexing.Nat.concat in Hreadsuccess.
+    destruct Hreadsuccess as [ [Habs _] | [Hzero Hreadsuccess] ].
+    1: { rewrite List.rev_length in Habs. lia. }
+    rewrite List.rev_length in Hreadsuccess.
+    replace (end_ind - length pref) with 0 in Hreadsuccess by lia.
+    injection Hreadsuccess as <-.
+    now rewrite char_match_warblre with (rer := rer).
+  - destruct pref as [|x pref']. 1: discriminate.
+    injection Hadv as <-. simpl.
+    inversion Hms_inp as [str0 end_ind cap next2 pref2 Hlenpref Heqstr0 Heqms Heqnext2].
+    subst next2 pref2 ms str0. simpl in *.
+    destruct end_ind as [|end_indm1]. 1: discriminate.
+    replace (Z.of_nat (S end_indm1) - 1)%Z with (Z.of_nat end_indm1) in Hreadsuccess by lia.
+    rewrite List.Indexing.Int.of_nat in Hreadsuccess.
+    apply List.Indexing.Nat.concat in Hreadsuccess.
+    destruct Hreadsuccess as [ [Hlen Hreadsuccess] | [Habs _] ].
+    2: { rewrite List.app_length, List.rev_length in Habs. simpl in *. lia. }
+    injection Hlenpref as <-.
+    unfold List.Indexing.Nat.indexing in Hreadsuccess.
+    rewrite List.nth_error_app2 in Hreadsuccess. 2: { rewrite List.rev_length. reflexivity. }
+    rewrite List.rev_length, Nat.sub_diag in Hreadsuccess.
+    injection Hreadsuccess as <-.
+    now rewrite char_match_warblre with (rer := rer).
 Qed.
 
 
@@ -192,51 +209,72 @@ Qed.
 
 (* Same as read_char_success, but in the mismatching case. *)
 Lemma read_char_fail:
-  forall rer ms chr inp c,
+  forall rer ms chr inp dir c,
     RegExpRecord.ignoreCase rer = false ->
     ms_matches_inp ms inp ->
-    List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms) = Success chr ->
+    List.Indexing.Int.indexing (MatchState.input ms) (
+        match dir with forward => MatchState.endIndex ms | backward => MatchState.endIndex ms - 1 end) = Success chr ->
     CharSet.exist_canonicalized rer (CharSet.singleton c) (char_canonicalize rer chr) = false ->
-    read_char (single c) inp = None.
+    read_char (single c) inp dir = None.
 Proof.
-  intros rer ms chr inp c Hcasesenst Hms_inp Hreadsuccess Hnocorresp.
+  intros rer ms chr inp dir c Hcasesenst Hms_inp Hreadsuccess Hnocorresp.
   destruct inp as [next pref].
   destruct ms as [str0 endInd cap].
   inversion Hms_inp as [s end_ind cap0 next0 pref0 Hlenpref Hmatches Heqs Heqend_ind].
   subst s cap0 pref0 next0 endInd. simpl in *.
-  rewrite List.Indexing.Int.of_nat in Hreadsuccess.
-  subst str0 end_ind.
-  apply List.Indexing.Nat.concat in Hreadsuccess.
-  destruct Hreadsuccess as [ [Habs _] | [_ Hreadsuccess] ].
-  1: { rewrite List.rev_length in Habs. lia. }
-  rewrite List.rev_length in Hreadsuccess.
-  replace (length pref - length pref) with 0 in Hreadsuccess by lia.
-  destruct next as [|x next']. 1: discriminate.
-  injection Hreadsuccess as <-.
-  now rewrite char_mismatch_warblre with (rer := rer).
+  destruct dir.
+  - rewrite List.Indexing.Int.of_nat in Hreadsuccess.
+    subst str0 end_ind.
+    apply List.Indexing.Nat.concat in Hreadsuccess.
+    destruct Hreadsuccess as [ [Habs _] | [_ Hreadsuccess] ].
+    1: { rewrite List.rev_length in Habs. lia. }
+    rewrite List.rev_length in Hreadsuccess.
+    replace (length pref - length pref) with 0 in Hreadsuccess by lia.
+    destruct next as [|x next']. 1: discriminate.
+    injection Hreadsuccess as <-.
+    now rewrite char_mismatch_warblre with (rer := rer).
+  - destruct end_ind as [|end_indm1]. 1: discriminate.
+    replace (Z.of_nat (S end_indm1) - 1)%Z with (Z.of_nat end_indm1) in Hreadsuccess by lia.
+    rewrite List.Indexing.Int.of_nat in Hreadsuccess.
+    destruct pref as [|x pref']; simpl in *. 1: discriminate.
+    injection Hlenpref as <-. subst str0.
+    apply List.Indexing.Nat.concat in Hreadsuccess.
+    destruct Hreadsuccess as [ [Hlen Hreadsuccess] | [Habs _] ].
+    2: { rewrite List.app_length, List.rev_length in Habs. simpl in *. lia. }
+    unfold List.Indexing.Nat.indexing in Hreadsuccess.
+    rewrite List.nth_error_app2 in Hreadsuccess. 2: { rewrite List.rev_length. reflexivity. }
+    rewrite List.rev_length, Nat.sub_diag in Hreadsuccess.
+    injection Hreadsuccess as <-.
+    now rewrite char_mismatch_warblre with (rer := rer).
 Qed.
   
 
 (* Advancing an input preserves compatibility with an input string. *)
 Lemma advance_input_compat:
-  forall inp str0 inp_adv,
+  forall inp dir str0 inp_adv,
     input_compat inp str0 ->
-    advance_input inp = Some inp_adv ->
+    advance_input inp dir = Some inp_adv ->
     input_compat inp_adv str0.
 Proof.
-  intros inp str0 inp_adv Hinpcompat Hadv.
+  intros inp dir str0 inp_adv Hinpcompat Hadv.
   inversion Hinpcompat as [next pref str1 Hcompat Heqinp Heqstr1].
   subst str1 inp.
-  destruct next as [ | x next' ]. 1: discriminate.
-  injection Hadv as <-.
-  constructor.
-  subst str0. simpl. rewrite <- List.app_assoc.
-  reflexivity.
+  destruct dir.
+  - destruct next as [ | x next' ]. 1: discriminate.
+    injection Hadv as <-.
+    constructor.
+    subst str0. simpl. rewrite <- List.app_assoc.
+    reflexivity.
+  - destruct pref as [ | x pref' ]. 1: discriminate.
+    injection Hadv as <-.
+    constructor.
+    subst str0. simpl. rewrite <- List.app_assoc.
+    reflexivity.
 Qed.
 
 
 (* Advancing a valid MatchState forward yields a valid MatchState when we remain in bounds. *)
-Lemma ms_advance_valid:
+(*Lemma ms_advance_valid:
   forall ms rer ms_adv,
     MatchState.Valid (MatchState.input ms) rer ms ->
     (MatchState.endIndex ms + 1 <= Z.of_nat (length (MatchState.input ms)))%Z ->
@@ -249,57 +287,74 @@ Proof.
   simpl in *.
   split; [|split; [|split]]; try easy.
   unfold IteratorOn in *. simpl. lia.
-Qed.
+Qed.*)
 
 
-(* Advancing corresponding MatchStates and inputs forward yields corresponding MatchStates and inputs. *)
+(* Advancing corresponding MatchStates and inputs yields corresponding MatchStates and inputs. *)
 Lemma ms_matches_inp_adv:
-  forall ms inp ms_adv inp_adv,
+  forall ms inp dir ms_adv inp_adv,
     ms_matches_inp ms inp ->
-    ms_adv = advance_ms ms forward ->
-    advance_input inp = Some inp_adv ->
+    ms_adv = advance_ms ms dir ->
+    advance_input inp dir = Some inp_adv ->
     ms_matches_inp ms_adv inp_adv.
 Proof.
-  intros ms inp ms_adv inp_adv Hmatches Heqms_adv Hinp_adv.
+  intros ms inp dir ms_adv inp_adv Hmatches Heqms_adv Hinp_adv.
   destruct ms as [input endIndex cap].
   destruct inp as [next pref].
-  destruct next as [|x next']. 1: discriminate.
-  injection Hinp_adv as <-.
-  unfold advance_ms in Heqms_adv. simpl in *. subst ms_adv.
-  inversion Hmatches as [s end_ind cap1 next1 pref1 Hlenpref Hmatches' Heqs Heqend_ind].
-  subst cap1 pref1 next1 s.
-  replace (Z.of_nat end_ind + 1)%Z with (Z.of_nat (end_ind + 1)) by lia.
-  constructor.
-  - simpl. lia.
-  - simpl. rewrite <- List.app_assoc. apply Hmatches'.
+  destruct dir.
+  - destruct next as [|x next']. 1: discriminate.
+    injection Hinp_adv as <-.
+    unfold advance_ms in Heqms_adv. simpl in *. subst ms_adv.
+    inversion Hmatches as [s end_ind cap1 next1 pref1 Hlenpref Hmatches' Heqs Heqend_ind].
+    subst cap1 pref1 next1 s.
+    replace (Z.of_nat end_ind + 1)%Z with (Z.of_nat (end_ind + 1)) by lia.
+    constructor.
+    + simpl. lia.
+    + simpl. rewrite <- List.app_assoc. apply Hmatches'.
+  - destruct pref as [|x pref']. 1: discriminate.
+    injection Hinp_adv as <-.
+    unfold advance_ms in Heqms_adv. simpl in *. subst ms_adv.
+    inversion Hmatches as [s end_ind cap1 next1 pref1 Hlenpref Hmatches' Heqs Heqend_ind].
+    subst cap1 pref1 next1 s.
+    destruct end_ind as [|end_indm1]. 1: discriminate.
+    replace (Z.of_nat (S end_indm1) - 1)%Z with (Z.of_nat end_indm1) by lia.
+    constructor.
+    + simpl in Hlenpref. lia.
+    + simpl in Hmatches'. rewrite <- List.app_assoc in Hmatches'. simpl in Hmatches'. assumption.
 Qed.
 
 
-(* If a MatchState has advanced and corresponds to a new Linden input, then the current string of this Linden input is different from the suffix of the original MatchState. *)
+(* If a MatchState has advanced or regressed and corresponds to a new Linden input, then the current string of this Linden input is different from the suffix of the original MatchState. *)
 Lemma endInd_neq_advanced:
   (* For all valid MatchStates ms and ms1 and Linden input inp' *)
   forall ms ms1 inp inp1 str0,
     ms_matches_inp ms inp -> input_compat inp str0 ->
     (* such that ms1 and inp' correspond, *)
     ms_matches_inp ms1 inp1 -> input_compat inp1 str0 ->
-    (* and ms1 has advanced (or regressed...) wrt ms, *)
+    (* and ms1 has advanced or regressed wrt ms, *)
     (MatchState.endIndex ms1 =? MatchState.endIndex ms)%Z = false ->
     (* the current input string of inp' is different from the suffix of ms. *)
-    current_str inp1 <> ms_suffix ms.
+    forall dir, current_str inp1 dir <> ms_suffix ms dir.
 Proof.
-  intros [input endInd cap] [input1 endInd1 cap1] [next pref] [next1 pref1] str0 Hmsinp Hinpcompat Hms1inp1 Hinp1compat HendInd_neq. simpl.
+  intros [input endInd cap] [input1 endInd1 cap1] [next pref] [next1 pref1] str0 Hmsinp Hinpcompat Hms1inp1 Hinp1compat HendInd_neq dir. simpl.
   inversion Hmsinp. inversion Hms1inp1. subst next2 pref2 next0 pref0 s s0 cap0 cap2.
   inversion Hinpcompat. inversion Hinp1compat. subst next0 pref0 str1 next2 pref2 str2.
   replace input with str0 in * by congruence. replace input1 with str0 in * by congruence. simpl in *.
-  intro Habs. subst endInd endInd1. erewrite <- ms_suffix_current_str in Habs by eauto. simpl in *.
-  subst next1.
-  rewrite Z.eqb_neq in HendInd_neq. assert (end_ind0 <> end_ind) by lia.
-  apply (f_equal (@length Char)) in H5, H12. rewrite List.app_length, List.rev_length in H5, H12. lia.
+  intro Habs. subst endInd endInd1.
+  destruct dir.
+  - erewrite <- ms_suffix_current_str in Habs by eauto. simpl in *.
+    subst next1.
+    rewrite Z.eqb_neq in HendInd_neq. assert (end_ind0 <> end_ind) by lia.
+    apply (f_equal (@length Char)) in H5, H12. rewrite List.app_length, List.rev_length in H5, H12. lia.
+  - erewrite <- ms_suffix_current_str in Habs by eauto. simpl in *.
+    subst pref1.
+    rewrite Z.eqb_neq in HendInd_neq. assert (end_ind0 <> end_ind) by lia.
+    apply (f_equal (@length Char)) in H5, H12. rewrite List.app_length, List.rev_length in H5, H12. lia.
 Qed.
 
 
 (* If we try to read forward out of bounds, this means that the suffix of our input is empty. *)
-Lemma read_oob_fail:
+Lemma read_oob_fail_end:
   forall (ms: MatchState) (inp: Chars.input),
     (MatchState.endIndex ms + 1 > Z.of_nat (length (MatchState.input ms)))%Z ->
     ms_matches_inp ms inp ->
@@ -332,19 +387,19 @@ Proof.
 Qed.
 
 
-(* If we try to read out of bounds in the Warblre sense, then reading a character in the Linden sense fails. *)
-Lemma read_oob_fail_bool:
+(* If we try to read forward out of bounds in the Warblre sense, then reading a character in the Linden sense fails. *)
+Lemma read_oob_fail_end_bool:
   forall (ms: MatchState) (inp: Chars.input),
     ms_matches_inp ms inp ->
     ((MatchState.endIndex ms + 1 <? 0)%Z || (MatchState.endIndex ms + 1 >? Z.of_nat (length (MatchState.input ms)))%Z)%bool = true ->
-    forall cd: char_descr, read_char cd inp = None.
+    forall cd: char_descr, read_char cd inp forward = None.
 Proof.
   intros ms inp Hmatches Hoob.
   apply Bool.orb_true_elim in Hoob.
   destruct Hoob as [Hoob|Hoob].
   - exfalso. rewrite Z.ltb_lt in Hoob. apply (endInd_neg_abs _ _ Hmatches Hoob).
   - rewrite Z.gtb_gt in Hoob.
-    pose proof read_oob_fail ms inp Hoob Hmatches.
+    pose proof read_oob_fail_end ms inp Hoob Hmatches.
     destruct H as [pref H].
     subst inp. simpl. reflexivity.
 Qed.
@@ -354,7 +409,7 @@ Lemma next_inbounds_nextinp:
   forall (ms: MatchState) (inp: Chars.input),
     ms_matches_inp ms inp ->
     ((MatchState.endIndex ms + 1 <? 0)%Z || (MatchState.endIndex ms + 1 >? Z.of_nat (length (MatchState.input ms)))%Z)%bool = false ->
-    exists inp', advance_input inp = Some inp'.
+    exists inp', advance_input inp forward = Some inp'.
 Proof.
   intros ms inp Hmatches Hinb.
   inversion Hmatches as [s end_ind cap next pref Hlenpref Heqs Heqms Heqinp].
