@@ -161,6 +161,46 @@ Definition tCharacterSetMatcher (rer: RegExpRecord) (A: CharSet) (invert: bool) 
     let! child =<< c y in
     Success (Read chr child).
 
+Definition lkCtx (lkdir: Direction) (pos: bool) :=
+  match lkdir, pos with
+  | forward, true => Lookahead_inner
+  | forward, false => NegativeLookahead_inner
+  | backward, true => Lookbehind_inner
+  | backward, false => NegativeLookbehind_inner
+  end.
+
+Definition to_lookaround (lkdir: Direction) (pos: bool) :=
+  match lkdir, pos with
+  | forward, true => LookAhead
+  | forward, false => NegLookAhead
+  | backward, true => LookBehind
+  | backward, false => NegLookBehind
+  end.
+
+Definition tLookaroundMatcher (tCompileSubPattern: Regex -> RegexContext -> RegExpRecord -> Direction -> Result TMatcher CompileError) (lkdir: Direction) (pos: bool) (lkreg: Regex) (ctx: RegexContext) (rer: RegExpRecord) (direction: Direction) : Result TMatcher CompileError :=
+  let! m =<< tCompileSubPattern lkreg (lkCtx lkdir pos :: ctx) rer lkdir in
+  Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
+    let d: TMatcherContinuation := fun (y: MatchState) => Success Match in
+    let! r =<< m x d in
+    let rstate := tree_res' r x nil lkdir in
+    if (pos && rstate == None) || (negb pos && rstate != None) then
+        Success (LKFail (to_lookaround lkdir pos) r)
+    else
+      let! z =<<
+        if pos then
+          destruct! (Some y) <- rstate in
+          let cap := MatchState.captures y in
+          let input := MatchState.input x in
+          let xe := MatchState.endIndex x in
+          Success (match_state input xe cap)
+        else
+          Success x
+        in
+      let! t =<< c z in
+      Success (LK (to_lookaround lkdir pos) r t)
+    ): TMatcher).
+  
+
 Fixpoint tCompileSubPattern (self: Regex) (ctx: RegexContext) (rer: RegExpRecord) (direction: Direction): Result TMatcher CompileError :=
 match self with
 | Disjunction r1 r2 =>
@@ -296,7 +336,8 @@ match self with
 
 (** >> Assertion :: (?= Disjunction ) <<*)
 | Lookahead r =>
-    (*>> 1. Let m be CompileSubpattern of Disjunction with arguments rer and forward. <<*)
+    tLookaroundMatcher tCompileSubPattern forward true r ctx rer direction
+    (*(*>> 1. Let m be CompileSubpattern of Disjunction with arguments rer and forward. <<*)
     let! m =<< tCompileSubPattern r (Lookahead_inner :: ctx) rer forward in
     (*>> 2. Return a new Matcher with parameters (x, c) that captures m and performs the following steps when called: <<*)
     Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
@@ -328,11 +369,12 @@ match self with
       let z := match_state input xe cap in
       (*>> k. Return c(z). <<*)
       let! t =<< c z in
-      Success (LK LookAhead r t)): TMatcher)
+      Success (LK LookAhead r t)): TMatcher)*)
 
 (** >> Assertion :: (?! Disjunction ) <<*)
 | NegativeLookahead r =>
-    (*>> 1. Let m be CompileSubpattern of Disjunction with arguments rer and forward. <<*)
+    tLookaroundMatcher tCompileSubPattern forward false r ctx rer direction
+    (*(*>> 1. Let m be CompileSubpattern of Disjunction with arguments rer and forward. <<*)
     let! m =<< tCompileSubPattern r (NegativeLookahead_inner :: ctx) rer forward in
     (*>> 2. Return a new Matcher with parameters (x, c) that captures m and performs the following steps when called: <<*)
     Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
@@ -353,11 +395,12 @@ match self with
       else
       (*>> f. Return c(x). <<*)
         let! t =<< c x in
-        Success (LK NegLookAhead r t)): TMatcher)
+        Success (LK NegLookAhead r t)): TMatcher)*)
 
 (** >> Assertion :: (?<= Disjunction ) <<*)
 | Lookbehind r =>
-    (*>> 1. Let m be CompileSubpattern of Disjunction with arguments rer and backward. <<*)
+    tLookaroundMatcher tCompileSubPattern backward true r ctx rer direction
+    (*(*>> 1. Let m be CompileSubpattern of Disjunction with arguments rer and backward. <<*)
     let! m =<< tCompileSubPattern r (Lookbehind_inner :: ctx) rer backward in
     (*>> 2. Return a new Matcher with parameters (x, c) that captures m and performs the following steps when called: <<*)
     Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
@@ -388,11 +431,12 @@ match self with
       let z := match_state input xe cap in
       (*>> k. Return c(z). <<*)
       let! t =<< c z in
-      Success (LK LookBehind r t)): TMatcher)
+      Success (LK LookBehind r t)): TMatcher)*)
 
 (** >> Assertion :: (?<! Disjunction ) <<*)
 | NegativeLookbehind r =>
-    (*>> 1. Let m be CompileSubpattern of Disjunction with arguments rer and backward. <<*)
+    tLookaroundMatcher tCompileSubPattern backward false r ctx rer direction
+    (*(*>> 1. Let m be CompileSubpattern of Disjunction with arguments rer and backward. <<*)
     let! m =<< tCompileSubPattern r (NegativeLookbehind_inner :: ctx) rer backward in
     (*>> 2. Return a new Matcher with parameters (x, c) that captures m and performs the following steps when called: <<*)
     Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
@@ -412,7 +456,7 @@ match self with
       else
       (*>> f. Return c(x). <<*)
       let! t =<< c x in
-      Success (LK NegLookBehind r t)): TMatcher)
+      Success (LK NegLookBehind r t)): TMatcher)*)
 (* Computing a tree for the other cases is currently unsupported: we return a compilation failure in these cases. *)
 | _ => Error CompileError.AssertionFailed
 end.
