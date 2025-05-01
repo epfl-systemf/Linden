@@ -450,7 +450,7 @@ Proof.
       subst tmc2. clear Heqt.
       unfold tMC_is_tree.
       intros msend subtree Hmsend_inp Heqsubtree.
-      destruct negb eqn:Hcapvalid; simpl in *. 1: discriminate.
+      remember (if (dir ==? forward)%wt then _ else _) as rres. destruct rres as [r|] eqn:Hrres; simpl in *. 2: discriminate.
       rewrite Heqid in Heqsubtree. change ((S n) =? 0) with false in Heqsubtree.
       destruct (List.List.Update.Nat.One.update) as [cap|] eqn:Heqcap; simpl in *. 2: discriminate.
       specialize (Htmc_tree inpend Hinpend_compat).
