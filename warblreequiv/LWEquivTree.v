@@ -394,7 +394,7 @@ Proof.
 
 
   - (* Quantifier *)
-    intros ctx Hroot Heqn. simpl. intros tm Hcompsucc.
+    intros ctx Hroot Heqn. simpl. intros tm dir Hcompsucc.
     destruct tCompileSubPattern as [m|] eqn:Heqm; simpl. 2: discriminate.
     simpl in Hcompsucc.
     intros tmc cont str0 Htmc_valid.
@@ -408,8 +408,8 @@ Proof.
     specialize_prove IH. {
       unfold StaticSemantics.countLeftCapturingParensBefore in *. simpl. lia.
     }
-    specialize (IH m Heqm).
-    pose proof tRepeatMatcher'_valid rer greedy parenIndex parenCount mini (maxi-mini)%NoI m lr IH as Hrepeat.
+    specialize (IH m dir Heqm).
+    pose proof tRepeatMatcher'_valid rer greedy parenIndex parenCount mini (maxi-mini)%NoI m lr dir IH as Hrepeat.
     specialize_prove Hrepeat. {
       subst n. apply equiv_def_groups with (wr := wr) (ctx := ctx); auto.
     }
@@ -431,20 +431,20 @@ Proof.
 
     
   - (* Group *)
-    intros ctx Hroot Heqn. simpl. intros tm Hcompsucc.
+    intros ctx Hroot Heqn. simpl. intros tm dir Hcompsucc.
     specialize (IH (Group_inner name :: ctx)).
     specialize_prove IH by eauto using same_root_down0, Down_Group_inner.
     specialize_prove IH. {
       unfold StaticSemantics.countLeftCapturingParensBefore in *. simpl. lia.
     }
-    destruct (tCompileSubPattern wr _ rer forward) as [mr|] eqn:Heqmr; simpl. 2: discriminate.
-    specialize (IH mr eq_refl).
+    destruct (tCompileSubPattern wr _ rer dir) as [mr|] eqn:Heqmr; simpl. 2: discriminate.
+    specialize (IH mr dir Heqmr).
     simpl in Hcompsucc. injection Hcompsucc as <-.
     intros tmc cont str0 Htmc_tree inp Hinp_compat ms t Hms_inp Heqt.
     remember (fun y: MatchState => _) as tmc2 in Heqt.
     specialize (IH tmc2 (Aclose (S n) :: cont)).
     assert (StaticSemantics.countLeftCapturingParensBefore (Group name wr) ctx + 1 = S n) as Heqid by lia.
-    assert (tMC_valid tmc2 rer (Aclose (S n) :: cont) str0) as Htmc2_tree.
+    assert (tMC_valid tmc2 rer (Aclose (S n) :: cont) str0 dir) as Htmc2_tree.
     {
       intros inpend Hinpend_compat.
       subst tmc2. clear Heqt.
