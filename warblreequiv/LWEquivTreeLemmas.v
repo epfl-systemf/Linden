@@ -1,5 +1,5 @@
 From Linden Require Import RegexpTranslation LindenParameters Regex MSInput Chars ListLemmas.
-From Warblre Require Import StaticSemantics List Parameters Notation Match Result Errors RegExpRecord Patterns Semantics.
+From Warblre Require Import StaticSemantics List Parameters Notation Match Result Errors RegExpRecord Patterns Semantics Base.
 From Coq Require Import Lia ZArith.
 Import Notation.
 Import MatchState.
@@ -235,12 +235,12 @@ Proof.
 Qed.
 
 
-(* Advancing a valid MatchState yields a valid MatchState when we remain in bounds. *)
+(* Advancing a valid MatchState forward yields a valid MatchState when we remain in bounds. *)
 Lemma ms_advance_valid:
   forall ms rer ms_adv,
     MatchState.Valid (MatchState.input ms) rer ms ->
     (MatchState.endIndex ms + 1 <= Z.of_nat (length (MatchState.input ms)))%Z ->
-    ms_adv = advance_ms ms ->
+    ms_adv = advance_ms ms forward ->
     MatchState.Valid (MatchState.input ms_adv) rer ms_adv.
 Proof.
   intros ms rer ms_adv [Honinp [Hiton [Hlencap Hcapvalid]]] Hinb Heqms_adv.
@@ -252,11 +252,11 @@ Proof.
 Qed.
 
 
-(* Advancing corresponding MatchStates and inputs yields corresponding MatchStates and inputs. *)
+(* Advancing corresponding MatchStates and inputs forward yields corresponding MatchStates and inputs. *)
 Lemma ms_matches_inp_adv:
   forall ms inp ms_adv inp_adv,
     ms_matches_inp ms inp ->
-    ms_adv = advance_ms ms ->
+    ms_adv = advance_ms ms forward ->
     advance_input inp = Some inp_adv ->
     ms_matches_inp ms_adv inp_adv.
 Proof.
