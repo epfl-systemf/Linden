@@ -1,5 +1,6 @@
 Require Import List Lia.
 Import ListNotations.
+From Warblre Require Import Base.
 
 (** * Characters and Strings  *)
 Parameter Char:Type.
@@ -26,9 +27,10 @@ Definition next_str (i:input) : string :=
   | Input s _ => s
   end.
 
-Definition current_str (i:input) : string :=
+Definition current_str (i:input) (dir: Direction) : string :=
   match i with
-  | Input next pref => next
+  | Input next pref =>
+      match dir with forward => next | backward => pref end
   end.
 
 Definition init_input (str:string) : input :=
@@ -60,16 +62,26 @@ Parameter char_descr_eq_dec : forall (cd1 cd2: char_descr), { cd1 = cd2 } + { cd
 
 (** * Reading Characters in the String *)
 
-(* read_char cd i returns None if the next character of i is accepted by cd *)
+(* read_char cd i dir returns None if the next character of i with direction dir is accepted by cd *)
 (* otherwise it returns the next input after reading the character, as well as the character actually read *)
-Definition read_char (cd:char_descr) (i:input) : option (Char * input) :=
+Definition read_char (cd:char_descr) (i:input) (dir: Direction) : option (Char * input) :=
   match i with
   | Input next pref =>
-      match next with
-      | [] => None
-      | h::next' => if char_match h cd
-                  then Some (h, Input next' (h::pref))
-                  else None
+      match dir with
+      | forward =>
+          match next with
+          | [] => None
+          | h::next' => if char_match h cd
+                      then Some (h, Input next' (h::pref))
+                      else None
+          end
+      | backward =>
+          match pref with
+          | [] => None
+          | h::pref' => if char_match h cd
+                      then Some (h, Input (h::next) pref')
+                      else None
+          end
       end
   end.
 
@@ -82,52 +94,77 @@ Inductive ReadResult  : Type :=
 (* instead, we use the two following functions to read and advance *)
 
 (* simply checks if the next character of the input corresponds to the given character descriptor *)
-Definition check_read (cd:char_descr) (i:input) : ReadResult :=
+Definition check_read (cd:char_descr) (i:input) (dir: Direction) : ReadResult :=
   match i with
   | Input next pref =>
-      match next with
-      | [] => CannotRead
-      | h::next' => if char_match h cd
-                  then CanRead
-                  else CannotRead
+      match dir with
+      | forward =>
+          match next with
+          | [] => CannotRead
+          | h::next' => if char_match h cd
+                      then CanRead
+                      else CannotRead
+          end
+      | backward =>
+          match pref with
+          | [] => CannotRead
+          | h::pref' => if char_match h cd
+                      then CanRead
+                      else CannotRead
+          end
       end
   end.
 
 (* simply advance input to the next character *)
-Definition advance_input (i:input) : option input :=
+Definition advance_input (i:input) (dir: Direction) : option input :=
   match i with
   | Input next pref =>
-      match next with
-      | [] => None
-      | h::next' => Some (Input next' (h::pref))
+      match dir with
+      | forward =>
+          match next with
+          | [] => None
+          | h::next' => Some (Input next' (h::pref))
+          end
+      | backward =>
+          match pref with
+          | [] => None
+          | h::pref' => Some (Input (h::next) pref')
+          end
       end
   end.
-  
+
 (* the proof of equivalence between the two *)
 Theorem can_read_correct:
-  forall i1 cd i2,
-  (exists c, read_char cd i1 = Some (c, i2)) <->
-    check_read cd i1 = CanRead /\ advance_input i1 = Some i2.
+  forall i1 cd dir i2,
+  (exists c, read_char cd i1 dir = Some (c, i2)) <->
+    check_read cd i1 dir = CanRead /\ advance_input i1 dir = Some i2.
 Proof.
-  intros i1 cd i2. split; intros.
+  intros i1 cd dir i2. split; intros.
   - destruct H as [c H].
-    destruct i1. simpl. simpl in H. destruct next; inversion H.
-    destruct (char_match c0 cd); inversion H; auto.
-  - destruct i1. simpl. simpl in H.
-    destruct next; inversion H; inversion H1.
-    exists c. destruct (char_match c cd); inversion H0. auto.
+    destruct i1. simpl. simpl in H. destruct dir.
+    + destruct next. inversion H. destruct (char_match c0 cd); inversion H; auto.
+    + destruct pref. inversion H. destruct (char_match c0 cd); inversion H; auto.
+  - destruct i1. simpl. simpl in H. destruct dir.
+    + destruct next; inversion H; inversion H1.
+      exists c. destruct (char_match c cd); inversion H0. auto.
+    + destruct pref; inversion H; inversion H1.
+      exists c. destruct (char_match c cd); inversion H0. auto.
 Qed.
 
 Theorem cannot_read_correct:
-  forall i cd,
-    read_char cd i = None <-> check_read cd i = CannotRead.
+  forall i cd dir,
+    read_char cd i dir = None <-> check_read cd i dir = CannotRead.
 Proof.
-  intros i cd. destruct i. simpl. destruct next; split; auto.
-  - destruct (char_match c cd); auto. inversion 1.
-  - destruct (char_match c cd); auto. inversion 1.
+  intros i cd dir. destruct i. simpl. destruct dir.
+  - destruct next; split; auto.
+    + destruct (char_match c cd); auto. inversion 1.
+    + destruct (char_match c cd); auto. inversion 1.
+  - destruct pref; split; auto.
+    + destruct (char_match c cd); auto. inversion 1.
+    + destruct (char_match c cd); auto. inversion 1.
 Qed.
 
 (* Inductive relation of next_inputs *)
-Inductive next_input : input -> input -> Prop :=
-| nextin: forall i1 i2 (ADVANCE: advance_input i1 = Some i2),
-    next_input i1 i2.
+Inductive next_input : input -> input -> Direction -> Prop :=
+| nextin: forall i1 i2 dir (ADVANCE: advance_input i1 dir = Some i2),
+    next_input i1 i2 dir.
