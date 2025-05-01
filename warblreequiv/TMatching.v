@@ -40,7 +40,8 @@ Definition TMatcher := Notation.MatchState -> TMatcherContinuation -> TMatchResu
     It performs the following steps when called:
 <<*)
 (* + Coq wants to make sure the function will terminate; we do so by bounding recursion by an arbitrary fuel amount +*)
-Fixpoint tRepeatMatcher' (m: TMatcher) (min: non_neg_integer) (max: non_neg_integer_or_inf) (greedy: bool) (x: MatchState) (c: TMatcherContinuation) (parenIndex parenCount: non_neg_integer) (fuel: nat): TMatchResult :=
+(* To compute the check strings, we need the direction *)
+Fixpoint tRepeatMatcher' (m: TMatcher) (dir: Direction) (min: non_neg_integer) (max: non_neg_integer_or_inf) (greedy: bool) (x: MatchState) (c: TMatcherContinuation) (parenIndex parenCount: non_neg_integer) (fuel: nat): TMatchResult :=
 match fuel with
 | 0 => out_of_fuel
 | S fuel' =>
@@ -51,7 +52,7 @@ match fuel with
     (*>> a. Assert: y is a MatchState. <<*)
     (*>> b. If min = 0 and y's endIndex = x's endIndex, return failure. <<*)
     if (min == 0)%nat && (MatchState.endIndex y =? MatchState.endIndex x)%Z
-      then Success (CheckFail (ms_suffix x)) else
+      then Success (CheckFail (ms_suffix x dir)) else
     (*>> c. If min = 0, let min2 be 0; otherwise let min2 be min - 1. <<*)
     let min2 :=
       if (min == 0)%nat then 0
@@ -63,10 +64,10 @@ match fuel with
       else (max - 1)%NoI
     in
     (*>> e. Return RepeatMatcher(m, min2, max2, greedy, y, c, parenIndex, parenCount). <<*)
-    let! subtree =<< tRepeatMatcher' m min2 max2 greedy y c parenIndex parenCount fuel' in
+    let! subtree =<< tRepeatMatcher' m dir min2 max2 greedy y c parenIndex parenCount fuel' in
     (* We only add a CheckPass if min is zero, else we directly yield the subtree *)
     if (min == 0)%nat then
-      Success (CheckPass (ms_suffix x) subtree)
+      Success (CheckPass (ms_suffix x dir) subtree)
     else
       Success subtree
   in
@@ -106,8 +107,8 @@ match fuel with
       Success (Choice (GroupAction (Reset (List.seq (parenIndex + 1) parenCount)) z) z')
 end.
 
-Definition tRepeatMatcher (m: TMatcher) (min: non_neg_integer) (max: non_neg_integer_or_inf) (greedy: bool) (x: MatchState) (c: TMatcherContinuation) (parenIndex parenCount: non_neg_integer): TMatchResult :=
-  tRepeatMatcher' m min max greedy x c parenIndex parenCount (Semantics.repeatMatcherFuel min x).
+Definition tRepeatMatcher (m: TMatcher) (dir: Direction) (min: non_neg_integer) (max: non_neg_integer_or_inf) (greedy: bool) (x: MatchState) (c: TMatcherContinuation) (parenIndex parenCount: non_neg_integer): TMatchResult :=
+  tRepeatMatcher' m dir min max greedy x c parenIndex parenCount (Semantics.repeatMatcherFuel min x).
 
 (** >>
     22.2.2.7.1 CharacterSetMatcher ( rer, A, invert, direction )
@@ -221,7 +222,7 @@ match self with
     (*>> a. Assert: x is a MatchState. <<*)
     (*>> b. Assert: c is a MatcherContinuation. <<*)
     (*>> c. Return RepeatMatcher(m, q.[[Min]], q.[[Max]], q.[[Greedy]], x, c, parenIndex, parenCount). <<*)
-        tRepeatMatcher m (Semantics.CompiledQuantifier_min q) (Semantics.CompiledQuantifier_max q) (Semantics.CompiledQuantifier_greedy q) x c parenIndex parenCount): TMatcher)
+        tRepeatMatcher m direction (Semantics.CompiledQuantifier_min q) (Semantics.CompiledQuantifier_max q) (Semantics.CompiledQuantifier_greedy q) x c parenIndex parenCount): TMatcher)
 (** >> Atom :: PatternCharacter <<*)
 | Char c =>
   (*>> 1. Let ch be the character matched by PatternCharacter. <<*)

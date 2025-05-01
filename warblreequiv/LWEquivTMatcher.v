@@ -41,7 +41,7 @@ Lemma repeatMatcher'_tRepeatMatcher':
       (* the corresponding repeat matcher and tree matcher are equivalent with the same direction. *)
       equiv_tree_matcher str0
         (fun ms mc => Semantics.repeatMatcher' m min max greedy ms mc parenIndex parenCount fuel)
-        (fun ms tmc => tRepeatMatcher' tm min max greedy ms tmc parenIndex parenCount fuel) dir.
+        (fun ms tmc => tRepeatMatcher' tm dir min max greedy ms tmc parenIndex parenCount fuel) dir.
 Proof.
   intros str0 m tm dir greedy parenIndex parenCount Hm_tm_equiv fuel.
   induction fuel as [|fuel IHfuel].
