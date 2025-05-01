@@ -19,32 +19,31 @@ Local Open Scope result_flow.
 
 (** ** Definition of the validity of tree matchers and tree matcher continuations *)
 
-(* `tMC_is_tree tmc rer cont inp` means that the TMatcherContinuation tmc, when run with a MatchState
-  compatible with input inp and valid with respect to rer, performs the actions in the continuation cont and yields a valid backtree. *)
-Definition tMC_is_tree (tmc: TMatcherContinuation) (rer: RegExpRecord) (cont: continuation) (inp: input) :=
+(* `tMC_is_tree tmc rer cont inp dir` means that the TMatcherContinuation tmc, when run with a MatchState
+  compatible with input inp and valid with respect to rer, performs the actions in the continuation cont and yields a valid backtree wrt direction dir. *)
+Definition tMC_is_tree (tmc: TMatcherContinuation) (rer: RegExpRecord) (cont: continuation) (inp: input) (dir: Direction) :=
   forall (ms: MatchState) (t: tree),
-    (* Valid (MatchState.input ms) rer ms -> *) (* Testing *)
     ms_matches_inp ms inp ->
     tmc ms = Success t ->
-    is_tree Epsilon cont inp t.
+    is_tree Epsilon cont inp dir t.
 
-(* `tMC_valid tmc rer cont str0` means that the TMatcherContinuation tmc, when run on any input compatible with the string str0 under the flags in rer,
-   performs the actions in the continuation cont and yields a valid backtree. *)
-Definition tMC_valid (tmc: TMatcherContinuation) (rer: RegExpRecord) (cont: continuation) (str0: string) :=
-  forall inp, input_compat inp str0 -> tMC_is_tree tmc rer cont inp.
+(* `tMC_valid tmc rer cont str0 dir` means that the TMatcherContinuation tmc, when run on any input compatible with the string str0 under the flags in rer,
+   performs the actions in the continuation cont and yields a valid backtree wrt direction dir. *)
+Definition tMC_valid (tmc: TMatcherContinuation) (rer: RegExpRecord) (cont: continuation) (str0: string) (dir: Direction) :=
+  forall inp, input_compat inp str0 -> tMC_is_tree tmc rer cont inp dir.
 
-(* `tm_valid tm rer lreg` means that under the given RegExpRecord (set of flags), the TMatcher tm recognizes the regexp lreg on any input, and yields a valid backtree. *)
-Definition tm_valid (tm: TMatcher) (rer: RegExpRecord) (lreg: regex) :=
+(* `tm_valid tm rer lreg dir` means that under the given RegExpRecord (set of flags), the TMatcher tm recognizes the regexp lreg with direction dir on any input, and yields a valid backtree. *)
+Definition tm_valid (tm: TMatcher) (rer: RegExpRecord) (lreg: regex) (dir: Direction) :=
   forall (tmc: TMatcherContinuation) (cont: continuation) (str0: string),
-  tMC_valid tmc rer cont str0 ->
-  tMC_valid (fun s => tm s tmc) rer (Areg lreg::cont) str0.
+  tMC_valid tmc rer cont str0 dir ->
+  tMC_valid (fun s => tm s tmc) rer (Areg lreg::cont) str0 dir.
 
 
 (* Validity of empty continuation *)
 Lemma id_tmcont_valid:
-  forall rer str, tMC_valid id_tmcont rer [] str.
+  forall rer str dir, tMC_valid id_tmcont rer [] str dir.
 Proof.
-  intros rer str inp Hinp_compat ms t Hmsinp Heqt.
+  intros rer str dir inp Hinp_compat ms t Hmsinp Heqt.
   injection Heqt as <-. apply tree_epsilon.
 Qed.
 
@@ -54,17 +53,17 @@ Qed.
 Lemma tRepeatMatcher'_minnonzero_valid:
   (* For all repeat matcher parameters (except min), *)
   forall rer greedy parenIndex parenCount plus,
-  forall (tm: TMatcher) (lreg: regex),
-    (* if the TMatcher tm is valid wrt lreg, *)
-    tm_valid tm rer lreg ->
+  forall (tm: TMatcher) (lreg: regex) (dir: Direction),
+    (* if the TMatcher tm is valid wrt lreg and direction dir, *)
+    tm_valid tm rer lreg dir ->
     (* the list of capture groups of lreg matches the repeat matcher parameters, *)
     def_groups lreg = List.seq (parenIndex + 1) parenCount ->
-    (* and the repeat matcher with min=0 is valid wrt Quantified greedy 0 plus lreg, *)
-    (forall fuel, tm_valid (fun s tmc => tRepeatMatcher' tm 0 plus greedy s tmc parenIndex parenCount fuel) rer (Regex.Quantified greedy 0 plus lreg)) ->
-    (* then all repeat matchers with any min are valid wrt Quantified greedy min plus lreg. *)
-    forall mini fuel, tm_valid (fun s tmc => tRepeatMatcher' tm mini (NoI.N mini + plus)%NoI greedy s tmc parenIndex parenCount fuel) rer (Regex.Quantified greedy mini plus lreg).
+    (* and the repeat matcher with min=0 is valid wrt Quantified greedy 0 plus lreg and direction dir, *)
+    (forall fuel, tm_valid (fun s tmc => tRepeatMatcher' tm dir 0 plus greedy s tmc parenIndex parenCount fuel) rer (Regex.Quantified greedy 0 plus lreg) dir) ->
+    (* then all repeat matchers with any min are valid wrt Quantified greedy min plus lreg and direction dir. *)
+    forall mini fuel, tm_valid (fun s tmc => tRepeatMatcher' tm dir mini (NoI.N mini + plus)%NoI greedy s tmc parenIndex parenCount fuel) rer (Regex.Quantified greedy mini plus lreg) dir.
 Proof.
-  intros rer greedy parenIndex parenCount plus tm lreg Htm_valid Hgroups_valid Hminzero_valid.
+  intros rer greedy parenIndex parenCount plus tm lreg dir Htm_valid Hgroups_valid Hminzero_valid.
   intro mini. induction mini as [|mini' IHmini'].
   1: { simpl. replace (match plus with | NoI.N r' => _ | +∞ => _ end) with plus by now destruct plus. apply Hminzero_valid. }
 
@@ -100,12 +99,12 @@ Qed.
 (* Lemma for the case where both the min and the max are zero *)
 Lemma tRepeatMatcher'_zero_valid:
   forall rer greedy parenIndex parenCount,
-  forall (tm: TMatcher) (lreg: regex),
-    tm_valid tm rer lreg ->
+  forall (tm: TMatcher) (lreg: regex) (dir: Direction),
+    tm_valid tm rer lreg dir ->
     def_groups lreg = List.seq (parenIndex + 1) parenCount ->
-    forall fuel, tm_valid (fun s tmc => tRepeatMatcher' tm 0 (NoI.N 0) greedy s tmc parenIndex parenCount fuel) rer (Regex.Quantified greedy 0 (NoI.N 0) lreg).
+    forall fuel, tm_valid (fun s tmc => tRepeatMatcher' tm dir 0 (NoI.N 0) greedy s tmc parenIndex parenCount fuel) rer (Regex.Quantified greedy 0 (NoI.N 0) lreg) dir.
 Proof.
-  intros rer greedy parenIndex parenCount tm lreg Htmvalid Hgroupsvalid fuel.
+  intros rer greedy parenIndex parenCount tm lreg dir Htmvalid Hgroupsvalid fuel.
   destruct fuel as [|fuel]. 1: discriminate.
   simpl. unfold tm_valid, tMC_valid, tMC_is_tree. intros tmc cont str0 Htmctree inp Hinpcompat ms t Hmsinp Heqt.
   apply tree_pop_reg. apply tree_quant_minzero_pluszero. eapply Htmctree; eauto.
@@ -115,12 +114,12 @@ Qed.
 (* Lemma for the case where the min is zero but the max is arbitrary *)
 Lemma tRepeatMatcher'_minzero_valid:
   forall rer greedy parenIndex parenCount,
-  forall (tm: TMatcher) (lreg: regex),
-    tm_valid tm rer lreg ->
+  forall (tm: TMatcher) (lreg: regex) (dir: Direction),
+    tm_valid tm rer lreg dir ->
     def_groups lreg = List.seq (parenIndex + 1) parenCount ->
-    forall fuel plus, tm_valid (fun s tmc => tRepeatMatcher' tm 0 plus greedy s tmc parenIndex parenCount fuel) rer (Regex.Quantified greedy 0 plus lreg).
+    forall fuel plus, tm_valid (fun s tmc => tRepeatMatcher' tm dir 0 plus greedy s tmc parenIndex parenCount fuel) rer (Regex.Quantified greedy 0 plus lreg) dir.
 Proof.
-  intros rer greedy parenIndex parenCount tm lreg Htmvalid Hgroupsvalid fuel.
+  intros rer greedy parenIndex parenCount tm lreg dir Htmvalid Hgroupsvalid fuel.
   induction fuel as [|fuel IHfuel].
   1: discriminate.
 
@@ -132,7 +131,7 @@ Proof.
   destruct List.List.Update.Nat.Batch.update as [cap'|] eqn:Heqcap'; simpl in *. 2: discriminate.
   set (tmcloop := fun y: MatchState => if (_ =? _)%Z then _ else _) in HmatchSuccess.
   set (msreset := match_state _ _ cap') in HmatchSuccess.
-  assert (tMC_valid tmcloop rer (Acheck (ms_suffix ms)::Areg (Regex.Quantified greedy 0 (plus - 1)%NoI lreg)::cont) str0) as Htmcloop_valid. {
+  assert (tMC_valid tmcloop rer (Acheck (ms_suffix ms dir)::Areg (Regex.Quantified greedy 0 (plus - 1)%NoI lreg)::cont) str0 dir) as Htmcloop_valid. {
     intros inp' Hinp'_compat ms1 t1 Hms1_inp Htmcloop_succeeds.
     unfold tmcloop in Htmcloop_succeeds.
     destruct (_ =? _)%Z eqn:Heqcheck.
@@ -142,8 +141,11 @@ Proof.
       unfold ms_suffix.
       rewrite Z.eqb_eq in Heqcheck.
       rewrite Heqcheck.
-      f_equal.
-      eapply inp_compat_ms_same_inp with (inp1 := inp') (inp2 := inp); eauto.
+      replace (MatchState.input ms1) with (MatchState.input ms).
+      2: {
+        eapply inp_compat_ms_same_inp with (inp1 := inp) (inp2 := inp'); eauto.
+      }
+      reflexivity.                                               
     - (* Case 2: the input has progressed *)
       destruct tRepeatMatcher' as [subtree|] eqn:Heqsubtree; simpl in *.
       2: discriminate.
@@ -152,7 +154,7 @@ Proof.
       + eapply endInd_neq_advanced; eauto.
       + rewrite noi_decr in Heqsubtree. specialize (IHfuel (plus - 1)%NoI tmc cont str0 Htmc_valid inp' Hinp'_compat ms1 subtree Hms1_inp Heqsubtree). apply IHfuel.
   }
-  specialize (Htmvalid tmcloop (Acheck (ms_suffix ms)::Areg (Regex.Quantified greedy 0 (plus-1)%NoI lreg)::cont) str0 Htmcloop_valid inp Hinp_compat).
+  specialize (Htmvalid tmcloop (Acheck (ms_suffix ms dir)::Areg (Regex.Quantified greedy 0 (plus-1)%NoI lreg)::cont) str0 Htmcloop_valid inp Hinp_compat).
   specialize (Htmc_valid inp Hinp_compat).
   unfold tMC_is_tree in Htmvalid, Htmc_valid.
   (*assert (Valid (MatchState.input msreset) rer msreset) as Hvalidmsreset. {
@@ -197,15 +199,15 @@ Qed.
 Lemma tRepeatMatcher'_valid:
   (* for all repeat matcher parameters, *)
   forall rer greedy parenIndex parenCount mini plus,
-    (* for any TMatcher tm that is valid with respect to some Linden regex lreg, *)
-  forall (tm: TMatcher) (lreg: regex),
-    tm_valid tm rer lreg ->
+    (* for any TMatcher tm that is valid with respect to some Linden regex lreg and direction dir, *)
+  forall (tm: TMatcher) (lreg: regex) (dir: Direction),
+    tm_valid tm rer lreg dir ->
     (* such that the defined groups of lreg correspond to the capture reset parameters of the repeat matcher, *)
     def_groups lreg = List.seq (parenIndex + 1) parenCount ->
-    (* the corresponding tree repeat matcher recognizes lreg quantified accordingly to the parameters (for any fuel, provided the matcher does not run out of fuel). *)
-    forall fuel, tm_valid (fun s tmc => tRepeatMatcher' tm mini (NoI.N mini + plus)%NoI greedy s tmc parenIndex parenCount fuel) rer (Regex.Quantified greedy mini plus lreg).
+    (* the corresponding tree repeat matcher recognizes lreg quantified accordingly to the parameters (for any fuel, provided the matcher does not run out of fuel) with direction dir. *)
+    forall fuel, tm_valid (fun s tmc => tRepeatMatcher' tm dir mini (NoI.N mini + plus)%NoI greedy s tmc parenIndex parenCount fuel) rer (Regex.Quantified greedy mini plus lreg) dir.
 Proof.
-  intros rer greedy parenIndex parenCount mini plus tm lreg Htmvalid Hgroupsvalid fuel.
+  intros rer greedy parenIndex parenCount mini plus tm lreg dir Htmvalid Hgroupsvalid fuel.
   destruct mini as [|mini'].
   - replace (NoI.N 0 + plus)%NoI with plus by now destruct plus. now apply tRepeatMatcher'_minzero_valid.
   - apply tRepeatMatcher'_minnonzero_valid; auto. intro fuel0. now apply tRepeatMatcher'_minzero_valid.
