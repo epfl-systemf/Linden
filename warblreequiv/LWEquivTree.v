@@ -227,11 +227,11 @@ Theorem tmatcher_bt:
     Root wroot (wreg, ctx) ->
     (* and any Linden regex lreg that is equivalent to this sub-regex with the right number of left capturing parentheses before, *)
     equiv_regex' wreg lreg (StaticSemantics.countLeftCapturingParensBefore wreg ctx) ->
-    forall tm,
-      (* if tCompileSubPattern yields a TMatcher for regex wreg, *)
-      tCompileSubPattern wreg ctx rer forward = Success tm ->
-      (* this TMatcher is valid with respect to the regex lreg. *)
-      tm_valid tm rer lreg.
+    forall tm dir,
+      (* if tCompileSubPattern with direction dir yields a TMatcher for regex wreg, *)
+      tCompileSubPattern wreg ctx rer dir = Success tm ->
+      (* then this TMatcher is valid with respect to the regex lreg and direction dir. *)
+      tm_valid tm rer lreg dir.
 Proof.
   intros rer lroot wroot Hcasesenst root_equiv wreg lreg ctx Hroot Hequiv.
   remember (StaticSemantics.countLeftCapturingParensBefore _ _) as n in Hequiv.
@@ -250,7 +250,7 @@ Proof.
 
   - (* Empty *)
     simpl. intros _ _ _.
-    intros tm Hcompsucc tmc cont str0 Htmc_tree inp Hinp_compat.
+    intros tm dir Hcompsucc tmc cont str0 Htmc_tree inp Hinp_compat.
     injection Hcompsucc as <-.
     intros ms t Hms_inp Htmc_succ.
     apply tree_pop_reg. unfold tMC_valid, tMC_is_tree in Htmc_tree.
@@ -259,18 +259,18 @@ Proof.
 
   - (* Character *)
     simpl.
-    intros ctx Hroot _ tm Hcompile_succ tmc cont str0 Htmc_tree inp Hinp_compat ms t Hms_inp Htm_succ.
+    intros ctx Hroot _ tm dir Hcompile_succ tmc cont str0 Htmc_tree inp Hinp_compat ms t Hms_inp Htm_succ.
     injection Hcompile_succ as <-.
     unfold tCharacterSetMatcher in Htm_succ. simpl in Htm_succ.
+    set (nextend := if (dir ==? forward)%wt then _ else _) in Htm_succ.
     set (next_outofbounds := ((_ <? 0)%Z || _)%bool) in Htm_succ.
     destruct next_outofbounds eqn:Hoob; simpl.
     + injection Htm_succ as <-.
       apply tree_pop_reg.
       apply tree_char_fail.
-      (* Reading out of bounds fails *)
-      eapply read_oob_fail_bool; eauto.
-    + replace (Z.min _ _) with (@MatchState.endIndex Chars.Char char_marker ms) in Htm_succ by lia.
-      (* If we are in bounds, then getting the character should succeed. Since we don't prove anything in the case of errors, we just assume this here *)
+      destruct dir; simpl in *.
+      * eapply read_oob_fail_end_bool; eauto. * eapply read_oob_fail_begin_bool; eauto.
+    + (* If we are in bounds, then getting the character should succeed. Since we don't prove anything in the case of errors, we just assume this here *)
       destruct List.List.Indexing.Int.indexing as [chr|err] eqn:Hgetchr; simpl in *.
       2: discriminate.
       (* Either the character is equal to the character in the regex, or it is not. *)
@@ -285,14 +285,20 @@ Proof.
         injection Htm_succ as <-.
 
         (* Now we apply tree_char with the next input, whose existence we need to prove. *)
-        pose proof next_inbounds_nextinp ms inp Hms_inp Hoob as Hnextinp.
+        pose proof next_inbounds_nextinp ms inp dir nextend Hms_inp eq_refl Hoob as Hnextinp.
         destruct Hnextinp as [inp_adv Hnextinp].
         apply tree_char with (nextinp := inp_adv).
-        1:  eapply read_char_success; eassumption.
+        1: {
+          eapply read_char_success; eauto.
+          destruct dir; simpl in *.
+          - replace (Z.min _ _) with (MatchState.endIndex ms) in Hgetchr by lia. apply Hgetchr.
+          - replace (Z.min _ _) with nextend in Hgetchr by lia. apply Hgetchr.
+        }
         (* The subtree is valid: results from three lemmas. *)
         apply Htmc_tree with (ms := ms_adv).
         -- eapply advance_input_compat; eassumption.
         -- eapply ms_matches_inp_adv; eauto.
+           destruct dir; unfold advance_ms; subst ms_adv; simpl in *; reflexivity.
         -- assumption.
       * (* Case 2: it is not equal. *)
         injection Htm_succ as <-.

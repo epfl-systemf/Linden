@@ -374,6 +374,22 @@ Proof.
   now apply List.length_zero_iff_nil.
 Qed.
 
+(* If we try to read backwards out of bounds, this means that the prefix of our input is empty. *)
+Lemma read_oob_fail_begin:
+  forall (ms: MatchState) (inp: Chars.input),
+    (MatchState.endIndex ms - 1 < 0)%Z ->
+    ms_matches_inp ms inp ->
+    exists next, inp = Input next nil.
+Proof.
+  intros ms inp Hoob Hmatches.
+  inversion Hmatches as [s end_ind cap next pref Hlenpref Heqs Heqms Heqinp].
+  subst ms. simpl in *.
+  assert (Hoob': end_ind = 0) by lia.
+  subst end_ind. rewrite List.length_zero_iff_nil in Hoob'. subst pref.
+  exists next. reflexivity.
+Qed.
+
+
 (* If a MatchState matches some input, then its end index (plus one) cannot be negative. *)
 Lemma endInd_neg_abs:
   forall (ms: MatchState) (inp: Chars.input),
@@ -386,8 +402,20 @@ Proof.
   lia.
 Qed.
 
+(* If a MatchState matches some input, then its end index minus one cannot be greater than the length of the input string. *)
+Lemma endInd_gtlen_abs:
+  forall (ms: MatchState) (inp: Chars.input),
+    ms_matches_inp ms inp ->
+    ~(MatchState.endIndex ms - 1 > Z.of_nat (length (MatchState.input ms)))%Z.
+Proof.
+  intros ms inp Hmatches.
+  inversion Hmatches as [s end_ind cap next pref Hlenpref Heqs Heqms Heqinp].
+  subst ms. simpl in *.
+  apply (f_equal (@length Chars.Char)) in Heqs. rewrite List.app_length, List.rev_length in Heqs.
+  subst end_ind. lia.
+Qed.
 
-(* If we try to read forward out of bounds in the Warblre sense, then reading a character in the Linden sense fails. *)
+(* If we try to read forward out of bounds in the Warblre sense, then reading a character forward in the Linden sense fails. *)
 Lemma read_oob_fail_end_bool:
   forall (ms: MatchState) (inp: Chars.input),
     ms_matches_inp ms inp ->
@@ -404,18 +432,37 @@ Proof.
     subst inp. simpl. reflexivity.
 Qed.
 
-(* If we can read forward inbounds (in the Warblre sense), this means that we can successfully advance our input (in the Linden sense). *)
-Lemma next_inbounds_nextinp:
+(* If we try to read backwards out of bounds in the Warblre sense, then reading a character backwards in the Linden sense fails. *)
+Lemma read_oob_fail_begin_bool:
   forall (ms: MatchState) (inp: Chars.input),
     ms_matches_inp ms inp ->
-    ((MatchState.endIndex ms + 1 <? 0)%Z || (MatchState.endIndex ms + 1 >? Z.of_nat (length (MatchState.input ms)))%Z)%bool = false ->
-    exists inp', advance_input inp forward = Some inp'.
+    ((MatchState.endIndex ms - 1 <? 0)%Z || (MatchState.endIndex ms - 1 >? Z.of_nat (length (MatchState.input ms)))%Z)%bool = true ->
+    forall cd: char_descr, read_char cd inp backward = None.
 Proof.
-  intros ms inp Hmatches Hinb.
+  intros ms inp Hmatches Hoob.
+  apply Bool.orb_true_elim in Hoob.
+  destruct Hoob as [Hoob | Hoob].
+  - rewrite Z.ltb_lt in Hoob.
+    pose proof read_oob_fail_begin ms inp Hoob Hmatches.
+    destruct H as [next H]. subst inp. simpl. reflexivity.
+  - exfalso. rewrite Z.gtb_gt in Hoob. apply (endInd_gtlen_abs _ _ Hmatches Hoob).
+Qed.
+
+(* If we can read inbounds (in the Warblre sense), this means that we can successfully advance our input (in the Linden sense). *)
+Lemma next_inbounds_nextinp:
+  forall (ms: MatchState) (inp: Chars.input) (dir: Direction) (nextend: Z),
+    ms_matches_inp ms inp ->
+    nextend = (if (dir ==? forward)%wt then (MatchState.endIndex ms + 1)%Z else (MatchState.endIndex ms - 1)%Z) ->
+    ((nextend <? 0)%Z || (nextend >? Z.of_nat (length (MatchState.input ms)))%Z)%bool = false ->
+    exists inp', advance_input inp dir = Some inp'.
+Proof.
+  intros ms inp dir nextend Hmatches Heqnextend Hinb.
   inversion Hmatches as [s end_ind cap next pref Hlenpref Heqs Heqms Heqinp].
   subst ms. simpl in *.
-  destruct next as [|c next'].
-  - exfalso.
+  destruct dir; simpl in *.
+  - destruct next as [|c next'].
+    2: eexists; reflexivity.
+    exfalso.
     apply Bool.orb_false_elim in Hinb.
     destruct Hinb as [_ Hinb].
     assert (Hinb': end_ind + 1 <= length s) by lia.
@@ -424,7 +471,9 @@ Proof.
     rewrite List.rev_length in Heqs.
     simpl in Heqs.
     lia.
-  - eexists. reflexivity.
+  - destruct pref as [|c pref'].
+    2: eexists; reflexivity.
+    exfalso. simpl in Hlenpref. subst end_ind. simpl in *. lia.
 Qed.
 
 (* If wgreedylazy is equivalent to greedy, then compiling a corresponding quantifier yields the boolean greedy. *)
