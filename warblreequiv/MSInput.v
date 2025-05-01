@@ -21,9 +21,12 @@ Definition advance_ms {H} `{CharacterMarker H} (s: MatchState) (dir: Direction):
     MatchState.captures := MatchState.captures s |}.
 
 
-(* Computation of the current suffix of a MatchState; this is used when computing check strings. *)
-Definition ms_suffix (ms: MatchState) :=
-  List.skipn (Z.to_nat (MatchState.endIndex ms)) (MatchState.input ms).
+(* Computation of the current suffix of a MatchState given a direction; this is used when computing check strings. *)
+Definition ms_suffix (ms: MatchState) (dir: Direction) :=
+  match dir with
+  | forward => List.skipn (Z.to_nat (MatchState.endIndex ms)) (MatchState.input ms)
+  | backward => List.rev (List.firstn (Z.to_nat (MatchState.endIndex ms)) (MatchState.input ms))
+  end.
 
 
 
@@ -50,24 +53,33 @@ Proof.
 Qed.
 
 (* Linking the suffixes of corresponding MatchStates and Linden inputs. *)
-Lemma ms_suffix_current_str: forall ms inp, ms_matches_inp ms inp -> current_str inp = ms_suffix ms.
+Lemma ms_suffix_current_str: forall ms inp, ms_matches_inp ms inp -> forall dir, current_str inp dir = ms_suffix ms dir.
 Proof.
-  intros ms inp Hmatches.
+  intros ms inp Hmatches dir.
   inversion Hmatches as [s end_ind cap next pref Hlpref Hcompats Heqms Heqinp].
-  simpl. unfold ms_suffix. simpl.
-  rewrite Nat2Z.id in *.
-  assert (length (rev pref) = end_ind) as Hlrevpref. {
-    subst end_ind. apply rev_length.
-  }
-  pose proof firstn_app end_ind (rev pref) next as H.
-  subst end_ind.
-  replace (length pref - length (rev pref)) with 0 in H by lia. rewrite Hcompats in H.
-  change (firstn 0 next) with (@nil Parameters.Character) in H.
-  rewrite <- Hlrevpref in H at 2. rewrite firstn_all in H. rewrite app_nil_r in H.
-  rewrite <- H in Hcompats.
-  pose proof firstn_skipn (length pref) s as H2.
-  rewrite <- H2 in Hcompats at 2.
-  eapply app_inv_head. apply Hcompats.
+  destruct dir; unfold ms_suffix; simpl.
+  - rewrite Nat2Z.id in *.
+    assert (length (rev pref) = end_ind) as Hlrevpref. {
+      subst end_ind. apply rev_length.
+    }
+    pose proof firstn_app end_ind (rev pref) next as H.
+    subst end_ind.
+    replace (length pref - length (rev pref)) with 0 in H by lia. rewrite Hcompats in H.
+    change (firstn 0 next) with (@nil Parameters.Character) in H.
+    rewrite <- Hlrevpref in H at 2. rewrite firstn_all in H. rewrite app_nil_r in H.
+    rewrite <- H in Hcompats.
+    pose proof firstn_skipn (length pref) s as H2.
+    rewrite <- H2 in Hcompats at 2.
+    eapply app_inv_head. apply Hcompats.
+  - rewrite Nat2Z.id in *.
+    assert (length (rev pref) = end_ind) as Hlrevpref. {
+      subst end_ind. apply rev_length.
+    }
+    pose proof firstn_app end_ind (rev pref) next as H.
+    subst end_ind.
+    replace (length pref - length (rev pref)) with 0 in H by lia. rewrite Hcompats in H.
+    simpl in H. rewrite app_nil_r in H. rewrite <- Hlrevpref in H at 2. rewrite firstn_all in H.
+    apply (f_equal (@rev Chars.Char)) in H. rewrite rev_involutive in H. congruence.
 Qed.
 
 
