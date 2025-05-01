@@ -305,6 +305,9 @@ Proof.
         apply tree_pop_reg.
         apply tree_char_fail.
         eapply read_char_fail; eauto.
+        destruct dir; simpl in *.
+        -- replace (Z.min _ _) with (MatchState.endIndex ms) in Hgetchr by lia. auto.
+        -- replace (Z.min _ _) with nextend in Hgetchr by lia. auto.
 
   (* Dot *)
   (*- admit.*)
@@ -325,13 +328,13 @@ Proof.
       assert (num_groups lr1 = StaticSemantics.countLeftCapturingParensWithin_impl wr1) by (eapply num_groups_equiv; eassumption).
       lia.
     }
-    intros tm Hcompsucc.
-    destruct (tCompileSubPattern wr1 _ rer forward) as [tm1|] eqn:Htm1; simpl. 2: discriminate.
-    destruct (tCompileSubPattern wr2 _ rer forward) as [tm2|] eqn:Htm2; simpl. 2: discriminate.
+    intros tm dir Hcompsucc.
+    destruct (tCompileSubPattern wr1 _ rer dir) as [tm1|] eqn:Htm1; simpl. 2: discriminate.
+    destruct (tCompileSubPattern wr2 _ rer dir) as [tm2|] eqn:Htm2; simpl. 2: discriminate.
     simpl in Hcompsucc. injection Hcompsucc as <-.
     intros tmc cont str0 Htmc_tree inp Hinp_compat s t Hs_inp Heqt.
-    specialize (IH1 tm1 eq_refl tmc cont str0 Htmc_tree inp Hinp_compat).
-    specialize (IH2 tm2 eq_refl tmc cont str0 Htmc_tree inp Hinp_compat).
+    specialize (IH1 tm1 dir Htm1 tmc cont str0 Htmc_tree inp Hinp_compat).
+    specialize (IH2 tm2 dir Htm2 tmc cont str0 Htmc_tree inp Hinp_compat).
     destruct (tm1 s tmc) as [t1|] eqn:Heqt1; simpl. 2: discriminate.
     destruct (tm2 s tmc) as [t2|] eqn:Heqt2; simpl. 2: discriminate.
     specialize (IH1 s t1 Hs_inp). specialize (IH2 s t2 Hs_inp).
