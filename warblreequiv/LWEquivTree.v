@@ -482,7 +482,7 @@ Proof.
 
   - (* Lookarounds *)
     (* Let's try proving one of the two/four cases *)
-    inversion Hequivlk as [Heqwlk Heqllk | Heqwlk Heqllk].
+    inversion Hequivlk as [Heqwlk Heqllk | Heqwlk Heqllk | Heqwlk Heqllk | Heqwlk Heqllk].
     (* Positive lookahead *)
     -- simpl. intros ctx Hroot Hparen tm.
        specialize (IH (Lookahead_inner :: ctx)).
@@ -491,11 +491,11 @@ Proof.
          unfold StaticSemantics.countLeftCapturingParensBefore in *; simpl. lia.
        }
        destruct tCompileSubPattern as [tmsub|] eqn:Hcompilesucc; simpl. 2: discriminate.
-       specialize (IH tmsub eq_refl).
-       intro Heqtm. injection Heqtm as <-.
+       specialize (IH tmsub forward Hcompilesucc).
+       intros dir Heqtm. injection Heqtm as <-.
        unfold tm_valid in *. specialize (IH id_tmcont []).
        intros tmc cont str0 Htmcvalid.
-       specialize (IH str0 (id_tmcont_valid rer str0)). unfold tMC_valid in *.
+       specialize (IH str0 (id_tmcont_valid rer str0 forward)). unfold tMC_valid in *.
        intros inp Hinpcompat ms t Hmsinp.
        unfold tMC_is_tree in IH. specialize (IH inp Hinpcompat ms).
        destruct (tmsub ms _) as [tlk|] eqn:Htlk; simpl. 2: discriminate.
@@ -521,6 +521,7 @@ Proof.
          * now inversion IH.
          * unfold lk_result. simpl. unfold TreeMSInterp.first_branch'. set (msdummy := match_state _ _ _).
            erewrite TreeMSInterp.result_indep_gm by eauto. intros [res]; discriminate.
+    (* Negative lookahead *)
     -- simpl. intros ctx Hroot Hparen tm.
        specialize (IH (NegativeLookahead_inner :: ctx)).
        specialize_prove IH by eauto using same_root_down0, Down_NegativeLookahead_inner.
@@ -528,11 +529,11 @@ Proof.
          unfold StaticSemantics.countLeftCapturingParensBefore in *; simpl. lia.
        }
        destruct tCompileSubPattern as [tmsub|] eqn:Hcompilesucc; simpl. 2: discriminate.
-       specialize (IH tmsub eq_refl).
-       intro Heqtm. injection Heqtm as <-.
+       specialize (IH tmsub forward Hcompilesucc).
+       intros dir Heqtm. injection Heqtm as <-.
        unfold tm_valid in *. specialize (IH id_tmcont []).
        intros tmc cont str0 Htmcvalid.
-       specialize (IH str0 (id_tmcont_valid rer str0)). unfold tMC_valid in *.
+       specialize (IH str0 (id_tmcont_valid rer str0 forward)). unfold tMC_valid in *.
        intros inp Hinpcompat ms t Hmsinp.
        unfold tMC_is_tree in IH. specialize (IH inp Hinpcompat ms).
        destruct (tmsub ms _) as [tlk|] eqn:Htlk; simpl. 2: discriminate.
