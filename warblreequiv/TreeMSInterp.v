@@ -112,10 +112,10 @@ Definition first_branch' {F} `{Result.AssertionError F} (t: tree) :=
   tree_res' t (match_state dummystr 0%Z cap) [] forward.
 
 
-(** * Independence of presence or absence of result from the MatchState and open groups *)
+(** * Independence of presence or absence of result from the MatchState, the open groups and the direction *)
 Lemma result_indep_gm {F} `{Result.AssertionError F}:
-  forall t dir ms1 gl1 ms2 gl2,
-    tree_res' t ms1 gl1 dir = None -> tree_res' t ms2 gl2 dir = None.
+  forall t ms1 gl1 dir1 ms2 gl2 dir2,
+    tree_res' t ms1 gl1 dir1 = None -> tree_res' t ms2 gl2 dir2 = None.
 Proof.
   intro t. induction t; eauto.
   - discriminate.
@@ -129,7 +129,7 @@ Proof.
       * erewrite IHt1 by eauto. eauto.
     + destruct (tree_res' t1 ms1 []) eqn:Hr11.
       * destruct (tree_res' t1 ms2 []) eqn:Hr12. 1: reflexivity.
-        apply IHt1 with (ms2 := ms1) (gl2 := []) in Hr12. congruence.
+        apply IHt1 with (ms2 := ms1) (gl2 := []) (dir2 := lk_dir lk) in Hr12. congruence.
       * erewrite IHt1 by eauto. eauto.
 Qed.
     
