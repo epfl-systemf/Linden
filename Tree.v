@@ -70,6 +70,8 @@ Inductive tree : Type :=
 | GroupAction (g:groupaction) (t: tree)
 | LK (lk: lookaround) (tlk: tree) (t: tree) (* First tree is the lookaround tree. *)
 | LKFail (lk: lookaround) (tlk: tree)
+| AnchorFail (a: anchor)
+| AnchorPass (a: anchor) (t: tree)
 .
 
 (** ** Maximum group ID of a tree *)
@@ -97,6 +99,8 @@ Fixpoint max_gid_tree (t: tree) :=
   | GroupAction act t => max (max_gid_groupaction act) (max_gid_tree t)
   | LK _ tlk t => max (max_gid_tree tlk) (max_gid_tree t)
   | LKFail _ tlk => max_gid_tree tlk
+  | AnchorFail _ => 0
+  | AnchorPass _ t => max_gid_tree t
   end.
 
 
@@ -148,6 +152,8 @@ Fixpoint tree_res (t:tree) (gm:group_map) (idx:nat): option leaf :=
           end
       end
   | LKFail _ _ => None
+  | AnchorFail _ => None
+  | AnchorPass _ t => tree_res t gm idx
   end.
 
 (* initializing on a the empty group map *)
@@ -184,6 +190,8 @@ Fixpoint tree_leaves (t:tree) (gm:group_map) (idx:nat): list leaf :=
           end
       end
   | LKFail _ _ => []
+  | AnchorFail _ => []
+  | AnchorPass _ t => tree_leaves t gm idx
   end.
 
 
@@ -233,7 +241,7 @@ Theorem first_tree_leaf:
   forall t gm idx,
     tree_res t gm idx = hd_error (tree_leaves t gm idx).
 Proof.
-  intros t. induction t; intros. 1-7,9: simpl; auto.
+  intros t. induction t; intros. 1-7,9-11: simpl; auto.
   - rewrite IHt1. rewrite IHt2. rewrite hd_error_app. unfold seqop.
     destruct (hd_error (tree_leaves t1 gm idx)) eqn:HD; auto.
   - destruct (positivity lk) eqn:Hlkpos. + now apply first_tree_leaf_poslk. + now apply first_tree_leaf_neglk.
@@ -285,7 +293,7 @@ Lemma leaves_group_map_indep:
     tree_leaves t gm1 idx1 = [] -> tree_leaves t gm2 idx2 = [].
 Proof.
   intros t.
-  induction t; intros. 1-7,9: simpl; auto;
+  induction t; intros. 1-7,9-11: simpl; auto;
     simpl in H; try solve[inversion H];
     try solve[eapply IHt in H; eauto].
   - apply app_eq_nil in H as [NIL1 NIL2].

@@ -102,6 +102,8 @@ Fixpoint tree_res' {F} `{Result.AssertionError F} (t:tree) (s: MatchState) (gl: 
           end
       end
   | LKFail _ _ => None
+  | AnchorFail _ => None
+  | AnchorPass _ t => tree_res' t s gl dir
   end.
 
 

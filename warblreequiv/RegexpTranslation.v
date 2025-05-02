@@ -16,6 +16,7 @@ Fixpoint num_groups (r: regex): nat := (* actually len (def_groups r); TODO repl
   | Quantified _ _ _ r1 => num_groups r1
   | Group _ r1 => S (num_groups r1)
   | Lookaround _ r1 => num_groups r1
+  | Anchor _ => 0
   end.
 
 (* Equivalence of greedy/lazy quantifier prefixes. *)
@@ -39,6 +40,12 @@ Inductive equiv_lookaround: (Patterns.Regex -> Patterns.Regex) -> lookaround -> 
 | Equiv_lookbehind: equiv_lookaround Patterns.Lookbehind LookBehind
 | Equiv_neglookbehind: equiv_lookaround Patterns.NegativeLookbehind NegLookBehind.
 
+(* Equivalence of anchors. *)
+Inductive equiv_anchor: Patterns.Regex -> anchor -> Prop :=
+| Equiv_input_start: equiv_anchor Patterns.InputStart BeginInput
+| Equiv_input_end: equiv_anchor Patterns.InputEnd EndInput
+. (* TODO Word boundary and non-word boundary *)
+
 (* equiv_regex' wreg lreg n means that the two regexes wreg and lreg are equivalent, where the number of left capturing parentheses before wreg/lreg is n. *)
 Inductive equiv_regex': Patterns.Regex -> regex -> nat -> Prop :=
 | Equiv_empty: forall n: nat, equiv_regex' Patterns.Empty Epsilon n
@@ -57,7 +64,9 @@ Inductive equiv_regex': Patterns.Regex -> regex -> nat -> Prop :=
     equiv_quantifier wquant lquant -> equiv_greedylazy wgreedylazy greedy ->
     equiv_regex' (Patterns.Quantified wr (wgreedylazy wquant)) (lquant greedy lr) n
 | Equiv_group: forall name n wr lr, equiv_regex' wr lr (S n) -> equiv_regex' (Patterns.Group name wr) (Group (S n) lr) n
-| Equiv_lk: forall n wr lr wlk llk, equiv_regex' wr lr n -> equiv_lookaround wlk llk -> equiv_regex' (wlk wr) (Lookaround llk lr) n.
+| Equiv_lk: forall n wr lr wlk llk, equiv_regex' wr lr n -> equiv_lookaround wlk llk -> equiv_regex' (wlk wr) (Lookaround llk lr) n
+| Equiv_anchor: forall n wr lanchor, equiv_anchor wr lanchor -> equiv_regex' wr (Anchor lanchor) n
+.
 
 
 (* Equivalence of root regexes. *)

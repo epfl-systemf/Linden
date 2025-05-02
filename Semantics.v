@@ -19,6 +19,37 @@ Definition lk_result (lk:lookaround) (t:tree) : Prop :=
   | false => first_branch' t = None
   end.
 
+(** * Anchor semantics *)
+
+Definition is_boundary (i:input) : bool :=
+  match i with
+  | Input next pref =>
+      match next, pref with
+      | [], [] => false
+      | [], c::p' => word_char c
+      | c::n', [] => word_char c
+      | c1::n', c2::p' =>
+          xorb (word_char c1) (word_char c2)
+      end
+  end.
+
+(* independent of the direction *)
+Definition anchor_satisfied (a:anchor) (i:input) : bool :=
+  match i with
+  | Input next pref =>
+      match a with
+      | BeginInput =>
+          match pref with | [] => true | _ => false end
+      | EndInput =>
+          match next with | [] => true | _ => false end
+      | WordBoundary =>
+          is_boundary i
+      | NonWordBoundary =>
+          negb (is_boundary i)
+      end
+  end.
+
+
 (** * Continuation Semantics *)
 
 (* actions are things to do after executing the current focused regex *)
@@ -121,7 +152,16 @@ Inductive is_tree: regex -> continuation -> input -> Direction -> tree -> Prop :
   forall lk r1 cont treelk inp dir
     (TREELK: is_tree r1 [] inp (lk_dir lk) treelk)
     (FAIL_LK: ~ lk_result lk treelk),
-    is_tree (Lookaround lk r1) cont inp dir (LKFail lk treelk).
+    is_tree (Lookaround lk r1) cont inp dir (LKFail lk treelk)
+| tree_anchor:
+  forall a cont treecont inp dir
+    (ANCHOR: anchor_satisfied a inp = true)
+    (TREECONT: is_tree Epsilon cont inp dir treecont),
+    is_tree (Anchor a) cont inp dir (AnchorPass a treecont)
+| tree_anchor_fail:
+  forall a cont inp dir
+    (ANCHOR: anchor_satisfied a inp = false),
+    is_tree (Anchor a) cont inp dir (AnchorFail a).
 
 
 Definition backtree (r:regex) (str:string) (t:tree): Prop :=
@@ -248,6 +288,10 @@ Proof.
   - inversion H0; subst; auto.
     { apply IHis_tree in TREELK. subst. exfalso. apply FAIL_LK. auto. }
     apply IHis_tree in TREELK. subst. auto.
+  - inversion H0; subst; auto.
+    + f_equal. auto.
+    + congruence.
+  - inversion H; subst; auto. congruence.
 Qed.
 
 Corollary backtree_determ:
