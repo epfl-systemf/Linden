@@ -1,6 +1,6 @@
 From Linden Require Import TMatching Tree Chars Semantics MSInput
   Regex LindenParameters RegexpTranslation ListLemmas
-  WarblreLemmas Tactics LWEquivTreeLemmas LWEquivTMatcher LWEquivTMatcherLemmas NumericLemmas.
+  WarblreLemmas Tactics LWEquivTreeLemmas LWEquivTMatcher LWEquivTMatcherLemmas NumericLemmas LKFactorization.
 From Warblre Require Import Result Notation RegExpRecord Match Base
   Patterns Node NodeProps Semantics.
 From Coq Require Import List ZArith Lia.
