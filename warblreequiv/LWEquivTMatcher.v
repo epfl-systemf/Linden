@@ -1,7 +1,7 @@
 From Coq Require Import Lia PeanoNat ZArith List.
 Import ListNotations.
 From Linden Require Import LWEquivTMatcherDef LWEquivTMatcherLemmas TMatching
-  LindenParameters Tree Chars TreeMSInterp ListLemmas MSInput Tactics.
+  LindenParameters Tree Chars TreeMSInterp ListLemmas MSInput Tactics LKFactorization.
 From Warblre Require Import Result Notation Base Semantics Coercions
   Errors Patterns Node RegExpRecord.
 Import Notation.
@@ -146,48 +146,6 @@ Qed.
 
 
 (** ** Lemma for lookarounds *)
-Definition lookaround_cons (lkdir: Direction) (pos: bool) : Regex -> Regex :=
-  match lkdir, pos with
-  | forward, true => Lookahead
-  | forward, false => NegativeLookahead
-  | backward, true => Lookbehind
-  | backward, false => NegativeLookbehind
-  end.
-
-(* Factorization of cases of Semantics.compileSubPattern corresponding to lookarounds. *)
-Definition lookaroundMatcher (compileSubPattern: Regex -> RegexContext -> RegExpRecord -> Direction -> Result Matcher CompileError) (lkdir: Direction) (pos: bool) (lkreg: Regex) (ctx: RegexContext) (rer: RegExpRecord) (direction: Direction): Result Matcher CompileError :=
-  let! m =<< compileSubPattern lkreg (lkCtx lkdir pos :: ctx) rer lkdir in
-  Success ((fun (x: MatchState) (c: MatcherContinuation) =>
-    let d: MatcherContinuation := fun (y: MatchState) => Success (Some y) in
-    let! r =<< m x d in
-    if (pos && r == None) || (negb pos && r != None) then
-      Success None
-    else if pos then
-      destruct! (Some y) <- r in
-      let cap := MatchState.captures y in
-      let input := MatchState.input x in
-      let xe := MatchState.endIndex x in
-      let z := match_state input xe cap in
-      c z
-    else
-      c x): Matcher).
-
-(* This is indeed a factorization of said cases. *)
-Lemma lookaroundMatcher_fact:
-  forall lkdir pos lkreg ctx rer dir c x,
-    (match Semantics.compileSubPattern ((lookaround_cons lkdir pos) lkreg) ctx rer dir with
-     | Success m => Success (m x c)
-     | Error e => Error e
-     end) =
-      (match lookaroundMatcher Semantics.compileSubPattern lkdir pos lkreg ctx rer dir with
-       | Success m => Success (m x c)
-       | Error e => Error e
-       end).
-Proof.
-  intros [|] [|] lkreg ctx rer dir c x; unfold lookaroundMatcher; simpl; destruct Semantics.compileSubPattern as [msub|]; simpl; try reflexivity.
-  - destruct msub; simpl; auto. rewrite Bool.orb_false_r. reflexivity.
-  - destruct msub; simpl; auto. rewrite Bool.orb_false_r. reflexivity.
-Qed.
 
 (* A dummy match state to be able to discriminate; probably not strictly necessary. *)
 Definition dummy_match_state: MatchState := match_state nil 0%Z nil.
@@ -201,7 +159,7 @@ Lemma compile_tcompile_lk:
         (Heqtm: tCompileSubPattern lkreg ctx rer dir = Success tm),
         forall str0, equiv_tree_matcher str0 m tm dir),
   forall ctx m tm dir
-    (Heqm: Semantics.compileSubPattern ((lookaround_cons lkdir pos) lkreg) ctx rer dir = Success m)
+    (Heqm: Semantics.compileSubPattern ((to_warblre_lookaround lkdir pos) lkreg) ctx rer dir = Success m)
     (Heqtm: tLookaroundMatcher tCompileSubPattern lkdir pos lkreg ctx rer dir = Success tm),
   forall str0, equiv_tree_matcher str0 m tm dir.
 Proof.
