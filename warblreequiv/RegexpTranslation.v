@@ -39,6 +39,14 @@ Inductive equiv_lookaround: (Patterns.Regex -> Patterns.Regex) -> lookaround -> 
 | Equiv_lookbehind: equiv_lookaround Patterns.Lookbehind LookBehind
 | Equiv_neglookbehind: equiv_lookaround Patterns.NegativeLookbehind NegLookBehind.
 
+Definition to_warblre_lookaround (dir: Direction) (pos: bool) :=
+  match dir, pos with
+  | forward, true => Patterns.Lookahead
+  | forward, false => Patterns.NegativeLookahead
+  | backward, true => Patterns.Lookbehind
+  | backward, false => Patterns.NegativeLookbehind
+  end.
+
 (* equiv_regex' wreg lreg n means that the two regexes wreg and lreg are equivalent, where the number of left capturing parentheses before wreg/lreg is n. *)
 Inductive equiv_regex': Patterns.Regex -> regex -> nat -> Prop :=
 | Equiv_empty: forall n: nat, equiv_regex' Patterns.Empty Epsilon n

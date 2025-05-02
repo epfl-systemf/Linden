@@ -88,7 +88,6 @@ Proof.
   specialize (Htm_valid msreset).
   destruct tm as [subtree|]; simpl. 2: discriminate.
   specialize (Htm_valid subtree). 2: reflexivity. (* ??? *)
-  (*specialize_prove Htm_valid. { eapply capture_reset_preserve_validity with (x := ms); eauto. }*)
   specialize_prove Htm_valid. { apply ms_matches_inp_capchg with (cap := MatchState.captures ms). now destruct ms. }
   specialize (Htm_valid eq_refl).
   intro Heqt. injection Heqt as <-.
@@ -157,9 +156,6 @@ Proof.
   specialize (Htmvalid tmcloop (Acheck (ms_suffix ms dir)::Areg (Regex.Quantified greedy 0 (plus-1)%NoI lreg)::cont) str0 Htmcloop_valid inp Hinp_compat).
   specialize (Htmc_valid inp Hinp_compat).
   unfold tMC_is_tree in Htmvalid, Htmc_valid.
-  (*assert (Valid (MatchState.input msreset) rer msreset) as Hvalidmsreset. {
-    now apply @capture_reset_preserve_validity with (specParameters := LindenParameters) (parenIndex := parenIndex) (parenCount := parenCount) (x := ms).
-  }*)
   assert (ms_matches_inp msreset inp) as Hmsreset_inp. {
     unfold msreset. inversion Hms_inp. simpl. now constructor.
   }
@@ -213,6 +209,82 @@ Proof.
   - apply tRepeatMatcher'_minnonzero_valid; auto. intro fuel0. now apply tRepeatMatcher'_minzero_valid.
 Qed.
 
+
+(** ** Lemma for lookarounds *)
+Lemma tLookaroundMatcher_bt:
+  (* lkdir: lookaround direction, pos: lookaround positivity *)
+  (* lkwreg: Warblre lookaround regexp, lklreg: Linden lookaround regexp *)
+  (* ctx: context of the entire lookaround regexp *)
+  (* direction: direction of matching of the "parent" regexp of the lookaround *)
+  (* n: number of parentheses before the lookaround regexp in the context *)
+  (* wroot: the root Warblre regexp *)
+  (* The hypotheses are written such that eapply then eauto works when proving the lookaround cases of the main theorem. *)
+  forall lkdir pos lkwreg lklreg ctx rer direction tm n wroot
+    (Hequiv: equiv_regex' lkwreg lklreg n)
+    (Heqn: n = StaticSemantics.countLeftCapturingParensBefore (to_warblre_lookaround lkdir pos lkwreg) ctx)
+    (Hroot: Root wroot (to_warblre_lookaround lkdir pos lkwreg, ctx))
+    (IH: forall ctx, Root wroot (lkwreg, ctx) -> n = StaticSemantics.countLeftCapturingParensBefore lkwreg ctx -> forall tmlk dir, tCompileSubPattern lkwreg ctx rer dir = Success tmlk -> tm_valid tmlk rer lklreg dir)
+    (Hcompilesucc: tLookaroundMatcher tCompileSubPattern lkdir pos lkwreg ctx rer direction = Success tm),
+    tm_valid tm rer (Lookaround (to_lookaround lkdir pos) lklreg) direction.
+Proof.
+  intros.
+  specialize (IH (lkCtx lkdir pos :: ctx)).
+  specialize_prove IH. {
+    destruct lkdir; destruct pos; simpl in *; eauto using same_root_down0, Down_Lookahead_inner, Down_Lookbehind_inner, Down_NegativeLookahead_inner, Down_NegativeLookbehind_inner.
+  }
+  specialize_prove IH. {
+    unfold StaticSemantics.countLeftCapturingParensBefore in *.
+    destruct lkdir; destruct pos; simpl in *; lia.
+  }
+  unfold tLookaroundMatcher in Hcompilesucc.
+  destruct tCompileSubPattern as [tmlk|] eqn:Hcompilelksucc; simpl in *. 2: discriminate.
+  injection Hcompilesucc as <-. specialize (IH tmlk lkdir Hcompilelksucc).
+  unfold tm_valid in *. specialize (IH id_tmcont []).
+  intros tmc cont str0 Htmcvalid.
+  specialize (IH str0 (id_tmcont_valid rer str0 lkdir)). unfold tMC_valid in *.
+  intros inp Hinpcompat ms t Hmsinp.
+  unfold tMC_is_tree in IH. specialize (IH inp Hinpcompat ms).
+  destruct (tmlk ms _) as [tlk|] eqn:Htlk; simpl. 2: discriminate.
+  specialize (IH tlk Hmsinp eq_refl).
+  destruct pos; simpl.
+  - (* Positive lookaround *)
+    destruct TreeMSInterp.tree_res' as [mslk|] eqn:Hmslk; simpl.
+    + (* Lookaround succeeds *)
+      specialize (Htmcvalid inp Hinpcompat).
+      set (msafterlk := match_state _ _ _). specialize (Htmcvalid msafterlk).
+      destruct (tmc msafterlk) as [tafterlk|]; simpl. 2: discriminate.
+      specialize (Htmcvalid tafterlk).
+      specialize_prove Htmcvalid. { unfold msafterlk. inversion Hmsinp. now constructor. }
+      specialize (Htmcvalid eq_refl).
+      intro H. injection H as <-.
+      apply tree_pop_reg. apply tree_lk.
+      * rewrite lkdir_to_lookaround. now inversion IH.
+      * unfold lk_result. rewrite positivity_to_lookaround. unfold TreeMSInterp.first_branch'. set (msdummy := match_state _ _ _).
+        destruct (TreeMSInterp.tree_res' tlk msdummy []) eqn:Heqdummy. 1: eauto.
+        apply TreeMSInterp.result_indep_gm with (ms2 := ms) (gl2 := []) (dir2 := lkdir) in Heqdummy. congruence.
+      * assumption.
+    + (* Lookahead fails *)
+      intro H. injection H as <-.
+      apply tree_pop_reg. apply tree_lk_fail.
+      * rewrite lkdir_to_lookaround. now inversion IH.
+      * unfold lk_result. rewrite positivity_to_lookaround. unfold TreeMSInterp.first_branch'. set (msdummy := match_state _ _ _).
+        erewrite TreeMSInterp.result_indep_gm by eauto. intros [res]; discriminate.
+  - (* Negative lookaround *)
+    destruct TreeMSInterp.tree_res' as [mslk|] eqn:Hmslk; simpl.
+    + (* Lookaround succeeds *)
+      intro H. injection H as <-.
+      apply tree_pop_reg. apply tree_lk_fail.
+      1: rewrite lkdir_to_lookaround; now inversion IH.
+      unfold lk_result, TreeMSInterp.first_branch'. simpl. rewrite positivity_to_lookaround. intro H.
+      apply TreeMSInterp.result_indep_gm with (ms2 := ms) (gl2 := []) (dir2 := lkdir) in H. congruence.
+    + specialize (Htmcvalid inp Hinpcompat ms).
+      destruct (tmc ms) as [tnext|] eqn:Heqnext; simpl. 2: discriminate.
+      intro H. injection H as <-.
+      specialize (Htmcvalid tnext Hmsinp eq_refl).
+      apply tree_pop_reg. apply tree_lk; auto. 1: rewrite lkdir_to_lookaround; now inversion IH.
+      unfold lk_result, TreeMSInterp.first_branch'. rewrite positivity_to_lookaround. simpl.
+      eapply TreeMSInterp.result_indep_gm; eauto.
+Qed.
 
 (** ** Main theorem *)
 (* We place ourselves in the context of some root regex, and prove the validity for all the sub-regexes of the root regex. *)
@@ -481,145 +553,10 @@ Proof.
     specialize (IH subtree Hms_inp eq_refl). inversion IH. assumption.
 
   - (* Lookarounds *)
-    (* Let's try proving one of the two/four cases *)
-    inversion Hequivlk as [Heqwlk Heqllk | Heqwlk Heqllk | Heqwlk Heqllk | Heqwlk Heqllk].
-    (* Positive lookahead *)
-    -- simpl. intros ctx Hroot Hparen tm.
-       specialize (IH (Lookahead_inner :: ctx)).
-       specialize_prove IH by eauto using same_root_down0, Down_Lookahead_inner.
-       specialize_prove IH. {
-         unfold StaticSemantics.countLeftCapturingParensBefore in *; simpl. lia.
-       }
-       destruct tCompileSubPattern as [tmsub|] eqn:Hcompilesucc; simpl. 2: discriminate.
-       specialize (IH tmsub forward Hcompilesucc).
-       intros dir Heqtm. injection Heqtm as <-.
-       unfold tm_valid in *. specialize (IH id_tmcont []).
-       intros tmc cont str0 Htmcvalid.
-       specialize (IH str0 (id_tmcont_valid rer str0 forward)). unfold tMC_valid in *.
-       intros inp Hinpcompat ms t Hmsinp.
-       unfold tMC_is_tree in IH. specialize (IH inp Hinpcompat ms).
-       destruct (tmsub ms _) as [tlk|] eqn:Htlk; simpl. 2: discriminate.
-       specialize (IH tlk Hmsinp eq_refl).
-       destruct TreeMSInterp.tree_res' as [mslk|] eqn:Hmslk; simpl.
-       + (* Lookahead succeeds *)
-         specialize (Htmcvalid inp Hinpcompat).
-         set (msafterlk := match_state _ _ _). specialize (Htmcvalid msafterlk).
-         destruct (tmc msafterlk) as [tafterlk|]; simpl. 2: discriminate.
-         specialize (Htmcvalid tafterlk).
-         specialize_prove Htmcvalid. { unfold msafterlk. inversion Hmsinp. now constructor. }
-         specialize (Htmcvalid eq_refl).
-         intro H. injection H as <-.
-         apply tree_pop_reg. apply tree_lk.
-         * now inversion IH.
-         * unfold lk_result. simpl. unfold TreeMSInterp.first_branch'. set (msdummy := match_state _ _ _).
-           destruct (TreeMSInterp.tree_res' tlk msdummy []) eqn:Heqdummy. 1: eauto.
-           apply TreeMSInterp.result_indep_gm with (ms2 := ms) (gl2 := []) (dir2 := forward) in Heqdummy. congruence.
-         * assumption.
-       + (* Lookahead fails *)
-         intro H. injection H as <-.
-         apply tree_pop_reg. apply tree_lk_fail.
-         * now inversion IH.
-         * unfold lk_result. simpl. unfold TreeMSInterp.first_branch'. set (msdummy := match_state _ _ _).
-           erewrite TreeMSInterp.result_indep_gm by eauto. intros [res]; discriminate.
-    
-    (* Negative lookahead *)
-    -- simpl. intros ctx Hroot Hparen tm.
-       specialize (IH (NegativeLookahead_inner :: ctx)).
-       specialize_prove IH by eauto using same_root_down0, Down_NegativeLookahead_inner.
-       specialize_prove IH. {
-         unfold StaticSemantics.countLeftCapturingParensBefore in *; simpl. lia.
-       }
-       destruct tCompileSubPattern as [tmsub|] eqn:Hcompilesucc; simpl. 2: discriminate.
-       specialize (IH tmsub forward Hcompilesucc).
-       intros dir Heqtm. injection Heqtm as <-.
-       unfold tm_valid in *. specialize (IH id_tmcont []).
-       intros tmc cont str0 Htmcvalid.
-       specialize (IH str0 (id_tmcont_valid rer str0 forward)). unfold tMC_valid in *.
-       intros inp Hinpcompat ms t Hmsinp.
-       unfold tMC_is_tree in IH. specialize (IH inp Hinpcompat ms).
-       destruct (tmsub ms _) as [tlk|] eqn:Htlk; simpl. 2: discriminate.
-       specialize (IH tlk Hmsinp eq_refl).
-       destruct TreeMSInterp.tree_res' as [mslk|] eqn:Hmslk; simpl.
-       + intro H. injection H as <-.
-         apply tree_pop_reg. apply tree_lk_fail.
-         1: now inversion IH.
-         unfold lk_result, TreeMSInterp.first_branch'. simpl. intro H.
-         apply TreeMSInterp.result_indep_gm with (ms2 := ms) (gl2 := []) (dir2 := forward) in H. congruence.
-       + specialize (Htmcvalid inp Hinpcompat ms).
-         destruct (tmc ms) as [tnext|] eqn:Heqnext; simpl. 2: discriminate.
-         intro H. injection H as <-.
-         specialize (Htmcvalid tnext Hmsinp eq_refl).
-         apply tree_pop_reg. apply tree_lk; auto. 1: now inversion IH.
-         unfold lk_result, TreeMSInterp.first_branch'. simpl.
-         eapply TreeMSInterp.result_indep_gm; eauto.
-
-    (* Positive lookbehind *)
-    -- simpl. intros ctx Hroot Hparen tm.
-       specialize (IH (Lookbehind_inner :: ctx)).
-       specialize_prove IH by eauto using same_root_down0, Down_Lookbehind_inner.
-       specialize_prove IH. {
-         unfold StaticSemantics.countLeftCapturingParensBefore in *; simpl. lia.
-       }
-       destruct tCompileSubPattern as [tmsub|] eqn:Hcompilesucc; simpl. 2: discriminate.
-       specialize (IH tmsub backward Hcompilesucc).
-       intros dir Heqtm. injection Heqtm as <-.
-       unfold tm_valid in *. specialize (IH id_tmcont []).
-       intros tmc cont str0 Htmcvalid.
-       specialize (IH str0 (id_tmcont_valid rer str0 backward)). unfold tMC_valid in *.
-       intros inp Hinpcompat ms t Hmsinp.
-       unfold tMC_is_tree in IH. specialize (IH inp Hinpcompat ms).
-       destruct (tmsub ms _) as [tlk|] eqn:Htlk; simpl. 2: discriminate.
-       specialize (IH tlk Hmsinp eq_refl).
-       destruct TreeMSInterp.tree_res' as [mslk|] eqn:Hmslk; simpl.
-       + (* Lookbehind succeeds *)
-         specialize (Htmcvalid inp Hinpcompat).
-         set (msafterlk := match_state _ _ _). specialize (Htmcvalid msafterlk).
-         destruct (tmc msafterlk) as [tafterlk|]; simpl. 2: discriminate.
-         specialize (Htmcvalid tafterlk).
-         specialize_prove Htmcvalid. { unfold msafterlk. inversion Hmsinp. now constructor. }
-         specialize (Htmcvalid eq_refl).
-         intro H. injection H as <-.
-         apply tree_pop_reg. apply tree_lk.
-         * now inversion IH.
-         * unfold lk_result. simpl. unfold TreeMSInterp.first_branch'. set (msdummy := match_state _ _ _).
-           destruct (TreeMSInterp.tree_res' tlk msdummy []) eqn:Heqdummy. 1: eauto.
-           apply TreeMSInterp.result_indep_gm with (ms2 := ms) (gl2 := []) (dir2 := backward) in Heqdummy. congruence.
-         * assumption.
-       + (* Lookahead fails *)
-         intro H. injection H as <-.
-         apply tree_pop_reg. apply tree_lk_fail.
-         * now inversion IH.
-         * unfold lk_result. simpl. unfold TreeMSInterp.first_branch'. set (msdummy := match_state _ _ _).
-           erewrite TreeMSInterp.result_indep_gm by eauto. intros [res]; discriminate.
-    
-    (* Negative lookbehind *)
-    -- simpl. intros ctx Hroot Hparen tm.
-       specialize (IH (NegativeLookbehind_inner :: ctx)).
-       specialize_prove IH by eauto using same_root_down0, Down_NegativeLookbehind_inner.
-       specialize_prove IH. {
-         unfold StaticSemantics.countLeftCapturingParensBefore in *; simpl. lia.
-       }
-       destruct tCompileSubPattern as [tmsub|] eqn:Hcompilesucc; simpl. 2: discriminate.
-       specialize (IH tmsub backward Hcompilesucc).
-       intros dir Heqtm. injection Heqtm as <-.
-       unfold tm_valid in *. specialize (IH id_tmcont []).
-       intros tmc cont str0 Htmcvalid.
-       specialize (IH str0 (id_tmcont_valid rer str0 backward)). unfold tMC_valid in *.
-       intros inp Hinpcompat ms t Hmsinp.
-       unfold tMC_is_tree in IH. specialize (IH inp Hinpcompat ms).
-       destruct (tmsub ms _) as [tlk|] eqn:Htlk; simpl. 2: discriminate.
-       specialize (IH tlk Hmsinp eq_refl).
-       destruct TreeMSInterp.tree_res' as [mslk|] eqn:Hmslk; simpl.
-       + intro H. injection H as <-.
-         apply tree_pop_reg. apply tree_lk_fail.
-         1: now inversion IH.
-         unfold lk_result, TreeMSInterp.first_branch'. simpl. intro H.
-         apply TreeMSInterp.result_indep_gm with (ms2 := ms) (gl2 := []) (dir2 := backward) in H. congruence.
-       + specialize (Htmcvalid inp Hinpcompat ms).
-         destruct (tmc ms) as [tnext|] eqn:Heqnext; simpl. 2: discriminate.
-         intro H. injection H as <-.
-         specialize (Htmcvalid tnext Hmsinp eq_refl).
-         apply tree_pop_reg. apply tree_lk; auto. 1: now inversion IH.
-         unfold lk_result, TreeMSInterp.first_branch'. simpl.
-         eapply TreeMSInterp.result_indep_gm; eauto.
+    (* We use the lemma tLookaroundMatcher_bt *)
+    inversion Hequivlk as [Heqwlk Heqllk | Heqwlk Heqllk | Heqwlk Heqllk | Heqwlk Heqllk]; simpl; intros.
+    + eapply tLookaroundMatcher_bt with (lkdir := forward) (pos := true); eauto.
+    + eapply tLookaroundMatcher_bt with (lkdir := forward) (pos := false); eauto.
+    + eapply tLookaroundMatcher_bt with (lkdir := backward) (pos := true); eauto.
+    + eapply tLookaroundMatcher_bt with (lkdir := backward) (pos := false); eauto.
 Qed.

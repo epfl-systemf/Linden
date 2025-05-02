@@ -177,6 +177,18 @@ Definition to_lookaround (lkdir: Direction) (pos: bool) :=
   | backward, false => NegLookBehind
   end.
 
+Lemma lkdir_to_lookaround:
+  forall lkdir pos, lk_dir (to_lookaround lkdir pos) = lkdir.
+Proof.
+  now intros [] [].
+Qed.
+
+Lemma positivity_to_lookaround:
+  forall lkdir pos, positivity (to_lookaround lkdir pos) = pos.
+Proof.
+  now intros [] [].
+Qed.
+
 Definition tLookaroundMatcher (tCompileSubPattern: Regex -> RegexContext -> RegExpRecord -> Direction -> Result TMatcher CompileError) (lkdir: Direction) (pos: bool) (lkreg: Regex) (ctx: RegexContext) (rer: RegExpRecord) (direction: Direction) : Result TMatcher CompileError :=
   let! m =<< tCompileSubPattern lkreg (lkCtx lkdir pos :: ctx) rer lkdir in
   Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
