@@ -134,14 +134,25 @@ Proof.
   inversion Hmatches. now constructor.
 Qed.
 
-(* If a MatchState matches an input which is compatible with some string str0, then the endIndex of the MatchState is in bounds. *)
+(* If a MatchState matches some input, then the endIndex of the MatchState is in bounds. *)
 Lemma ms_matches_inp_inbounds:
+  forall ms inp,
+    ms_matches_inp ms inp ->
+    (0 <= MatchState.endIndex ms <= Z.of_nat (length (MatchState.input ms)))%Z.
+Proof.
+  intros ms [next pref] Hmsinp.
+  inversion Hmsinp. subst next0 pref0. simpl.
+  subst end_ind. split. 1: lia.
+  rewrite <- H3, app_length, rev_length. lia.
+Qed.
+
+(* Corollary with a compatible input string. *)
+Corollary ms_matches_inp_inbounds_str0:
   forall ms inp str0,
     ms_matches_inp ms inp -> input_compat inp str0 ->
     (0 <= MatchState.endIndex ms <= Z.of_nat (length str0))%Z.
 Proof.
-  intros ms [next pref] str0 Hmsinp Hinpcompat.
-  inversion Hmsinp. inversion Hinpcompat. subst next1 pref1 str1 next0 pref0. simpl.
-  subst end_ind. split. 1: lia.
-  rewrite <- H7, app_length, rev_length. lia.
+  intros ms inp str0 Hmatches Hcompat.
+  rewrite <- inp_compat_ms_str0 with (str0 := str0) (inp := inp) (ms := ms) by assumption.
+  eapply ms_matches_inp_inbounds; eauto.
 Qed.

@@ -1,11 +1,12 @@
 From Linden Require Import RegexpTranslation LindenParameters Regex MSInput Chars ListLemmas.
 From Warblre Require Import StaticSemantics List Parameters Notation Match Result Errors RegExpRecord Patterns Semantics Base.
-From Coq Require Import Lia ZArith.
+From Coq Require Import Lia ZArith List.
 Import Notation.
 Import MatchState.
 Import Match.
 Import Result.
 Import Result.Notations.
+Import ListNotations.
 
 (** * Lemmas for 2nd part of equivalence proof *)
 
@@ -357,40 +358,111 @@ Proof.
 Qed.
 
 
-(* If we try to read forward out of bounds, this means that the suffix of our input is empty. *)
+(* If we are at the end of our input, this means that the suffix of our input is empty. *)
+Lemma end_input_next_empty:
+  forall (ms: MatchState) (inp: Chars.input),
+    MatchState.endIndex ms = Z.of_nat (length (MatchState.input ms)) ->
+    ms_matches_inp ms inp ->
+    exists pref, inp = Input nil pref.
+Proof.
+  intros ms inp Hend Hmatches.
+  inversion Hmatches as [s end_ind cap next pref Hlenpref Heqs Heqms Heqinp].
+  subst ms. simpl in *.
+  (*assert (Hoob': end_ind + 1 > length s) by lia.*)
+  apply (f_equal (length (A := Chars.Char))) in Heqs.
+  rewrite List.app_length in Heqs.
+  rewrite List.rev_length in Heqs.
+  assert (Hlen: end_ind = length s) by lia.
+  assert (Hnext_zerolen: length next = 0) by lia.
+  exists pref. f_equal.
+  now apply List.length_zero_iff_nil.
+Qed.
+
+(* If we are NOT at the end of our input, then the suffix of our input is nonempty. *)
+Lemma end_input_next_nonempty:
+  forall (ms: MatchState) (inp: Chars.input),
+    MatchState.endIndex ms <> Z.of_nat (length (MatchState.input ms)) ->
+    ms_matches_inp ms inp ->
+    exists pref x next, inp = Input (x::next) pref.
+Proof.
+  intros ms [next pref] Hnotend Hmatches. destruct next as [|x next].
+  - inversion Hmatches as [s end_ind cap next' pref' Hlenpref Heqs Heqms Heqinp]. subst ms next' pref'. simpl in *.
+    subst s. rewrite app_nil_r, rev_length in Hnotend. lia.
+  - exists pref. exists x. exists next. reflexivity.
+Qed.
+
+(* If we try to read forward out of bounds from a valid state, then we are exactly at the end of the input. *)
+Lemma read_oob_fail_atend:
+  forall (ms: MatchState) (inp: Chars.input),
+    (MatchState.endIndex ms + 1 > Z.of_nat (length (MatchState.input ms)))%Z ->
+    ms_matches_inp ms inp ->
+    MatchState.endIndex ms = Z.of_nat (length (MatchState.input ms)).
+Proof.
+  intros ms inp Hend Hmatches.
+  pose proof ms_matches_inp_inbounds ms inp Hmatches. lia.
+Qed.
+
+(* Corollary: if we try to read forward out of bounds from a valid state, then the suffix of our input is empty. *)
 Lemma read_oob_fail_end:
   forall (ms: MatchState) (inp: Chars.input),
     (MatchState.endIndex ms + 1 > Z.of_nat (length (MatchState.input ms)))%Z ->
     ms_matches_inp ms inp ->
     exists pref, inp = Input nil pref.
 Proof.
-  intros ms inp Hoob Hmatches.
+  intros. eauto using end_input_next_empty, read_oob_fail_atend.
+Qed.
+
+(* If we are at the beginning of our input, this means that the prefix of our input is empty. *)
+Lemma begin_input_pref_empty:
+  forall (ms: MatchState) (inp: Chars.input),
+    MatchState.endIndex ms = 0%Z ->
+    ms_matches_inp ms inp ->
+    exists next, inp = Input next nil.
+Proof.
+  intros ms inp Hbegin Hmatches.
   inversion Hmatches as [s end_ind cap next pref Hlenpref Heqs Heqms Heqinp].
   subst ms. simpl in *.
-  assert (Hoob': end_ind + 1 > length s) by lia.
+  (*assert (Hoob': end_ind + 1 > length s) by lia.*)
   apply (f_equal (length (A := Chars.Char))) in Heqs.
   rewrite List.app_length in Heqs.
   rewrite List.rev_length in Heqs.
-  assert (Hlen: end_ind = length s) by lia.
-  assert (Hnext_zerolen: length next = 0) by lia.
-  exists pref.
-  f_equal.
+  assert (Hlen: end_ind = 0) by lia. subst end_ind.
+  exists next. f_equal.
   now apply List.length_zero_iff_nil.
 Qed.
 
-(* If we try to read backwards out of bounds, this means that the prefix of our input is empty. *)
+(* If we are NOT at the beginning of our input, this means that the prefix of our input is not empty. *)
+Lemma begin_input_pref_nonempty:
+  forall (ms: MatchState) (inp: Chars.input),
+    MatchState.endIndex ms <> 0%Z ->
+    ms_matches_inp ms inp ->
+    exists next x pref, inp = Input next (x::pref).
+Proof.
+  intros ms [next pref] Hnotbegin Hmatches.
+  destruct pref as [|x pref].
+  - inversion Hmatches as [s end_ind cap next' pref' Hlenpref Heqs Heqms Heqinp]. subst ms pref' next'. simpl in *. lia.
+  - exists next. exists x. exists pref. reflexivity.
+Qed.
+
+(* If we try to read backwards out of bounds from a valid state, then we are exactly at the beginning of the input. *)
+Lemma read_oob_fail_atbegin:
+  forall (ms: MatchState) (inp: Chars.input),
+    (MatchState.endIndex ms - 1 < 0)%Z ->
+    ms_matches_inp ms inp ->
+    MatchState.endIndex ms = 0%Z.
+Proof.
+  intros ms inp Hend Hmatches.
+  pose proof ms_matches_inp_inbounds ms inp Hmatches. lia.
+Qed.
+
+(* Corollary: if we try to read backwards out of bounds from a valid state, then the prefix of our input is empty. *)
 Lemma read_oob_fail_begin:
   forall (ms: MatchState) (inp: Chars.input),
     (MatchState.endIndex ms - 1 < 0)%Z ->
     ms_matches_inp ms inp ->
     exists next, inp = Input next nil.
 Proof.
-  intros ms inp Hoob Hmatches.
-  inversion Hmatches as [s end_ind cap next pref Hlenpref Heqs Heqms Heqinp].
-  subst ms. simpl in *.
-  assert (Hoob': end_ind = 0) by lia.
-  subst end_ind. rewrite List.length_zero_iff_nil in Hoob'. subst pref.
-  exists next. reflexivity.
+  intros. eauto using begin_input_pref_empty, read_oob_fail_atbegin.
 Qed.
 
 

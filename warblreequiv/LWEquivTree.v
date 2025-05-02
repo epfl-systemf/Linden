@@ -290,8 +290,10 @@ Qed.
 (* We place ourselves in the context of some root regex, and prove the validity for all the sub-regexes of the root regex. *)
 Theorem tmatcher_bt:
   forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
-    (* Assume that we do not ignore case. *)
+    (* Assume that we do not ignore case, *)
     (Hcasesenst: RegExpRecord.ignoreCase rer = false)
+    (* and that we do not consider line ends and starts to be input ends and starts, respectively. *)
+    (Hnomultiline: RegExpRecord.multiline rer = false)
     (* Let lroot and wroot be a pair of equivanent regexes. *)
     (root_equiv: equiv_regex wroot lroot),
     (* Then for any sub-regex wreg of the root Warblre regex, *)
@@ -305,18 +307,19 @@ Theorem tmatcher_bt:
       (* then this TMatcher is valid with respect to the regex lreg and direction dir. *)
       tm_valid tm rer lreg dir.
 Proof.
-  intros rer lroot wroot Hcasesenst root_equiv wreg lreg ctx Hroot Hequiv.
+  intros rer lroot wroot Hcasesenst Hnomultiline root_equiv wreg lreg ctx Hroot Hequiv.
   remember (StaticSemantics.countLeftCapturingParensBefore _ _) as n in Hequiv.
   revert ctx Hroot Heqn.
   induction Hequiv as [
-    n |
-    n c |
-    (*n |*) (* Dot *)
-    n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
-    n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
-    n wr lr wquant lquant wgreedylazy greedy Hequiv IH Hequivquant Hequivgreedy |
-    name n wr lr Hequiv IH |
-    n wr lr wlk llk Hequiv IH Hequivlk
+      n |
+      n c |
+      (*n |*) (* Dot *)
+      n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
+      n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
+      n wr lr wquant lquant wgreedylazy greedy Hequiv IH Hequivquant Hequivgreedy |
+      name n wr lr Hequiv IH |
+      n wr lr wlk llk Hequiv IH Hequivlk |
+      n wr lanchor Hanchequiv
   ].
 
 
@@ -559,4 +562,41 @@ Proof.
     + eapply tLookaroundMatcher_bt with (lkdir := forward) (pos := false); eauto.
     + eapply tLookaroundMatcher_bt with (lkdir := backward) (pos := true); eauto.
     + eapply tLookaroundMatcher_bt with (lkdir := backward) (pos := false); eauto.
+
+  - (* Anchors *)
+    inversion Hanchequiv as [Heqwr Heqlanchor | Heqwr Heqlanchor]; simpl.
+    
+    + (* Input start *)
+      intros ctx Hroot Heqn tm dir Heqtm. injection Heqtm as <-.
+      unfold tm_valid. intros tmc cont str0 Htmcvalid inp Hinpcompat ms t Hmsinp.
+      rewrite Hnomultiline. simpl.
+      destruct (MatchState.endIndex ms =? 0)%Z eqn:Hatbegin; simpl.
+      * rewrite Z.eqb_eq in Hatbegin. unfold tMC_valid in Htmcvalid. specialize (Htmcvalid inp Hinpcompat ms).
+        destruct (tmc ms) as [subtree|]; simpl in *. 2: discriminate.
+        specialize (Htmcvalid subtree Hmsinp eq_refl).
+        intro H. injection H as <-.
+        apply tree_pop_reg. apply tree_anchor. 2: assumption.
+        unfold anchor_satisfied.
+        pose proof begin_input_pref_empty _ _ Hatbegin Hmsinp as Hprefnil. now destruct Hprefnil as [next ->].
+      * intro H. injection H as <-.
+        apply tree_pop_reg. apply tree_anchor_fail. unfold anchor_satisfied.
+        rewrite Z.eqb_neq in Hatbegin.
+        pose proof begin_input_pref_nonempty _ _ Hatbegin Hmsinp as Hprefnotnil. now destruct Hprefnotnil as [next [x [pref ->]]].
+        
+    + (* Input end *)
+      intros ctx Hroot Heqn tm dir Heqtm. injection Heqtm as <-.
+      unfold tm_valid. intros tmc cont str0 Htmcvalid inp Hinpcompat ms t Hmsinp.
+      rewrite Hnomultiline. simpl.
+      destruct (MatchState.endIndex ms =? _)%Z eqn:Hatend; simpl.
+      * rewrite Z.eqb_eq in Hatend. specialize (Htmcvalid inp Hinpcompat ms).
+        destruct (tmc ms) as [subtree|]; simpl in *. 2: discriminate.
+        specialize (Htmcvalid subtree Hmsinp eq_refl).
+        intro H. injection H as <-.
+        apply tree_pop_reg. apply tree_anchor. 2: assumption.
+        unfold anchor_satisfied.
+        pose proof end_input_next_empty _ _ Hatend Hmsinp as Hnextnil. now destruct Hnextnil as [pref ->].
+      * rewrite Z.eqb_neq in Hatend.
+        intro H. injection H as <-.
+        apply tree_pop_reg. apply tree_anchor_fail. unfold anchor_satisfied.
+        pose proof end_input_next_nonempty _ _ Hatend Hmsinp as Hnextnotnil. now destruct Hnextnotnil as [pref [x [next ->]]].
 Qed.
