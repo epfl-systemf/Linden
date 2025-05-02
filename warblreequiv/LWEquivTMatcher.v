@@ -329,6 +329,25 @@ Proof.
     destruct (msub ms origcont) as [res|] eqn:Heqres; simpl. 2: constructor.
     constructor. inversion IH. auto.
 
+  - (* Input start *)
+    intros _ m tm dir Heqm Heqtm. injection Heqm as <-. injection Heqtm as <-.
+    intro str0. unfold equiv_tree_matcher. intros mc tmc gl Hequivcont.
+    unfold equiv_tree_mcont. intros ms Hmsstr0.
+    destruct (if (_: bool) then Success true else _) as [anchormatch|]; simpl. 2: constructor.
+    destruct anchormatch.
+    + unfold equiv_tree_mcont in Hequivcont. specialize (Hequivcont ms Hmsstr0). inversion Hequivcont; try solve[constructor]; simpl.
+      constructor. auto.
+    + constructor. auto.
+
+  - (* Input end: same as input start, but the placeholders in the first destruct are different *)
+    intros _ m tm dir Heqm Heqtm. injection Heqm as <-. injection Heqtm as <-.
+    intros str0 mc tmc gl Hequivcont ms Hmsstr0.
+    destruct (if (_: bool) then Success true else _) as [anchormatch|]; simpl. 2: constructor.
+    destruct anchormatch.
+    + unfold equiv_tree_mcont in Hequivcont. specialize (Hequivcont ms Hmsstr0). inversion Hequivcont; try solve[constructor]; simpl.
+      constructor. auto.
+    + constructor. auto.
+
     (* Positive lookahead *)
   - intros. apply compile_tcompile_lk with (lkdir := forward) (pos := true) (lkreg := wr) (rer := rer) (ctx := ctx); auto.
 
