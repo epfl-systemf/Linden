@@ -24,9 +24,11 @@ Proof.
     n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
     n wr lr wquant lquant wgreedylazy greedy Hequiv IH Hequivquant Hequivgreedy |
     name n wr lr Hequiv IH |
-    n wr lr wlk llk Hequiv IH Hequivlk]; simpl; try lia; try reflexivity.
+    n wr lr wlk llk Hequiv IH Hequivlk |
+    n wr lanchor Hanchequiv]; simpl; try lia; try reflexivity.
   - inversion Hequivquant; inversion Hequivgreedy; auto.
   - inversion Hequivlk; auto.
+  - inversion Hanchequiv; auto.
 Qed.
 
 
@@ -80,7 +82,8 @@ Proof.
     n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
     n wr lr wquant lquant wgreedylazy greedy Hequiv IH Hequivquant Hequivgreedy |
     name n wr lr Hequiv IH |
-    n wr lr wlk llk Hequiv IH Hequivlk].
+    n wr lr wlk llk Hequiv IH Hequivlk |
+    n wr lanchor Hanchequiv].
   - intros parenCount ctx Hcount.
     simpl in *. subst parenCount. reflexivity.
   - intros parenCount ctx Hcount.
@@ -116,6 +119,7 @@ Proof.
     replace (n + 1) with (S n) by lia.
     apply List.cons_seq.
   - intros parenCount ctx. inversion Hequivlk; simpl in *; eapply IH; eauto.
+  - intros parenCount ctx. inversion Hanchequiv; simpl in *; intro; subst parenCount; auto.
 Qed.
 
 
