@@ -1,5 +1,5 @@
 From Coq Require Import PeanoNat ZArith Bool Lia Program.Equality List Program.Wf.
-From Linden Require Import Tree LindenParameters TreeMSInterp Regex MSInput.
+From Linden Require Import Tree LindenParameters TreeMSInterp Regex MSInput LKFactorization.
 From Warblre Require Import Patterns Result Notation Errors Node RegExpRecord Base Coercions Semantics Typeclasses.
 Import Patterns.
 Import Result.Result.
@@ -161,33 +161,6 @@ Definition tCharacterSetMatcher (rer: RegExpRecord) (A: CharSet) (invert: bool) 
     let! child =<< c y in
     Success (Read chr child).
 
-Definition lkCtx (lkdir: Direction) (pos: bool) :=
-  match lkdir, pos with
-  | forward, true => Lookahead_inner
-  | forward, false => NegativeLookahead_inner
-  | backward, true => Lookbehind_inner
-  | backward, false => NegativeLookbehind_inner
-  end.
-
-Definition to_lookaround (lkdir: Direction) (pos: bool) :=
-  match lkdir, pos with
-  | forward, true => LookAhead
-  | forward, false => NegLookAhead
-  | backward, true => LookBehind
-  | backward, false => NegLookBehind
-  end.
-
-Lemma lkdir_to_lookaround:
-  forall lkdir pos, lk_dir (to_lookaround lkdir pos) = lkdir.
-Proof.
-  now intros [] [].
-Qed.
-
-Lemma positivity_to_lookaround:
-  forall lkdir pos, positivity (to_lookaround lkdir pos) = pos.
-Proof.
-  now intros [] [].
-Qed.
 
 Definition tLookaroundMatcher (tCompileSubPattern: Regex -> RegexContext -> RegExpRecord -> Direction -> Result TMatcher CompileError) (lkdir: Direction) (pos: bool) (lkreg: Regex) (ctx: RegexContext) (rer: RegExpRecord) (direction: Direction) : Result TMatcher CompileError :=
   let! m =<< tCompileSubPattern lkreg (lkCtx lkdir pos :: ctx) rer lkdir in
@@ -362,6 +335,52 @@ match self with
 | NegativeLookbehind r =>
     tLookaroundMatcher tCompileSubPattern backward false r ctx rer direction
 
+(** >>
+    22.2.2.4 Runtime Semantics: CompileAssertion
+
+    The syntax-directed operation CompileAssertion takes argument rer (a RegExp Record) and returns a Matcher.
+    It is defined piecewise over the following productions:
+<<*)
+(** >> Assertion :: ^ <<*)
+| InputStart =>
+    (*>> 1. Return a new Matcher with parameters (x, c) that captures rer and performs the following steps when called: <<*)
+    Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
+      (*>> a. Assert: x is a MatchState. <<*)
+      (*>> b. Assert: c is a MatcherContinuation. <<*)
+      (*>> c. Let Input be x's input. <<*)
+      let input := MatchState.input x in
+      (*>> d. Let e be x's endIndex. <<*)
+      let e := MatchState.endIndex x in
+      (*>> e. If e = 0, or if rer.[[Multiline]] is true and the character Input[e - 1] is matched by LineTerminator, then <<*)
+      if! (e =? 0)%Z ||! ((RegExpRecord.multiline rer is true) &&! (let! c =<< input[(e-1)%Z] in CharSet.contains Characters.line_terminators c)) then
+        (*>> i. Return c(x). <<*)
+        let! t =<< c x in
+        Success (AnchorPass BeginInput t)
+      else
+      (*>> f. Return failure. <<*)
+      Success (AnchorFail BeginInput)): TMatcher)
+
+(** >> Assertion :: $ <<*)
+| InputEnd =>
+    (*>> 1. Return a new Matcher with parameters (x, c) that captures rer and performs the following steps when called: <<*)
+    Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
+      (*>> a. Assert: x is a MatchState. <<*)
+      (*>> b. Assert: c is a MatcherContinuation. <<*)
+      (*>> c. Let Input be x's input. <<*)
+      let input := MatchState.input x in
+      (*>> d. Let e be x's endIndex. <<*)
+      let e := MatchState.endIndex x in
+      (*>> e. Let InputLength be the number of elements in Input. <<*)
+      let inputLength := List.length input in
+      (*>> f. If e = InputLength, or if rer.[[Multiline]] is true and the character Input[e] is matched by LineTerminator, then <<*)
+      if! (e =? inputLength)%Z ||! ((RegExpRecord.multiline rer is true) &&! (let! c =<< input[e] in CharSet.contains Characters.line_terminators c)) then
+        (*>> i. Return c(x). <<*)
+        let! t =<< c x in
+        Success (AnchorPass EndInput t)
+      else
+      (*>> g. Return failure. <<*)
+      Success (AnchorFail EndInput)): TMatcher)
+                       
 (* Computing a tree for the other cases is currently unsupported: we return a compilation failure in these cases. *)
 | _ => Error CompileError.AssertionFailed
 end.
