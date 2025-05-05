@@ -44,6 +44,8 @@ Inductive equiv_lookaround: (Patterns.Regex -> Patterns.Regex) -> lookaround -> 
 Inductive equiv_anchor: Patterns.Regex -> anchor -> Prop :=
 | Equiv_input_start: equiv_anchor Patterns.InputStart BeginInput
 | Equiv_input_end: equiv_anchor Patterns.InputEnd EndInput
+| Equiv_word_boundary: equiv_anchor Patterns.WordBoundary WordBoundary
+| Equiv_non_word_boundary: equiv_anchor Patterns.NotWordBoundary NonWordBoundary
 . (* TODO Word boundary and non-word boundary *)
 
 (* equiv_regex' wreg lreg n means that the two regexes wreg and lreg are equivalent, where the number of left capturing parentheses before wreg/lreg is n. *)

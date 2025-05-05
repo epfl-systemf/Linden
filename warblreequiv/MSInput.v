@@ -1,8 +1,11 @@
 From Coq Require Import List ZArith Lia.
-From Warblre Require Import Notation Parameters Match Base.
+From Warblre Require Import Notation Parameters Match Base Result.
 Import Notation.
 Import Match.
+Import Result.Notations.
 From Linden Require Import Chars LindenParameters.
+
+Local Open Scope result_flow.
 
 
 (** * Definitions and lemmas linking Warblre MatchStates with Linden inputs *)
@@ -155,4 +158,76 @@ Proof.
   intros ms inp str0 Hmatches Hcompat.
   rewrite <- inp_compat_ms_str0 with (str0 := str0) (inp := inp) (ms := ms) by assumption.
   eapply ms_matches_inp_inbounds; eauto.
+Qed.
+
+Lemma error_succ_abs {F S} `{Ferr: Result.AssertionError F}:
+  forall x: S, Result.assertion_failed = Success x -> False.
+Proof.
+  intros x Hfail. unfold Result.assertion_failed in Hfail. now destruct Ferr.
+Qed.
+
+(* Linking current characters of matching MatchStates and Linden inputs *)
+Lemma ms_matches_inp_currchar {F} `{Ferr: Result.AssertionError F}:
+  forall ms inp c,
+    ms_matches_inp ms inp ->
+    List.List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms) = Success c ->
+    MatchState.endIndex ms <> Z.of_nat (length (MatchState.input ms)) /\
+      exists pref next', inp = Input (c::next') pref.
+Proof.
+  intros ms inp c Hmatches Hgetchr.
+  inversion Hmatches as [str0 end_ind cap next pref Hlenpref Hstr0 Heqms Heqinp].
+  subst ms inp. simpl in *.
+  rewrite List.List.Indexing.Int.of_nat in Hgetchr.
+  pose proof List.List.Indexing.Nat.success_bounds str0 end_ind c Hgetchr as Hindvalid. split. 1: lia.
+  unfold List.List.Indexing.Nat.indexing in Hgetchr.
+  destruct (nth_error str0 end_ind) as [c'|] eqn:Hgetchr'; simpl in *.
+  2: exfalso; eapply error_succ_abs; eauto.
+  injection Hgetchr as ->.
+  (* Any way to automate this from now on? *)
+  pose proof f_equal (@length Char) Hstr0 as Hstr0len. rewrite app_length in Hstr0len. rewrite <- rev_length in Hlenpref. rewrite <- Hstr0 in Hgetchr'.
+  rewrite nth_error_app2 in Hgetchr' by lia.
+  replace (end_ind - length _) with 0 in Hgetchr' by lia.
+  destruct next as [|x next']. 1: discriminate.
+  simpl in Hgetchr'. injection Hgetchr' as ->.
+  exists pref. exists next'. reflexivity.
+Qed.
+
+Lemma ms_matches_inp_currchar2 {F} `{Ferr: Result.AssertionError F}:
+  forall ms inp c next' pref,
+    ms_matches_inp ms inp ->
+    inp = Input (c::next') pref ->
+    MatchState.endIndex ms <> Z.of_nat (length (MatchState.input ms)) /\
+      List.List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms) = Success c.
+Proof.
+  intros ms inp c next' pref Hmatches Heqinp. subst inp.
+  inversion Hmatches as [str0 end_ind cap next pref0 Hlenpref Hstr0 Heqms Heqnext].
+  subst ms pref0 next. simpl in *.
+  split.
+  - apply (f_equal (@length Char)) in Hstr0. rewrite app_length, rev_length, Hlenpref in Hstr0. simpl in Hstr0. lia.
+  - rewrite List.List.Indexing.Int.of_nat.
+    unfold List.List.Indexing.Nat.indexing. rewrite <- Hstr0.
+    rewrite nth_error_app2. 2: rewrite rev_length; lia. replace (end_ind - _) with 0 by (rewrite rev_length; lia).
+    auto.
+Qed.
+    
+Lemma ms_matches_inp_prevchar {F} `{Ferr: Result.AssertionError F}:
+  forall ms inp c,
+    ms_matches_inp ms inp ->
+    List.List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms - 1) = Success c ->
+    exists pref' next, inp = Input next (c::pref').
+Proof.
+  intros ms inp c Hmatches Hgetchr.
+  inversion Hmatches as [str0 end_ind cap next pref Hlenpref Hstr0 Heqms Heqinp].
+  subst inp ms. simpl in *.
+  destruct pref as [|x pref'].
+  1: { simpl in *. subst end_ind. simpl in *. exfalso. eapply error_succ_abs; eauto. }
+  simpl in *.
+  exists pref'. exists next. f_equal. f_equal.
+  subst end_ind. replace (Z.of_nat _ - 1)%Z with (Z.of_nat (length pref')) in Hgetchr by lia. rewrite List.List.Indexing.Int.of_nat in Hgetchr.
+  rewrite <- Hstr0 in Hgetchr. unfold List.List.Indexing.Nat.indexing in Hgetchr.
+  rewrite nth_error_app1 in Hgetchr. 2: { rewrite app_length, rev_length. simpl. lia. }
+  rewrite nth_error_app2 in Hgetchr. 2: { rewrite rev_length. reflexivity. }
+  replace (length _ - length _) with 0 in Hgetchr. 2: { rewrite rev_length. lia. }
+
+  simpl in *. now injection Hgetchr.
 Qed.

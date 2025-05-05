@@ -1,4 +1,5 @@
 From Linden Require Import RegexpTranslation LindenParameters Regex MSInput Chars ListLemmas.
+From Linden Require Semantics.
 From Warblre Require Import StaticSemantics List Parameters Notation Match Result Errors RegExpRecord Patterns Semantics Base.
 From Coq Require Import Lia ZArith List.
 Import Notation.
@@ -7,6 +8,9 @@ Import Match.
 Import Result.
 Import Result.Notations.
 Import ListNotations.
+
+Local Open Scope bool_scope.
+Local Open Scope result_flow.
 
 (** * Lemmas for 2nd part of equivalence proof *)
 
@@ -560,4 +564,85 @@ Lemma compilequant_greedy:
 Proof.
   intros wquant wgreedylazy lquant greedy Hequivgreedy Hequivquant.
   inversion Hequivgreedy; inversion Hequivquant; reflexivity.
+Qed.
+
+(** ** Lemmas for word boundary matching *)
+
+Lemma ifthenelse_xorb: forall a b: bool,
+    ((a is true) && (b is false)) || ((a is false) && (b is true)) = xorb a b.
+Proof.
+  now intros [] [].
+Qed.
+
+Lemma ifthenelse_negb_xorb: forall a b: bool,
+    ((a is true) && (b is true)) || ((a is false) && (b is false)) = negb (xorb a b).
+Proof.
+  now intros [] [].
+Qed.
+
+Lemma wordCharacters_casesenst:
+  forall rer,
+    RegExpRecord.ignoreCase rer = false ->
+    Semantics.wordCharacters rer = Success Characters.ascii_word_characters.
+Admitted.
+
+Lemma unwrap_bool:
+  forall b: bool, (if b then Coercions.wrap_bool MatchError true else Coercions.wrap_bool MatchError false) = Success b.
+Proof.
+  now intros [].
+Qed.
+
+Lemma is_boundary_xorb:
+  forall inp ms a b rer,
+    RegExpRecord.ignoreCase rer = false ->
+    ms_matches_inp ms inp ->
+    Semantics.isWordChar rer (MatchState.input ms) (MatchState.endIndex ms - 1)%Z = Success a ->
+    Semantics.isWordChar rer (MatchState.input ms) (MatchState.endIndex ms) = Success b ->
+    xorb a b = Semantics.is_boundary inp.
+Proof.
+  intros inp ms a b rer Hcasesenst Hmatches Ha Hb.
+  unfold Semantics.isWordChar in *.
+  rewrite wordCharacters_casesenst in * by assumption. simpl in *.
+  inversion Hmatches as [str0 end_ind cap next pref Hlenpref Hstr0 Heqms Heqinp].
+  subst ms inp. simpl in *.
+  destruct (Z.of_nat end_ind - 1 =? -1)%Z eqn:Hbegin; destruct (Z.of_nat end_ind =? Z.of_nat (length _))%Z eqn:Hend; simpl in *.
+
+  - (* Both at begin and end *)
+    rewrite Bool.orb_true_r in Hb. injection Ha as <-. injection Hb as <-. simpl.
+    replace end_ind with 0 in * by lia. assert (length str0 = 0) as Hstr0zerolen by lia.
+    apply length_zero_iff_nil in Hlenpref, Hstr0zerolen. subst str0 pref. simpl in *. now subst next.
+
+  - (* At begin but not at end *)
+    replace (Z.of_nat end_ind =? -1)%Z with false in Hb by lia. simpl in Hb.
+    assert (end_ind = 0) as Hbegin0 by lia.
+    rewrite Hbegin0 in Hlenpref. apply length_zero_iff_nil in Hlenpref. subst pref. simpl in *.
+    destruct List.Indexing.Int.indexing as [c|] eqn:Hgetchr; simpl in *. 2: discriminate.
+    pose proof ms_matches_inp_currchar _ _ _ Hmatches Hgetchr as [_ [pref [next' Hinput]]].
+    injection Hinput as Heqpref Heqnext. subst next str0.
+    rewrite unwrap_bool in Hb. injection Hb as <-. injection Ha as <-. simpl.
+    symmetry. apply word_char_warblre.
+
+  - (* At end but not at begin *)
+    rewrite Bool.orb_true_r in Hb. simpl in Hb.
+    replace (Z.of_nat _ - 1 =? _)%Z with false in Ha by lia.
+    destruct List.Indexing.Int.indexing as [cl|] eqn:Hcl in Ha; simpl in *. 2: discriminate.
+    pose proof ms_matches_inp_prevchar _ _ _ Hmatches Hcl as [pref' [next0 Heqinp]]. injection Heqinp as Heqnext0 Heqpref. subst next0 pref.
+    replace next with (@nil Char) in *.
+    2: {
+      symmetry. apply length_zero_iff_nil. apply (f_equal (@length Char)) in Hstr0. rewrite app_length, rev_length in Hstr0. lia.
+    }
+    injection Hb as <-. rewrite unwrap_bool in Ha. injection Ha as <-.
+    rewrite Bool.xorb_false_r. symmetry. apply word_char_warblre.
+
+  - (* Neither at begin, nor at end *)
+    replace (Z.of_nat _ =? -1)%Z with false in Hb by lia. simpl in Hb.
+    rewrite Z.eqb_neq in Hend. pose proof ms_matches_inp_inbounds _ _ Hmatches as Hinb. simpl in Hinb.
+    replace (Z.of_nat end_ind - 1 =? Z.of_nat (length str0))%Z with false in Ha by lia.
+    destruct List.Indexing.Int.indexing as [cr|] eqn:Hcr in Hb; simpl in *. 2: discriminate.
+    destruct List.Indexing.Int.indexing as [cl|] eqn:Hcl in Ha; simpl in *. 2: discriminate.
+    pose proof ms_matches_inp_currchar _ _ _ Hmatches Hcr as [_ [pref0 [next' Heqinpr]]].
+    pose proof ms_matches_inp_prevchar _ _ _ Hmatches Hcl as [pref' [next0 Heqinpl]].
+    injection Heqinpr as Heqnext _. injection Heqinpl as _ Heqpref. subst next pref. clear pref0 next0.
+    rewrite unwrap_bool in Hb, Ha. injection Hb as <-. injection Ha as <-.
+    rewrite Bool.xorb_comm. f_equal; symmetry; apply word_char_warblre.
 Qed.

@@ -564,7 +564,7 @@ Proof.
     + eapply tLookaroundMatcher_bt with (lkdir := backward) (pos := false); eauto.
 
   - (* Anchors *)
-    inversion Hanchequiv as [Heqwr Heqlanchor | Heqwr Heqlanchor]; simpl.
+    inversion Hanchequiv as [Heqwr Heqlanchor | Heqwr Heqlanchor | Heqwr Heqlanchor | Heqwr Heqlanchor]; simpl.
     
     + (* Input start *)
       intros ctx Hroot Heqn tm dir Heqtm. injection Heqtm as <-.
@@ -599,4 +599,40 @@ Proof.
         intro H. injection H as <-.
         apply tree_pop_reg. apply tree_anchor_fail. unfold anchor_satisfied.
         pose proof end_input_next_nonempty _ _ Hatend Hmsinp as Hnextnotnil. now destruct Hnextnotnil as [pref [x [next ->]]].
+
+    + (* Word boundary *)
+      intros ctx Hroot Heqn tm dir Heqtm. injection Heqtm as <-.
+      unfold tm_valid. intros tmc cont str0 Htmcvalid.
+      unfold tMC_valid. intros inp Hinpcompat ms t Hmsinp Heqt.
+      destruct Semantics.isWordChar as [a|] eqn:Hwca; simpl in *. 2: discriminate.
+      destruct (Semantics.isWordChar rer (_ ms) (MatchState.endIndex ms)) as [b|] eqn:Hwcb; simpl in *. 2: discriminate.
+      rewrite ifthenelse_xorb in Heqt. pose proof is_boundary_xorb _ _ _ _ _ Hcasesenst Hmsinp Hwca Hwcb as Hisboundary.
+      destruct xorb.
+      * (* We are on a boundary *)
+        unfold tMC_valid in Htmcvalid. specialize (Htmcvalid inp Hinpcompat ms).
+        destruct (tmc ms) as [subtree|] eqn:Hsubtree; simpl in *. 2: discriminate.
+        specialize (Htmcvalid subtree Hmsinp eq_refl). injection Heqt as <-.
+        apply tree_pop_reg. apply tree_anchor. 2: assumption. unfold anchor_satisfied.
+        destruct inp as [next pref]. congruence.
+      * (* We are not *)
+        apply tree_pop_reg. injection Heqt as <-. apply tree_anchor_fail.
+        unfold anchor_satisfied. destruct inp as [next pref]; congruence.
+      
+    + (* Non word boundary *)
+      intros ctx Hroot Heqn tm dir Heqtm. injection Heqtm as <-.
+      intros tmc cont str0 Htmcvalid inp Hinpcompat ms t Hmsinp Heqt.
+      destruct Semantics.isWordChar as [a|] eqn:Hwca; simpl in *. 2: discriminate.
+      destruct (Semantics.isWordChar rer (_ ms) (MatchState.endIndex ms)) as [b|] eqn:Hwcb; simpl in *. 2: discriminate.
+      rewrite ifthenelse_negb_xorb in Heqt. pose proof is_boundary_xorb _ _ _ _ _ Hcasesenst Hmsinp Hwca Hwcb as Hisboundary.
+      destruct xorb.
+      * (* We are on a boundary *)
+        simpl in Heqt. injection Heqt as <-.
+        apply tree_pop_reg. apply tree_anchor_fail. unfold anchor_satisfied. destruct inp as [next pref].
+        rewrite <- Hisboundary. reflexivity.
+      * (* We are not *)
+        specialize (Htmcvalid inp Hinpcompat ms).
+        destruct (tmc ms) as [subtree|] eqn:Hsubtree; simpl in *. 2: discriminate.
+        specialize (Htmcvalid subtree Hmsinp eq_refl). injection Heqt as <-.
+        apply tree_pop_reg. apply tree_anchor. 2: assumption. unfold anchor_satisfied.
+        destruct inp as [next pref]. rewrite <- Hisboundary. reflexivity.
 Qed.
