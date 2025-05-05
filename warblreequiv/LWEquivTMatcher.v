@@ -185,7 +185,7 @@ Qed.
   
 
 
-(* Main theorem: *)
+(** ** Main theorem *)
 Theorem compile_tcompile:
   forall reg ctx rer m tm dir (* for all regexes, contexts, RegExpRecords and directions, *)
     (* if the compilations of the regexes into a matcher and a tree matcher succeed, *)
@@ -347,6 +347,34 @@ Proof.
     + unfold equiv_tree_mcont in Hequivcont. specialize (Hequivcont ms Hmsstr0). inversion Hequivcont; try solve[constructor]; simpl.
       constructor. auto.
     + constructor. auto.
+
+  (* Word boundary *)
+  - intros _ m tm dir Hcompsucc Htcompsucc str0. injection Hcompsucc as <-. injection Htcompsucc as <-.
+    unfold equiv_tree_matcher.
+    intros mc tmc gl Hequivcont. unfold equiv_tree_mcont.
+    intros ms Hmsstr0.
+    destruct Semantics.isWordChar as [a|] eqn:Hwca; simpl. 2: constructor.
+    destruct (Semantics.isWordChar rer (_ ms) (MatchState.endIndex ms)) as [b|] eqn:Hwcb; simpl. 2: constructor.
+    destruct (_ && _ || _ && _); simpl.
+    + unfold equiv_tree_mcont in Hequivcont. specialize (Hequivcont ms Hmsstr0).
+      destruct tmc as [t|]; simpl. 2: constructor.
+      destruct mc as [res|]; simpl. 2: constructor.
+      constructor. simpl. now inversion Hequivcont.
+    + constructor. reflexivity.
+
+  (* Non word boundary; same proof as above, except the placeholders at the main destruct differ *)
+  - intros _ m tm dir Hcompsucc Htcompsucc str0. injection Hcompsucc as <-. injection Htcompsucc as <-.
+    unfold equiv_tree_matcher.
+    intros mc tmc gl Hequivcont. unfold equiv_tree_mcont.
+    intros ms Hmsstr0.
+    destruct Semantics.isWordChar as [a|] eqn:Hwca; simpl. 2: constructor.
+    destruct (Semantics.isWordChar rer (_ ms) (MatchState.endIndex ms)) as [b|] eqn:Hwcb; simpl. 2: constructor.
+    destruct (_ && _ || _ && _); simpl.
+    + unfold equiv_tree_mcont in Hequivcont. specialize (Hequivcont ms Hmsstr0).
+      destruct tmc as [t|]; simpl. 2: constructor.
+      destruct mc as [res|]; simpl. 2: constructor.
+      constructor. simpl. now inversion Hequivcont.
+    + constructor. reflexivity.
 
     (* Positive lookahead *)
   - intros. apply compile_tcompile_lk with (lkdir := forward) (pos := true) (lkreg := wr) (rer := rer) (ctx := ctx); auto.

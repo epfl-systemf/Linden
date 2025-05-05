@@ -379,7 +379,52 @@ match self with
         Success (AnchorPass EndInput t)
       else
       (*>> g. Return failure. <<*)
-      Success (AnchorFail EndInput)): TMatcher)
+        Success (AnchorFail EndInput)): TMatcher)
+
+(** >> Assertion :: \b <<*)
+| WordBoundary =>
+    (*>> 1. Return a new Matcher with parameters (x, c) that captures rer and performs the following steps when called: <<*)
+    Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
+      (*>> a. Assert: x is a MatchState. <<*)
+      (*>> b. Assert: c is a MatcherContinuation. <<*)
+      (*>> c. Let Input be x's input. <<*)
+      let input := MatchState.input x in
+      (*>> d. Let e be x's endIndex. <<*)
+      let e := MatchState.endIndex x in
+      (*>> e. Let a be IsWordChar(rer, Input, e - 1). <<*)
+      let! a =<< Semantics.isWordChar rer input (e - 1)%Z in
+      (*>> f. Let b be IsWordChar(rer, Input, e). <<*)
+      let! b =<< Semantics.isWordChar rer input e in
+      (*>> g. If a is true and b is false, or if a is false and b is true, return c(x). <<*)
+      if ((a is true) && (b is false)) || ((a is false) && (b is true)) then
+        let! t =<< c x in
+        Success (AnchorPass Regex.WordBoundary t)
+      else
+      (*>> h. Return failure. <<*)
+        Success (AnchorFail Regex.WordBoundary)): TMatcher)
+
+(** >> Assertion :: \B <<*)
+| NotWordBoundary =>
+    (*>> 1. Return a new Matcher with parameters (x, c) that captures rer and performs the following steps when called: <<*)
+    Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
+      (*>> a. Assert: x is a MatchState. <<*)
+      (*>> b. Assert: c is a MatcherContinuation. <<*)
+      (*>> c. Let Input be x's input. <<*)
+      let input := MatchState.input x in
+      (*>> d. Let e be x's endIndex. <<*)
+      let e := MatchState.endIndex x in
+      (*>> e. Let a be IsWordChar(rer, Input, e - 1). <<*)
+      let! a =<< Semantics.isWordChar rer input (e - 1)%Z in
+      (*>> f. Let b be IsWordChar(rer, Input, e). <<*)
+      let! b =<< Semantics.isWordChar rer input e in
+      (*>> g. If a is true and b is true, or if a is false and b is false, return c(x). <<*)
+      if ((a is true) && (b is true)) || ((a is false) && (b is false)) then
+        let! t =<< c x in
+        Success (AnchorPass NonWordBoundary t)
+      else
+      (*>> h. Return failure. <<*)
+        Success (AnchorFail NonWordBoundary)): TMatcher)
+
                        
 (* Computing a tree for the other cases is currently unsupported: we return a compilation failure in these cases. *)
 | _ => Error CompileError.AssertionFailed

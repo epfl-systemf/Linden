@@ -101,3 +101,8 @@ Instance LindenParameters: Parameters := {|
     Parameters.string_marker := string_marker;
     Parameters.unicode_property_marker := empty_unicode_marker
   |}.
+
+(** ** Axiomatization of word_char *)
+Axiom word_char_warblre: forall c: Char, word_char c = CharSet.contains (Characters.ascii_word_characters) c.
+
+
