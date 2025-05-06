@@ -136,7 +136,7 @@ Lemma char_match_warblre:
     (* and chr corresponds to c in the Warblre sense, *)
     CharSet.exist_canonicalized rer (CharSet.singleton c) (char_canonicalize rer chr) = true ->
     (* then chr corresponds to c in the Linden sense. *)
-    char_match chr (single c) = true.
+    char_match chr (CdSingle c) = true.
 Proof.
   intros rer chr c Hcasesenst Hexist_canon.
   apply <- single_match.
@@ -161,7 +161,7 @@ Lemma read_char_success:
     CharSet.exist_canonicalized rer (CharSet.singleton c) (char_canonicalize rer chr) = true ->
     (* then reading character c succeeds in the Linden sense. *)
     advance_input inp dir = Some inp_adv ->
-    read_char (single c) inp dir = Some (chr, inp_adv).
+    read_char (CdSingle c) inp dir = Some (chr, inp_adv).
 Proof.
   intros ms inp chr c rer dir inp_adv Hcasesenst Hms_inp Hreadsuccess Hcharcorresp Hadv.
   destruct inp as [next pref].
@@ -177,7 +177,7 @@ Proof.
     rewrite List.rev_length in Hreadsuccess.
     replace (end_ind - length pref) with 0 in Hreadsuccess by lia.
     injection Hreadsuccess as <-.
-    now rewrite char_match_warblre with (rer := rer).
+    now setoid_rewrite char_match_warblre with (rer := rer).
   - destruct pref as [|x pref']. 1: discriminate.
     injection Hadv as <-. simpl.
     inversion Hms_inp as [str0 end_ind cap next2 pref2 Hlenpref Heqstr0 Heqms Heqnext2].
@@ -193,7 +193,7 @@ Proof.
     rewrite List.nth_error_app2 in Hreadsuccess. 2: { rewrite List.rev_length. reflexivity. }
     rewrite List.rev_length, Nat.sub_diag in Hreadsuccess.
     injection Hreadsuccess as <-.
-    now rewrite char_match_warblre with (rer := rer).
+    now setoid_rewrite char_match_warblre with (rer := rer).
 Qed.
 
 
@@ -202,7 +202,7 @@ Lemma char_mismatch_warblre:
   forall rer chr c,
     RegExpRecord.ignoreCase rer = false ->
     CharSet.exist_canonicalized rer (CharSet.singleton c) (char_canonicalize rer chr) = false ->
-    char_match chr (single c) = false.
+    char_match chr (CdSingle c) = false.
 Proof.
   intros rer chr c Hcasesenst Hexist_false.
   rewrite CharSet.exist_canonicalized_equiv in Hexist_false.
@@ -224,7 +224,7 @@ Lemma read_char_fail:
     List.Indexing.Int.indexing (MatchState.input ms) (
         match dir with forward => MatchState.endIndex ms | backward => MatchState.endIndex ms - 1 end) = Success chr ->
     CharSet.exist_canonicalized rer (CharSet.singleton c) (char_canonicalize rer chr) = false ->
-    read_char (single c) inp dir = None.
+    read_char (CdSingle c) inp dir = None.
 Proof.
   intros rer ms chr inp dir c Hcasesenst Hms_inp Hreadsuccess Hnocorresp.
   destruct inp as [next pref].
@@ -241,7 +241,7 @@ Proof.
     replace (length pref - length pref) with 0 in Hreadsuccess by lia.
     destruct next as [|x next']. 1: discriminate.
     injection Hreadsuccess as <-.
-    now rewrite char_mismatch_warblre with (rer := rer).
+    now setoid_rewrite char_mismatch_warblre with (rer := rer).
   - destruct end_ind as [|end_indm1]. 1: discriminate.
     replace (Z.of_nat (S end_indm1) - 1)%Z with (Z.of_nat end_indm1) in Hreadsuccess by lia.
     rewrite List.Indexing.Int.of_nat in Hreadsuccess.
@@ -254,7 +254,7 @@ Proof.
     rewrite List.nth_error_app2 in Hreadsuccess. 2: { rewrite List.rev_length. reflexivity. }
     rewrite List.rev_length, Nat.sub_diag in Hreadsuccess.
     injection Hreadsuccess as <-.
-    now rewrite char_mismatch_warblre with (rer := rer).
+    now setoid_rewrite char_mismatch_warblre with (rer := rer).
 Qed.
   
 
@@ -590,7 +590,7 @@ Proof.
   apply charset_ext. intro c.
   rewrite charset_union_contains, charset_filter_contains.
   destruct (CharSet.contains Characters.ascii_word_characters _) eqn:Hascii; simpl. 1: reflexivity.
-  setoid_rewrite Hascii. Search char_canonicalize.
+  setoid_rewrite Hascii.
   rewrite canonicalize_casesenst by assumption. setoid_rewrite Hascii.
   rewrite Bool.andb_false_r. reflexivity.
 Qed.
@@ -599,6 +599,15 @@ Lemma unwrap_bool:
   forall b: bool, (if b then Coercions.wrap_bool MatchError true else Coercions.wrap_bool MatchError false) = Success b.
 Proof.
   now intros [].
+Qed.
+
+Lemma word_char_warblre:
+  forall c, word_char c = CharSet.contains Characters.ascii_word_characters c.
+Proof.
+  intro c. unfold Characters.ascii_word_characters.
+  apply Bool.eq_true_iff_eq.
+  rewrite charset_from_list_contains. unfold word_char.
+  apply Utils.List.inb_spec.
 Qed.
 
 Lemma is_boundary_xorb:

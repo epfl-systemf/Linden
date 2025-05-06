@@ -51,7 +51,7 @@ Inductive equiv_anchor: Patterns.Regex -> anchor -> Prop :=
 (* equiv_regex' wreg lreg n means that the two regexes wreg and lreg are equivalent, where the number of left capturing parentheses before wreg/lreg is n. *)
 Inductive equiv_regex': Patterns.Regex -> regex -> nat -> Prop :=
 | Equiv_empty: forall n: nat, equiv_regex' Patterns.Empty Epsilon n
-| Equiv_char: forall (n: nat) (c: Char), equiv_regex' (Patterns.Char c) (Character (Chars.single c)) n
+| Equiv_char: forall (n: nat) (c: Char), equiv_regex' (Patterns.Char c) (Character (Chars.CdSingle c)) n
 (* Dot is not axiomatized for now in Linden.
 | Equiv_dot: forall n: nat, equiv_regex' Patterns.Dot (Character Chars.dot) n *)
 | Equiv_disj: forall n wr1 wr2 lr1 lr2,

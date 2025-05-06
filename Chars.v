@@ -1,6 +1,8 @@
 Require Import List Lia.
 Import ListNotations.
-From Warblre Require Import Base.
+From Linden Require Import Utils.
+Import Utils.List.
+From Warblre Require Import Base Typeclasses.
 
 (** * Characters and Strings  *)
 Parameter Char:Type.
@@ -12,15 +14,18 @@ Inductive input : Type :=
 | Input (next: string) (pref: string).
 
 Parameter char_eq_dec : forall (x y : Char), { x = y } + { x <> y }.
+Instance char_EqDec: EqDec Char := EqDec.make Char char_eq_dec.
+
 Definition string_eq_dec : forall (x y : string), { x = y } + { x <> y }.
 Proof.
   decide equality. apply char_eq_dec.
 Defined.
+Instance string_EqDec: EqDec string := EqDec.make string string_eq_dec.
+
 Definition input_eq_dec: forall (i1 i2: input), { i1 = i2 } + { i1 <> i2 }.
 Proof. decide equality; apply string_eq_dec. Defined.
+Instance input_EqDec: EqDec input := EqDec.make input input_eq_dec.
 
-(* indicating which character is a word character for anchors *)
-Parameter word_char : Char -> bool.
 
 Definition next_str (i:input) : string :=
   match i with
@@ -36,28 +41,64 @@ Definition current_str (i:input) (dir: Direction) : string :=
 Definition init_input (str:string) : input :=
   Input str [].
 
+(** ** Character numeric values *)
+Parameter char_from_numeric_value: nat -> Char.
+Parameter char_numeric_value: Char -> nat.
+Parameter char_numeric_pseudo_bij: forall c, char_from_numeric_value (char_numeric_value c) = c.
+Parameter char_numeric_round_trip_order: forall l r, l <= r -> (char_numeric_value (char_from_numeric_value l)) <= (char_numeric_value (char_from_numeric_value r)).
+
+(** ** Various classes of characters *)
+Parameter char_all: list Char.
+Parameter char_line_terminators: list Char.
+Parameter char_digits: list Char.
+Parameter char_white_spaces: list Char.
+Parameter char_ascii_word_characters: list Char.
+
+(* Deciding whether a character is a word character, to check for word boundaries and for character classes \w and \W *)
+Definition word_char c := inb c char_ascii_word_characters.
+
+
 
 (** * Character Descriptors  *)
 (* by character descriptors, we mean everything that can represent a single character *)
 (* the character itself, the dot, an escape, a character group like \d, character classes *)
-Parameter char_descr : Type.
+Inductive char_descr: Type :=
+| CdEmpty
+| CdDot
+| CdAll
+| CdSingle (c: Char)
+| CdDigits
+| CdWhitespace
+| CdWordChar
+| CdInv (cd: char_descr)
+| CdRange (l h: Char)
+| CdUnion (cd1 cd2: char_descr).
+        
 
-(* common character descriptors *)
-Parameter dot : char_descr.
-(* dot is not all characters without multiline flag *)
-Parameter all: char_descr.
-(* single char *)
-Parameter single : Char -> char_descr.
+(*Parameter char_match : Char -> char_descr -> bool.*)
+Fixpoint char_match (c: Char) (cd: char_descr): bool :=
+  match cd with
+  | CdEmpty => false
+  | CdDot => true (* Temporary; at the end, we'd like to use Characters.all and take the multiline flag into account *)
+  | CdAll => true (* Temporary; at the end, we'd like to use Characters.all *)
+  | CdSingle c' => c == c'
+  | CdDigits => inb c char_digits
+  | CdWhitespace => inb c char_white_spaces
+  | CdWordChar => inb c char_ascii_word_characters (* Temporary; at the end, we'd like to use a rer *)
+  | CdInv cd' => negb (char_match c cd')
+  | CdRange l h => (char_numeric_value l <=? char_numeric_value c) && (char_numeric_value c <=? char_numeric_value h)
+  | CdUnion cd1 cd2 => char_match c cd1 || char_match c cd2
+  end.
 
-Parameter char_match : Char -> char_descr -> bool.
 
-Axiom single_match:
-  forall c1 c2, char_match c1 (single c2) = true <-> c1 = c2.
+Lemma single_match:
+  forall c1 c2, char_match c1 (CdSingle c2) = true <-> c1 = c2.
+Proof.
+  intros c1 c2. simpl. apply EqDec.inversion_true.
+Qed.
 
-Axiom all_match:
-  forall c, char_match c all = true.
-
-Parameter char_descr_eq_dec : forall (cd1 cd2: char_descr), { cd1 = cd2 } + { cd1 <> cd2 }.
+Definition char_descr_eq_dec : forall (cd1 cd2: char_descr), { cd1 = cd2 } + { cd1 <> cd2 }.
+Proof. decide equality; apply char_eq_dec. Defined.
 
 
 (** * Reading Characters in the String *)

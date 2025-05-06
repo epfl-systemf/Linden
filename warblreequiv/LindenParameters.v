@@ -13,16 +13,7 @@ Local Open Scope bool_scope.
 
 (* We axiomatize most required parameters *)
 Instance char_eqdec: EqDec Char := {| EqDec.eq_dec := char_eq_dec |}.
-Parameter char_from_numeric_value: nat -> Char.
-Parameter char_numeric_value: Char -> nat.
 Parameter char_canonicalize: RegExpRecord -> Char -> Char.
-Parameter char_all: list Char.
-Parameter char_line_terminators: list Char.
-Parameter char_digits: list Char.
-Parameter char_white_spaces: list Char.
-Parameter char_ascii_word_characters: list Char.
-Parameter char_numeric_pseudo_bij: forall c, char_from_numeric_value (char_numeric_value c) = c.
-Parameter char_numeric_round_trip_order: forall l r, l <= r -> (char_numeric_value (char_from_numeric_value l)) <= (char_numeric_value (char_from_numeric_value r)).
 
 (* As per the ECMA specification (22.2.2.7.3 Canonicalize ( rer, ch )), when we do not ignore case, canonicalization is the identity function. *)
 Axiom canonicalize_casesenst: forall rer chr, RegExpRecord.ignoreCase rer = false -> char_canonicalize rer chr = chr.
@@ -104,9 +95,6 @@ Instance LindenParameters: Parameters := {|
     Parameters.string_marker := string_marker;
     Parameters.unicode_property_marker := empty_unicode_marker
   |}.
-
-(** ** Axiomatization of word_char *)
-Axiom word_char_warblre: forall c: Char, word_char c = CharSet.contains (Characters.ascii_word_characters) c.
 
 
 (** ** Axiomatization of CharSet *)
