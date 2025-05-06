@@ -584,7 +584,16 @@ Lemma wordCharacters_casesenst:
   forall rer,
     RegExpRecord.ignoreCase rer = false ->
     Semantics.wordCharacters rer = Success Characters.ascii_word_characters.
-Admitted.
+Proof.
+  intros rer Hcasesenst. unfold Semantics.wordCharacters.
+  unfold Coercions.wrap_CharSet. simpl. f_equal.
+  apply charset_ext. intro c.
+  rewrite charset_union_contains, charset_filter_contains.
+  destruct (CharSet.contains Characters.ascii_word_characters _) eqn:Hascii; simpl. 1: reflexivity.
+  setoid_rewrite Hascii. Search char_canonicalize.
+  rewrite canonicalize_casesenst by assumption. setoid_rewrite Hascii.
+  rewrite Bool.andb_false_r. reflexivity.
+Qed.
 
 Lemma unwrap_bool:
   forall b: bool, (if b then Coercions.wrap_bool MatchError true else Coercions.wrap_bool MatchError false) = Success b.
