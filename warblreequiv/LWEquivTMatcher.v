@@ -182,8 +182,39 @@ Proof.
   - specialize (Hequivcont ms Hmsstr0). inversion Hequivcont as [t1 msafterlk' gl' r Hcontequiv' | |]. 2,3: constructor.
     simpl. constructor. simpl. replace (Regex.positivity _) with false by now destruct lkdir. replace (Regex.lk_dir _) with lkdir by now destruct lkdir. rewrite <- IH'. auto.
 Qed.
-  
 
+
+(** ** Lemma for AtomEscs *)
+Lemma compile_tcompile_atomescape:
+  forall ae ctx rer m tm dir
+    (Heqm: Semantics.compileSubPattern (AtomEsc ae) ctx rer dir = Success m)
+    (Heqtm: tCompileSubPattern (AtomEsc ae) ctx rer dir = Success tm),
+  forall str0, equiv_tree_matcher str0 m tm dir.
+Proof.
+  intros ae ctx rer m tm dir. simpl. destruct ae; try discriminate.
+  - (* ACharacterClassEsc *)
+    destruct esc.
+    (* \d, \D, \s, \S, \w, \W *)
+    1-6: intros; injection Heqm as <-; injection Heqtm as <-; eapply charset_tcharset; reflexivity.
+    + (* Unicode property *)
+      destruct p.
+    + (* Negative unicode property *)
+      destruct p.
+  - (* ACharacterEsc *)
+    destruct esc; simpl.
+    + (* ControlEsc *)
+      destruct esc; intros; injection Heqm as <-; injection Heqtm as <-; eapply charset_tcharset; reflexivity.
+    + (* AsciiControlEsc *)
+      intros; injection Heqm as <-; injection Heqtm as <-; eapply charset_tcharset; reflexivity.
+    + (* esc_Zero *)
+      intros; injection Heqm as <-; injection Heqtm as <-; eapply charset_tcharset; reflexivity.
+    + (* HexEscape *)
+      intros; injection Heqm as <-; injection Heqtm as <-; eapply charset_tcharset; reflexivity.
+    + (* UnicodeEsc *)
+      destruct seq; intros; injection Heqm as <-; injection Heqtm as <-; eapply charset_tcharset; reflexivity.
+    + (* IdentityEsc *)
+      intros; injection Heqm as <-; injection Heqtm as <-; eapply charset_tcharset; reflexivity.
+Qed.
 
 (** ** Main theorem *)
 Theorem compile_tcompile:
@@ -214,7 +245,7 @@ Proof.
     wr IH |
     wr IH |
     wr IH
-  ]; simpl; try discriminate.
+  ]; try discriminate.
 
   - (* Empty *)
     intros. injection Heqm as <-. injection Heqtm as <-.
@@ -227,8 +258,14 @@ Proof.
   - (* Dot; same as character *)
     intros. injection Heqm as <-. injection Heqtm as <-. eapply charset_tcharset; reflexivity.
 
+  - (* AtomEsc *)
+    intros. eapply compile_tcompile_atomescape; eauto.
+
+  - (* CharacterClass *)
+    admit.
+
   - (* Disjunction *)
-    intros.
+    simpl. intros.
     remember (Disjunction_left wr2 :: ctx)%list as ctxleft.
     remember (Disjunction_right wr1 :: ctx)%list as ctxright.
     specialize (IH1 ctxleft).
@@ -258,7 +295,7 @@ Proof.
       now inversion IH2.
 
   - (* Quantifier *)
-    intros.
+    simpl. intros.
     remember (Quantified_inner q :: ctx)%list as ctx'.
     specialize (IH ctx').
     destruct Semantics.compileSubPattern as [msub|] eqn:Heqmsub; simpl. 2: discriminate.
@@ -273,7 +310,7 @@ Proof.
     now apply repeatMatcher'_tRepeatMatcher'.
 
   - (* Sequence *)
-    intros.
+    simpl. intros.
     remember (Seq_left wr2 :: ctx)%list as ctxleft.
     remember (Seq_right wr1 :: ctx)%list as ctxright.
     specialize (IH1 ctxleft). specialize (IH2 ctxright).
@@ -288,7 +325,7 @@ Proof.
       specialize (IH2 m2 tm2 backward Heqm2 Heqtm2 str0 (fun ms0 => m1 ms0 mc) (fun ms0 => tm1 ms0 tmc) gl IH1 ms). auto.
 
   - (* Group *)
-    intros.
+    simpl. intros.
     remember (Group_inner name :: ctx)%list as ctx'. specialize (IH ctx').
     destruct (Semantics.compileSubPattern wr ctx' rer dir) as [msub|] eqn:Heqmsub; simpl. 2: discriminate.
     destruct (tCompileSubPattern wr ctx' rer dir) as [tmsub|] eqn:Heqtmsub; simpl. 2: discriminate.
@@ -330,7 +367,7 @@ Proof.
     constructor. inversion IH. auto.
 
   - (* Input start *)
-    intros _ m tm dir Heqm Heqtm. injection Heqm as <-. injection Heqtm as <-.
+    simpl. intros _ m tm dir Heqm Heqtm. injection Heqm as <-. injection Heqtm as <-.
     intro str0. unfold equiv_tree_matcher. intros mc tmc gl Hequivcont.
     unfold equiv_tree_mcont. intros ms Hmsstr0.
     destruct (if (_: bool) then Success true else _) as [anchormatch|]; simpl. 2: constructor.
@@ -340,7 +377,7 @@ Proof.
     + constructor. auto.
 
   - (* Input end: same as input start, but the placeholders in the first destruct are different *)
-    intros _ m tm dir Heqm Heqtm. injection Heqm as <-. injection Heqtm as <-.
+    simpl. intros _ m tm dir Heqm Heqtm. injection Heqm as <-. injection Heqtm as <-.
     intros str0 mc tmc gl Hequivcont ms Hmsstr0.
     destruct (if (_: bool) then Success true else _) as [anchormatch|]; simpl. 2: constructor.
     destruct anchormatch.
@@ -349,7 +386,7 @@ Proof.
     + constructor. auto.
 
   (* Word boundary *)
-  - intros _ m tm dir Hcompsucc Htcompsucc str0. injection Hcompsucc as <-. injection Htcompsucc as <-.
+  - simpl. intros _ m tm dir Hcompsucc Htcompsucc str0. injection Hcompsucc as <-. injection Htcompsucc as <-.
     unfold equiv_tree_matcher.
     intros mc tmc gl Hequivcont. unfold equiv_tree_mcont.
     intros ms Hmsstr0.
@@ -363,7 +400,7 @@ Proof.
     + constructor. reflexivity.
 
   (* Non word boundary; same proof as above, except the placeholders at the main destruct differ *)
-  - intros _ m tm dir Hcompsucc Htcompsucc str0. injection Hcompsucc as <-. injection Htcompsucc as <-.
+  - simpl. intros _ m tm dir Hcompsucc Htcompsucc str0. injection Hcompsucc as <-. injection Htcompsucc as <-.
     unfold equiv_tree_matcher.
     intros mc tmc gl Hequivcont. unfold equiv_tree_mcont.
     intros ms Hmsstr0.
@@ -377,14 +414,14 @@ Proof.
     + constructor. reflexivity.
 
     (* Positive lookahead *)
-  - intros. apply compile_tcompile_lk with (lkdir := forward) (pos := true) (lkreg := wr) (rer := rer) (ctx := ctx); auto.
+  - simpl. intros. apply compile_tcompile_lk with (lkdir := forward) (pos := true) (lkreg := wr) (rer := rer) (ctx := ctx); auto.
 
     (* Negative lookahead *)
-  - intros. apply compile_tcompile_lk with (lkdir := forward) (pos := false) (lkreg := wr) (rer := rer) (ctx := ctx); auto.
+  - simpl. intros. apply compile_tcompile_lk with (lkdir := forward) (pos := false) (lkreg := wr) (rer := rer) (ctx := ctx); auto.
 
     (* Positive lookbehind *)
-  - intros. apply compile_tcompile_lk with (lkdir := backward) (pos := true) (lkreg := wr) (rer := rer) (ctx := ctx); auto.
+  - simpl. intros. apply compile_tcompile_lk with (lkdir := backward) (pos := true) (lkreg := wr) (rer := rer) (ctx := ctx); auto.
 
     (* Negative lookbehind *)
-  - intros. apply compile_tcompile_lk with (lkdir := backward) (pos := false) (lkreg := wr) (rer := rer) (ctx := ctx); auto.
-Qed.
+  - simpl. intros. apply compile_tcompile_lk with (lkdir := backward) (pos := false) (lkreg := wr) (rer := rer) (ctx := ctx); auto.
+Admitted.
