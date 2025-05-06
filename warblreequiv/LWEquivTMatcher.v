@@ -114,9 +114,9 @@ Qed.
 
 (** ** Lemma for character set matchers. *)
 Lemma charset_tcharset:
-  forall rer m tm charset str0 dir
-    (Heqm: Semantics.characterSetMatcher rer charset false dir = m)
-    (Heqtm: tCharacterSetMatcher rer charset false dir = tm),
+  forall rer m tm charset str0 invert dir
+    (Heqm: Semantics.characterSetMatcher rer charset invert dir = m)
+    (Heqtm: tCharacterSetMatcher rer charset invert dir = tm),
     equiv_tree_matcher str0 m tm dir.
 Proof.
   intros. intros mc tmc gl Hequiv ms Hmsstr0.
@@ -130,8 +130,8 @@ Proof.
   remember (List.List.Indexing.Int.indexing _ _) as readchr.
   destruct readchr as [readchr|]; simpl. 2: constructor.
   set (CharSet.exist_canonicalized _ _ _) as read_matches.
-  destruct read_matches eqn:Hread_matches; simpl.
-  2: constructor; reflexivity.
+  destruct ((if invert then false else true) && _); simpl. 1: constructor; reflexivity.
+  destruct ((if invert then true else false) && _); simpl. 1: constructor; reflexivity.
   remember (match_state _ _ _) as ms'.
   specialize (Hequiv ms').
   specialize_prove Hequiv. { rewrite Heqms'; auto. }
@@ -262,7 +262,7 @@ Proof.
     intros. eapply compile_tcompile_atomescape; eauto.
 
   - (* CharacterClass *)
-    admit.
+    simpl. intros. destruct Semantics.compileCharacterClass; simpl in *. 2: discriminate. injection Heqm as <-. injection Heqtm as <-. eapply charset_tcharset; reflexivity.
 
   - (* Disjunction *)
     simpl. intros.
@@ -424,4 +424,4 @@ Proof.
 
     (* Negative lookbehind *)
   - simpl. intros. apply compile_tcompile_lk with (lkdir := backward) (pos := false) (lkreg := wr) (rer := rer) (ctx := ctx); auto.
-Admitted.
+Qed.
