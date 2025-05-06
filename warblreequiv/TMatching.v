@@ -271,6 +271,13 @@ match self with
   Success (tCharacterSetMatcher rer A false direction)
 
 
+(** >> Atom :: CharacterClass <<*)
+| CharacterClass cc =>
+    (*>> 1. Let cc be CompileCharacterClass of CharacterClass with argument rer. <<*)
+    let! cc =<< Semantics.compileCharacterClass cc rer in
+    (*>> 2. Return CharacterSetMatcher(rer, cc.[[CharSet]], cc.[[Invert]], direction). <<*)
+    Success (tCharacterSetMatcher rer (Semantics.CompiledCharacterClass_charSet cc) (Semantics.CompiledCharacterClass_invert cc) direction)
+          
 (** >> Atom :: ( GroupSpecifier_opt Disjunction ) <<*)
 | Group id r =>
     (*>> 1. Let m be CompileSubpattern of Disjunction with arguments rer and direction. <<*)
@@ -425,6 +432,22 @@ match self with
       (*>> h. Return failure. <<*)
         Success (AnchorFail NonWordBoundary)): TMatcher)
 
+| AtomEsc (ACharacterEsc ce) =>
+    (*>> 1. Let cv be the CharacterValue of CharacterEscape. <<*)
+    let! cv =<< @StaticSemantics.characterValue _ CompileError _ (ClassEscape_to_ClassAtom (CharacterEscape_to_ClassEscape ce)) in
+    (*>> 2. Let ch be the character whose character value is cv. <<*)
+    let ch := Character.from_numeric_value cv in
+    (*>> 3. Let A be a one-element CharSet containing the character ch. <<*)
+    let a := CharSet.singleton ch in
+    (*>> 4. Return CharacterSetMatcher(rer, A, false, direction). <<*)
+    Success (tCharacterSetMatcher rer a false direction)
+
+(** >> AtomEscape :: CharacterClassEscape <<*)
+| AtomEsc (ACharacterClassEsc cce) =>
+    (*>> 1. Let A be CompileToCharSet of CharacterClassEscape with argument rer. <<*)
+    let! a =<< Semantics.compileToCharSet (CharacterClassEscape_to_ClassEscape cce) rer in
+    (*>> 2. Return CharacterSetMatcher(rer, A, false, direction). <<*)
+    Success (tCharacterSetMatcher rer a false direction)
                        
 (* Computing a tree for the other cases is currently unsupported: we return a compilation failure in these cases. *)
 | _ => Error CompileError.AssertionFailed

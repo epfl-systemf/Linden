@@ -18,7 +18,7 @@ Local Open Scope bool_scope.
    The equivalence itself is defined in LWEquivTMatcherDef.v. *)
 (* TODO Zero group *)
 
-(* The identity continuations. *)
+(** ** The identity continuations. *)
 Definition id_mcont: MatcherContinuation := fun x => Success (Some x).
 Definition id_tmcont: TMatcherContinuation := fun _ => Success Match.
 
@@ -30,7 +30,7 @@ Proof.
 Qed.
 
 
-(* Lemma for repeated matching. *)
+(** ** Lemma for repeated matching. *)
 Lemma repeatMatcher'_tRepeatMatcher':
   (* For all pairs of a matcher m and a tree matcher tm *)
   forall (str0: string) (m: Matcher) (tm: TMatcher) (dir: Direction) (greedy: bool)
@@ -112,7 +112,7 @@ Proof.
 Qed.
 
 
-(* Lemma for character set matchers. *)
+(** ** Lemma for character set matchers. *)
 Lemma charset_tcharset:
   forall rer m tm charset str0 dir
     (Heqm: Semantics.characterSetMatcher rer charset false dir = m)
@@ -145,7 +145,7 @@ Proof.
 Qed.
 
 
-(** ** Lemma for lookarounds *)
+(** ** Lemma for lookarounds. *)
 
 (* A dummy match state to be able to discriminate; probably not strictly necessary. *)
 Definition dummy_match_state: MatchState := match_state nil 0%Z nil.
