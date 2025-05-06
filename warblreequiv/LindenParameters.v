@@ -2,6 +2,9 @@ From Warblre Require Import Parameters Typeclasses RegExpRecord Patterns Result 
 From Linden Require Import Chars.
 From Coq Require Import List.
 Import ListNotations.
+Import Result.Notations.
+
+Local Open Scope bool_scope.
 
 
 (** * Instantiation of Warblre typeclasses Character, String, Property (Unicode) with Linden types *)
@@ -106,3 +109,26 @@ Instance LindenParameters: Parameters := {|
 Axiom word_char_warblre: forall c: Char, word_char c = CharSet.contains (Characters.ascii_word_characters) c.
 
 
+(** ** Axiomatization of CharSet *)
+Axiom charset_empty_contains: forall c: Char, CharSet.contains CharSet.empty c = false.
+Axiom charset_from_list_contains: forall (c: Char) (l: list Char), CharSet.contains (CharSet.from_list l) c = true <-> In c l.
+Axiom charset_union_contains: forall (c: Char) (s t: CharSet), CharSet.contains (CharSet.union s t) c = CharSet.contains s c || CharSet.contains t c.
+(* Singleton? *)
+(* Size? *)
+(* Remove all? *)
+Axiom charset_is_empty_iff: forall s: CharSet, CharSet.is_empty s = true <-> s = CharSet.empty.
+(* Range? *)
+Axiom charset_unique_iff:
+  forall {F: Type} {af: Result.AssertionError F} (s: CharSet) (c: Char),
+    @CharSet.unique _ _ F af s = Success c <-> forall c': Char, CharSet.contains s c' = true <-> c' = c.
+Axiom charset_filter_contains:
+  forall (s: CharSet) (f: Char -> bool) (c: Char),
+    CharSet.contains (CharSet.filter s f) c = CharSet.contains s c && f c.
+Axiom charset_exist_iff:
+  forall (s: CharSet) (f: Char -> bool),
+    CharSet.exist s f = true <-> exists c: Char, CharSet.contains s c = true /\ f c = true.
+
+(* Do we need extensionality? *)
+Axiom charset_ext:
+  forall s t: CharSet,
+    s = t <-> forall c: Char, CharSet.contains s c = CharSet.contains t c.
