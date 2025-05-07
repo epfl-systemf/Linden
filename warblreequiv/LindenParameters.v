@@ -1,8 +1,9 @@
 From Warblre Require Import Parameters Typeclasses RegExpRecord Patterns Result Errors.
-From Linden Require Import Chars.
+From Linden Require Import Chars Utils.
 From Coq Require Import List.
 Import ListNotations.
 Import Result.Notations.
+Import Utils.List.
 
 Local Open Scope bool_scope.
 
@@ -103,7 +104,7 @@ Axiom charset_from_list_contains: forall (c: Char) (l: list Char), CharSet.conta
 Axiom charset_union_contains: forall (c: Char) (s t: CharSet), CharSet.contains (CharSet.union s t) c = CharSet.contains s c || CharSet.contains t c.
 (* Singleton? *)
 (* Size? *)
-(* Remove all? *)
+Axiom charset_remove_all_contains: forall (c: Char) (s t: CharSet), CharSet.contains (CharSet.remove_all s t) c = CharSet.contains s c && negb (CharSet.contains t c).
 Axiom charset_is_empty_iff: forall s: CharSet, CharSet.is_empty s = true <-> s = CharSet.empty.
 (* Range? *)
 Axiom charset_unique_iff:
@@ -120,3 +121,58 @@ Axiom charset_exist_iff:
 Axiom charset_ext:
   forall s t: CharSet,
     s = t <-> forall c: Char, CharSet.contains s c = CharSet.contains t c.
+
+
+(* Lemmas following from above axioms *)
+Lemma charset_exist_false_iff:
+  forall (s: CharSet) (f: Char -> bool),
+    CharSet.exist s f = false <-> forall c: Char, CharSet.contains s c = false \/ f c = false.
+Proof.
+  intros s f. split.
+  - intros H c. destruct CharSet.contains eqn:Hcontains; destruct f eqn:Hfilter; auto.
+    assert (exists c, CharSet.contains s c = true /\ f c = true) as Hexist. { exists c. auto. }
+    rewrite <- charset_exist_iff in Hexist. congruence.
+  - intro H. destruct CharSet.exist eqn:Hexist; auto.
+    rewrite charset_exist_iff in Hexist. destruct Hexist as [c [Hcontains Hfilter]].
+    specialize (H c). destruct H; congruence.
+Qed.
+
+Lemma charset_from_list_contains_inb: forall (c: Char) (l: list Char), CharSet.contains (CharSet.from_list l) c = inb c l.
+Proof.
+  intros c l.
+  apply <- Bool.eq_iff_eq_true. rewrite inb_spec. apply charset_from_list_contains.
+Qed.
+
+Lemma charset_union_empty:
+  forall s, CharSet.union s CharSet.empty = s.
+Proof.
+  intro s. apply <- charset_ext. intro c.
+  rewrite charset_union_contains, charset_empty_contains. apply Bool.orb_false_r.
+Qed.
+
+Lemma charset_contains_singleton_self:
+  forall c, CharSet.contains (CharSet.singleton c) c = true.
+Proof.
+  intro c.
+  set (p := fun chr => (chr ==? c)%wt).
+  assert (Hexist: CharSet.exist (CharSet.singleton c) p = true). {
+    rewrite CharSet.singleton_exist. unfold p. apply EqDec.reflb.
+  }
+  rewrite charset_exist_iff in Hexist. destruct Hexist as [chr [Hcontains Heq]].
+  unfold p in Heq. rewrite EqDec.inversion_true in Heq. subst chr. assumption.
+Qed.
+  
+
+Lemma charset_contains_singleton:
+  forall c chr, CharSet.contains (CharSet.singleton c) chr = (chr ==? c)%wt.
+Proof.
+  intros c chr.
+  apply Bool.eq_true_iff_eq. split.
+  - intro Hcontains. set (f := fun c' => (chr ==? c')%wt).
+    assert (H: exists chr0, CharSet.contains (CharSet.singleton c) chr0 = true /\ f chr0 = true). {
+      exists chr. split; auto. unfold f. apply EqDec.reflb.
+    }
+    rewrite <- charset_exist_iff in H. rewrite CharSet.singleton_exist in H.
+    apply H.
+  - intro Heq. rewrite EqDec.inversion_true in Heq. subst chr. apply charset_contains_singleton_self.
+Qed.

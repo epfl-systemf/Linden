@@ -1,6 +1,6 @@
 From Linden Require Import TMatching Tree Chars Semantics MSInput
   Regex LindenParameters RegexpTranslation ListLemmas
-  WarblreLemmas Tactics LWEquivTreeLemmas LWEquivTMatcher LWEquivTMatcherLemmas NumericLemmas LKFactorization.
+  WarblreLemmas Tactics LWEquivTreeLemmas LWEquivTMatcher LWEquivTMatcherLemmas NumericLemmas LKFactorization CharDescrCharSet.
 From Warblre Require Import Result Notation RegExpRecord Match Base
   Patterns Node NodeProps Semantics.
 From Coq Require Import List ZArith Lia.
@@ -286,14 +286,183 @@ Proof.
       eapply TreeMSInterp.result_indep_gm; eauto.
 Qed.
 
+
+(** ** Lemmas for character descriptors *)
+Lemma exist_canonicalized_contains:
+  forall rer charset chr,
+  RegExpRecord.ignoreCase rer = false ->
+  CharSet.exist_canonicalized rer charset (char_canonicalize rer chr) = CharSet.contains charset chr.
+Proof.
+  intros rer charset chr Hcasesenst.
+  rewrite CharSet.exist_canonicalized_equiv. unfold Character.canonicalize. simpl.
+  apply Bool.eq_true_iff_eq.
+  rewrite charset_exist_iff. split.
+  - intros [c [Hcontains Heq]]. do 2 rewrite canonicalize_casesenst in Heq by assumption. rewrite EqDec.inversion_true in Heq. now subst c.
+  - intro Hcontains. exists chr. split. 1: assumption.
+    apply EqDec.reflb.
+Qed.
+
+Lemma charSetMatcher_noninv_bt:
+  forall charset cd,
+  equiv_cd_charset cd charset ->
+  forall rer tm dir,
+  RegExpRecord.ignoreCase rer = false ->
+  tm = tCharacterSetMatcher rer charset false dir ->
+  tm_valid tm rer (Regex.Character cd) dir.
+Proof.
+  intros charset cd Hequiv rer tm dir Hcasesenst Heqtm. subst tm.
+  unfold tm_valid. intros tmc cont str0 Htmcvalid.
+  unfold tMC_valid. intros inp Hinpcompat. unfold tMC_is_tree. intros ms t Hmsinp.
+  unfold tCharacterSetMatcher. simpl.
+  set (nextend := if (dir ==? forward)%wt then _ else _).
+  set (next_outofbounds := ((_ <? 0)%Z || _)%bool).
+  destruct next_outofbounds eqn:Hoob; simpl.
+  + intro Htm_succ. injection Htm_succ as <-.
+    apply tree_pop_reg. apply tree_char_fail.
+    destruct dir; simpl in *.
+    * eapply read_oob_fail_end_bool; eauto. * eapply read_oob_fail_begin_bool; eauto.
+  + (* If we are in bounds, then getting the character should succeed. Since we don't prove anything in the case of errors, we just assume this here *)
+    destruct List.List.Indexing.Int.indexing as [chr|err] eqn:Hgetchr; simpl in *. 2: discriminate.
+    rewrite exist_canonicalized_contains by assumption.
+    specialize (Hequiv chr) as Hequivchr.
+    pose proof next_inbounds_nextinp ms inp dir nextend Hmsinp eq_refl Hoob as Hnextinp.
+    destruct Hnextinp as [inp_adv Hnextinp].
+    destruct CharSet.contains; simpl in *.
+    * (* Case 1: the character matches. We then want to prove that we have a read success. *)
+      intro Htm_succ.
+      apply tree_pop_reg.
+      (* We first need to replace t with Success (Read chr child). *)
+      remember (match_state _ _ _) as ms_adv in Htm_succ.
+      unfold tMC_valid, tMC_is_tree in Htmcvalid.
+      destruct (tmc ms_adv) as [child|] eqn:Htmc_succ; simpl in *. 2: discriminate.
+      injection Htm_succ as <-.
+
+      (* Now we apply tree_char with the next input. *)      
+      apply tree_char with (nextinp := inp_adv).
+      1: {
+        unfold read_char.
+        eapply read_char_success; eauto.
+        2: { rewrite exist_canonicalized_contains by assumption. pose proof Hequiv chr as Hequivchr'. congruence. }
+        destruct dir; simpl in *.
+        - replace (Z.min _ _) with (MatchState.endIndex ms) in Hgetchr by lia. apply Hgetchr.
+        - replace (Z.min _ _) with nextend in Hgetchr by lia. apply Hgetchr.
+      }
+      (* The subtree is valid: results from three lemmas. *)
+      apply Htmcvalid with (ms := ms_adv).
+      -- eapply advance_input_compat; eassumption.
+      -- eapply ms_matches_inp_adv; eauto.
+         destruct dir; unfold advance_ms; subst ms_adv; simpl in *; reflexivity.
+      -- assumption.
+    * (* Case 2: it is not equal. *)
+      intro Htm_succ. injection Htm_succ as <-.
+      apply tree_pop_reg.
+      apply tree_char_fail.
+      eapply read_char_fail; eauto.
+      2: { rewrite exist_canonicalized_contains by assumption. pose proof Hequiv chr as Hequivchr'. rewrite Hequivchr in Hequivchr'. symmetry in Hequivchr'. eassumption. }
+      destruct dir; simpl in *.
+      -- replace (Z.min _ _) with (MatchState.endIndex ms) in Hgetchr by lia. auto.
+      -- replace (Z.min _ _) with nextend in Hgetchr by lia. auto.
+Qed.
+
+Lemma charSetMatcher_inv_bt:
+  forall charset cd,
+  equiv_cd_charset cd charset ->
+  forall rer tm dir,
+  RegExpRecord.ignoreCase rer = false ->
+  tm = tCharacterSetMatcher rer charset true dir ->
+  tm_valid tm rer (Regex.Character (CdInv cd)) dir.
+Proof.
+  intros charset cd Hequiv rer tm dir Hcasesenst Heqtm. subst tm.
+  unfold tm_valid. intros tmc cont str0 Htmcvalid.
+  unfold tMC_valid. intros inp Hinpcompat. unfold tMC_is_tree. intros ms t Hmsinp.
+  unfold tCharacterSetMatcher. simpl.
+  set (nextend := if (dir ==? forward)%wt then _ else _).
+  set (next_outofbounds := ((_ <? 0)%Z || _)%bool).
+  destruct next_outofbounds eqn:Hoob; simpl.
+  + intro Htm_succ. injection Htm_succ as <-.
+    apply tree_pop_reg. apply tree_char_fail.
+    destruct dir; simpl in *.
+    * eapply read_oob_fail_end_bool; eauto. * eapply read_oob_fail_begin_bool; eauto.
+  + (* If we are in bounds, then getting the character should succeed. Since we don't prove anything in the case of errors, we just assume this here *)
+    destruct List.List.Indexing.Int.indexing as [chr|err] eqn:Hgetchr; simpl in *. 2: discriminate.
+    rewrite exist_canonicalized_contains by assumption.
+    specialize (Hequiv chr) as Hequivchr.
+    pose proof next_inbounds_nextinp ms inp dir nextend Hmsinp eq_refl Hoob as Hnextinp.
+    destruct Hnextinp as [inp_adv Hnextinp].
+    destruct CharSet.contains; simpl in *.
+    * (* Case 1: the character matches. *)
+      intro Htm_succ. injection Htm_succ as <-.
+      apply tree_pop_reg.
+      apply tree_char_fail.
+      eapply read_char_success; eauto.
+      2: { rewrite exist_canonicalized_contains by assumption. pose proof Hequiv chr as Hequivchr'. rewrite Hequivchr in Hequivchr'. symmetry in Hequivchr'. eassumption. }
+      destruct dir; simpl in *.
+      -- replace (Z.min _ _) with (MatchState.endIndex ms) in Hgetchr by lia. auto.
+      -- replace (Z.min _ _) with nextend in Hgetchr by lia. auto.
+    * (* Case 2: the character doesn't match. We then want to prove that we have a read success. *)
+      intro Htm_succ.
+      apply tree_pop_reg.
+      (* We first need to replace t with Success (Read chr child). *)
+      remember (match_state _ _ _) as ms_adv in Htm_succ.
+      unfold tMC_valid, tMC_is_tree in Htmcvalid.
+      destruct (tmc ms_adv) as [child|] eqn:Htmc_succ; simpl in *. 2: discriminate.
+      injection Htm_succ as <-.
+
+      (* Now we apply tree_char with the next input. *)
+      apply tree_char with (nextinp := inp_adv).
+      1: {
+        unfold read_char.
+        eapply read_char_fail; eauto.
+        2: { rewrite exist_canonicalized_contains by assumption. pose proof Hequiv chr as Hequivchr'. congruence. }
+        destruct dir; simpl in *.
+        - replace (Z.min _ _) with (MatchState.endIndex ms) in Hgetchr by lia. apply Hgetchr.
+        - replace (Z.min _ _) with nextend in Hgetchr by lia. apply Hgetchr.
+      }
+      (* The subtree is valid: results from three lemmas. *)
+      apply Htmcvalid with (ms := ms_adv).
+      -- eapply advance_input_compat; eassumption.
+      -- eapply ms_matches_inp_adv; eauto.
+         destruct dir; unfold advance_ms; subst ms_adv; simpl in *; reflexivity.
+      -- assumption.
+Qed.
+
+(* Lemma for character class escapes *)
+Lemma characterclassescape_bt:
+  forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
+    (root_equiv: equiv_regex wroot lroot),
+    RegExpRecord.ignoreCase rer = false ->
+  forall esc wreg lreg ctx,
+    wreg = AtomEsc (ACharacterClassEsc esc) ->
+    Root wroot (wreg, ctx) ->
+    equiv_regex' wreg lreg (StaticSemantics.countLeftCapturingParensBefore wreg ctx) ->
+    forall tm dir,
+      tCompileSubPattern wreg ctx rer dir = Success tm ->
+      tm_valid tm rer lreg dir.
+Proof.
+  intros rer lroot wroot root_equiv Hcasesenst esc wreg lreg ctx Heqwreg Hroot Hequiv tm dir.
+  subst wreg. inversion Hequiv as [| | | esc0 cd n Hequiv' Heqesc0 Heqlreg Heqn | | | | | | | |].
+  2: { (* Absurd *) inversion H0; inversion H2; subst; discriminate. }
+  2: { (* Absurd *) inversion H; discriminate. }
+  subst lreg esc0 n. simpl.
+  inversion Hequiv' as [Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd]; simpl in *; intro H; injection H as H; eapply charSetMatcher_noninv_bt; eauto; rewrite charset_union_empty.
+  - apply equiv_cd_digits.
+  - apply equiv_cd_inv. apply equiv_cd_digits.
+  - apply equiv_cd_whitespace.
+  - apply equiv_cd_inv. apply equiv_cd_whitespace.
+  - pose proof wordCharacters_casesenst rer Hcasesenst. unfold Semantics.wordCharacters, Coercions.wrap_CharSet in H0. simpl in H0. injection H0 as H0. rewrite H0. apply equiv_cd_wordchar.
+  - apply equiv_cd_inv. pose proof wordCharacters_casesenst rer Hcasesenst. unfold Semantics.wordCharacters, Coercions.wrap_CharSet in H0. simpl in H0. injection H0 as H0. rewrite H0. apply equiv_cd_wordchar.
+Qed.
+
 (** ** Main theorem *)
 (* We place ourselves in the context of some root regex, and prove the validity for all the sub-regexes of the root regex. *)
 Theorem tmatcher_bt:
   forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
     (* Assume that we do not ignore case, *)
     (Hcasesenst: RegExpRecord.ignoreCase rer = false)
-    (* and that we do not consider line ends and starts to be input ends and starts, respectively. *)
+    (* that we do not consider line ends and starts to be input ends and starts, respectively, *)
     (Hnomultiline: RegExpRecord.multiline rer = false)
+    (* and that dot matches all characters. *)
+    (Hdotall: RegExpRecord.dotAll rer = true)
     (* Let lroot and wroot be a pair of equivanent regexes. *)
     (root_equiv: equiv_regex wroot lroot),
     (* Then for any sub-regex wreg of the root Warblre regex, *)
@@ -307,13 +476,16 @@ Theorem tmatcher_bt:
       (* then this TMatcher is valid with respect to the regex lreg and direction dir. *)
       tm_valid tm rer lreg dir.
 Proof.
-  intros rer lroot wroot Hcasesenst Hnomultiline root_equiv wreg lreg ctx Hroot Hequiv.
+  intros rer lroot wroot Hcasesenst Hnomultiline Hdotall root_equiv wreg lreg ctx Hroot Hequiv.
   remember (StaticSemantics.countLeftCapturingParensBefore _ _) as n in Hequiv.
   revert ctx Hroot Heqn.
   induction Hequiv as [
       n |
       n c |
-      (*n |*) (* Dot *)
+      n |
+      esc cd n Hequivesc |
+      esc cd n Hequivesc |
+      cc cd n Hequivcc |
       n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
       n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
       n wr lr wquant lquant wgreedylazy greedy Hequiv IH Hequivquant Hequivgreedy |
@@ -333,59 +505,23 @@ Proof.
 
 
   - (* Character *)
-    simpl.
-    intros ctx Hroot _ tm dir Hcompile_succ tmc cont str0 Htmc_tree inp Hinp_compat ms t Hms_inp Htm_succ.
-    injection Hcompile_succ as <-.
-    unfold tCharacterSetMatcher in Htm_succ. simpl in Htm_succ.
-    set (nextend := if (dir ==? forward)%wt then _ else _) in Htm_succ.
-    set (next_outofbounds := ((_ <? 0)%Z || _)%bool) in Htm_succ.
-    destruct next_outofbounds eqn:Hoob; simpl.
-    + injection Htm_succ as <-.
-      apply tree_pop_reg.
-      apply tree_char_fail.
-      destruct dir; simpl in *.
-      * eapply read_oob_fail_end_bool; eauto. * eapply read_oob_fail_begin_bool; eauto.
-    + (* If we are in bounds, then getting the character should succeed. Since we don't prove anything in the case of errors, we just assume this here *)
-      destruct List.List.Indexing.Int.indexing as [chr|err] eqn:Hgetchr; simpl in *.
-      2: discriminate.
-      (* Either the character is equal to the character in the regex, or it is not. *)
-      destruct CharSet.exist_canonicalized eqn:Hcharmatch; simpl in *.
-      * (* Case 1: it is equal. *)
-        (* We then want to prove that we have a read success. *)
-        apply tree_pop_reg.
-        (* We first need to replace t with Success (Read chr child). *)
-        remember (match_state _ _ _) as ms_adv in Htm_succ.
-        unfold tMC_valid, tMC_is_tree in Htmc_tree.
-        destruct (tmc ms_adv) as [child|] eqn:Htmc_succ; simpl in *. 2: discriminate.
-        injection Htm_succ as <-.
-
-        (* Now we apply tree_char with the next input, whose existence we need to prove. *)
-        pose proof next_inbounds_nextinp ms inp dir nextend Hms_inp eq_refl Hoob as Hnextinp.
-        destruct Hnextinp as [inp_adv Hnextinp].
-        apply tree_char with (nextinp := inp_adv).
-        1: {
-          eapply read_char_success; eauto.
-          destruct dir; simpl in *.
-          - replace (Z.min _ _) with (MatchState.endIndex ms) in Hgetchr by lia. apply Hgetchr.
-          - replace (Z.min _ _) with nextend in Hgetchr by lia. apply Hgetchr.
-        }
-        (* The subtree is valid: results from three lemmas. *)
-        apply Htmc_tree with (ms := ms_adv).
-        -- eapply advance_input_compat; eassumption.
-        -- eapply ms_matches_inp_adv; eauto.
-           destruct dir; unfold advance_ms; subst ms_adv; simpl in *; reflexivity.
-        -- assumption.
-      * (* Case 2: it is not equal. *)
-        injection Htm_succ as <-.
-        apply tree_pop_reg.
-        apply tree_char_fail.
-        eapply read_char_fail; eauto.
-        destruct dir; simpl in *.
-        -- replace (Z.min _ _) with (MatchState.endIndex ms) in Hgetchr by lia. auto.
-        -- replace (Z.min _ _) with nextend in Hgetchr by lia. auto.
+    simpl. intros ctx Hroot _ tm dir Hcompile_succ tmc cont str0 Htmc_tree inp Hinp_compat ms t Hms_inp Htm_succ.
+    injection Hcompile_succ as Hcompile_succ. symmetry in Hcompile_succ.
+    eapply charSetMatcher_noninv_bt; eauto. apply equiv_cd_single.
 
   (* Dot *)
-  (*- admit.*)
+  - admit.
+
+
+  (* AtomEsc (ACharacterClassEsc esc) *)
+  - intros ctx Hroot Heqn tm dir. eapply characterclassescape_bt; eauto.
+    constructor. assumption.
+
+  (* AtomEsc (ACharacterEsc esc) *)
+  - admit.
+
+  (* Character class *)
+  - admit.
 
 
   - (* Disjunction *)
@@ -635,4 +771,4 @@ Proof.
         specialize (Htmcvalid subtree Hmsinp eq_refl). injection Heqt as <-.
         apply tree_pop_reg. apply tree_anchor. 2: assumption. unfold anchor_satisfied.
         destruct inp as [next pref]. rewrite <- Hisboundary. reflexivity.
-Qed.
+Admitted.

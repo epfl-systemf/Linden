@@ -57,6 +57,14 @@ Parameter char_ascii_word_characters: list Char.
 (* Deciding whether a character is a word character, to check for word boundaries and for character classes \w and \W *)
 Definition word_char c := inb c char_ascii_word_characters.
 
+(* Axiom specifying that char_all contains all characters *)
+Axiom char_all_in: forall c, In c char_all.
+
+(* Lemma for boolean version of In *)
+Lemma char_all_inb: forall c, inb c char_all = true.
+Proof.
+  intro c. rewrite inb_spec. apply char_all_in.
+Qed.
 
 
 (** * Character Descriptors  *)
@@ -79,11 +87,11 @@ Inductive char_descr: Type :=
 Fixpoint char_match (c: Char) (cd: char_descr): bool :=
   match cd with
   | CdEmpty => false
-  | CdDot => true (* Temporary; at the end, we'd like to use Characters.all and take the multiline flag into account *)
-  | CdAll => true (* Temporary; at the end, we'd like to use Characters.all *)
+  | CdDot => true (* Temporary; at the end, we'd like to take the multiline flag into account *)
+  | CdAll => true
   | CdSingle c' => c == c'
   | CdDigits => inb c char_digits
-  | CdWhitespace => inb c char_white_spaces
+  | CdWhitespace => inb c char_white_spaces || inb c char_line_terminators
   | CdWordChar => inb c char_ascii_word_characters (* Temporary; at the end, we'd like to use a rer *)
   | CdInv cd' => negb (char_match c cd')
   | CdRange l h => (char_numeric_value l <=? char_numeric_value c) && (char_numeric_value c <=? char_numeric_value h)

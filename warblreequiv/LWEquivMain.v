@@ -21,6 +21,7 @@ Theorem linden_warblre_equiv:
     (res: MatchResult) (tres: TMatchResult) (t: tree),
     RegExpRecord.ignoreCase rer = false ->
     RegExpRecord.multiline rer = false ->
+    RegExpRecord.dotAll rer = true ->
     RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wreg [] ->
     (* For all pairs of equivalent Warblre and Linden regexes wreg and lreg, *)
     equiv_regex wreg lreg ->
@@ -34,11 +35,11 @@ Theorem linden_warblre_equiv:
       (* in this case, the backtree of the tree matcher respects the relational semantics. *)
       (tres = Success t -> is_tree lreg [] (init_input str) forward t).
 Proof.
-  intros wreg lreg str rer matcher tmatcher res tres t Hcasesenst Hnomultiline Hcapcount Hequiv.
+  intros wreg lreg str rer matcher tmatcher res tres t Hcasesenst Hnomultiline HdotAll Hcapcount Hequiv.
   unfold Semantics.compilePattern, tCompilePattern.
   
   pose proof compile_tcompile wreg [] rer as Hcompile_tcompile.
-  pose proof tmatcher_bt rer lreg wreg Hcasesenst Hnomultiline Hequiv wreg lreg [] as Hbt.
+  pose proof tmatcher_bt rer lreg wreg Hcasesenst Hnomultiline HdotAll Hequiv wreg lreg [] as Hbt.
   specialize_prove Hbt by constructor. specialize (Hbt Hequiv).
   
   destruct Semantics.compileSubPattern as [m|] eqn:Heqm; simpl. 2: discriminate.

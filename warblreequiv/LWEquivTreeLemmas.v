@@ -1,4 +1,4 @@
-From Linden Require Import RegexpTranslation LindenParameters Regex MSInput Chars ListLemmas.
+From Linden Require Import RegexpTranslation LindenParameters Regex MSInput Chars ListLemmas CharDescrCharSet.
 From Linden Require Semantics.
 From Warblre Require Import StaticSemantics List Parameters Notation Match Result Errors RegExpRecord Patterns Semantics Base.
 From Coq Require Import Lia ZArith List.
@@ -142,27 +142,46 @@ Qed.
 
 (* Lemma linking the character matching conditions of Linden and Warblre. *)
 Lemma char_match_warblre:
-  forall rer chr c,
+  forall rer chr cd charset,
+    (* Let cd and charset be equivalent. *)
+    equiv_cd_charset cd charset ->
     (* If we do not ignore case, *)
     RegExpRecord.ignoreCase rer = false ->
-    (* and chr corresponds to c in the Warblre sense, *)
-    CharSet.exist_canonicalized rer (CharSet.singleton c) (char_canonicalize rer chr) = true ->
-    (* then chr corresponds to c in the Linden sense. *)
-    char_match chr (CdSingle c) = true.
+    (* and chr corresponds to charset in the Warblre sense, *)
+    CharSet.exist_canonicalized rer charset (char_canonicalize rer chr) = true ->
+    (* then chr corresponds to cd in the Linden sense. *)
+    char_match chr cd = true.
 Proof.
-  intros rer chr c Hcasesenst Hexist_canon.
-  apply <- single_match.
-  rewrite canonicalize_casesenst in Hexist_canon. 2: assumption.
+  intros rer chr cd charset Hequiv Hcasesenst Hexist_canon.
   rewrite CharSet.exist_canonicalized_equiv in Hexist_canon.
-  rewrite CharSet.singleton_exist in Hexist_canon.
-  rewrite canonicalize_casesenst in Hexist_canon. 2: assumption.
-  symmetry. now apply Typeclasses.EqDec.inversion_true.
+  rewrite charset_exist_iff in Hexist_canon. destruct Hexist_canon as [c [Hcontains Heq]].
+  do 2 rewrite canonicalize_casesenst in Heq by assumption.
+  rewrite Typeclasses.EqDec.inversion_true in Heq. subst c.
+  unfold equiv_cd_charset in Hequiv. specialize (Hequiv chr). congruence.
+Qed.
+
+(* Same, but for inverted character descriptors. *)
+Lemma char_match_warblre_inv:
+  forall rer chr cd charset,
+    (* Let cd and charset be equivalent. *)
+    equiv_cd_charset cd charset ->
+    (* If we do not ignore case, *)
+    RegExpRecord.ignoreCase rer = false ->
+    (* and chr corresponds to charset in the Warblre sense, *)
+    CharSet.exist_canonicalized rer charset (char_canonicalize rer chr) = true ->
+    (* then chr does not correspond to CdInv cd in the Linden sense. *)
+    char_match chr (CdInv cd) = false.
+Proof.
+  intros rer chr cd charset Hequiv Hcasesenst Hexist_canon. simpl.
+  apply <- Bool.negb_false_iff. eapply char_match_warblre; eauto.
 Qed.
 
 
 (* If reading a character succeeds in the Warblre sense, then it succeeds in the Linden sense as well. *)
 Lemma read_char_success:
-  forall ms inp chr c rer dir inp_adv,
+  forall ms inp chr cd charset rer dir inp_adv,
+    (* Let cd and charset be equivalent. *)
+    equiv_cd_charset cd charset ->
     (* If we do not ignore case, *)
     RegExpRecord.ignoreCase rer = false ->
     (* then for any match state and corresponding Linden input, *)
@@ -170,12 +189,13 @@ Lemma read_char_success:
     (* if reading character c succeeds in the Warblre sense, *)
     List.Indexing.Int.indexing (MatchState.input ms) (
         match dir with forward => MatchState.endIndex ms | backward => MatchState.endIndex ms - 1 end) = Success chr ->
-    CharSet.exist_canonicalized rer (CharSet.singleton c) (char_canonicalize rer chr) = true ->
+    CharSet.exist_canonicalized rer charset (char_canonicalize rer chr) = true ->
     (* then reading character c succeeds in the Linden sense. *)
     advance_input inp dir = Some inp_adv ->
-    read_char (CdSingle c) inp dir = Some (chr, inp_adv).
+    read_char cd inp dir = Some (chr, inp_adv) /\
+      read_char (CdInv cd) inp dir = None.
 Proof.
-  intros ms inp chr c rer dir inp_adv Hcasesenst Hms_inp Hreadsuccess Hcharcorresp Hadv.
+  intros ms inp chr cd charset rer dir inp_adv Hequiv Hcasesenst Hms_inp Hreadsuccess Hcharcorresp Hadv.
   destruct inp as [next pref].
   destruct dir.
   - destruct next as [|x next']. 1: discriminate.
@@ -211,58 +231,75 @@ Qed.
 
 (* Same as char_match_warblre, but in the mismatching case. *)
 Lemma char_mismatch_warblre:
-  forall rer chr c,
+  forall rer chr cd charset,
+    equiv_cd_charset cd charset ->
     RegExpRecord.ignoreCase rer = false ->
-    CharSet.exist_canonicalized rer (CharSet.singleton c) (char_canonicalize rer chr) = false ->
-    char_match chr (CdSingle c) = false.
+    CharSet.exist_canonicalized rer charset (char_canonicalize rer chr) = false ->
+    char_match chr cd = false.
 Proof.
-  intros rer chr c Hcasesenst Hexist_false.
+  intros rer chr cd charset Hequiv Hcasesenst Hexist_false.
   rewrite CharSet.exist_canonicalized_equiv in Hexist_false.
-  rewrite CharSet.singleton_exist in Hexist_false.
-  rewrite canonicalize_casesenst in Hexist_false. 2: assumption.
-  rewrite canonicalize_casesenst in Hexist_false. 2: assumption.
-  apply Typeclasses.EqDec.inversion_false in Hexist_false.
-  destruct char_match eqn:Hchar_match. 2: reflexivity.
-  rewrite single_match in Hchar_match.
-  congruence.
+  rewrite charset_exist_false_iff in Hexist_false. specialize (Hexist_false chr).
+  do 2 rewrite canonicalize_casesenst in Hexist_false by assumption.
+  destruct Hexist_false.
+  2: { rewrite EqDec.inversion_false in H. contradiction. }
+  specialize (Hequiv chr). congruence.
 Qed.
+
+(* Same as above, but with inverted character descriptors. *)
+Lemma char_mismatch_warblre_inv:
+  forall rer chr cd charset,
+    equiv_cd_charset cd charset ->
+    RegExpRecord.ignoreCase rer = false ->
+    CharSet.exist_canonicalized rer charset (char_canonicalize rer chr) = false ->
+    char_match chr (CdInv cd) = true.
+Proof.
+  intros rer chr cd charset Hequiv Hcasesenst Hexist_false. simpl.
+  apply <- Bool.negb_true_iff. eapply char_mismatch_warblre; eauto.
+Qed.
+
 
 
 (* Same as read_char_success, but in the mismatching case. *)
 Lemma read_char_fail:
-  forall rer ms chr inp dir c,
+  forall rer ms chr inp inp_adv dir cd charset,
+    equiv_cd_charset cd charset ->
     RegExpRecord.ignoreCase rer = false ->
     ms_matches_inp ms inp ->
     List.Indexing.Int.indexing (MatchState.input ms) (
         match dir with forward => MatchState.endIndex ms | backward => MatchState.endIndex ms - 1 end) = Success chr ->
-    CharSet.exist_canonicalized rer (CharSet.singleton c) (char_canonicalize rer chr) = false ->
-    read_char (CdSingle c) inp dir = None.
+    CharSet.exist_canonicalized rer charset (char_canonicalize rer chr) = false ->
+    advance_input inp dir = Some inp_adv ->
+    read_char cd inp dir = None /\
+      read_char (CdInv cd) inp dir = Some (chr, inp_adv).
 Proof.
-  intros rer ms chr inp dir c Hcasesenst Hms_inp Hreadsuccess Hnocorresp.
+  intros rer ms chr inp inp_adv dir cd charset Hequiv Hcasesenst Hms_inp Hreadsuccess Hnocorresp Hadv.
   destruct inp as [next pref].
   destruct ms as [str0 endInd cap].
   inversion Hms_inp as [s end_ind cap0 next0 pref0 Hlenpref Hmatches Heqs Heqend_ind].
   subst s cap0 pref0 next0 endInd. simpl in *.
   destruct dir.
-  - rewrite List.Indexing.Int.of_nat in Hreadsuccess.
+  - destruct next as [|x next']. 1: discriminate.
+    injection Hadv as <-.
+    rewrite List.Indexing.Int.of_nat in Hreadsuccess.
     subst str0 end_ind.
     apply List.Indexing.Nat.concat in Hreadsuccess.
     destruct Hreadsuccess as [ [Habs _] | [_ Hreadsuccess] ].
     1: { rewrite List.rev_length in Habs. lia. }
     rewrite List.rev_length in Hreadsuccess.
     replace (length pref - length pref) with 0 in Hreadsuccess by lia.
-    destruct next as [|x next']. 1: discriminate.
     injection Hreadsuccess as <-.
     now setoid_rewrite char_mismatch_warblre with (rer := rer).
-  - destruct end_ind as [|end_indm1]. 1: discriminate.
+  - destruct pref as [|x pref']. 1: discriminate.
+    injection Hadv as <-.
+    destruct end_ind as [|end_indm1]. 1: discriminate.
     replace (Z.of_nat (S end_indm1) - 1)%Z with (Z.of_nat end_indm1) in Hreadsuccess by lia.
     rewrite List.Indexing.Int.of_nat in Hreadsuccess.
-    destruct pref as [|x pref']; simpl in *. 1: discriminate.
     injection Hlenpref as <-. subst str0.
     apply List.Indexing.Nat.concat in Hreadsuccess.
     destruct Hreadsuccess as [ [Hlen Hreadsuccess] | [Habs _] ].
-    2: { rewrite List.app_length, List.rev_length in Habs. simpl in *. lia. }
-    unfold List.Indexing.Nat.indexing in Hreadsuccess.
+    2: { rewrite List.rev_length in Habs. simpl in *. lia. }
+    unfold List.Indexing.Nat.indexing in Hreadsuccess. simpl in *.
     rewrite List.nth_error_app2 in Hreadsuccess. 2: { rewrite List.rev_length. reflexivity. }
     rewrite List.rev_length, Nat.sub_diag in Hreadsuccess.
     injection Hreadsuccess as <-.
