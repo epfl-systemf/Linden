@@ -477,6 +477,32 @@ Proof.
   - simpl; intro H; injection H as H; eapply charSetMatcher_noninv_bt; eauto; unfold nat_to_nni; rewrite char_numeric_pseudo_bij; apply equiv_cd_single.
 Qed.
 
+(* Lemmas for character classes *)
+
+
+Lemma characterclass_bt:
+  forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
+    (root_equiv: equiv_regex wroot lroot),
+    RegExpRecord.ignoreCase rer = false ->
+  forall cc wreg lreg ctx,
+    wreg = CharacterClass cc ->
+    Root wroot (wreg, ctx) ->
+    equiv_regex' wreg lreg (StaticSemantics.countLeftCapturingParensBefore wreg ctx) ->
+    forall tm dir,
+      tCompileSubPattern wreg ctx rer dir = Success tm ->
+      tm_valid tm rer lreg dir.
+Proof.
+  intros rer lroot wroot root_equiv Hcasesenst cc wreg lreg ctx Heqwreg Hroot Hequiv tm dir.
+  subst wreg. inversion Hequiv as [| | | | | cc0 cd n Hequiv' Heqcc Heqlreg Heqn | | | | | |].
+  2: { inversion H0; subst; discriminate. }
+  2: { inversion H; subst; discriminate. }
+  inversion Hequiv' as [crs cd0 Hequiv'' Heqcc' Heqcd0 | crs cd0 Hequiv'' Heqcc' Heqcd0]; simpl.
+  - pose proof equiv_cd_ClassRanges crs cd rer Hequiv'' as [a [Heqa Hequiva]]. rewrite Heqa. simpl.
+    intro H. injection H as <-. eapply charSetMatcher_noninv_bt; eauto.
+  - subst cd. pose proof equiv_cd_ClassRanges crs cd0 rer Hequiv'' as [a [Heqa Hequiva]]. rewrite Heqa. simpl.
+    intro H. injection H as <-. eapply charSetMatcher_inv_bt; eauto.
+Qed.
+
 (** ** Main theorem *)
 (* We place ourselves in the context of some root regex, and prove the validity for all the sub-regexes of the root regex. *)
 Theorem tmatcher_bt:
@@ -548,7 +574,8 @@ Proof.
     constructor. assumption.
 
   (* Character class *)
-  - admit.
+  - intros ctx Hroot Heqn tm dir. eapply characterclass_bt; eauto.
+    constructor. assumption.
 
 
   - (* Disjunction *)
@@ -798,4 +825,4 @@ Proof.
         specialize (Htmcvalid subtree Hmsinp eq_refl). injection Heqt as <-.
         apply tree_pop_reg. apply tree_anchor. 2: assumption. unfold anchor_satisfied.
         destruct inp as [next pref]. rewrite <- Hisboundary. reflexivity.
-Admitted.
+Qed.
