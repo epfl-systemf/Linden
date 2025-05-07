@@ -364,6 +364,7 @@ Proof.
       -- replace (Z.min _ _) with nextend in Hgetchr by lia. auto.
 Qed.
 
+(* TODO Factorize with non-inverted case? *)
 Lemma charSetMatcher_inv_bt:
   forall charset cd,
   equiv_cd_charset cd charset ->
@@ -453,6 +454,29 @@ Proof.
   - apply equiv_cd_inv. pose proof wordCharacters_casesenst rer Hcasesenst. unfold Semantics.wordCharacters, Coercions.wrap_CharSet in H0. simpl in H0. injection H0 as H0. rewrite H0. apply equiv_cd_wordchar.
 Qed.
 
+(* Lemma for character escapes *)
+Lemma characterescape_bt:
+  forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
+    (root_equiv: equiv_regex wroot lroot),
+    RegExpRecord.ignoreCase rer = false ->
+  forall esc wreg lreg ctx,
+    wreg = AtomEsc (ACharacterEsc esc) ->
+    Root wroot (wreg, ctx) ->
+    equiv_regex' wreg lreg (StaticSemantics.countLeftCapturingParensBefore wreg ctx) ->
+    forall tm dir,
+      tCompileSubPattern wreg ctx rer dir = Success tm ->
+      tm_valid tm rer lreg dir.
+Proof.
+  intros rer lroot wroot root_equiv Hcasesenst esc wreg lreg ctx Heqwreg Hroot Hequiv tm dir.
+  subst wreg. inversion Hequiv as [| | | | esc0 cd n Hequiv' Heqesc0 Heqlreg Heqn | | | | | | |].
+  2: { (* Absurd *) inversion H0; subst; discriminate. }
+  2: { (* Absurd *) inversion H; subst; discriminate. }
+  inversion Hequiv' as [controlesc cd0 Hequiv'' Heqesc Heqcd0 | l cd0 Hequiv'' Heqesc Heqcd0 | Heqesc Heqcd].
+  - inversion Hequiv'' as [Heqcontrolesc Heqcd | Heqcontrolesc Heqcd | Heqcontrolesc Heqcd | Heqcontrolesc Heqcd | Heqcontrolesc Heqcd]; simpl; intro H; injection H as H; eapply charSetMatcher_noninv_bt; eauto; unfold nat_to_nni; rewrite char_numeric_pseudo_bij; apply equiv_cd_single.
+  - inversion Hequiv''. (* TODO Ascii letter escape *)
+  - simpl; intro H; injection H as H; eapply charSetMatcher_noninv_bt; eauto; unfold nat_to_nni; rewrite char_numeric_pseudo_bij; apply equiv_cd_single.
+Qed.
+
 (** ** Main theorem *)
 (* We place ourselves in the context of some root regex, and prove the validity for all the sub-regexes of the root regex. *)
 Theorem tmatcher_bt:
@@ -520,7 +544,8 @@ Proof.
     constructor. assumption.
 
   (* AtomEsc (ACharacterEsc esc) *)
-  - admit.
+  - intros ctx Hroot Heqn tm dir. eapply characterescape_bt; eauto.
+    constructor. assumption.
 
   (* Character class *)
   - admit.
