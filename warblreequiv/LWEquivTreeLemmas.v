@@ -1,4 +1,4 @@
-From Linden Require Import RegexpTranslation LindenParameters Regex MSInput Chars ListLemmas CharDescrCharSet.
+From Linden Require Import RegexpTranslation LindenParameters Regex MSInput Chars ListLemmas CharDescrCharSet WarblreLemmas.
 From Linden Require Semantics.
 From Warblre Require Import StaticSemantics List Parameters Notation Match Result Errors RegExpRecord Patterns Semantics Base.
 From Coq Require Import Lia ZArith List.
@@ -627,21 +627,6 @@ Lemma ifthenelse_negb_xorb: forall a b: bool,
     ((a is true) && (b is true)) || ((a is false) && (b is false)) = negb (xorb a b).
 Proof.
   now intros [] [].
-Qed.
-
-Lemma wordCharacters_casesenst:
-  forall rer,
-    RegExpRecord.ignoreCase rer = false ->
-    Semantics.wordCharacters rer = Success Characters.ascii_word_characters.
-Proof.
-  intros rer Hcasesenst. unfold Semantics.wordCharacters.
-  unfold Coercions.wrap_CharSet. simpl. f_equal.
-  apply charset_ext. intro c.
-  rewrite charset_union_contains, charset_filter_contains.
-  destruct (CharSet.contains Characters.ascii_word_characters _) eqn:Hascii; simpl. 1: reflexivity.
-  setoid_rewrite Hascii.
-  rewrite canonicalize_casesenst by assumption. setoid_rewrite Hascii.
-  rewrite Bool.andb_false_r. reflexivity.
 Qed.
 
 Lemma unwrap_bool:

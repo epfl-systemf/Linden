@@ -497,9 +497,9 @@ Proof.
   2: { inversion H0; subst; discriminate. }
   2: { inversion H; subst; discriminate. }
   inversion Hequiv' as [crs cd0 Hequiv'' Heqcc' Heqcd0 | crs cd0 Hequiv'' Heqcc' Heqcd0]; simpl.
-  - pose proof equiv_cd_ClassRanges crs cd rer Hequiv'' as [a [Heqa Hequiva]]. rewrite Heqa. simpl.
+  - pose proof equiv_cd_ClassRanges crs cd rer Hcasesenst Hequiv'' as [a [Heqa Hequiva]]. rewrite Heqa. simpl.
     intro H. injection H as <-. eapply charSetMatcher_noninv_bt; eauto.
-  - subst cd. pose proof equiv_cd_ClassRanges crs cd0 rer Hequiv'' as [a [Heqa Hequiva]]. rewrite Heqa. simpl.
+  - subst cd. pose proof equiv_cd_ClassRanges crs cd0 rer Hcasesenst Hequiv'' as [a [Heqa Hequiva]]. rewrite Heqa. simpl.
     intro H. injection H as <-. eapply charSetMatcher_inv_bt; eauto.
 Qed.
 

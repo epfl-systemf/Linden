@@ -1,4 +1,4 @@
-From Warblre Require Import Match Notation Parameters RegExpRecord List Result.
+From Warblre Require Import Match Notation Parameters RegExpRecord List Result Semantics.
 From Linden Require Import Chars MSInput.
 From Coq Require Import ZArith Lia.
 Import Notation.
@@ -36,6 +36,23 @@ Proof.
     - destruct x. now simpl in *.
 Qed.
 
+From Linden Require Import LindenParameters.
+From Warblre Require Import Errors.
+
+Lemma wordCharacters_casesenst:
+  forall rer,
+    RegExpRecord.ignoreCase rer = false ->
+    Semantics.wordCharacters rer = Success Characters.ascii_word_characters.
+Proof.
+  intros rer Hcasesenst. unfold Semantics.wordCharacters.
+  unfold Coercions.Coercions.wrap_CharSet. simpl. f_equal.
+  apply charset_ext. intro c.
+  rewrite charset_union_contains, charset_filter_contains.
+  destruct (CharSet.contains Characters.ascii_word_characters _) eqn:Hascii; simpl. 1: reflexivity.
+  setoid_rewrite Hascii.
+  rewrite canonicalize_casesenst by assumption. setoid_rewrite Hascii.
+  rewrite Bool.andb_false_r. reflexivity.
+Qed.
 
 
 

@@ -1,11 +1,12 @@
-From Linden Require Import Chars LindenParameters RegexpTranslation.
-From Warblre Require Import Parameters Semantics Result.
+From Linden Require Import Chars LindenParameters RegexpTranslation WarblreLemmas.
+From Warblre Require Import Parameters Semantics Result Patterns RegExpRecord.
 Import Result.Notations.
+Import Patterns.
 
 Local Open Scope result_flow.
 
 Definition equiv_cd_charset (cd: char_descr) (charset: CharSet) :=
-  forall c: Char, char_match c cd = CharSet.contains charset c.
+  forall c: Chars.Char, char_match c cd = CharSet.contains charset c.
 
 (* Lemma for character descriptor inversion *)
 Lemma equiv_cd_inv:
@@ -65,36 +66,100 @@ Proof.
   intros c chr. simpl. symmetry. apply charset_contains_singleton.
 Qed.
 
+(* Lemma for CharacterClassEscapes *)
+Lemma equiv_cd_CharacterClassEscape:
+  forall esc cd rer,
+    RegExpRecord.ignoreCase rer = false ->
+    equiv_CharacterClassEscape esc cd ->
+    exists a, Semantics.compileToCharSet_ClassAtom (ClassEsc (CCharacterClassEsc esc)) rer = Success a /\
+           equiv_cd_charset cd a.
+Proof.
+  intros esc cd rer Hcasesenst Hequiv.
+  inversion Hequiv as [Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd]; simpl; unfold Coercions.Coercions.wrap_CharSet; eexists; split; try solve[reflexivity].
+  - apply equiv_cd_digits.
+  - apply equiv_cd_inv. apply equiv_cd_digits.
+  - apply equiv_cd_whitespace.
+  - apply equiv_cd_inv. apply equiv_cd_whitespace.
+  - pose proof wordCharacters_casesenst rer Hcasesenst. unfold Semantics.wordCharacters, Coercions.Coercions.wrap_CharSet in H. simpl in H. injection H as H. setoid_rewrite H. apply equiv_cd_wordchar.
+  - apply equiv_cd_inv. pose proof wordCharacters_casesenst rer Hcasesenst. unfold Semantics.wordCharacters, Coercions.Coercions.wrap_CharSet in H. simpl in H. injection H as H. setoid_rewrite H. apply equiv_cd_wordchar.
+Qed.
+
+(* Lemma for ControlEscapes *)
+Lemma equiv_cd_ControlEscape:
+  forall esc cd rer,
+    equiv_ControlEscape esc cd ->
+    exists a, Semantics.compileToCharSet_ClassAtom (ClassEsc (CCharacterEsc (ControlEsc esc))) rer = Success a /\
+           equiv_cd_charset cd a.
+Proof.
+  intros esc cd rer Hequiv.
+  inversion Hequiv; simpl; unfold Coercions.Coercions.wrap_CharSet; eexists; split; try solve[reflexivity]; unfold Numeric.nat_to_nni; rewrite char_numeric_pseudo_bij; apply equiv_cd_single.
+Qed.
+
+(* Lemma for CharacterEscapes *)
+Lemma equiv_cd_CharacterEscape:
+  forall esc cd rer,
+    equiv_CharacterEscape esc cd ->
+    exists a, Semantics.compileToCharSet_ClassAtom (ClassEsc (CCharacterEsc esc)) rer = Success a /\
+           equiv_cd_charset cd a.
+Proof.
+  intros esc cd rer Hequiv. inversion Hequiv as [esc0 cd0 Hequiv' Heqesc Heqcd0 | l cd0 Hequiv' Heqesc Heqcd0 | Heqesc Heqcd].
+  - apply equiv_cd_ControlEscape. assumption.
+  - admit. (* AsciiControlEsc *)
+  - simpl. unfold Coercions.Coercions.wrap_CharSet. eexists. split. 1: reflexivity.
+    unfold Numeric.nat_to_nni. rewrite char_numeric_pseudo_bij. apply equiv_cd_single.
+Admitted.
+
+(* Lemma for ClassEscapes *)
+Lemma equiv_cd_ClassEscape:
+  forall esc cd rer,
+    RegExpRecord.ignoreCase rer = false ->
+    equiv_ClassEscape esc cd ->
+    exists a, Semantics.compileToCharSet_ClassAtom (ClassEsc esc) rer = Success a /\
+           equiv_cd_charset cd a.
+Proof.
+  intros esc cd rer Hcasesenst Hequiv. inversion Hequiv as [Heqesc Heqcd | Heqesc Heqcd | |].
+  - simpl. unfold Coercions.Coercions.wrap_CharSet. eexists. split.
+    + reflexivity.
+    + unfold Numeric.nat_to_nni. rewrite char_numeric_pseudo_bij. apply equiv_cd_single.
+  - simpl. unfold Coercions.Coercions.wrap_CharSet. eexists. split.
+    + reflexivity.
+    + unfold Numeric.nat_to_nni. rewrite char_numeric_pseudo_bij. apply equiv_cd_single.
+  - apply equiv_cd_CharacterClassEscape; auto.
+  - apply equiv_cd_CharacterEscape; auto.
+Qed.
+
 (* Lemmas for ClassRanges *)
 Lemma equiv_cd_ClassAtom:
   forall ca cacd rer,
+    RegExpRecord.ignoreCase rer = false ->
     equiv_ClassAtom ca cacd ->
     exists a, Semantics.compileToCharSet_ClassAtom ca rer = Success a /\ equiv_cd_charset cacd a.
 Proof.
-  intros ca cacd rer Hequiv.
-  inversion Hequiv as [c Heqca Heqcacd | esc cd Hequiv' Heqca Heqcacd]; simpl.
-  - unfold Coercions.Coercions.wrap_CharSet. eexists. split. + reflexivity. + apply equiv_cd_single.
-  - admit.
-Admitted.
+  intros ca cacd rer Hcasesenst Hequiv.
+  inversion Hequiv as [c Heqca Heqcacd | esc cd Hequiv' Heqca Heqcacd].
+  - simpl. unfold Coercions.Coercions.wrap_CharSet. eexists. split. + reflexivity. + apply equiv_cd_single.
+  - apply equiv_cd_ClassEscape; assumption.
+Qed.
   
 
 Lemma equiv_cd_ClassRanges:
   forall crs cd rer,
+    RegExpRecord.ignoreCase rer = false ->
     equiv_ClassRanges crs cd ->
     exists a, Semantics.compileToCharSet crs rer = Success a /\
            equiv_cd_charset cd a.
 Proof.
-  intros crs cd rer Hequiv.
+  intros crs cd rer Hcasesenst Hequiv.
   induction Hequiv as [|ca cacd t tcd Hequiv' Hequiv IH | l h cl ch t tcd Hequivl Hequivh Hl_le_h Hequiv IH].
   - simpl. unfold Coercions.Coercions.wrap_CharSet.
     eexists. split. + reflexivity. + apply equiv_cd_empty.
-  - simpl. pose proof equiv_cd_ClassAtom ca cacd rer Hequiv' as [A [HeqA Hequivatom]].
+  - simpl. pose proof equiv_cd_ClassAtom ca cacd rer Hcasesenst Hequiv' as [A [HeqA Hequivatom]].
     rewrite HeqA. simpl.
     destruct IH as [B [HeqB IH]]. rewrite HeqB. simpl.
     unfold Coercions.Coercions.wrap_CharSet. eexists. split. + reflexivity. + now apply equiv_cd_union.
   - simpl.
-    pose proof equiv_cd_ClassAtom l (CdSingle cl) rer Hequivl as [A [HeqA Hequivatoml]].
-    pose proof equiv_cd_ClassAtom h (CdSingle ch) rer Hequivh as [B [HeqB Hequivatomh]].
+    pose proof equiv_cd_ClassAtom l (CdSingle cl) rer Hcasesenst Hequivl as [A [HeqA Hequivatoml]].
+    pose proof equiv_cd_ClassAtom h (CdSingle ch) rer Hcasesenst Hequivh as [B [HeqB Hequivatomh]].
     rewrite HeqA, HeqB. simpl.
     destruct IH as [C [HeqC IH]]. rewrite HeqC. simpl.
     unfold Semantics.characterRange.
