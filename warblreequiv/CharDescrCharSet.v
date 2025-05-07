@@ -32,6 +32,14 @@ Proof.
   intro c. simpl. unfold Characters.ascii_word_characters. now rewrite charset_from_list_contains_inb.
 Qed.
 
+(* TODO Take dotAll flag into account *)
+Lemma equiv_cd_dot:
+  equiv_cd_charset CdDot Characters.all.
+Proof.
+  intro c. simpl. unfold Characters.all, Character.all. simpl.
+  rewrite charset_from_list_contains_inb. symmetry. apply char_all_inb.
+Qed.
+
 Lemma equiv_cd_single:
   forall c, equiv_cd_charset (CdSingle c) (CharSet.singleton c).
 Proof.

@@ -510,7 +510,9 @@ Proof.
     eapply charSetMatcher_noninv_bt; eauto. apply equiv_cd_single.
 
   (* Dot *)
-  - admit.
+  - simpl. intros ctx Hroot _ tm dir Hcompile_succ tmc cont str0 Htmc_tree inp Hinp_compat ms t Hms_inp Htm_succ.
+    injection Hcompile_succ as Hcompile_succ. symmetry in Hcompile_succ.
+    eapply charSetMatcher_noninv_bt; eauto. rewrite Hdotall. apply equiv_cd_dot.
 
 
   (* AtomEsc (ACharacterClassEsc esc) *)
