@@ -27,6 +27,16 @@ Proof.
   simpl. rewrite charset_union_contains. rewrite Hequiv1. rewrite Hequiv2. reflexivity.
 Qed.
 
+(* Inversion lemma for singletons *)
+Lemma equiv_cd_singleton_invn:
+  forall c s,
+    equiv_cd_charset (CdSingle c) s -> s = CharSet.singleton c.
+Proof.
+  intros c s Hequiv. apply charset_ext. intro chr.
+  specialize (Hequiv chr). simpl in Hequiv.
+  setoid_rewrite <- Hequiv. symmetry. apply charset_contains_singleton.
+Qed.
+
 (* Lemmas for various character descriptors *)
 Lemma equiv_cd_empty:
   equiv_cd_charset CdEmpty CharSet.empty.
@@ -51,6 +61,15 @@ Lemma equiv_cd_wordchar:
 Proof.
   intro c. simpl. unfold Characters.ascii_word_characters. now rewrite charset_from_list_contains_inb.
 Qed.
+
+Lemma equiv_cd_range:
+  forall cl ch,
+    char_numeric_value cl <= char_numeric_value ch ->
+    equiv_cd_charset (CdRange cl ch) (CharSet.range cl ch).
+Proof.
+  intros cl ch Hle c. simpl.
+  admit. (* Missing axiom? *)
+Admitted.
 
 (* TODO Take dotAll flag into account *)
 Lemma equiv_cd_dot:
@@ -163,5 +182,12 @@ Proof.
     rewrite HeqA, HeqB. simpl.
     destruct IH as [C [HeqC IH]]. rewrite HeqC. simpl.
     unfold Semantics.characterRange.
-    admit.
-Admitted.
+    pose proof equiv_cd_singleton_invn cl A Hequivatoml as HAsingleton.
+    pose proof equiv_cd_singleton_invn ch B Hequivatomh as HBsingleton.
+    rewrite HAsingleton, HBsingleton. do 2 rewrite CharSet.singleton_size. simpl.
+    do 2 rewrite CharSet.singleton_unique. simpl.
+    pose proof Hl_le_h as Hl_le_h'. rewrite <- PeanoNat.Nat.leb_le in Hl_le_h'. rewrite Hl_le_h'. simpl.
+    unfold Coercions.Coercions.wrap_CharSet. eexists. split.
+    + reflexivity.
+    + apply equiv_cd_union; auto. do 2 rewrite char_numeric_pseudo_bij. apply equiv_cd_range. assumption.
+Qed.
