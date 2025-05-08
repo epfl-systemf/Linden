@@ -34,29 +34,29 @@ Section LWEquivMain.
       res = matcher str 0 -> tres = tmatcher str 0 ->
       (* these results define the same capture groups if both matchings succeed and *)
       LWEquivTMatcherDef.equiv_results tres (MatchState.init rer str 0) [] forward res /\
-        (* in this case, the backtree of the tree matcher respects the relational semantics. *)
+        (* in this case, the priority tree of the tree matcher respects the relational semantics. *)
         (tres = Success t -> is_tree lreg [] (init_input str) forward t).
   Proof.
     intros wreg lreg str rer matcher tmatcher res tres t Hcasesenst Hnomultiline HdotAll Hcapcount Hequiv.
     unfold Semantics.compilePattern, tCompilePattern.
 
     pose proof compile_tcompile wreg [] rer as Hcompile_tcompile.
-    pose proof tmatcher_bt rer lreg wreg Hcasesenst Hnomultiline HdotAll Hequiv wreg lreg [] as Hbt.
-    specialize_prove Hbt by constructor. specialize (Hbt Hequiv).
+    pose proof tmatcher_pt rer lreg wreg Hcasesenst Hnomultiline HdotAll Hequiv wreg lreg [] as Hpt.
+    specialize_prove Hpt by constructor. specialize (Hpt Hequiv).
 
     destruct Semantics.compileSubPattern as [m|] eqn:Heqm; simpl. 2: discriminate.
     destruct tCompileSubPattern as [tm|] eqn:Heqtm; simpl. 2: discriminate.
     specialize (Hcompile_tcompile m tm forward Heqm Heqtm str).
-    specialize (Hbt tm forward Heqtm).
+    specialize (Hpt tm forward Heqtm).
     intros Heqmatcher Heqtmatcher. injection Heqmatcher as <-. injection Heqtmatcher as <-.
     intros Heqres Heqtres. subst res tres.
     destruct negb. (* Negative length! *) 1: { split. - constructor. - discriminate. }
     split.
     - apply Hcompile_tcompile. + apply id_equiv. + reflexivity.
-    - specialize (Hbt id_tmcont [] str (id_tmcont_valid rer str forward)).
-      specialize (Hbt (init_input str) (MSInput.init_input_compat str)).
-      set (ms := match_state str 0 _). specialize (Hbt ms t).
-      specialize_prove Hbt by apply MSInput.init_ms_matches_inp. simpl in Hbt.
-      intro Hsucctm. specialize (Hbt Hsucctm). now inversion Hbt.
+    - specialize (Hpt id_tmcont [] str (id_tmcont_valid rer str forward)).
+      specialize (Hpt (init_input str) (MSInput.init_input_compat str)).
+      set (ms := match_state str 0 _). specialize (Hpt ms t).
+      specialize_prove Hpt by apply MSInput.init_ms_matches_inp. simpl in Hpt.
+      intro Hsucctm. specialize (Hpt Hsucctm). now inversion Hpt.
   Qed.
 End LWEquivMain.

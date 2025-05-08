@@ -23,7 +23,7 @@ Section LWEquivTree.
   (** ** Definition of the validity of tree matchers and tree matcher continuations *)
 
   (* `tMC_is_tree tmc rer cont inp dir` means that the TMatcherContinuation tmc, when run with a MatchState
-    compatible with input inp and valid with respect to rer, performs the actions in the continuation cont and yields a valid backtree wrt direction dir. *)
+    compatible with input inp and valid with respect to rer, performs the actions in the continuation cont and yields a valid priority tree wrt direction dir. *)
   Definition tMC_is_tree (tmc: TMatcherContinuation) (rer: RegExpRecord) (cont: continuation) (inp: input) (dir: Direction) :=
     forall (ms: MatchState) (t: tree),
       ms_matches_inp ms inp ->
@@ -31,11 +31,11 @@ Section LWEquivTree.
       is_tree Epsilon cont inp dir t.
 
   (* `tMC_valid tmc rer cont str0 dir` means that the TMatcherContinuation tmc, when run on any input compatible with the string str0 under the flags in rer,
-     performs the actions in the continuation cont and yields a valid backtree wrt direction dir. *)
+     performs the actions in the continuation cont and yields a valid priority tree wrt direction dir. *)
   Definition tMC_valid (tmc: TMatcherContinuation) (rer: RegExpRecord) (cont: continuation) (str0: string) (dir: Direction) :=
     forall inp, input_compat inp str0 -> tMC_is_tree tmc rer cont inp dir.
 
-  (* `tm_valid tm rer lreg dir` means that under the given RegExpRecord (set of flags), the TMatcher tm recognizes the regexp lreg with direction dir on any input, and yields a valid backtree. *)
+  (* `tm_valid tm rer lreg dir` means that under the given RegExpRecord (set of flags), the TMatcher tm recognizes the regexp lreg with direction dir on any input, and yields a valid priority tree. *)
   Definition tm_valid (tm: TMatcher) (rer: RegExpRecord) (lreg: regex) (dir: Direction) :=
     forall (tmc: TMatcherContinuation) (cont: continuation) (str0: string),
     tMC_valid tmc rer cont str0 dir ->
@@ -214,7 +214,7 @@ Section LWEquivTree.
 
 
   (** ** Lemma for lookarounds *)
-  Lemma tLookaroundMatcher_bt:
+  Lemma tLookaroundMatcher_pt:
     (* lkdir: lookaround direction, pos: lookaround positivity *)
     (* lkwreg: Warblre lookaround regexp, lklreg: Linden lookaround regexp *)
     (* ctx: context of the entire lookaround regexp *)
@@ -305,7 +305,7 @@ Section LWEquivTree.
       apply EqDec.reflb.
   Qed.
 
-  Lemma charSetMatcher_noninv_bt:
+  Lemma charSetMatcher_noninv_pt:
     forall charset cd,
     equiv_cd_charset cd charset ->
     forall rer tm dir,
@@ -368,7 +368,7 @@ Section LWEquivTree.
   Qed.
 
   (* TODO Factorize with non-inverted case? *)
-  Lemma charSetMatcher_inv_bt:
+  Lemma charSetMatcher_inv_pt:
     forall charset cd,
     equiv_cd_charset cd charset ->
     forall rer tm dir,
@@ -431,7 +431,7 @@ Section LWEquivTree.
   Qed.
 
   (* Lemma for character class escapes *)
-  Lemma characterclassescape_bt:
+  Lemma characterclassescape_pt:
     forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
       (root_equiv: equiv_regex wroot lroot),
       RegExpRecord.ignoreCase rer = false ->
@@ -451,7 +451,7 @@ Section LWEquivTree.
     (* Rewriting? *)
     admit.
     (*
-    inversion Hequiv' as [Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd]; simpl in *; intro H; injection H as H; eapply charSetMatcher_noninv_bt; eauto; setoid_rewrite charset_union_empty.
+    inversion Hequiv' as [Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd]; simpl in *; intro H; injection H as H; eapply charSetMatcher_noninv_pt; eauto; setoid_rewrite charset_union_empty.
     - apply equiv_cd_digits.
     - apply equiv_cd_inv. apply equiv_cd_digits.
     - apply equiv_cd_whitespace.
@@ -461,7 +461,7 @@ Section LWEquivTree.
   Admitted.
 
   (* Lemma for character escapes *)
-  Lemma characterescape_bt:
+  Lemma characterescape_pt:
     forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
       (root_equiv: equiv_regex wroot lroot),
       RegExpRecord.ignoreCase rer = false ->
@@ -478,17 +478,17 @@ Section LWEquivTree.
     2: { (* Absurd *) inversion H0; subst; discriminate. }
     2: { (* Absurd *) inversion H; subst; discriminate. }
     inversion Hequiv' as [controlesc cd0 Hequiv'' Heqesc Heqcd0 | l cd0 Hequiv'' Heqesc Heqcd0 | Heqesc Heqcd].
-    - inversion Hequiv'' as [Heqcontrolesc Heqcd | Heqcontrolesc Heqcd | Heqcontrolesc Heqcd | Heqcontrolesc Heqcd | Heqcontrolesc Heqcd]; simpl; intro H; injection H as H; eapply charSetMatcher_noninv_bt; eauto; unfold nat_to_nni; rewrite Character.numeric_pseudo_bij; apply equiv_cd_single.
+    - inversion Hequiv'' as [Heqcontrolesc Heqcd | Heqcontrolesc Heqcd | Heqcontrolesc Heqcd | Heqcontrolesc Heqcd | Heqcontrolesc Heqcd]; simpl; intro H; injection H as H; eapply charSetMatcher_noninv_pt; eauto; unfold nat_to_nni; rewrite Character.numeric_pseudo_bij; apply equiv_cd_single.
     - inversion Hequiv'' as [l0 i Heqi Heql0 Heqcd].
       simpl. rewrite <- Heqi. intro H. injection H as <-.
-      eapply charSetMatcher_noninv_bt; eauto. apply equiv_cd_single.
-    - simpl; intro H; injection H as H; eapply charSetMatcher_noninv_bt; eauto; unfold nat_to_nni; rewrite Character.numeric_pseudo_bij; apply equiv_cd_single.
+      eapply charSetMatcher_noninv_pt; eauto. apply equiv_cd_single.
+    - simpl; intro H; injection H as H; eapply charSetMatcher_noninv_pt; eauto; unfold nat_to_nni; rewrite Character.numeric_pseudo_bij; apply equiv_cd_single.
   Qed.
 
   (* Lemmas for character classes *)
 
 
-  Lemma characterclass_bt:
+  Lemma characterclass_pt:
     forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
       (root_equiv: equiv_regex wroot lroot),
       RegExpRecord.ignoreCase rer = false ->
@@ -506,14 +506,14 @@ Section LWEquivTree.
     2: { inversion H; subst; discriminate. }
     inversion Hequiv' as [crs cd0 Hequiv'' Heqcc' Heqcd0 | crs cd0 Hequiv'' Heqcc' Heqcd0]; simpl.
     - pose proof equiv_cd_ClassRanges crs cd rer Hcasesenst Hequiv'' as [a [Heqa Hequiva]]. rewrite Heqa. simpl.
-      intro H. injection H as <-. eapply charSetMatcher_noninv_bt; eauto.
+      intro H. injection H as <-. eapply charSetMatcher_noninv_pt; eauto.
     - subst cd. pose proof equiv_cd_ClassRanges crs cd0 rer Hcasesenst Hequiv'' as [a [Heqa Hequiva]]. rewrite Heqa. simpl.
-      intro H. injection H as <-. eapply charSetMatcher_inv_bt; eauto.
+      intro H. injection H as <-. eapply charSetMatcher_inv_pt; eauto.
   Qed.
 
   (** ** Main theorem *)
   (* We place ourselves in the context of some root regex, and prove the validity for all the sub-regexes of the root regex. *)
-  Theorem tmatcher_bt:
+  Theorem tmatcher_pt:
     forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
       (* Assume that we do not ignore case, *)
       (Hcasesenst: RegExpRecord.ignoreCase rer = false)
@@ -565,24 +565,24 @@ Section LWEquivTree.
     - (* Character *)
       simpl. intros ctx Hroot _ tm dir Hcompile_succ tmc cont str0 Htmc_tree inp Hinp_compat ms t Hms_inp Htm_succ.
       injection Hcompile_succ as Hcompile_succ. symmetry in Hcompile_succ.
-      eapply charSetMatcher_noninv_bt; eauto. apply equiv_cd_single.
+      eapply charSetMatcher_noninv_pt; eauto. apply equiv_cd_single.
 
     (* Dot *)
     - simpl. intros ctx Hroot _ tm dir Hcompile_succ tmc cont str0 Htmc_tree inp Hinp_compat ms t Hms_inp Htm_succ.
       injection Hcompile_succ as Hcompile_succ. symmetry in Hcompile_succ.
-      eapply charSetMatcher_noninv_bt; eauto. rewrite Hdotall. apply equiv_cd_dot.
+      eapply charSetMatcher_noninv_pt; eauto. rewrite Hdotall. apply equiv_cd_dot.
 
 
     (* AtomEsc (ACharacterClassEsc esc) *)
-    - intros ctx Hroot Heqn tm dir. eapply characterclassescape_bt; eauto.
+    - intros ctx Hroot Heqn tm dir. eapply characterclassescape_pt; eauto.
       constructor. assumption.
 
     (* AtomEsc (ACharacterEsc esc) *)
-    - intros ctx Hroot Heqn tm dir. eapply characterescape_bt; eauto.
+    - intros ctx Hroot Heqn tm dir. eapply characterescape_pt; eauto.
       constructor. assumption.
 
     (* Character class *)
-    - intros ctx Hroot Heqn tm dir. eapply characterclass_bt; eauto.
+    - intros ctx Hroot Heqn tm dir. eapply characterclass_pt; eauto.
       constructor. assumption.
 
 
@@ -754,12 +754,12 @@ Section LWEquivTree.
       specialize (IH subtree Hms_inp eq_refl). inversion IH. assumption.
 
     - (* Lookarounds *)
-      (* We use the lemma tLookaroundMatcher_bt *)
+      (* We use the lemma tLookaroundMatcher_pt *)
       inversion Hequivlk as [Heqwlk Heqllk | Heqwlk Heqllk | Heqwlk Heqllk | Heqwlk Heqllk]; simpl; intros.
-      + eapply tLookaroundMatcher_bt with (lkdir := forward) (pos := true); eauto.
-      + eapply tLookaroundMatcher_bt with (lkdir := forward) (pos := false); eauto.
-      + eapply tLookaroundMatcher_bt with (lkdir := backward) (pos := true); eauto.
-      + eapply tLookaroundMatcher_bt with (lkdir := backward) (pos := false); eauto.
+      + eapply tLookaroundMatcher_pt with (lkdir := forward) (pos := true); eauto.
+      + eapply tLookaroundMatcher_pt with (lkdir := forward) (pos := false); eauto.
+      + eapply tLookaroundMatcher_pt with (lkdir := backward) (pos := true); eauto.
+      + eapply tLookaroundMatcher_pt with (lkdir := backward) (pos := false); eauto.
 
     - (* Anchors *)
       inversion Hanchequiv as [Heqwr Heqlanchor | Heqwr Heqlanchor | Heqwr Heqlanchor | Heqwr Heqlanchor]; simpl.

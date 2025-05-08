@@ -32,7 +32,7 @@ Section LWEquivTMatcherDef.
      We say that a MatcherContinuation mc and a TMatcherContinuation tmc are
      equivalent under a given input string str0, the list of open groups
      open_gl and direction dir when given any MatchState ms compatible with the string str0 being
-     matched, the sub-backtree (tmc ms) with extended match state (ms, open_gl) interpreted in direction dir is
+     matched, the sub-priority tree (tmc ms) with extended match state (ms, open_gl) interpreted in direction dir is
      equivalent to the MatchResult (mc ms). *)
   Definition equiv_tree_mcont
     (str0: string) (mc: MatcherContinuation) (tmc: TMatcherContinuation)

@@ -168,7 +168,7 @@ Section Semantics.
       is_tree (Anchor a) cont inp dir (AnchorFail a).
 
 
-  Definition backtree (r:regex) (str:string) (t:tree): Prop :=
+  Definition priotree (r:regex) (str:string) (t:tree): Prop :=
     is_tree r [] (init_input str) forward t.
 
   (* Adding Epsilon to the list of continuations *)
@@ -298,37 +298,37 @@ Section Semantics.
     - inversion H; subst; auto. congruence.
   Qed.
 
-  Corollary backtree_determ:
+  Corollary priotree_determ:
     forall r s t1 t2,
-      backtree r s t1 ->
-      backtree r s t2 ->
+      priotree r s t1 ->
+      priotree r s t2 ->
       t1 = t2.
   Proof.
-    unfold backtree. intros r s t1 t2 H H0. eapply is_tree_determ; eauto.
+    unfold priotree. intros r s t1 t2 H H0. eapply is_tree_determ; eauto.
   Qed.
 
-  (* We could also prove that there always exists a backtree for any regexes and string,
-   bu that amounts to proving the termination of the backtree construction. *)
+  (* We could also prove that there always exists a priotree for any regexes and string,
+   bu that amounts to proving the termination of the priotree construction. *)
 
 
-  (** * Backtracking  *)
-  (* the result of backtracking is just the first branch of the corresponding tree *)
+  (** * Highest priority result  *)
+  (* the highest priority result is just the first branch of the corresponding tree *)
 
-  Inductive backtracking_result: regex -> string -> option leaf -> Prop :=
+  Inductive highestprio_result: regex -> string -> option leaf -> Prop :=
   | bt_result:
     forall r str res tree
-      (TREE: backtree r str tree)
+      (TREE: priotree r str tree)
       (FIRST: first_branch tree = res),
-      backtracking_result r str res.
+      highestprio_result r str res.
 
-  Lemma backtracking_determ:
+  Lemma highestprio_determ:
     forall r str res1 res2,
-      backtracking_result r str res1 ->
-      backtracking_result r str res2 ->
+      highestprio_result r str res1 ->
+      highestprio_result r str res2 ->
       res1 = res2.
   Proof.
     intros r str res1 res2 H H0. inversion H. subst.
     inversion H0. subst.
-    specialize (backtree_determ _ _ _ _ TREE TREE0). intros. subst. auto.
+    specialize (priotree_determ _ _ _ _ TREE TREE0). intros. subst. auto.
   Qed.
 End Semantics.
