@@ -39,24 +39,21 @@ Qed.
 From Linden Require Import LindenParameters.
 From Warblre Require Import Errors.
 
-Lemma wordCharacters_casesenst:
-  forall rer,
-    RegExpRecord.ignoreCase rer = false ->
-    Semantics.wordCharacters rer = Success Characters.ascii_word_characters.
-Proof.
-  intros rer Hcasesenst. unfold Semantics.wordCharacters.
-  unfold Coercions.Coercions.wrap_CharSet. simpl. f_equal.
-  apply charset_ext. intro c.
-  rewrite charset_union_contains, charset_filter_contains.
-  destruct (CharSet.contains Characters.ascii_word_characters _) eqn:Hascii; simpl. 1: reflexivity.
-  setoid_rewrite Hascii.
-  rewrite canonicalize_casesenst by assumption. setoid_rewrite Hascii.
-  rewrite Bool.andb_false_r. reflexivity.
-Qed.
+Section WarblreLemmas.
+  Context `{characterClass: Character.class}.
 
-
-
-
-
-
-
+  Lemma wordCharacters_casesenst:
+    forall rer,
+      RegExpRecord.ignoreCase rer = false ->
+      Semantics.wordCharacters rer = Success Characters.ascii_word_characters.
+  Proof.
+    intros rer Hcasesenst. unfold Semantics.wordCharacters.
+    unfold Coercions.Coercions.wrap_CharSet. simpl. f_equal.
+    apply charset_ext. intro c.
+    setoid_rewrite charset_union_contains. setoid_rewrite charset_filter_contains.
+    destruct (CharSet.contains Characters.ascii_word_characters _) eqn:Hascii; simpl. 1: reflexivity.
+    setoid_rewrite Hascii.
+    rewrite canonicalize_casesenst by assumption. setoid_rewrite Hascii.
+    rewrite Bool.andb_false_r. reflexivity.
+  Qed.
+End WarblreLemmas.

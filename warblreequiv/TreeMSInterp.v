@@ -67,71 +67,74 @@ Definition group_effect' {F H} `{CharacterMarker H} `{Result.AssertionError F} (
    together with the match state ms and a list of groups that are open at that stage of matching. *)
 
 
-(* TODO Direction *)
-(* Given a sub-backtracking tree and an extended match state, retrieve the highest priority result represented
-   by the subtree. *)
-Fixpoint tree_res' {F} `{Result.AssertionError F} (t:tree) (s: MatchState) (gl: open_groups) (dir: Direction): option MatchState :=
-  match t with
-  | Mismatch => None
-  | Match => Some s
-  | Choice t1 t2 =>
-      let res1 := tree_res' t1 s gl dir in
-      match res1 with
-      | None => tree_res' t2 s gl dir
-      | Some _ => res1
-      end
-  | Read c t1 =>
-    tree_res' t1 (advance_ms s dir) gl dir
-  | CheckFail _ => None
-  | CheckPass _ t1 => tree_res' t1 s gl dir
-  | GroupAction g t1 => 
-      let (s', gl') := group_effect' g s gl dir in tree_res' t1 s' gl' dir
-  | LK lk tlk t =>
-      match positivity lk with
-      | true =>
-          match tree_res' tlk s nil (lk_dir lk) with (* Contrary to the original tree_res, and to respect the ECMA semantics, we use the empty open group list instead of the original one. In practical situations, this does not change anything as tlk cannot close any group that it itself does not open, but now we don't have to prove it. *)
-          | Some mslk =>
-              (* using the captures defined in the first branch of the lookahead; the open groups remain unchanged because the lookaround is well-parenthesized *)
-              tree_res' t (match_state (MatchState.input s) (MatchState.endIndex s) (MatchState.captures mslk)) gl dir
-          | None => None (* unreachable in valid trees *)
-          end
-      | false => match tree_res' tlk s nil (lk_dir lk) with (* Same here *)
-          (* using previous captures *)
-          | Some _ => None (* unreachable in valid trees *)
-          | None => tree_res' t s gl dir
-          end
-      end
-  | LKFail _ _ => None
-  | AnchorFail _ => None
-  | AnchorPass _ t => tree_res' t s gl dir
-  end.
+Section TreeMSInterp.
+  Context `{characterClass: Character.class}.
+  
+  (* TODO Direction *)
+  (* Given a sub-backtracking tree and an extended match state, retrieve the highest priority result represented
+     by the subtree. *)
+  Fixpoint tree_res' {F} `{Result.AssertionError F} (t:tree) (s: MatchState) (gl: open_groups) (dir: Direction): option MatchState :=
+    match t with
+    | Mismatch => None
+    | Match => Some s
+    | Choice t1 t2 =>
+        let res1 := tree_res' t1 s gl dir in
+        match res1 with
+        | None => tree_res' t2 s gl dir
+        | Some _ => res1
+        end
+    | Read c t1 =>
+      tree_res' t1 (advance_ms s dir) gl dir
+    | CheckFail _ => None
+    | CheckPass _ t1 => tree_res' t1 s gl dir
+    | GroupAction g t1 => 
+        let (s', gl') := group_effect' g s gl dir in tree_res' t1 s' gl' dir
+    | LK lk tlk t =>
+        match positivity lk with
+        | true =>
+            match tree_res' tlk s nil (lk_dir lk) with (* Contrary to the original tree_res, and to respect the ECMA semantics, we use the empty open group list instead of the original one. In practical situations, this does not change anything as tlk cannot close any group that it itself does not open, but now we don't have to prove it. *)
+            | Some mslk =>
+                (* using the captures defined in the first branch of the lookahead; the open groups remain unchanged because the lookaround is well-parenthesized *)
+                tree_res' t (match_state (MatchState.input s) (MatchState.endIndex s) (MatchState.captures mslk)) gl dir
+            | None => None (* unreachable in valid trees *)
+            end
+        | false => match tree_res' tlk s nil (lk_dir lk) with (* Same here *)
+            (* using previous captures *)
+            | Some _ => None (* unreachable in valid trees *)
+            | None => tree_res' t s gl dir
+            end
+        end
+    | LKFail _ _ => None
+    | AnchorFail _ => None
+    | AnchorPass _ t => tree_res' t s gl dir
+    end.
 
 
-(* First branch with an initial state with a dummy input (tree_res' does not inspect the input) and a large enough capture list *)
-Definition first_branch' {F} `{Result.AssertionError F} (t: tree) :=
-  let dummystr := [] in
-  let cap := List.repeat undefined (1 + max_gid_tree t) in
-  tree_res' t (match_state dummystr 0%Z cap) [] forward.
+  (* First branch with an initial state with a dummy input (tree_res' does not inspect the input) and a large enough capture list *)
+  Definition first_branch' {F} `{Result.AssertionError F} (t: tree) :=
+    let dummystr := [] in
+    let cap := List.repeat undefined (1 + max_gid_tree t) in
+    tree_res' t (match_state dummystr 0%Z cap) [] forward.
 
 
-(** * Independence of presence or absence of result from the MatchState, the open groups and the direction *)
-Lemma result_indep_gm {F} `{Result.AssertionError F}:
-  forall t ms1 gl1 dir1 ms2 gl2 dir2,
-    tree_res' t ms1 gl1 dir1 = None -> tree_res' t ms2 gl2 dir2 = None.
-Proof.
-  intro t. induction t; eauto.
-  - discriminate.
-  - intros. simpl in *.
-    destruct (tree_res' t1 ms1 gl1) eqn:H11. 1: discriminate.
-    erewrite IHt1 by eauto. eauto.
-  - intros. simpl in *. do 2 destruct group_effect'; eauto.
-  - intros. simpl in *. destruct positivity.
-    + destruct (tree_res' t1 ms1 []) eqn:Hr1.
-      * destruct (tree_res' t1 ms2 []). 2: reflexivity. eauto.
-      * erewrite IHt1 by eauto. eauto.
-    + destruct (tree_res' t1 ms1 []) eqn:Hr11.
-      * destruct (tree_res' t1 ms2 []) eqn:Hr12. 1: reflexivity.
-        apply IHt1 with (ms2 := ms1) (gl2 := []) (dir2 := lk_dir lk) in Hr12. congruence.
-      * erewrite IHt1 by eauto. eauto.
-Qed.
-    
+  (** * Independence of presence or absence of result from the MatchState, the open groups and the direction *)
+  Lemma result_indep_gm {F} `{Result.AssertionError F}:
+    forall t ms1 gl1 dir1 ms2 gl2 dir2,
+      tree_res' t ms1 gl1 dir1 = None -> tree_res' t ms2 gl2 dir2 = None.
+  Proof.
+    intro t. induction t; eauto.
+    - discriminate.
+    - intros. simpl in *.
+      destruct (tree_res' t1 ms1 gl1) eqn:H11. 1: discriminate.
+      erewrite IHt1 by eauto. eauto.
+    - intros. simpl in *. do 2 destruct group_effect'; eauto.
+    - intros. simpl in *. destruct positivity.
+      + destruct (tree_res' t1 ms1 []) eqn:Hr1.
+        * destruct (tree_res' t1 ms2 []). 2: reflexivity. eauto.
+        * erewrite IHt1 by eauto. eauto.
+      + destruct (tree_res' t1 ms1 []) eqn:Hr11.
+        * destruct (tree_res' t1 ms2 []) eqn:Hr12. 1: reflexivity.
+          apply IHt1 with (ms2 := ms1) (gl2 := []) (dir2 := lk_dir lk) in Hr12. congruence.
+        * erewrite IHt1 by eauto. eauto.
+  Qed.
+End TreeMSInterp.
