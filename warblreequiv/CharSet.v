@@ -62,6 +62,27 @@ Module CharSetExt.
   Section Lemmas.
     Context `{charSetExtClass: class}.
 
+    #[export] Instance Equal_Reflexive: RelationClasses.Reflexive Equal.
+    Proof.
+      unfold RelationClasses.Reflexive. intros x c. reflexivity.
+    Qed.
+
+    #[export] Instance Equal_Symmetric: RelationClasses.Symmetric Equal.
+    Proof.
+      unfold RelationClasses.Symmetric. intros x y Heq c. specialize (Heq c). tauto.
+    Qed.
+
+    #[export] Instance Equal_Transitive: RelationClasses.Transitive Equal.
+    Proof.
+      unfold RelationClasses.Transitive. intros x y z Hxy Hyz c.
+      specialize (Hxy c). specialize (Hyz c). tauto.
+    Qed.
+
+    #[export] Instance Equal_Equivalence: RelationClasses.Equivalence Equal.
+    Proof.
+      constructor. - apply Equal_Reflexive. - apply Equal_Symmetric. - apply Equal_Transitive.
+    Defined.
+
     Lemma singleton_in_elements: forall c, List.In c (elements (singleton c)).
     Proof.
       intro c. rewrite elements_spec1, singleton_spec. reflexivity.
