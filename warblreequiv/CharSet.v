@@ -1,5 +1,6 @@
 From Warblre Require Import Parameters Result RegExpRecord Typeclasses.
 From Coq Require Import List.
+From Linden Require Import Tactics.
 Import ListNotations.
 
 Module CharSetExt.
@@ -31,6 +32,7 @@ Module CharSetExt.
           exist_canonicalized rer s c = exist s (fun c': Character => (Character.canonicalize rer c' ==? c)%wt);
 
         (* Predicates and extra properties *)
+        (* Inspired by Coq.MSets.MSetInterface, unless specified otherwise *)
         In: Character -> type -> Prop;
         Equal s1 s2 := forall c, In c s1 <-> In c s2;
         Empty s := forall c, ~In c s;
@@ -45,9 +47,9 @@ Module CharSetExt.
         contains_spec: forall c s, contains s c = true <-> In c s;
         range_spec: forall c l h, In c (range l h) <-> Character.numeric_value l <= Character.numeric_value c /\ Character.numeric_value c <= Character.numeric_value h; (* custom *)
         unique_succ_spec: forall {F: Type} `{_: Result.AssertionError F} (c: Character) (s: type),
-          unique s = Success c <-> Equal s (singleton c);
+          unique s = Success c <-> Equal s (singleton c); (* custom *)
         unique_succ_error: forall {F: Type} {H: Result.AssertionError F} (s: type),
-          (exists c, unique s = Success c) \/ unique s = Error (@Result.f F H);
+          (exists c, unique s = Success c) \/ unique s = Error (@Result.f F H); (* custom *)
         filter_spec: forall f c s,
           In c (filter s f) <-> In c s /\ f c = true;
         exist_spec: forall f s,
@@ -60,14 +62,54 @@ Module CharSetExt.
   Section Lemmas.
     Context `{charSetExtClass: class}.
 
+    Lemma singleton_in_elements: forall c, List.In c (elements (singleton c)).
+    Proof.
+      intro c. rewrite elements_spec1, singleton_spec. reflexivity.
+    Qed.
+
+    Lemma singleton_in_elements_only: forall c c', List.In c' (elements (singleton c)) -> c' = c.
+    Proof.
+      intros c c' Hin. rewrite elements_spec1, singleton_spec in Hin. congruence.
+    Qed.
+    
+    Lemma singleton_elements: forall c, elements (singleton c) = [c].
+    Proof.
+      intros c. destruct (elements (singleton c)) as [|x l] eqn:Heqelts.
+      - pose proof singleton_in_elements c as Hin. rewrite Heqelts in Hin. inversion Hin.
+      - pose proof singleton_in_elements c as Hin. pose proof singleton_in_elements_only c as Hinonly. rewrite Heqelts in Hinonly.
+        assert (Hxc: x = c). {
+          apply Hinonly. constructor. reflexivity.
+        }
+        subst x.
+        pose proof elements_spec2 (singleton c) as Hnodup. rewrite Heqelts in Hnodup.
+        inversion Hnodup as [|x l0 Hnotintl Hnoduptl Heqx]. subst x l0.
+        destruct l as [|x l']. 1: reflexivity.
+        assert (Hxc: x = c). {
+          apply Hinonly. constructor; constructor; reflexivity.
+        }
+        exfalso. apply Hnotintl. subst x. constructor; reflexivity.
+    Qed.
+
     Lemma singleton_size: forall c, size (singleton c) = 1.
     Proof.
-    Admitted.
+      intro c.
+      rewrite size_spec.
+      replace (elements (singleton c)) with [c].
+      2: { symmetry. apply singleton_elements. }
+      reflexivity.
+    Qed.
 
     Lemma singleton_exist: forall c p, exist (singleton c) p = p c.
-    Admitted.
+    Proof.
+      intros c p. apply Bool.eq_true_iff_eq.
+      rewrite exist_spec. unfold Exists. split.
+      - intros [c0 [Hin Hp]]. rewrite singleton_spec in Hin. subst c0. apply Hp.
+      - intro Hp. exists c. split. + now apply singleton_spec. + apply Hp.
+    Qed.
 
     Lemma singleton_unique: forall {F: Type} {af: Result.AssertionError F} c, @unique _ _ F af (singleton c) = Success c.
-    Admitted.
+    Proof.
+      intros F af c. apply unique_succ_spec. unfold Equal. reflexivity.
+    Qed.
   End Lemmas.
 End CharSetExt.
