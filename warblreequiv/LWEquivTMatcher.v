@@ -1,7 +1,7 @@
 From Coq Require Import Lia PeanoNat ZArith List.
 Import ListNotations.
 From Linden Require Import LWEquivTMatcherDef LWEquivTMatcherLemmas TMatching
-  LindenParameters Tree Chars TreeMSInterp ListLemmas MSInput Tactics LKFactorization.
+  LindenParameters Tree Chars TreeMSInterp ListLemmas MSInput Tactics LKFactorization CharSet.
 From Warblre Require Import Result Notation Base Semantics Coercions
   Errors Patterns Node RegExpRecord.
 Import Notation.
@@ -132,7 +132,7 @@ Section LWEquivTMatcher.
     set (Z.min _ _) as index.
     remember (List.List.Indexing.Int.indexing _ _) as readchr.
     destruct readchr as [readchr|]; simpl. 2: constructor.
-    set (CharSet.exist_canonicalized _ _ _) as read_matches.
+    set (CharSetExt.exist_canonicalized _ _ _) as read_matches.
     destruct ((if invert then false else true) && _); simpl. 1: constructor; reflexivity.
     destruct ((if invert then true else false) && _); simpl. 1: constructor; reflexivity.
     remember (match_state _ _ _) as ms'.

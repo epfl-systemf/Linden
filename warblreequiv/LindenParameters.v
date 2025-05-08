@@ -112,59 +112,13 @@ Section LindenParameters.
       Parameters.string_marker := string_marker;
       Parameters.unicode_property_marker := empty_unicode_marker
     |}.
+  
 
-  (* Lemmas following from above axioms *)
-  (*Lemma charset_exist_false_iff:
-    forall (s: CharSet) (f: Character -> bool),
-      CharSet.exist s f = false <-> forall c: Character, CharSet.contains s c = false \/ f c = false.
+  (* Some lemmas *)
+  Lemma contains_all:
+    forall c, CharSet.contains Characters.all c = true.
   Proof.
-    intros s f. split.
-    - intros H c. destruct CharSet.contains eqn:Hcontains; destruct f eqn:Hfilter; auto.
-      assert (exists c, CharSet.contains s c = true /\ f c = true) as Hexist. { exists c. auto. }
-      rewrite <- charset_exist_iff in Hexist. congruence.
-    - intro H. destruct CharSet.exist eqn:Hexist; auto.
-      rewrite charset_exist_iff in Hexist. destruct Hexist as [c [Hcontains Hfilter]].
-      specialize (H c). destruct H; congruence.
+    intro c. setoid_rewrite CharSetExt.contains_spec. setoid_rewrite CharSetExt.from_list_spec. apply char_all_in.
   Qed.
-
-  Lemma charset_from_list_contains_inb: forall (c: Character) (l: list Character), CharSet.contains (CharSet.from_list l) c = inb c l.
-  Proof.
-    intros c l.
-    apply <- Bool.eq_iff_eq_true. rewrite inb_spec. apply charset_from_list_contains.
-  Qed.
-
-  Lemma charset_union_empty:
-    forall s, CharSet.union s CharSet.empty = s.
-  Proof.
-    intro s. apply <- charset_ext. intro c.
-    rewrite charset_union_contains, charset_empty_contains. apply Bool.orb_false_r.
-  Qed.
-
-  Lemma charset_contains_singleton_self:
-    forall c, CharSet.contains (CharSet.singleton c) c = true.
-  Proof.
-    intro c.
-    set (p := fun chr => (chr ==? c)%wt).
-    assert (Hexist: CharSet.exist (CharSet.singleton c) p = true). {
-      rewrite CharSet.singleton_exist. unfold p. apply EqDec.reflb.
-    }
-    rewrite charset_exist_iff in Hexist. destruct Hexist as [chr [Hcontains Heq]].
-    unfold p in Heq. rewrite EqDec.inversion_true in Heq. subst chr. assumption.
-  Qed.
-
-
-  Lemma charset_contains_singleton:
-    forall c chr, CharSet.contains (CharSet.singleton c) chr = (chr ==? c)%wt.
-  Proof.
-    intros c chr.
-    apply Bool.eq_true_iff_eq. split.
-    - intro Hcontains. set (f := fun c' => (chr ==? c')%wt).
-      assert (H: exists chr0, CharSet.contains (CharSet.singleton c) chr0 = true /\ f chr0 = true). {
-        exists chr. split; auto. unfold f. apply EqDec.reflb.
-      }
-      rewrite <- charset_exist_iff in H. rewrite CharSet.singleton_exist in H.
-      apply H.
-    - intro Heq. rewrite EqDec.inversion_true in Heq. subst chr. apply charset_contains_singleton_self.
-  Qed.*)
 
 End LindenParameters.
