@@ -1,7 +1,9 @@
 From Warblre Require Import Parameters Result RegExpRecord Typeclasses.
 From Coq Require Import List.
-From Linden Require Import Tactics.
+From Linden Require Import Tactics Utils.
 Import ListNotations.
+
+Local Open Scope bool_scope.
 
 Module CharSetExt.
   Class class `{Character.class}: Type :=
@@ -62,6 +64,7 @@ Module CharSetExt.
   Section Lemmas.
     Context `{charSetExtClass: class}.
 
+    (** *** Equal is an equivalence relation. *)
     #[export] Instance Equal_Reflexive: RelationClasses.Reflexive Equal.
     Proof.
       unfold RelationClasses.Reflexive. intros x c. reflexivity.
@@ -82,6 +85,116 @@ Module CharSetExt.
     Proof.
       constructor. - apply Equal_Reflexive. - apply Equal_Symmetric. - apply Equal_Transitive.
     Defined.
+
+    (** *** Useful lemmas *)
+    Lemma contains_false_iff:
+      forall c s, contains s c = false <-> ~In c s.
+    Proof.
+      intros c s. split; intro H0.
+      - intro Habs. rewrite <- contains_spec in Habs. congruence.
+      - destruct (contains s c) eqn:Hcontains; try reflexivity.
+        rewrite contains_spec in Hcontains. contradiction.
+    Qed.
+
+    Lemma empty_contains:
+      forall c, contains empty c = false.
+    Proof.
+      intro c. apply contains_false_iff. apply empty_spec.
+    Qed.
+
+    Lemma from_list_contains:
+      forall (c: Character) (l: list Character), contains (from_list l) c = true <-> List.In c l.
+    Proof.
+      intros c l. rewrite contains_spec. apply from_list_spec.
+    Qed.
+
+    Lemma union_contains:
+      forall (c: Character) (s t: type),
+        contains (union s t) c = contains s c || contains t c.
+    Proof.
+      intros c s t. apply Bool.eq_true_iff_eq.
+      rewrite Bool.orb_true_iff.
+      do 3 rewrite contains_spec. apply union_spec.
+    Qed.
+
+    Lemma remove_all_contains:
+      forall (c: Character) (s t: type),
+        contains (remove_all s t) c = contains s c && negb (contains t c).
+    Proof.
+      intros c s t. apply Bool.eq_true_iff_eq.
+      rewrite Bool.andb_true_iff.
+      rewrite Bool.negb_true_iff. do 2 rewrite contains_spec. rewrite contains_false_iff.
+      apply remove_all_spec.
+    Qed.
+
+    Lemma filter_contains:
+    forall (s: type) (f: Character -> bool) (c: Character),
+      contains (filter s f) c = contains s c && f c.
+    Proof.
+      intros s f c. apply Bool.eq_true_iff_eq.
+      rewrite Bool.andb_true_iff.
+      do 2 rewrite contains_spec.
+      apply filter_spec.
+    Qed.
+
+    Lemma exist_iff:
+    forall (s: type) (f: Character -> bool),
+      exist s f = true <-> exists c: Character, contains s c = true /\ f c = true.
+    Proof.
+      intros s f. rewrite exist_spec. unfold Exists.
+      split; intros [c H0].
+      - exists c. rewrite contains_spec. apply H0.
+      - exists c. rewrite <- contains_spec. apply H0.
+    Qed.
+
+    (* Lemmas following from above lemmas *)
+    Lemma exist_false_iff:
+      forall (s: type) (f: Character -> bool),
+        exist s f = false <-> forall c: Character, contains s c = false \/ f c = false.
+    Proof.
+      intros s f. split.
+      - intros H0 c. destruct contains eqn:Hcontains; destruct f eqn:Hfilter; auto.
+        assert (exists c, contains s c = true /\ f c = true) as Hexist. { exists c. auto. }
+        rewrite <- exist_iff in Hexist. congruence.
+      - intro H0. destruct exist eqn:Hexist; auto.
+        rewrite exist_iff in Hexist. destruct Hexist as [c [Hcontains Hfilter]].
+        specialize (H0 c). destruct H0; congruence.
+    Qed.
+
+    Lemma from_list_contains_inb: forall (c: Character) (l: list Character), contains (from_list l) c = List.inb c l.
+    Proof.
+      intros c l.
+      apply <- Bool.eq_iff_eq_true. rewrite List.inb_spec. apply from_list_contains.
+    Qed.
+
+    Lemma union_empty:
+      forall s, Equal (union s empty) s.
+    Proof.
+      intros s c.
+      rewrite union_spec.
+      pose proof empty_spec c. tauto.
+    Qed.
+
+    Lemma contains_singleton_self:
+      forall c, contains (singleton c) c = true.
+    Proof.
+      intro c. rewrite contains_spec, singleton_spec. reflexivity.
+    Qed.
+
+
+    Lemma contains_singleton:
+      forall c chr, contains (singleton c) chr = (chr ==? c)%wt.
+    Proof.
+      intros c chr.
+      apply Bool.eq_true_iff_eq. split.
+      - intro Hcontains. rewrite contains_spec, singleton_spec in Hcontains. subst chr. apply EqDec.reflb.
+      - intro Heq. rewrite EqDec.inversion_true in Heq. subst chr. apply contains_singleton_self.
+    Qed.
+
+
+
+    
+    (** *** Lemmas required by Warblre's CharSet typeclass. *)
 
     Lemma singleton_in_elements: forall c, List.In c (elements (singleton c)).
     Proof.

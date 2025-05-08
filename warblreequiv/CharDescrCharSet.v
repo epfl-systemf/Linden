@@ -1,4 +1,4 @@
-From Linden Require Import Chars LindenParameters RegexpTranslation WarblreLemmas.
+From Linden Require Import Chars LindenParameters RegexpTranslation WarblreLemmas CharSet.
 From Warblre Require Import Parameters Semantics Result Patterns RegExpRecord.
 Import Result.Notations.
 Import Patterns.
@@ -15,9 +15,11 @@ Section CharDescrCharSet.
   Lemma equiv_cd_inv:
     forall cd s, equiv_cd_charset cd s -> equiv_cd_charset (CdInv cd) (CharSet.remove_all Characters.all s).
   Proof.
-    intros cd s H c.
-    rewrite charset_remove_all_contains. simpl. specialize (H c).
-    unfold Characters.all, Character.all. simpl. setoid_rewrite charset_from_list_contains_inb. setoid_rewrite char_all_inb. simpl. now f_equal.
+    intros cd s H c. specialize (H c).
+    simpl. apply Bool.eq_true_iff_eq. rewrite H.
+    setoid_rewrite CharSetExt.contains_spec. rewrite CharSetExt.remove_all_spec. rewrite Bool.negb_true_iff. setoid_rewrite CharSetExt.contains_false_iff.
+    setoid_rewrite CharSetExt.from_list_spec.
+    pose proof char_all_in c as Hcall. tauto.
   Qed.
 
   (* Lemma for character descriptor union *)
