@@ -1,5 +1,5 @@
 From Warblre Require Import Parameters Typeclasses RegExpRecord Patterns Result Errors.
-From Linden Require Import Chars Utils.
+From Linden Require Import Chars Utils CharSet.
 From Coq Require Import List.
 Import ListNotations.
 Import Result.Notations.
@@ -71,8 +71,35 @@ Section LindenParameters.
   #[export] Instance empty_unicode_marker: UnicodePropertyMarker NoProperty := mk_unicode_property_marker NoProperty.
 
 
-  (** ** Parameters typeclass *)
-  Parameter linden_set_class: @CharSet.class characterClass.
+  (** ** CharSets *)
+  Parameter charsetext_class: @CharSetExt.class characterClass.
+  Instance charsetext_classinst: CharSetExt.class := charsetext_class.
+
+  #[export,refine] Instance linden_set_class: CharSet.class :=
+    {|
+      CharSet.type := CharSetExt.type;
+      CharSet.empty := CharSetExt.empty;
+      CharSet.from_list := CharSetExt.from_list;
+      CharSet.union := CharSetExt.union;
+      CharSet.singleton := CharSetExt.singleton;
+      CharSet.size := CharSetExt.size;
+      CharSet.remove_all := CharSetExt.remove_all;
+      CharSet.is_empty := CharSetExt.is_empty;
+      CharSet.contains := CharSetExt.contains;
+      CharSet.range := CharSetExt.range;
+      CharSet.unique := @CharSetExt.unique _ _;
+      CharSet.filter := CharSetExt.filter;
+      CharSet.exist := CharSetExt.exist;
+      CharSet.exist_canonicalized := CharSetExt.exist_canonicalized;
+      CharSet.exist_canonicalized_equiv := CharSetExt.exist_canonicalized_equiv
+    |}.
+  Proof.
+    - apply CharSetExt.singleton_size.
+    - apply CharSetExt.singleton_exist.
+    - apply @CharSetExt.singleton_unique.
+  Defined.
+
+  (** ** Parameters class *)
 
   #[export] Instance LindenParameters: Parameters := {|
       Parameters.character_class := characterClass;
@@ -86,34 +113,8 @@ Section LindenParameters.
       Parameters.unicode_property_marker := empty_unicode_marker
     |}.
 
-
-  (** ** Axiomatization of CharSet *)
-  Axiom charset_empty_contains: forall c: Character, CharSet.contains CharSet.empty c = false.
-  Axiom charset_from_list_contains: forall (c: Character) (l: list Character), CharSet.contains (CharSet.from_list l) c = true <-> In c l.
-  Axiom charset_union_contains: forall (c: Character) (s t: CharSet), CharSet.contains (CharSet.union s t) c = CharSet.contains s c || CharSet.contains t c.
-  (* Singleton? *)
-  (* Size? *)
-  Axiom charset_remove_all_contains: forall (c: Character) (s t: CharSet), CharSet.contains (CharSet.remove_all s t) c = CharSet.contains s c && negb (CharSet.contains t c).
-  Axiom charset_is_empty_iff: forall s: CharSet, CharSet.is_empty s = true <-> s = CharSet.empty.
-  (* Range? *)
-  Axiom charset_unique_iff:
-    forall {F: Type} {af: Result.AssertionError F} (s: CharSet) (c: Character),
-      @CharSet.unique _ _ F af s = Success c <-> forall c': Character, CharSet.contains s c' = true <-> c' = c.
-  Axiom charset_filter_contains:
-    forall (s: CharSet) (f: Character -> bool) (c: Character),
-      CharSet.contains (CharSet.filter s f) c = CharSet.contains s c && f c.
-  Axiom charset_exist_iff:
-    forall (s: CharSet) (f: Character -> bool),
-      CharSet.exist s f = true <-> exists c: Character, CharSet.contains s c = true /\ f c = true.
-
-  (* Do we need extensionality? *)
-  Axiom charset_ext:
-    forall s t: CharSet,
-      s = t <-> forall c: Character, CharSet.contains s c = CharSet.contains t c.
-
-
   (* Lemmas following from above axioms *)
-  Lemma charset_exist_false_iff:
+  (*Lemma charset_exist_false_iff:
     forall (s: CharSet) (f: Character -> bool),
       CharSet.exist s f = false <-> forall c: Character, CharSet.contains s c = false \/ f c = false.
   Proof.
@@ -164,6 +165,6 @@ Section LindenParameters.
       rewrite <- charset_exist_iff in H. rewrite CharSet.singleton_exist in H.
       apply H.
     - intro Heq. rewrite EqDec.inversion_true in Heq. subst chr. apply charset_contains_singleton_self.
-  Qed.
+  Qed.*)
 
 End LindenParameters.
