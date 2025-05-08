@@ -73,7 +73,7 @@ Section LindenParameters.
 
   (** ** CharSets *)
   Parameter charsetext_class: @CharSetExt.class characterClass.
-  Instance charsetext_classinst: CharSetExt.class := charsetext_class.
+  #[export] Instance charsetext_classinst: CharSetExt.class := charsetext_class.
 
   #[export,refine] Instance linden_set_class: CharSet.class :=
     {|
