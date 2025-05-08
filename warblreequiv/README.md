@@ -21,7 +21,7 @@ The development is organized as follows:
 - LWEquivTree.v: second part of the proof, where we prove that the trees returned by the tree matchers follow the semantics set out in this repository.
   - LWEquivTreeLemmas.v: lemmas used (exclusively) for proving the theorems in this part
   
-- LWEquivFrontend.v: an end-to-end theorem expressing that for any regex and input, the two semantics yield the same results.
+- LWEquivMain.v: an end-to-end theorem expressing that for any regex and input, the two semantics yield the same results.
 
 ## Other important files
 
@@ -31,7 +31,11 @@ The development is organized as follows:
 
 ## Auxiliary files
 
+- CharDescrCharSet.v: equivalence between character descriptors and CharSets
+- CharSet.v: Warblre's axiomatized CharSets, but with more axioms
 - LindenParameters.v: we instantiate the Warblre typeclasses (https://github.com/epfl-systemf/Warblre/blob/main/mechanization/spec/Parameters.v ) to be able to use the character axiomatization of Linden in Warblre.
 - ListLemmas.v, WarblreLemmas.v: lemmas used in proofs
+- LKFactorization.v: factorization of lookaround cases of regexp compilation in Warblre
 - MSInput.v: linking Warblre MatchStates and Linden inputs
 - Tactics.v: custom tactics used in the proofs
+
