@@ -71,11 +71,15 @@ Section RegexpTranslation.
   | Equiv_esc_n: equiv_ControlEscape Patterns.esc_n (CdSingle Characters.LINE_FEED)
   | Equiv_esc_r: equiv_ControlEscape Patterns.esc_r (CdSingle Characters.CARRIAGE_RETURN)
   | Equiv_esc_t: equiv_ControlEscape Patterns.esc_t (CdSingle Characters.CHARACTER_TABULATION)
-  | Equiv_esc_v: equiv_ControlEscape Patterns.esc_v (CdSingle Characters.LINE_TABULATION). (* TODO *)
+  | Equiv_esc_v: equiv_ControlEscape Patterns.esc_v (CdSingle Characters.LINE_TABULATION).
 
   (* AsciiControlEsc *)
   Inductive equiv_asciiesc: AsciiLetter -> char_descr -> Prop :=
-  . (* TODO *)
+  | Equiv_asciiesc:
+    forall l n,
+      n = NonNegInt.modulo (AsciiLetter.numeric_value l) 32 ->
+      equiv_asciiesc l (CdSingle (Character.from_numeric_value n))
+  .
 
   (* CharacterEscape *)
   Inductive equiv_CharacterEscape: Patterns.CharacterEscape -> char_descr -> Prop :=
@@ -94,7 +98,7 @@ Section RegexpTranslation.
   | Equiv_CCharacterEsc: forall esc cd, equiv_CharacterEscape esc cd -> equiv_ClassEscape (Patterns.CCharacterEsc esc) cd.
 
   Inductive equiv_ClassAtom: Patterns.ClassAtom -> char_descr -> Prop :=
-  | Equiv_SourceCharacter: forall c: Parameters.Character, equiv_ClassAtom (Patterns.SourceCharacter c) (CdSingle c) (* TODO Check *)
+  | Equiv_SourceCharacter: forall c: Parameters.Character, equiv_ClassAtom (Patterns.SourceCharacter c) (CdSingle c)
   | Equiv_ClassEsc: forall esc cd, equiv_ClassEscape esc cd -> equiv_ClassAtom (Patterns.ClassEsc esc) cd.
 
   Inductive equiv_ClassRanges: Patterns.ClassRanges -> char_descr -> Prop :=

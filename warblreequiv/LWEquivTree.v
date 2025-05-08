@@ -479,7 +479,9 @@ Section LWEquivTree.
     2: { (* Absurd *) inversion H; subst; discriminate. }
     inversion Hequiv' as [controlesc cd0 Hequiv'' Heqesc Heqcd0 | l cd0 Hequiv'' Heqesc Heqcd0 | Heqesc Heqcd].
     - inversion Hequiv'' as [Heqcontrolesc Heqcd | Heqcontrolesc Heqcd | Heqcontrolesc Heqcd | Heqcontrolesc Heqcd | Heqcontrolesc Heqcd]; simpl; intro H; injection H as H; eapply charSetMatcher_noninv_bt; eauto; unfold nat_to_nni; rewrite Character.numeric_pseudo_bij; apply equiv_cd_single.
-    - inversion Hequiv''. (* TODO Ascii letter escape *)
+    - inversion Hequiv'' as [l0 i Heqi Heql0 Heqcd].
+      simpl. rewrite <- Heqi. intro H. injection H as <-.
+      eapply charSetMatcher_noninv_bt; eauto. apply equiv_cd_single.
     - simpl; intro H; injection H as H; eapply charSetMatcher_noninv_bt; eauto; unfold nat_to_nni; rewrite Character.numeric_pseudo_bij; apply equiv_cd_single.
   Qed.
 
