@@ -53,7 +53,6 @@ Lemma seqop_assoc:
 Proof. intros. unfold seqop. destruct o1; destruct o2; auto. Qed.
 
 (** * Priority Trees  *)
-(* TODO Direction *)
 
 
 
@@ -112,14 +111,6 @@ Section Tree.
     then Choice t1 t2
     else Choice t2 t1.
 
-  (** * Group action on a group map *)
-  Definition group_effect (a: groupaction) (gm: group_map) (idx: nat): group_map :=
-    match a with
-    | Open gid => open_group gm gid idx
-    | Close gid => close_group gm gid idx
-    | Reset gidl => reset_groups gm gidl
-    end.
-
   (** * Tree Results  *)
 
   Definition leaf: Type := (group_map).
@@ -135,7 +126,7 @@ Section Tree.
     | Read c t1 => tree_res t1 gm (idx + 1)
     | CheckFail _ => None
     | CheckPass _ t1 => tree_res t1 gm idx
-    | GroupAction g t1 => tree_res t1 (group_effect g gm idx) idx
+    | GroupAction g t1 => tree_res t1 (GroupMap.update idx g gm) idx
     | LK lk tlk t1 =>
         match (positivity lk) with
         | true => 
@@ -158,7 +149,7 @@ Section Tree.
 
   (* initializing on a the empty group map *)
   Definition first_branch (t:tree) : option leaf :=
-    tree_res t empty_group_map 0.
+    tree_res t GroupMap.empty 0.
 
   (** * All Tree Results *)
 
@@ -173,7 +164,7 @@ Section Tree.
     | Read c t1 => tree_leaves t1 gm (idx + 1)
     | CheckFail _ => []
     | CheckPass _ t1 => tree_leaves t1 gm idx
-    | GroupAction g t1 => tree_leaves t1 (group_effect g gm idx) idx
+    | GroupAction g t1 => tree_leaves t1 (GroupMap.update idx g gm) idx
     | LK lk tlk t1 =>
         match (positivity lk) with (* Do we want to explore all the branches of the lookahead tree that succeed? *)
         | true =>
