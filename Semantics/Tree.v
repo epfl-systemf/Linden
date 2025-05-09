@@ -55,11 +55,6 @@ Proof. intros. unfold seqop. destruct o1; destruct o2; auto. Qed.
 (** * Priority Trees  *)
 (* TODO Direction *)
 
-Inductive groupaction : Type :=
-| Open (g:group_id)
-| Close (g:group_id)
-| Reset (gl:list group_id) (* for capture reset *)
-.
 
 
 Section Tree.

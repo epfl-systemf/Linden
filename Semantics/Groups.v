@@ -3,49 +3,84 @@
 
 Require Import List Lia.
 Import ListNotations.
+Require Import MSetList OrdersAlt PeanoNat FMapList.
 
 
 From Linden Require Import Chars.
 
-Definition group_id : Type := nat.
+(** * Group Manipulation  *)
 
-(* Storing the values of each group and a function indicating if each group is opened or closed *)
-Parameter group_map: Type.
-Parameter empty_group_map : group_map.
+Module GroupId <: OrderedTypeWithLeibniz.
+  Include Nat.
+  Lemma eq_leibniz : forall x y, Nat.eq x y -> x = y. Proof. trivial. Qed.
+End GroupId.
+Definition group_id : Type := GroupId.t.
 
-Parameter open_group: group_map -> group_id -> nat -> group_map.
-Parameter close_group: group_map -> group_id -> nat -> group_map.
-Parameter reset_group: group_map -> group_id -> group_map.
+(** ** Group Sets *)
 
-Definition reset_groups (g:group_map) (idl:list group_id) : group_map :=
-  List.fold_left reset_group idl g.
+Definition group_set : Type := list group_id.
 
-Parameter get_begin : group_map -> group_id -> option nat.
-Parameter get_end : group_map -> group_id -> option nat.
+(** ** Group actions *)
+(* The possible operations done on group maps during matching *)
+Inductive groupaction : Type :=
+| Open (g: group_id)
+| Close (g: group_id)
+| Reset (gl: group_set) (* for capture reset *)
+.
 
+(** ** Group Maps *)
 
-(** * Axiomatisation  *)
+(* Partial-Maps from group ids to captures *)
+Module GroupMap.
 
-Axiom empty_none_begin:
-  forall gid, get_begin empty_group_map gid = None.
+  (* Capture groups are represented by their range in the matched string. *)
+  (* The start and end indices are inclusive and exclusive respectively. *)
+  (* A group is considered open when it has no end index, and closed o.w. *)
+  Record range : Type := Range { startIdx : nat; endIdx : option nat }.
 
-Axiom empty_none_end:
-  forall gid, get_end empty_group_map gid = None.
+  Definition OpenRange (startIdx : nat) : range :=
+    Range startIdx None.
+  Definition CloseRange (endIdx : nat) '(Range startIdx _) : range :=
+    Range startIdx (Some endIdx).
 
-Axiom group_open_begin:
-  forall gid idx gm, get_begin (open_group gm gid idx) gid = Some idx.
+  Module MapS <: FMapInterface.S.
+    Module GroupId' <: OrderedTypeOrig := OrdersAlt.Backport_OT GroupId.
+    Include FMapList.Make GroupId'.
+  End MapS.
+  Definition t := MapS.t range.
 
-Axiom group_close_end:
-  forall gid idx gm, get_end (close_group gm gid idx) gid = Some idx.
+  Definition empty : t := MapS.empty range.
 
-Axiom get_reset_begin:
-  forall gid gm, get_begin (reset_group gm gid) gid = None.
+  Definition find : group_id -> t -> option range := MapS.find (elt := range).
 
-Axiom get_reset_end:
-  forall gid gm, get_end (reset_group gm gid) gid = None.
+  Section ops.
+    Variable currIdx : nat. (* The current index in the string being matched *)
 
-Axiom get_other_begin_open:
-  forall gid1 gid2 gm idx,
-    gid1 <> gid2 ->
-    get_begin (open_group gm gid1 idx) gid2 = get_begin gm gid2.
-(* TODO: and so many more like this *)
+    Definition open (gid : group_id) : t -> t :=
+      MapS.add gid (Range currIdx None).
+
+    (* Assumes, but does not check, the g is associated to an open range *)
+    Definition close (gid : group_id) (gm : t) : t :=
+      match find gid gm with
+      | Some (Range startIdx _) => MapS.add gid (Range startIdx (Some currIdx)) gm
+      | None => gm
+      end.
+
+    Definition reset : group_set -> t -> t :=
+      List.fold_left (fun s gid => MapS.remove (elt := range) gid s).
+
+    Definition update (op : groupaction) : t -> t :=
+      match op with
+      | Open g => open g
+      | Close g => close g
+      | Reset gs => reset gs
+      end.
+
+  End ops.
+
+  Axiom eq_dec : forall gm1 gm2 : t, { gm1 = gm2 } + { gm1 <> gm2 }.
+  (* used in state_eq_dec, which is used in equiv_matches *)
+  (* to decide between applying equiv_matches_not_seen, or the others. *)
+
+End GroupMap.
+Definition group_map : Type := GroupMap.t.
