@@ -1,4 +1,4 @@
-From Linden Require Import LWEquivTMatcherDef TreeMSInterp Tree LindenParameters ListLemmas.
+From Linden Require Import LWEquivTMatcherDef TreeMSInterp Tree LindenParameters ListLemmas WarblreLemmas.
 From Warblre Require Import Result Notation Base Errors Parameters List.
 Import Notation.
 Import Result.Notations.
@@ -105,7 +105,7 @@ Section LWEquivTMatcherLemmas.
     intros ms ms_reset parenIndex parenCount cap' Heqms_reset Hupdatesucc.
     unfold reset_groups_ms.
     destruct ms.
-    rewrite <- List.List.Range.Nat.Length.range_seq.
+    rewrite <- range_seq.
     unfold List.List.Range.Nat.Bounds.range in Hupdatesucc.
     rewrite decr_range by lia.
     replace (parenIndex + parenCount + 1 - 1 - (parenIndex + 1 - 1)) with parenCount in Hupdatesucc by lia.

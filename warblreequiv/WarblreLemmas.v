@@ -16,6 +16,16 @@ Proof.
   apply H.
 Qed.
 
+Lemma range_seq: forall base l, List.List.Range.Nat.Length.range base l = Coq.Lists.List.seq base l.
+Proof.
+  intros base l.
+  revert base.
+  induction l as [|l IHl].
+  - simpl. reflexivity.
+  - intro base. simpl. f_equal. replace (base + 1)%nat with (S base) by lia.
+    apply IHl.
+Qed.
+
 
 (* Generalization of Warblre.props.StrictlyNullable.capture_reset_preserve_validity to arbitrary parenthesis indexes and counts.
    Any successful capture reset preserves validity of MatchStates.*)
