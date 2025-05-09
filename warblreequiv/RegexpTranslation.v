@@ -86,7 +86,8 @@ Section RegexpTranslation.
   | Equiv_ControlEsc: forall esc cd, equiv_ControlEscape esc cd -> equiv_CharacterEscape (Patterns.ControlEsc esc) cd
   | Equiv_AsciiControlEsc: forall l cd, equiv_asciiesc l cd -> equiv_CharacterEscape (Patterns.AsciiControlEsc l) cd
   | Equiv_esc_Zero: equiv_CharacterEscape Patterns.esc_Zero (CdSingle (Character.from_numeric_value 0))
-  (* | Equiv_HexEscape: TODO | Equiv_UnicodeEsc: TODO | Equiv_IdentityEsc: TODO *)
+  | Equiv_HexEscape: forall d1 d2: HexDigit, equiv_CharacterEscape (Patterns.HexEscape d1 d2) (CdSingle (Character.from_numeric_value (HexDigit.to_integer_2 d1 d2)))
+  (* | Equiv_UnicodeEsc: TODO | Equiv_IdentityEsc: TODO *)
   .
 
 

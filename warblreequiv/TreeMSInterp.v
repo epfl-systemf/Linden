@@ -41,7 +41,6 @@ Fixpoint close_group (id: Groups.group_id) (gl: open_groups) end_index: CaptureR
       (range, (id', ind, dir)::q')
   end.
 
-(* TODO Direction *)
 (* Apply the given group action to the extended match state composed of a MatchState and a list of open groups with
    opening indices.
    If we try to close a nonexisting group or clear nonexisting capture ranges, do nothing. *)
@@ -70,7 +69,6 @@ Definition group_effect' {F H} `{CharacterMarker H} `{Result.AssertionError F} (
 Section TreeMSInterp.
   Context `{characterClass: Character.class}.
   
-  (* TODO Direction *)
   (* Given a sub-backtracking tree and an extended match state, retrieve the highest priority result represented
      by the subtree. *)
   Fixpoint tree_res' {F} `{Result.AssertionError F} (t:tree) (s: MatchState) (gl: open_groups) (dir: Direction): option MatchState :=

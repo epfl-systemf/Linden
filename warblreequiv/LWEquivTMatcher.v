@@ -16,7 +16,6 @@ Local Open Scope bool_scope.
 (** * First part of equivalence proof: Warblre's matchers and the corresponding tree matchers yield equivalent results *)
 (* This file contains the theorems stating the first part of the equivalence.
    The equivalence itself is defined in LWEquivTMatcherDef.v. *)
-(* TODO Zero group *)
 
 Section LWEquivTMatcher.
   Context `{characterClass: Character.class}.
