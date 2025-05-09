@@ -57,7 +57,9 @@ Module CharSetExt.
         exist_spec: forall f s,
           exist s f = true <-> Exists (fun c => f c = true) s;
         elements_spec1: forall c s, List.In c (elements s) <-> In c s;
-        elements_spec2: forall s, NoDup (elements s)
+        elements_spec2: forall s, NoDup (elements s);
+
+        canonicity: forall s1 s2: type, s1 = s2 <-> Equal s1 s2
       }.
   Notation CharSetExt := CharSetExt.type.
 
@@ -167,12 +169,19 @@ Module CharSetExt.
       apply <- Bool.eq_iff_eq_true. rewrite List.inb_spec. apply from_list_contains.
     Qed.
 
-    Lemma union_empty:
+    Lemma union_empty_Equal:
       forall s, Equal (union s empty) s.
     Proof.
       intros s c.
       rewrite union_spec.
       pose proof empty_spec c. tauto.
+    Qed.
+
+    Lemma union_empty:
+      forall s, union s empty = s.
+    Proof.
+      intro s.
+      apply canonicity. apply union_empty_Equal.
     Qed.
 
     Lemma contains_singleton_self:

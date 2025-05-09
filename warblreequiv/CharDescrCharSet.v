@@ -106,11 +106,11 @@ Section CharDescrCharSet.
     - apply equiv_cd_inv. apply equiv_cd_digits.
     - apply equiv_cd_whitespace.
     - apply equiv_cd_inv. apply equiv_cd_whitespace.
-    - pose proof wordCharacters_casesenst rer Hcasesenst. unfold Semantics.wordCharacters, Coercions.Coercions.wrap_CharSet in H. simpl in H.
-      destruct H as [s [Heqs Hequal]]. injection Heqs as <-. admit. (* setoid_rewrite H. apply equiv_cd_wordchar. *)
-    - apply equiv_cd_inv. pose proof wordCharacters_casesenst rer Hcasesenst. unfold Semantics.wordCharacters, Coercions.Coercions.wrap_CharSet in H. simpl in H.
-      destruct H as [s [Heqs Hequal]]. injection Heqs as <-. admit. (* setoid_rewrite H. apply equiv_cd_wordchar. *)
-  Admitted.
+    - pose proof wordCharacters_casesenst_eq rer Hcasesenst. unfold Semantics.wordCharacters, Coercions.Coercions.wrap_CharSet in H. simpl in H.
+      injection H as H. setoid_rewrite H. apply equiv_cd_wordchar.
+    - apply equiv_cd_inv. pose proof wordCharacters_casesenst_eq rer Hcasesenst. unfold Semantics.wordCharacters, Coercions.Coercions.wrap_CharSet in H. simpl in H.
+      injection H as H. setoid_rewrite H. apply equiv_cd_wordchar.
+  Qed.
 
   (* Lemma for ControlEscapes *)
   Lemma equiv_cd_ControlEscape:
@@ -193,13 +193,12 @@ Section CharDescrCharSet.
       unfold Semantics.characterRange.
       pose proof equiv_cd_singleton_invn cl A Hequivatoml as HAsingleton.
       pose proof equiv_cd_singleton_invn ch B Hequivatomh as HBsingleton.
-      (* Rewriting?? *)
-      admit.
-      (* rewrite HAsingleton, HBsingleton. do 2 rewrite CharSet.singleton_size. simpl.
-      do 2 rewrite CharSet.singleton_unique. simpl.
+      rewrite <- CharSetExt.canonicity in HAsingleton, HBsingleton.
+      rewrite HAsingleton, HBsingleton. do 2 rewrite CharSet.singleton_size. simpl.
+      do 2 rewrite CharSetExt.singleton_unique. simpl.
       pose proof Hl_le_h as Hl_le_h'. rewrite <- PeanoNat.Nat.leb_le in Hl_le_h'. rewrite Hl_le_h'. simpl.
       unfold Coercions.Coercions.wrap_CharSet. eexists. split.
       + reflexivity.
-      + apply equiv_cd_union; auto. do 2 rewrite Character.numeric_pseudo_bij. apply equiv_cd_range. assumption. *)
-  Admitted.
+      + apply equiv_cd_union; auto. do 2 rewrite Character.numeric_pseudo_bij. apply equiv_cd_range. assumption.
+  Qed.
 End CharDescrCharSet.

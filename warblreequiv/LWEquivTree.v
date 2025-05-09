@@ -448,17 +448,14 @@ Section LWEquivTree.
     2: { (* Absurd *) inversion H0; inversion H2; subst; discriminate. }
     2: { (* Absurd *) inversion H; discriminate. }
     subst lreg esc0 n. simpl.
-    (* Rewriting? *)
-    admit.
-    (*
-    inversion Hequiv' as [Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd]; simpl in *; intro H; injection H as H; eapply charSetMatcher_noninv_pt; eauto; setoid_rewrite charset_union_empty.
+    inversion Hequiv' as [Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd]; simpl in *; intro H; injection H as H; eapply charSetMatcher_noninv_pt; eauto; setoid_rewrite CharSetExt.union_empty.
     - apply equiv_cd_digits.
     - apply equiv_cd_inv. apply equiv_cd_digits.
     - apply equiv_cd_whitespace.
     - apply equiv_cd_inv. apply equiv_cd_whitespace.
-    - pose proof wordCharacters_casesenst rer Hcasesenst. unfold Semantics.wordCharacters, Coercions.wrap_CharSet in H0. simpl in H0. injection H0 as H0. rewrite H0. apply equiv_cd_wordchar.
-    - apply equiv_cd_inv. pose proof wordCharacters_casesenst rer Hcasesenst. unfold Semantics.wordCharacters, Coercions.wrap_CharSet in H0. simpl in H0. injection H0 as H0. rewrite H0. apply equiv_cd_wordchar.*)
-  Admitted.
+    - pose proof wordCharacters_casesenst_eq rer Hcasesenst. unfold Semantics.wordCharacters, Coercions.wrap_CharSet in H0. simpl in H0. injection H0 as H0. rewrite H0. apply equiv_cd_wordchar.
+    - apply equiv_cd_inv. pose proof wordCharacters_casesenst_eq rer Hcasesenst. unfold Semantics.wordCharacters, Coercions.wrap_CharSet in H0. simpl in H0. injection H0 as H0. rewrite H0. apply equiv_cd_wordchar.
+  Qed.
 
   (* Lemma for character escapes *)
   Lemma characterescape_pt:

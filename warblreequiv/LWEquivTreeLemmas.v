@@ -658,10 +658,9 @@ Section LWEquivTreeLemmas.
   Proof.
     intros inp ms a b rer Hcasesenst Hmatches Ha Hb.
     unfold Semantics.isWordChar in *.
-    (* Rewriting? *)
-    admit.
-    (*
-    rewrite wordCharacters_casesenst in * by assumption. simpl in *.
+    pose proof wordCharacters_casesenst rer Hcasesenst as [s [Heqs HEqual]].
+    rewrite <- CharSetExt.canonicity in HEqual. subst s.
+    rewrite Heqs in * by assumption. simpl in *.
     inversion Hmatches as [str0 end_ind cap next pref Hlenpref Hstr0 Heqms Heqinp].
     subst ms inp. simpl in *.
     destruct (Z.of_nat end_ind - 1 =? -1)%Z eqn:Hbegin; destruct (Z.of_nat end_ind =? Z.of_nat (length _))%Z eqn:Hend; simpl in *.
@@ -703,6 +702,6 @@ Section LWEquivTreeLemmas.
       pose proof ms_matches_inp_prevchar _ _ _ Hmatches Hcl as [pref' [next0 Heqinpl]].
       injection Heqinpr as Heqnext _. injection Heqinpl as _ Heqpref. subst next pref. clear pref0 next0.
       rewrite unwrap_bool in Hb, Ha. injection Hb as <-. injection Ha as <-.
-      rewrite Bool.xorb_comm. f_equal; symmetry; apply word_char_warblre. *)
-  Admitted.
+      rewrite Bool.xorb_comm. f_equal; symmetry; apply word_char_warblre.
+  Qed.
 End LWEquivTreeLemmas.

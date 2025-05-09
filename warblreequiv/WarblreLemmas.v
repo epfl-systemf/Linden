@@ -60,4 +60,14 @@ Section WarblreLemmas.
       assert (false = true <-> False). { split. - discriminate. - intros []. }
       tauto.
   Qed.
+
+  Lemma wordCharacters_casesenst_eq:
+    forall rer,
+      RegExpRecord.ignoreCase rer = false ->
+      Semantics.wordCharacters rer = Success Characters.ascii_word_characters.
+  Proof.
+    intros rer Hcasesenst.
+    pose proof wordCharacters_casesenst rer Hcasesenst as [s [Heqs HEqual]].
+    rewrite <- CharSetExt.canonicity in HEqual. now subst s.
+  Qed.
 End WarblreLemmas.
