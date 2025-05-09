@@ -2,6 +2,7 @@ From Linden Require Import Chars LindenParameters RegexpTranslation WarblreLemma
 From Warblre Require Import Parameters Semantics Result Patterns RegExpRecord.
 Import Result.Notations.
 Import Patterns.
+From Coq Require Import Lia.
 
 Local Open Scope result_flow.
 
@@ -75,9 +76,11 @@ Section CharDescrCharSet.
       equiv_cd_charset (CdRange cl ch) (CharSet.range cl ch).
   Proof.
     intros cl ch Hle c. simpl.
-
-    admit. (* Missing axiom? *)
-  Admitted.
+    apply Bool.eq_true_iff_eq.
+    rewrite CharSetExt.contains_spec, CharSetExt.range_spec.
+    rewrite Bool.andb_true_iff. do 2 rewrite PeanoNat.Nat.leb_le.
+    reflexivity.
+  Qed.
 
   (* TODO Take dotAll flag into account *)
   Lemma equiv_cd_dot:
@@ -132,10 +135,13 @@ Section CharDescrCharSet.
   Proof.
     intros esc cd rer Hequiv. inversion Hequiv as [esc0 cd0 Hequiv' Heqesc Heqcd0 | l cd0 Hequiv' Heqesc Heqcd0 | Heqesc Heqcd].
     - apply equiv_cd_ControlEscape. assumption.
-    - admit. (* AsciiControlEsc *)
+    - inversion Hequiv' as [l0 i Heqi Heql0 Heqcd]. subst cd0 l0.
+      simpl. rewrite <- Heqi.
+      unfold Coercions.Coercions.wrap_CharSet. eexists. split. 1: reflexivity.
+      apply equiv_cd_single.
     - simpl. unfold Coercions.Coercions.wrap_CharSet. eexists. split. 1: reflexivity.
       unfold Numeric.nat_to_nni. rewrite Character.numeric_pseudo_bij. apply equiv_cd_single.
-  Admitted.
+  Qed.
 
   (* Lemma for ClassEscapes *)
   Lemma equiv_cd_ClassEscape:
