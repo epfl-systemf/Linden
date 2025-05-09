@@ -1,5 +1,5 @@
 From Coq Require Import PeanoNat ZArith Bool Lia Program.Equality List Program.Wf.
-From Linden Require Import Tree LindenParameters TreeMSInterp Regex MSInput LKFactorization.
+From Linden Require Import Tree LindenParameters TreeMSInterp Regex MSInput LKFactorization Groups.
 From Warblre Require Import Patterns Result Notation Errors Node RegExpRecord Base Coercions Semantics Typeclasses.
 Import Patterns.
 Import Result.Result.
