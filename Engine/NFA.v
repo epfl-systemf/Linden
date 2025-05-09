@@ -1,9 +1,9 @@
 Require Import List Lia.
 Import ListNotations.
 
-Require Import Regex Chars Groups.
-Require Import Tree.
-Require Import Semantics.
+From Linden Require Import Regex Chars Groups.
+From Linden Require Import Tree.
+From Linden Require Import Semantics.
 
 (** * NFA Bytecdode *)
 (* the bytecode generated for the PikeVM algorithm *)
@@ -88,6 +88,11 @@ Definition next_pcs (pc:label) (b:bytecode) : list label :=
 
 (** * NFA Compilation  *)
 
+Definition greedy_fork (greedy:bool) (l1 l2:label) :=
+  if greedy
+  then Fork l1 l2
+  else Fork l2 l1.
+
 (* also returns the next fresh label *)
 Fixpoint compile (r:regex) (fresh:label) : code * label :=
   match r with
@@ -101,9 +106,9 @@ Fixpoint compile (r:regex) (fresh:label) : code * label :=
       let (bc1, f1) := compile r1 fresh in
       let (bc2, f2) := compile r2 f1 in
       (bc1 ++ bc2, f2)
-  | Star r1 =>
+  | Star greedy r1 =>
       let (bc1, f1) := compile r1 (S (S (S fresh))) in
-      ([Fork (S fresh) (S f1); BeginLoop; ResetRegs (def_groups r1)] ++ bc1 ++ [EndLoop fresh], S f1)
+      ([greedy_fork greedy (S fresh) (S f1); BeginLoop; ResetRegs (def_groups r1)] ++ bc1 ++ [EndLoop fresh], S f1)
   | Group gid r1 =>
       let (bc1, f1) := compile r1 (S fresh) in
       ([SetRegOpen gid] ++ bc1 ++ [SetRegClose gid], S f1)
@@ -141,13 +146,13 @@ Inductive nfa_rep : regex -> code -> label -> label -> Prop :=
     (NFA2: nfa_rep r2 c end1 end2),
     nfa_rep (Sequence r1 r2) c start end2
 | nfa_rep_star:
-  forall c r1 start end1
-    (FORK: get_pc c start = Some (Fork (S start) (S end1)))
+  forall c r1 greedy start end1
+    (FORK: get_pc c start = Some (greedy_fork greedy (S start) (S end1)))
     (BEGIN: get_pc c (S start) = Some (BeginLoop))
     (RESET: get_pc c (S (S start)) = Some (ResetRegs (def_groups r1)))
     (NFA1: nfa_rep r1 c (S (S (S start))) end1)
     (END: get_pc c end1 = Some (EndLoop start)),
-    nfa_rep (Star r1) c start (S end1)
+    nfa_rep (Star greedy r1) c start (S end1)
 | nfa_rep_group:
   forall c r1 gid start end1
     (OPEN: get_pc c start = Some (SetRegOpen gid))
@@ -238,15 +243,15 @@ Proof.
     + rewrite get_first. simpl. auto.
     + rewrite get_second. simpl. auto.
     + rewrite get_third. simpl. auto.
-    + apply IHr with (prev:=prev ++ [Fork (S (length prev)) (S end1); BeginLoop; ResetRegs (def_groups r)]) in COMP1.
+    + apply IHr with (prev:=prev ++ [greedy_fork greedy (S (length prev)) (S end1); BeginLoop; ResetRegs (def_groups r)]) in COMP1.
       * rewrite <- app_assoc in COMP1. simpl in COMP1.
-        replace (prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1 ++ [EndLoop (length prev)]) with
-          ((prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1) ++ [EndLoop (length prev)]).
+        replace (prev ++ greedy_fork greedy (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1 ++ [EndLoop (length prev)]) with
+          ((prev ++ greedy_fork greedy (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1) ++ [EndLoop (length prev)]).
         2: { rewrite <- app_assoc. auto. }
         apply nfa_rep_extend. auto.
       * rewrite app_length. simpl. lia.
-    + replace (prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1 ++ [EndLoop (length prev)]) with
-          ((prev ++ Fork (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1) ++ [EndLoop (length prev)]).
+    + replace (prev ++ greedy_fork greedy (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1 ++ [EndLoop (length prev)]) with
+          ((prev ++ greedy_fork greedy (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1) ++ [EndLoop (length prev)]).
       2: { rewrite <- app_assoc. auto. }
       apply fresh_correct in COMP1. subst. apply get_first_0.
       simpl. rewrite app_length. simpl. lia.

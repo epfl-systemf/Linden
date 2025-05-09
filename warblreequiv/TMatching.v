@@ -1,0 +1,489 @@
+From Coq Require Import PeanoNat ZArith Bool Lia Program.Equality List Program.Wf.
+From Linden Require Import Tree LindenParameters TreeMSInterp Regex MSInput LKFactorization.
+From Warblre Require Import Patterns Result Notation Errors Node RegExpRecord Base Coercions Semantics Typeclasses.
+Import Patterns.
+Import Result.Result.
+Import Result.Notations.
+Import Result.Notations.Boolean.
+Import Coercions.
+Import Notation.
+
+Local Open Scope result_flow.
+
+(** * Definitions of tree matchers *)
+
+Section TMatching.
+  Context `{characterClass: Character.class}.
+  
+  (* We define here an alternative version of the Warblre functions compileSubPattern and others that, instead of producing
+     Matchers that take a MatchState as input and return a MatchResult (i.e. an option MatchState wrapped in an error monad),
+     produce a TMatcher that also takes as input a MatchState but instead return the priority tree corresponding to matching
+     some regexp on the input.
+
+     The functions follow the structure of the original functions as much as possible.
+
+     Intuitively, a TMatcher, when called with some input and TMatcherContinuation, computes the tree of matching a regex on
+     the input, then performing the actions described by the continuation. The continuation will compute subtrees that will
+     be plugged into the leaves of the subtree produced by the TMatcher. *)
+
+  (* We return a tree instead of a MatchState. *)
+  Definition TMatchResult := Result tree MatchError.
+
+  (* Tree analogues of MatcherContinuation and Matcher. *)
+  Definition TMatcherContinuation := Notation.MatchState -> TMatchResult.
+  Definition TMatcher := Notation.MatchState -> TMatcherContinuation -> TMatchResult.
+
+
+  (** >>
+      22.2.2.3.1 RepeatMatcher ( m, min, max, greedy, x, c, parenIndex, parenCount )
+
+      The abstract operation RepeatMatcher takes arguments m (a Matcher), min (a non-negative integer),
+      max (a non-negative integer or +∞), greedy (a Boolean), x (a MatchState), c (a MatcherContinuation),
+      parenIndex (a non-negative integer), and parenCount (a non-negative integer) and returns a MatchResult.
+      It performs the following steps when called:
+  <<*)
+  (* + Coq wants to make sure the function will terminate; we do so by bounding recursion by an arbitrary fuel amount +*)
+  (* To compute the check strings, we need the direction *)
+  Fixpoint tRepeatMatcher' (m: TMatcher) (dir: Direction) (min: non_neg_integer) (max: non_neg_integer_or_inf) (greedy: bool) (x: MatchState) (c: TMatcherContinuation) (parenIndex parenCount: non_neg_integer) (fuel: nat): TMatchResult :=
+  match fuel with
+  | 0 => out_of_fuel
+  | S fuel' =>
+    (*>> 1. If max = 0, return c(x). <<*)
+    if (max =? 0)%NoI then c x else
+    (*>> 2. Let d be a new MatcherContinuation with parameters (y) that captures m, min, max, greedy, x, c, parenIndex, and parenCount and performs the following steps when called: <<*)
+    let d: TMatcherContinuation := fun (y: MatchState) =>
+      (*>> a. Assert: y is a MatchState. <<*)
+      (*>> b. If min = 0 and y's endIndex = x's endIndex, return failure. <<*)
+      if (min == 0)%nat && (MatchState.endIndex y =? MatchState.endIndex x)%Z
+        then Success (CheckFail (ms_suffix x dir)) else
+      (*>> c. If min = 0, let min2 be 0; otherwise let min2 be min - 1. <<*)
+      let min2 :=
+        if (min == 0)%nat then 0
+        else min - 1
+      in
+      (*>> d. If max = +∞, let max2 be +∞; otherwise let max2 be max - 1. <<*)
+      let max2 :=
+        if (max =? +∞)%NoI then +∞
+        else (max - 1)%NoI
+      in
+      (*>> e. Return RepeatMatcher(m, min2, max2, greedy, y, c, parenIndex, parenCount). <<*)
+      let! subtree =<< tRepeatMatcher' m dir min2 max2 greedy y c parenIndex parenCount fuel' in
+      (* We only add a CheckPass if min is zero, else we directly yield the subtree *)
+      if (min == 0)%nat then
+        Success (CheckPass (ms_suffix x dir) subtree)
+      else
+        Success subtree
+    in
+    (*>> 3. Let cap be a copy of x's captures List. <<*)
+    let cap := MatchState.captures x in
+    (*>> 4. For each integer k in the inclusive interval from parenIndex + 1 to parenIndex + parenCount, set cap[k] to undefined. <<*)
+    (* + The additional +1 is normal: the range operator --- is non-inclusive on the right +*)
+    set cap[(parenIndex + 1) --- (parenIndex + parenCount + 1) ] := undefined in
+    (*>> 5. Let Input be x's input. <<*)
+    let input := MatchState.input x in
+    (*>> 6. Let e be x's endIndex. <<*)
+    let e := MatchState.endIndex x in
+    (*>> 7. Let xr be the MatchState (Input, e, cap). <<*)
+    let xr := match_state input e cap in
+    (*>> 8. If min ≠ 0, return m(xr, d). <<*)
+    if (min !=? 0)%nat
+      then 
+        let! subtree =<< m xr d in
+        (* xr had its groups reset, so we need to add this to the tree *)
+        Success (GroupAction (Reset (List.seq (parenIndex + 1) parenCount)) subtree)
+      else
+      (*>> 9. If greedy is false, then <<*)
+      if greedy is false then
+        (*>> a. Let z be c(x). <<*)
+        let! z =<< c x in
+        (*>> b. If z is not failure, return z. <<*)
+        (*>> c. Return m(xr, d). <<*)
+        let! z' =<< m xr d in
+        (* Only xr had its groups reset, not x, so we only add the group reset action to the branch corresponding to xr. *)
+        Success (Choice z (GroupAction (Reset (List.seq (parenIndex + 1) parenCount)) z'))
+      else
+        (*>> 10. Let z be m(xr, d). <<*)
+        let! z =<< m xr d in
+        (*>> 11. If z is not failure, return z. <<*)
+        (*>> 12. Return c(x). <<*)
+        let! z' =<< c x in
+        Success (Choice (GroupAction (Reset (List.seq (parenIndex + 1) parenCount)) z) z')
+  end.
+
+  Definition tRepeatMatcher (m: TMatcher) (dir: Direction) (min: non_neg_integer) (max: non_neg_integer_or_inf) (greedy: bool) (x: MatchState) (c: TMatcherContinuation) (parenIndex parenCount: non_neg_integer): TMatchResult :=
+    tRepeatMatcher' m dir min max greedy x c parenIndex parenCount (Semantics.repeatMatcherFuel min x).
+
+  (** >>
+      22.2.2.7.1 CharacterSetMatcher ( rer, A, invert, direction )
+
+      The abstract operation CharacterSetMatcher takes arguments rer (a RegExp Record), A (a CharSet), invert
+      (a Boolean), and direction (forward or backward) and returns a Matcher. It performs the following steps when
+      called:
+  <<*)
+  Definition tCharacterSetMatcher (rer: RegExpRecord) (A: CharSet) (invert: bool) (direction: Direction): TMatcher :=
+    (*>> 1. Return a new Matcher with parameters (x, c) that captures rer, A, invert, and direction and performs the following steps when called: <<*)
+    fun (x: MatchState) (c: TMatcherContinuation) =>
+      (*>> a. Assert: x is a MatchState. <<*)
+      (*>> b. Assert: c is a MatcherContinuation. <<*)
+      (*>> c. Let Input be x's input. <<*)
+      let input := MatchState.input x in
+      (*>> d. Let e be x's endIndex. <<*)
+      let e := MatchState.endIndex x in
+      (*>> e. If direction is forward, let f be e + 1. <<*)
+      (*>> f. Else, let f be e - 1. <<*)
+      let f := if direction == forward
+        then (e + 1)%Z
+        else (e - 1)%Z
+      in
+      (*>> g. Let InputLength be the number of elements in Input. <<*)
+      let inputLength := Z.of_nat (length input) in
+      (*>> h. If f < 0 or f > InputLength, return failure. <<*)
+      if (f <? 0)%Z || (f >? inputLength)%Z then
+        Success Mismatch
+      else
+      (*>> i. Let index be min(e, f). <<*)
+      let index := Z.min e f in
+      (*>> j. Let ch be the character Input[index]. <<*)
+      let! chr =<< input[ index ] in
+      (*>> k. Let cc be Canonicalize(rer, ch). <<*)
+      let cc := Character.canonicalize rer chr in
+      (*>> l. If there exists a member a of A such that Canonicalize(rer, a) is cc, let found be true. Otherwise, let found be false. <<*)
+      let found := CharSet.exist_canonicalized rer A cc in
+      (*>> m. If invert is false and found is false, return failure. <<*)
+      if (invert is false) && (found is false) then
+        Success Mismatch
+      (*>> n. If invert is true and found is true, return failure. <<*)
+      else if (invert is true) && (found is true) then
+        Success Mismatch
+      else
+      (*>> o. Let cap be x's captures List. <<*)
+      let cap := MatchState.captures x in
+      (*>> p. Let y be the MatchState (Input, f, cap). <<*)
+      let y := match_state input f cap in
+      (*>> q. Return c(y). <<*)
+      let! child =<< c y in
+      Success (Read chr child).
+
+
+  Definition tLookaroundMatcher (tCompileSubPattern: Regex -> RegexContext -> RegExpRecord -> Direction -> Result TMatcher CompileError) (lkdir: Direction) (pos: bool) (lkreg: Regex) (ctx: RegexContext) (rer: RegExpRecord) (direction: Direction) : Result TMatcher CompileError :=
+    let! m =<< tCompileSubPattern lkreg (lkCtx lkdir pos :: ctx) rer lkdir in
+    Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
+      let d: TMatcherContinuation := fun (y: MatchState) => Success Match in
+      let! r =<< m x d in
+      let rstate := tree_res' r x nil lkdir in
+      if (pos && rstate == None) || (negb pos && rstate != None) then
+          Success (LKFail (to_lookaround lkdir pos) r)
+      else
+        let! z =<<
+          if pos then
+            destruct! (Some y) <- rstate in
+            let cap := MatchState.captures y in
+            let input := MatchState.input x in
+            let xe := MatchState.endIndex x in
+            Success (match_state input xe cap)
+          else
+            Success x
+          in
+        let! t =<< c z in
+        Success (LK (to_lookaround lkdir pos) r t)
+      ): TMatcher).
+
+
+  Fixpoint tCompileSubPattern (self: Regex) (ctx: RegexContext) (rer: RegExpRecord) (direction: Direction): Result TMatcher CompileError :=
+  match self with
+  | Disjunction r1 r2 =>
+      let! m1 =<< tCompileSubPattern r1 (Disjunction_left r2 :: ctx) rer direction in
+      let! m2 =<< tCompileSubPattern r2 (Disjunction_right r1 :: ctx) rer direction in
+      Success ((fun (x: MatchState) (tmc: TMatcherContinuation) =>
+          let! t1 =<< m1 x tmc in
+          let! t2 =<< m2 x tmc in
+          Success (Choice t1 t2)): TMatcher)
+  | Empty =>
+      Success (fun x c => c x)
+  | Seq r1 r2 =>
+      (*>> 1. Let m1 be CompileSubpattern of Alternative with arguments rer and direction. <<*)
+      let! m1 =<< tCompileSubPattern r1 (Seq_left r2 :: ctx) rer direction in
+      (*>> 2. Let m2 be CompileSubpattern of Term with arguments rer and direction. <<*)
+      let! m2 =<< tCompileSubPattern r2 (Seq_right r1 :: ctx) rer direction in
+      (*>> 3. If direction is forward, then <<*)
+      if direction is forward then
+        (*>> a. Return a new Matcher with parameters (x, c) that captures m1 and m2 and performs the following steps when called: <<*)
+        Success ((fun (s: MatchState) (c: TMatcherContinuation) =>
+          (*>> i. Assert: x is a MatchState. <<*)
+          (*>> ii. Assert: c is a MatcherContinuation. <<*)
+          (*>> iii. Let d be a new MatcherContinuation with parameters (y) that captures c and m2 and performs the following steps when called: <<*)
+          let d: TMatcherContinuation := fun (s: MatchState) => 
+            (*>> 1. Assert: y is a MatchState. <<*)
+            (*>> 2. Return m2(y, c). <<*)
+            m2 s c
+          in
+          (*>> iv. Return m1(x, d). <<*)
+          m1 s d): TMatcher)
+      (*>> 4. Else, <<*)
+      else
+        (*>> a. Assert: direction is backward. <<*)
+        (*>> b. Return a new Matcher with parameters (x, c) that captures m1 and m2 and performs the following steps when called: <<*)
+        Success ((fun (s: MatchState) (c: TMatcherContinuation) =>
+          (*>> i. Assert: x is a MatchState. <<*)
+          (*>> ii. Assert: c is a MatcherContinuation. <<*)
+          (*>> iii. Let d be a new MatcherContinuation with parameters (y) that captures c and m1 and performs the following steps when called: <<*)
+          let d: TMatcherContinuation := fun (s: MatchState) =>
+            (*>> 1. Assert: y is a MatchState. <<*)
+            (*>> 2. Return m1(y, c). <<*)
+            m1 s c 
+          in
+          (*>> iv. Return m2(x, d). <<*)
+          m2 s d): TMatcher)
+  | Quantified r qu =>
+      (*>> 1. Let m be CompileAtom of Atom with arguments rer and direction. <<*)
+      let! m =<< tCompileSubPattern r  (Quantified_inner qu :: ctx) rer direction in
+      (*>> 2. Let q be CompileQuantifier of Quantifier. <<*)
+      let q := Semantics.compileQuantifier qu in
+      (*>> 3. Assert: q.[[Min]] ≤ q.[[Max]]. <<*)
+      assert! (Semantics.CompiledQuantifier_min q <=? Semantics.CompiledQuantifier_max q)%NoI;
+      (*>> 4. Let parenIndex be CountLeftCapturingParensBefore(Term). <<*)
+      let parenIndex := StaticSemantics.countLeftCapturingParensBefore r ctx in
+      (*>> 5. Let parenCount be CountLeftCapturingParensWithin(Atom). <<*)
+      let parenCount := StaticSemantics.countLeftCapturingParensWithin r (Quantified_inner qu :: ctx) in
+      (*>> 6. Return a new Matcher with parameters (x, c) that captures m, q, parenIndex, and parenCount and performs the following steps when called: <<*)
+      Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
+      (*>> a. Assert: x is a MatchState. <<*)
+      (*>> b. Assert: c is a MatcherContinuation. <<*)
+      (*>> c. Return RepeatMatcher(m, q.[[Min]], q.[[Max]], q.[[Greedy]], x, c, parenIndex, parenCount). <<*)
+          tRepeatMatcher m direction (Semantics.CompiledQuantifier_min q) (Semantics.CompiledQuantifier_max q) (Semantics.CompiledQuantifier_greedy q) x c parenIndex parenCount): TMatcher)
+  (** >> Atom :: PatternCharacter <<*)
+  | Char c =>
+    (*>> 1. Let ch be the character matched by PatternCharacter. <<*)
+    let ch := c in
+    (*>> 2. Let A be a one-element CharSet containing the character ch. <<*)
+    let A := CharSet.singleton c in
+    (*>> 3. Return CharacterSetMatcher(rer, A, false, direction). <<*)
+    Success (tCharacterSetMatcher rer A false direction)
+
+  (** >> Atom :: . <<*)
+  | Dot =>
+    (*>> 1. Let A be the CharSet of all characters. <<*)
+    let A := Characters.all in
+    (*>> 2. If rer.[[DotAll]] is not true, then <<*)
+    let A := if RegExpRecord.dotAll rer is not true
+      (*>> a. Remove from A all characters corresponding to a code point on the right-hand side of the LineTerminator production. <<*)
+      then CharSet.remove_all A Characters.line_terminators
+      else A
+    in
+    (*>> 3. Return CharacterSetMatcher(rer, A, false, direction). <<*)
+    Success (tCharacterSetMatcher rer A false direction)
+
+
+  (** >> Atom :: CharacterClass <<*)
+  | CharacterClass cc =>
+      (*>> 1. Let cc be CompileCharacterClass of CharacterClass with argument rer. <<*)
+      let! cc =<< Semantics.compileCharacterClass cc rer in
+      (*>> 2. Return CharacterSetMatcher(rer, cc.[[CharSet]], cc.[[Invert]], direction). <<*)
+      Success (tCharacterSetMatcher rer (Semantics.CompiledCharacterClass_charSet cc) (Semantics.CompiledCharacterClass_invert cc) direction)
+
+  (** >> Atom :: ( GroupSpecifier_opt Disjunction ) <<*)
+  | Group id r =>
+      (*>> 1. Let m be CompileSubpattern of Disjunction with arguments rer and direction. <<*)
+      let! m =<< tCompileSubPattern r (Group_inner id :: ctx) rer direction in
+      (*>> 2. Let parenIndex be CountLeftCapturingParensBefore(Atom). <<*)
+      let parenIndex := StaticSemantics.countLeftCapturingParensBefore self ctx in
+      (*>> 3. Return a new Matcher with parameters (x, c) that captures direction, m, and parenIndex and performs the following steps when called: <<*)
+      Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
+        (*>> a. Assert: x is a MatchState. <<*)
+        (*>> b. Assert: c is a MatcherContinuation. <<*)
+        (*>> c. Let d be a new MatcherContinuation with parameters (y) that captures x, c, direction, and parenIndex and performs the following steps when called: <<*)
+        let d: TMatcherContinuation := fun (y: MatchState) =>
+          (*>> i. Assert: y is a MatchState. <<*)
+          (*>> ii. Let cap be a copy of y's captures List. <<*)
+          let cap := MatchState.captures y in
+          (*>> iii. Let Input be x's input. <<*)
+          let input := MatchState.input x in
+          (*>> iv. Let xe be x's endIndex. <<*)
+          let xe := MatchState.endIndex x in
+          (*>> v. Let ye be y's endIndex. <<*)
+          let ye := MatchState.endIndex y in
+          let! r =<<
+            (*>> vi. If direction is forward, then <<*)
+            if direction == forward then
+              (*>> 1. Assert: xe ≤ ye. <<*)
+              assert! (xe <=? ye)%Z ;
+              (*>> 2. Let r be the CaptureRange (xe, ye). <<*)
+              capture_range xe ye
+            (*>> vii. Else, <<*)
+            else
+              (*>> 1. Assert: direction is backward. <<*)
+              (*>> 2. Assert: ye ≤ xe. <<*)
+              assert! (ye <=? xe)%Z ;
+              (*>> 3. Let r be the CaptureRange (ye, xe). <<*)
+              capture_range ye xe
+          in
+          (*>> viii. Set cap[parenIndex + 1] to r. <<*)
+          set cap[parenIndex + 1] := r in
+          (*>> ix. Let z be the MatchState (Input, ye, cap). <<*)
+          let z := match_state input ye cap in
+          (*>> x. Return c(z). <<*)
+          let! subtree =<< c z in
+          Success (GroupAction (Close (parenIndex + 1)) subtree)
+        in
+        (*>> d. Return m(x, d). <<*)
+        let! subtree =<< m x d in
+        Success (GroupAction (Open (parenIndex + 1)) subtree)): TMatcher)
+
+  (** >> Assertion :: (?= Disjunction ) <<*)
+  | Lookahead r =>
+      tLookaroundMatcher tCompileSubPattern forward true r ctx rer direction
+
+  (** >> Assertion :: (?! Disjunction ) <<*)
+  | NegativeLookahead r =>
+      tLookaroundMatcher tCompileSubPattern forward false r ctx rer direction
+
+  (** >> Assertion :: (?<= Disjunction ) <<*)
+  | Lookbehind r =>
+      tLookaroundMatcher tCompileSubPattern backward true r ctx rer direction
+
+  (** >> Assertion :: (?<! Disjunction ) <<*)
+  | NegativeLookbehind r =>
+      tLookaroundMatcher tCompileSubPattern backward false r ctx rer direction
+
+  (** >>
+      22.2.2.4 Runtime Semantics: CompileAssertion
+
+      The syntax-directed operation CompileAssertion takes argument rer (a RegExp Record) and returns a Matcher.
+      It is defined piecewise over the following productions:
+  <<*)
+  (** >> Assertion :: ^ <<*)
+  | InputStart =>
+      (*>> 1. Return a new Matcher with parameters (x, c) that captures rer and performs the following steps when called: <<*)
+      Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
+        (*>> a. Assert: x is a MatchState. <<*)
+        (*>> b. Assert: c is a MatcherContinuation. <<*)
+        (*>> c. Let Input be x's input. <<*)
+        let input := MatchState.input x in
+        (*>> d. Let e be x's endIndex. <<*)
+        let e := MatchState.endIndex x in
+        (*>> e. If e = 0, or if rer.[[Multiline]] is true and the character Input[e - 1] is matched by LineTerminator, then <<*)
+        if! (e =? 0)%Z ||! ((RegExpRecord.multiline rer is true) &&! (let! c =<< input[(e-1)%Z] in CharSet.contains Characters.line_terminators c)) then
+          (*>> i. Return c(x). <<*)
+          let! t =<< c x in
+          Success (AnchorPass BeginInput t)
+        else
+        (*>> f. Return failure. <<*)
+        Success (AnchorFail BeginInput)): TMatcher)
+
+  (** >> Assertion :: $ <<*)
+  | InputEnd =>
+      (*>> 1. Return a new Matcher with parameters (x, c) that captures rer and performs the following steps when called: <<*)
+      Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
+        (*>> a. Assert: x is a MatchState. <<*)
+        (*>> b. Assert: c is a MatcherContinuation. <<*)
+        (*>> c. Let Input be x's input. <<*)
+        let input := MatchState.input x in
+        (*>> d. Let e be x's endIndex. <<*)
+        let e := MatchState.endIndex x in
+        (*>> e. Let InputLength be the number of elements in Input. <<*)
+        let inputLength := List.length input in
+        (*>> f. If e = InputLength, or if rer.[[Multiline]] is true and the character Input[e] is matched by LineTerminator, then <<*)
+        if! (e =? inputLength)%Z ||! ((RegExpRecord.multiline rer is true) &&! (let! c =<< input[e] in CharSet.contains Characters.line_terminators c)) then
+          (*>> i. Return c(x). <<*)
+          let! t =<< c x in
+          Success (AnchorPass EndInput t)
+        else
+        (*>> g. Return failure. <<*)
+          Success (AnchorFail EndInput)): TMatcher)
+
+  (** >> Assertion :: \b <<*)
+  | WordBoundary =>
+      (*>> 1. Return a new Matcher with parameters (x, c) that captures rer and performs the following steps when called: <<*)
+      Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
+        (*>> a. Assert: x is a MatchState. <<*)
+        (*>> b. Assert: c is a MatcherContinuation. <<*)
+        (*>> c. Let Input be x's input. <<*)
+        let input := MatchState.input x in
+        (*>> d. Let e be x's endIndex. <<*)
+        let e := MatchState.endIndex x in
+        (*>> e. Let a be IsWordChar(rer, Input, e - 1). <<*)
+        let! a =<< Semantics.isWordChar rer input (e - 1)%Z in
+        (*>> f. Let b be IsWordChar(rer, Input, e). <<*)
+        let! b =<< Semantics.isWordChar rer input e in
+        (*>> g. If a is true and b is false, or if a is false and b is true, return c(x). <<*)
+        if ((a is true) && (b is false)) || ((a is false) && (b is true)) then
+          let! t =<< c x in
+          Success (AnchorPass Regex.WordBoundary t)
+        else
+        (*>> h. Return failure. <<*)
+          Success (AnchorFail Regex.WordBoundary)): TMatcher)
+
+  (** >> Assertion :: \B <<*)
+  | NotWordBoundary =>
+      (*>> 1. Return a new Matcher with parameters (x, c) that captures rer and performs the following steps when called: <<*)
+      Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
+        (*>> a. Assert: x is a MatchState. <<*)
+        (*>> b. Assert: c is a MatcherContinuation. <<*)
+        (*>> c. Let Input be x's input. <<*)
+        let input := MatchState.input x in
+        (*>> d. Let e be x's endIndex. <<*)
+        let e := MatchState.endIndex x in
+        (*>> e. Let a be IsWordChar(rer, Input, e - 1). <<*)
+        let! a =<< Semantics.isWordChar rer input (e - 1)%Z in
+        (*>> f. Let b be IsWordChar(rer, Input, e). <<*)
+        let! b =<< Semantics.isWordChar rer input e in
+        (*>> g. If a is true and b is true, or if a is false and b is false, return c(x). <<*)
+        if ((a is true) && (b is true)) || ((a is false) && (b is false)) then
+          let! t =<< c x in
+          Success (AnchorPass NonWordBoundary t)
+        else
+        (*>> h. Return failure. <<*)
+          Success (AnchorFail NonWordBoundary)): TMatcher)
+
+  | AtomEsc (ACharacterEsc ce) =>
+      (*>> 1. Let cv be the CharacterValue of CharacterEscape. <<*)
+      let! cv =<< @StaticSemantics.characterValue _ CompileError _ (ClassEscape_to_ClassAtom (CharacterEscape_to_ClassEscape ce)) in
+      (*>> 2. Let ch be the character whose character value is cv. <<*)
+      let ch := Character.from_numeric_value cv in
+      (*>> 3. Let A be a one-element CharSet containing the character ch. <<*)
+      let a := CharSet.singleton ch in
+      (*>> 4. Return CharacterSetMatcher(rer, A, false, direction). <<*)
+      Success (tCharacterSetMatcher rer a false direction)
+
+  (** >> AtomEscape :: CharacterClassEscape <<*)
+  | AtomEsc (ACharacterClassEsc cce) =>
+      (*>> 1. Let A be CompileToCharSet of CharacterClassEscape with argument rer. <<*)
+      let! a =<< Semantics.compileToCharSet (CharacterClassEscape_to_ClassEscape cce) rer in
+      (*>> 2. Return CharacterSetMatcher(rer, A, false, direction). <<*)
+      Success (tCharacterSetMatcher rer a false direction)
+
+  (* Computing a tree for the other cases is currently unsupported: we return a compilation failure in these cases. *)
+  | _ => Error CompileError.AssertionFailed
+  end.
+
+  (** >>
+      22.2.2.2 Runtime Semantics: CompilePattern
+
+      The syntax-directed operation CompilePattern takes argument rer (a RegExp Record) and returns an Abstract Closure
+      that takes a List of characters and a non-negative integer and returns a MatchResult.
+      It is defined piecewise over the following productions:
+  <<*)
+  (** >>  Pattern :: Disjunction <<*)
+  Definition tCompilePattern (r: Regex) (rer: RegExpRecord): Result (list Character -> non_neg_integer -> TMatchResult) CompileError :=
+    (*>> 1. Let m be CompileSubpattern of Disjunction with arguments rer and forward. <<*)
+    let! m =<< tCompileSubPattern r nil rer forward in
+    (*>> 2. Return a new Abstract Closure with parameters (Input, index) that captures rer and m and performs the following steps when called: <<*)
+    Success (fun (input: list Character) (index: non_neg_integer) =>
+      (*>> a. Assert: Input is a List of characters. <<*)
+      (*>> b. Assert: 0 ≤ index ≤ the number of elements in Input. <<*)
+      assert! (0 <=? index)%nat && (index <=? (length input))%nat ;
+      (*>> c. Let c be a new MatcherContinuation with parameters (y) that captures nothing and performs the following steps when called: <<*)
+      let c: TMatcherContinuation := fun (y: MatchState) =>
+        (*>> i. Assert: y is a MatchState. <<*)
+        (*>> ii. Return y. <<*)
+        Success Match
+      in
+      (*>> d. Let cap be a List of rer.[[CapturingGroupsCount]] undefined values, indexed 1 through rer.[[CapturingGroupsCount]]. <<*)
+      (* + The fact that the array starts at 1 is handled by the nat indexer +*)
+      let cap := List.repeat undefined (RegExpRecord.capturingGroupsCount rer) in
+      (*>> e. Let x be the MatchState (Input, index, cap). <<*)
+      let x := match_state input (Z.of_nat index) cap in
+      (*>> f. Return m(x, c). <<*)
+      m x c).
+
+End TMatching.

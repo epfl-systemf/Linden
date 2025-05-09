@@ -7,7 +7,7 @@
 Require Import List.
 Import ListNotations.
 
-Require Import Regex Chars Groups Tree.
+From Linden Require Import Regex Chars Groups Tree.
 
 (** * Pike Tree Small Step Semantics  *)
 

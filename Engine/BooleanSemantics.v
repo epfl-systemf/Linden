@@ -1,9 +1,9 @@
 Require Import List Lia.
 Import ListNotations.
 
-Require Import Regex Chars Groups.
-Require Import Tree.
-Require Import Semantics.
+From Linden Require Import Regex Chars Groups.
+From Linden Require Import Tree.
+From Linden Require Import Semantics.
 
 (* An alternate definition of the semantics, using a boolean to know if one can exit a loop *)
 
@@ -66,16 +66,16 @@ Inductive bool_tree: regex -> continuation -> input -> LoopBool -> tree -> Prop 
     (CONT: bool_tree r1 (Areg r2 :: cont) inp b t),
     bool_tree (Sequence r1 r2) cont inp b t
 | bool_star:
-  forall r1 cont titer tskip tquant inp gidl b
+  forall r1 greedy cont titer tskip tquant inp gidl b
     (* the list of capture groups to reset *)
     (RESET: gidl = def_groups r1)
     (* doing one iteration, then a check, then executing the next quantifier *)
     (* switching the boolean such that we can't exit right away *)
-    (ISTREE1: bool_tree r1 (Acheck (current_str inp)::Areg (Star r1)::cont) inp CannotExit titer)
+    (ISTREE1: bool_tree r1 (Acheck (current_str inp)::Areg (Star greedy r1)::cont) inp CannotExit titer)
     (* skipping the star entirely *)
     (SKIP: bool_tree Epsilon cont inp b tskip)
-    (CHOICE: tquant = Choice (GroupAction (Reset gidl) titer) tskip),
-    bool_tree (Star r1) cont inp b tquant
+    (CHOICE: tquant = greedy_choice greedy (GroupAction (Reset gidl) titer) tskip),
+    bool_tree (Star greedy r1) cont inp b tquant
 | bool_group:
   forall r1 cont treecont inp gid b
     (TREECONT: bool_tree r1 (Aclose gid :: cont) inp b treecont),

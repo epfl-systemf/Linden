@@ -1,0 +1,6 @@
+(include_subdirs qualified)
+
+(coq.theory
+ (name Linden)
+ (package linden)
+ (theories Warblre Ltac2))

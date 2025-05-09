@@ -6,3 +6,7 @@
 *.vos
 .lia.cache
 .depend
+_build
+_opam
+\#*.*\#
+*.v~

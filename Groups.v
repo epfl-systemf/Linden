@@ -5,7 +5,7 @@ Require Import List Lia.
 Import ListNotations.
 
 
-Require Import Chars.
+From Linden Require Import Chars.
 
 Definition group_id : Type := nat.
 

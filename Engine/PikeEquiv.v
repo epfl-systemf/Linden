@@ -3,9 +3,9 @@
 Require Import List Lia.
 Import ListNotations.
 
-Require Import Regex Chars Groups.
-Require Import Tree Semantics BooleanSemantics.
-Require Import NFA PikeTree PikeVM.
+From Linden Require Import Regex Chars Groups.
+From Linden Require Import Tree Semantics BooleanSemantics.
+From Linden Require Import NFA PikeTree PikeVM.
 
 (** * Simulation Invariant  *)
 
@@ -177,7 +177,7 @@ Proof.
     inversion ACTION. subst. eapply IHTREE; eauto. 
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
-  - inversion CHOICE.
+  - destruct greedy; inversion CHOICE.
 Qed.
 
 
@@ -212,7 +212,7 @@ Proof.
     + eauto.
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
-  - inversion CHOICE.
+  - destruct greedy; inversion CHOICE.
 Qed.
 
 Theorem generate_open:
@@ -233,7 +233,7 @@ Proof.
     inversion ACTION. subst. eapply IHTREE; eauto.
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
-  - inversion CHOICE.
+  - destruct greedy; inversion CHOICE.
   - inversion NFA. subst. simpl. rewrite OPEN. split; auto.
     replace (pc+1) with (S pc) by lia. eapply tt_eq; eauto.
     apply cons_bc with (pcmid:=S end1); eauto. constructor. auto.
@@ -261,7 +261,7 @@ Proof.
     split. auto. econstructor; eauto. replace (S pc_cont) with (pc_cont + 1) by lia. constructor.
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
-  - inversion CHOICE.
+  - destruct greedy; inversion CHOICE.
 Qed.
 
 Theorem no_tree_reset:
@@ -272,7 +272,7 @@ Proof.
   intros gidl tree inp r cont b H.
   remember (GroupAction (Reset gidl) tree) as TRESET.
   induction H; inversion HeqTRESET; subst; auto.
-  inversion CHOICE.
+  destruct greedy; inversion CHOICE.
 Qed.
 
 Corollary generate_reset:  
@@ -309,7 +309,7 @@ Proof.
     inversion ACTION. subst. simpl. rewrite END. auto.
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
-  - inversion CHOICE.
+  - destruct greedy; inversion CHOICE.
 Qed.
 
 Theorem generate_checkpass:
@@ -334,7 +334,7 @@ Proof.
     exists pcmid. split; auto. econstructor; eauto. constructor.
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
-  - inversion CHOICE.
+  - destruct greedy; inversion CHOICE.
 Qed.
 
 Theorem generate_mismatch:
@@ -356,7 +356,7 @@ Proof.
     rewrite cannot_read_correct in READ. rewrite READ. auto.
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
-  - inversion CHOICE.
+  - destruct greedy; inversion CHOICE.
 Qed.
 
 
@@ -390,20 +390,35 @@ Proof.
   - inversion NFA. subst. eapply IHTREE; eauto.
     econstructor; eauto. constructor. auto.
   (* when the choice comes from a star *)
-  - inversion NFA. subst. simpl. inversion CHOICE. subst.
-    rewrite FORK. exists [(S pc, gm, b); (S end1, gm, b)]. exists [S n; n]. split; auto.
-    econstructor.
-    + econstructor. constructor.
-      apply tt_eq with (pc_cont:=S end1) (pc_end:=pc_end) (r:=Epsilon) (cont:=cont); auto.
-      constructor.
-    + apply tt_begin; auto.
-      replace (S (S pc)) with (S pc + 1) in RESET by lia.
-      apply tt_reset; auto.
-      apply tt_eq with (pc_cont:=end1) (pc_end:=pc_end) (r:=r1) (cont:=Acheck(current_str inp)::Areg(Star r1)::cont); auto.
-      * replace (S pc+1+1) with (S (S (S pc))) by lia. auto.
-      * apply cons_bc with (pcmid:=pc).
-        { constructor. auto. }
-        apply cons_bc with (pcmid:=S end1); try constructor; auto.
+  - inversion NFA. subst. simpl.
+    destruct greedy; inversion CHOICE; subst.
+    +                           (* greedy star *)
+      rewrite FORK. exists [(S pc, gm, b); (S end1, gm, b)]. exists [S n; n]. split; auto.
+      econstructor.
+      * econstructor. constructor.
+        apply tt_eq with (pc_cont:=S end1) (pc_end:=pc_end) (r:=Epsilon) (cont:=cont); auto.
+        constructor.
+      * apply tt_begin; auto.
+        replace (S (S pc)) with (S pc + 1) in RESET by lia.
+        apply tt_reset; auto.
+        apply tt_eq with (pc_cont:=end1) (pc_end:=pc_end) (r:=r1) (cont:=Acheck(current_str inp)::Areg(Star true r1)::cont); auto.
+        ** replace (S pc+1+1) with (S (S (S pc))) by lia. auto.
+        ** apply cons_bc with (pcmid:=pc).
+           { constructor. auto. }
+           apply cons_bc with (pcmid:=S end1); try constructor; auto.
+    +                           (* lazy star *)
+      rewrite FORK. exists [(S end1, gm, b); (S pc, gm, b)]. exists [n; S n]. split; auto.
+      econstructor.
+      * constructor. constructor. apply tt_begin; auto.
+        replace (S (S pc)) with (S pc + 1) in RESET by lia.
+        apply tt_reset; auto.
+        apply tt_eq with (pc_cont:=end1) (pc_end:=pc_end) (r:=r1) (cont:=Acheck(current_str inp)::Areg(Star false r1)::cont); auto.
+        ** replace (S pc+1+1) with (S (S (S pc))) by lia. auto.
+        ** apply cons_bc with (pcmid:=pc).
+           { constructor. auto. }
+           apply cons_bc with (pcmid:=S end1); try constructor; auto.
+      * apply tt_eq with (pc_cont:=S end1) (pc_end:=pc_end) (r:=Epsilon) (cont:=cont); auto.
+        constructor.
 Qed.
 
 
@@ -487,7 +502,7 @@ Proof.
   - unfold stutters in STUTTER. rewrite CONSUME in STUTTER. inversion STUTTER.
   - unfold stutters in STUTTER. rewrite FORK in STUTTER. inversion STUTTER.
   - eapply IHTREE; eauto. eapply cons_bc; eauto. apply areg_bc. auto.
-  - unfold stutters in STUTTER. rewrite FORK in STUTTER. inversion STUTTER.
+  - unfold stutters in STUTTER. destruct greedy; rewrite FORK in STUTTER; inversion STUTTER.
   - unfold stutters in STUTTER. rewrite OPEN in STUTTER. inversion STUTTER.
 Qed.
 

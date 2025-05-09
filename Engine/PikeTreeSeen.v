@@ -11,8 +11,8 @@ Require Import List.
 Import ListNotations.
 Require Import Lia.
 
-Require Import Regex Chars Groups Tree.
-Require Import PikeTree.
+From Linden Require Import Regex Chars Groups Tree.
+From Linden Require Import PikeTree.
 
 (** * Seen Sets  *)
 Parameter seentrees: Type.
