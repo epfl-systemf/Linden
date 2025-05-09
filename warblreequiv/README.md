@@ -37,5 +37,7 @@ The development is organized as follows:
 - ListLemmas.v, WarblreLemmas.v: lemmas used in proofs
 - LKFactorization.v: factorization of lookaround cases of regexp compilation in Warblre
 - MSInput.v: linking Warblre MatchStates and Linden inputs
+- NumericLemmas.v: lemmas about `non_neg_integer_or_inf` (NoI)
 - Tactics.v: custom tactics used in the proofs
+- Utils.v: utility lemmas (currently only boolean version of belonging to a list)
 
