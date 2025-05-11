@@ -105,6 +105,7 @@ Section TreeMSInterp.
     | LKFail _ _ => None
     | AnchorFail _ => None
     | AnchorPass _ t => tree_res' t s gl dir
+    | ReadBackRef _ t => tree_res' t s gl dir
     end.
 
 
@@ -136,3 +137,4 @@ Section TreeMSInterp.
         * erewrite IHt1 by eauto. eauto.
   Qed.
 End TreeMSInterp.
+

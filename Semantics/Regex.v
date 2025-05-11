@@ -51,7 +51,8 @@ Section Regex.
   | Quantified (greedy:bool) (min: nat) (plus: non_neg_integer_or_inf) (r1: regex)
   | Lookaround (lk: lookaround) (r: regex)
   | Group (id : group_id) (r : regex)
-  | Anchor (a: anchor).
+  | Anchor (a: anchor)
+  | Backreference (id: group_id).
 
   Definition regex_eq_dec : forall (x y : regex), { x = y } + { x <> y }.
   Proof.
@@ -62,6 +63,7 @@ Section Regex.
     - destruct greedy; destruct greedy0; auto. right. lia.
     - decide equality.
     - apply PeanoNat.Nat.eq_dec.
+    - decide equality.
     - decide equality.
   Defined.
 
@@ -76,5 +78,6 @@ Section Regex.
     | Lookaround _ r => def_groups r
     | Group id r1 => id::(def_groups r1)
     | Anchor _ => []
+    | Backreference _ => []
     end.
 End Regex.

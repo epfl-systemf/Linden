@@ -77,6 +77,7 @@ Section Tree.
   | LKFail (lk: lookaround) (tlk: tree)
   | AnchorFail (a: anchor)
   | AnchorPass (a: anchor) (t: tree)
+  | ReadBackRef (str: string) (t:tree)
   .
 
   (** ** Maximum group ID of a tree *)
@@ -106,6 +107,7 @@ Section Tree.
     | LKFail _ tlk => max_gid_tree tlk
     | AnchorFail _ => 0
     | AnchorPass _ t => max_gid_tree t
+    | ReadBackRef _ t => max_gid_tree t (* the group is not defined by a reference to it *)
     end.
 
 
@@ -159,6 +161,7 @@ Section Tree.
     | LKFail _ _ => None
     | AnchorFail _ => None
     | AnchorPass _ t => tree_res t gm idx
+    | ReadBackRef _ t => tree_res t gm idx
     end.
 
   (* initializing on a the empty group map *)
@@ -197,6 +200,7 @@ Section Tree.
     | LKFail _ _ => []
     | AnchorFail _ => []
     | AnchorPass _ t => tree_leaves t gm idx
+    | ReadBackRef _ t => tree_leaves t gm idx
     end.
 
 
@@ -250,6 +254,7 @@ Section Tree.
     - rewrite IHt1. rewrite IHt2. rewrite hd_error_app. unfold seqop.
       destruct (hd_error (tree_leaves t1 gm idx)) eqn:HD; auto.
     - destruct (positivity lk) eqn:Hlkpos. + now apply first_tree_leaf_poslk. + now apply first_tree_leaf_neglk.
+    - simpl. auto.
   Qed.
 
   (** * Group Map irrelevance  *)
@@ -305,5 +310,6 @@ Section Tree.
       apply IHt1 with (gm2:=gm2) (idx2:=idx2) in NIL1. apply IHt2 with (gm2:=gm2) (idx2:=idx2) in NIL2.
       rewrite NIL1. rewrite NIL2. auto.
     - destruct (positivity lk) eqn:Hlkpos. + eapply leaves_group_map_indep_poslk; eauto. + eapply leaves_group_map_indep_neglk; eauto.
+    - eapply IHt in H. eauto.
   Qed.
 End Tree.

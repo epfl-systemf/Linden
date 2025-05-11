@@ -17,7 +17,7 @@ Section Semantics.
 
 
   (* TODO: Read a substring from a group map *)
-  Parameter read_backref : group_map -> input -> option input.
+  Parameter read_backref : group_map -> input -> Direction -> option (string * input).
   
   (** * Lookaround tree correctness  *)
   (* Positive lookarounds expect trees with a result, and negative ones expect trees without results *)
@@ -176,7 +176,17 @@ Section Semantics.
   | tree_anchor_fail:
     forall a cont inp gm dir
       (ANCHOR: anchor_satisfied a inp = false),
-      is_tree (Areg (Anchor a) :: cont) inp gm dir (AnchorFail a).
+      is_tree (Areg (Anchor a) :: cont) inp gm dir (AnchorFail a)
+  | tree_backref:
+    forall gid inp gm nextinp dir cont tcont br_str
+      (READ_BACKREF: read_backref gm inp dir = Some (br_str, nextinp))
+      (TREECONT: is_tree cont nextinp gm dir tcont),
+      is_tree (Areg (Backreference gid) :: cont) inp gm dir (ReadBackRef br_str tcont)
+  | tree_backref_fail:
+    forall gid inp gm dir cont
+      (READ_BACKREF: read_backref gm inp dir = None),
+      is_tree (Areg (Backreference gid) :: cont) inp gm dir Mismatch.
+
 
 
   Definition priotree (r:regex) (str:string) (t:tree): Prop :=
@@ -231,6 +241,9 @@ Section Semantics.
       + f_equal. auto.
       + congruence.
     - inversion H; subst; auto. congruence.
+    - inversion H0; subst; auto; rewrite READ_BACKREF0 in READ_BACKREF; inversion READ_BACKREF; subst.
+      apply IHis_tree in TREECONT. subst. auto.
+    - inversion H; subst; auto; rewrite READ_BACKREF0 in READ_BACKREF; inversion READ_BACKREF; subst.
   Qed.
 
   Corollary priotree_determ:
