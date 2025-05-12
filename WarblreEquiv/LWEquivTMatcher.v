@@ -1,7 +1,7 @@
 From Coq Require Import Lia PeanoNat ZArith List.
 Import ListNotations.
 From Linden Require Import LWEquivTMatcherDef LWEquivTMatcherLemmas TMatching
-  LindenParameters Tree Chars TreeMSInterp ListLemmas MSInput Tactics LKFactorization CharSet.
+  LindenParameters Tree Chars ListLemmas MSInput Tactics LKFactorization CharSet.
 From Warblre Require Import Result Notation Base Semantics Coercions
   Errors Patterns Node RegExpRecord.
 Import Notation.

@@ -38,11 +38,6 @@ Module GroupMap.
   (* A group is considered open when it has no end index, and closed o.w. *)
   Record range : Type := Range { startIdx : nat; endIdx : option nat }.
 
-  Definition OpenRange (startIdx : nat) : range :=
-    Range startIdx None.
-  Definition CloseRange (endIdx : nat) '(Range startIdx _) : range :=
-    Range startIdx (Some endIdx).
-
   Module MapS <: FMapInterface.S.
     Module GroupId' <: OrderedTypeOrig := OrdersAlt.Backport_OT GroupId.
     Include FMapList.Make GroupId'.
@@ -52,6 +47,8 @@ Module GroupMap.
   Definition empty : t := MapS.empty range.
 
   Definition find : group_id -> t -> option range := MapS.find (elt := range).
+
+  Definition add: group_id -> range -> t -> t := MapS.add (elt := range).
 
   Section ops.
     Variable currIdx : nat. (* The current index in the string being matched *)
@@ -81,6 +78,10 @@ Module GroupMap.
   Axiom eq_dec : forall gm1 gm2 : t, { gm1 = gm2 } + { gm1 <> gm2 }.
   (* used in state_eq_dec, which is used in equiv_matches *)
   (* to decide between applying equiv_matches_not_seen, or the others. *)
+
+  (* MapsTo, In *)
+  Definition MapsTo := MapS.MapsTo (elt := range).
+  Definition In := MapS.In (elt := range).
 
 End GroupMap.
 Definition group_map : Type := GroupMap.t.

@@ -1,4 +1,4 @@
-From Linden Require Import LWEquivTMatcherDef TreeMSInterp Tree LindenParameters ListLemmas WarblreLemmas.
+From Linden Require Import LWEquivTMatcherDef Tree LindenParameters ListLemmas WarblreLemmas.
 From Warblre Require Import Result Notation Base Errors Parameters List.
 Import Notation.
 Import Result.Notations.
