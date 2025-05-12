@@ -34,27 +34,24 @@ Section LWEquivTMatcherLemmas.
   Proof.
     intros gm idx dir resopt1 topt1 resopt2 topt2 Hequiv1 Hequiv2.
     unfold tree_choice, match_choice.
-    inversion Hequiv1 as [ t1 gm' idx' dir' leaf1 res1 Heqleaf1 Hequiv1' Heqt1 Heqgm' Heqidx' Heqdir' Heqres1 |
+    inversion Hequiv1 as [ t1 gm' idx' dir' res1 Hequiv1' Heqt1 Heqgm' Heqidx' Heqdir' Heqres1 |
                          | ].
     2,3: constructor.
     subst gm' idx' dir'.
-    inversion Hequiv2 as [ t2 gm' idx' dir' leaf2 res2 Heqleaf2 Hequiv2' Heqt2 Heqgm' Heqidx' Heqdir' Heqres2 |
+    inversion Hequiv2 as [ t2 gm' idx' dir' res2 Hequiv2' Heqt2 Heqgm' Heqidx' Heqdir' Heqres2 |
                          | ]; simpl.
     - replace (if (res1 !=? None)%wt then _ else _)
         with (Success (F := MatchError) (if (res1 !=? None)%wt then res1 else res2
              )) by now destruct res1.
-      apply Equiv_results with (lres := seqop leaf1 leaf2).
-      + simpl. subst leaf1 leaf2. reflexivity.
-      + inversion Hequiv1' as [Hleaf1None Hres1None | gmleaf1 msres1 Hequivgmms Hleaf1Some Hres1Some].
-        * simpl. assumption.
-        * simpl. constructor. assumption.
+      constructor. simpl.
+      inversion Hequiv1' as [Hleaf1None Hres1None | gmleaf1 msres1 Hequivgmms Hleaf1Some Hres1Some].
+      + simpl. assumption.
+      + simpl. constructor. assumption.
     - constructor.
     - (* Something is happening here; may be simplified later *)
       destruct res1; simpl. 2: constructor.
       destruct topt2.
-      + simpl. apply Equiv_results with (lres := seqop leaf1 (tree_res s gm idx dir)).
-        * simpl. subst leaf1. reflexivity.
-        * inversion Hequiv1'. simpl. constructor. assumption.
+      + simpl. apply Equiv_results. simpl. inversion Hequiv1'. simpl. constructor. assumption.
       + constructor.
   Qed.
 

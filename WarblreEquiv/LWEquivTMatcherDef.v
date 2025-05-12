@@ -41,9 +41,8 @@ Section LWEquivTMatcherDef.
      in both directions). *)
   Inductive equiv_results: TMatchResult -> GroupMap.t -> nat -> Direction -> MatchResult -> Prop :=
   | Equiv_results:
-    forall (t: tree) (gm: GroupMap.t) (idx: nat) (dir: Direction) (lres: option leaf) (wres: option MatchState),
-      lres = tree_res t gm idx dir ->
-      equiv_groupmap_ms_opt lres wres ->
+    forall (t: tree) (gm: GroupMap.t) (idx: nat) (dir: Direction) (wres: option MatchState),
+      equiv_groupmap_ms_opt (tree_res t gm idx dir) wres ->
       equiv_results (Success t) gm idx dir (Success wres)
   | Equiv_results_errl:
     forall errl gm idx dir wres, equiv_results (Error errl) gm idx dir wres
