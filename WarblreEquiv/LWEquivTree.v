@@ -260,52 +260,64 @@ Section LWEquivTree.
     unfold tLookaroundMatcher in Hcompilesucc.
     destruct tCompileSubPattern as [tmlk|] eqn:Hcompilelksucc; simpl in *. 2: discriminate.
     injection Hcompilesucc as <-. specialize (IH tmlk lkdir Hcompilelksucc).
-    unfold tm_valid in *. specialize (IH id_tmcont []).
-    intros tmc cont str0 Htmcvalid.
-    specialize (IH str0 (id_tmcont_valid rer str0 lkdir)). unfold tMC_valid in *.
-    intros inp Hinpcompat ms t Hmsinp.
-    unfold tMC_is_tree in IH. specialize (IH inp Hinpcompat ms).
+    unfold tm_valid in *. specialize (IH id_tmcont [] []).
+    intros tmc gl actions str0 Hgldisj Htmcvalid.
+    specialize (IH str0). specialize_prove IH by admit. specialize (IH (id_tmcont_valid rer str0 lkdir)). unfold tMC_valid in *.
+    intros inp Hinpcompat. unfold tMC_is_tree. intros ms gm t Hmsinp.
+    unfold tMC_is_tree in IH. specialize (IH inp Hinpcompat ms (to_group_map ms)).
     destruct (tmlk ms _) as [tlk|] eqn:Htlk; simpl. 2: discriminate.
     specialize (IH tlk Hmsinp eq_refl).
+    do 2 specialize_prove IH by admit.
     destruct pos; simpl.
     - (* Positive lookaround *)
-      destruct TreeMSInterp.tree_res' as [mslk|] eqn:Hmslk; simpl.
+      destruct tree_res as [gmlk|] eqn:Hgmlk; simpl.
       + (* Lookaround succeeds *)
         specialize (Htmcvalid inp Hinpcompat).
         set (msafterlk := match_state _ _ _). specialize (Htmcvalid msafterlk).
         destruct (tmc msafterlk) as [tafterlk|]; simpl. 2: discriminate.
-        specialize (Htmcvalid tafterlk).
+        set (gmafterlk_opt := tree_res tlk gm (Z.to_nat (MatchState.endIndex ms)) lkdir).
+        destruct gmafterlk_opt as [gmafterlk|] eqn:Hgmafterlk. 2: admit. (* Absurd because of group map irrelevance *) 
+        specialize (Htmcvalid gmafterlk tafterlk).
         specialize_prove Htmcvalid. { unfold msafterlk. inversion Hmsinp. now constructor. }
         specialize (Htmcvalid eq_refl).
-        intro H. injection H as <-.
-        apply tree_pop_reg. apply tree_lk.
-        * rewrite lkdir_to_lookaround. now inversion IH.
-        * unfold lk_result. rewrite positivity_to_lookaround. unfold TreeMSInterp.first_branch'. set (msdummy := match_state _ _ _).
-          destruct (TreeMSInterp.tree_res' tlk msdummy []) eqn:Heqdummy. 1: eauto.
-          apply TreeMSInterp.result_indep_gm with (ms2 := ms) (gl2 := []) (dir2 := lkdir) in Heqdummy. congruence.
+        do 2 specialize_prove Htmcvalid by admit.
+        intro H. injection H as <-. intros Hgmms Hgmgl.
+        apply tree_lk with (gmlk := gmafterlk).
+        * rewrite lkdir_to_lookaround. (* Adding open groups does not change anything *) admit. (* now inversion IH. *)
+        * unfold lk_result. rewrite positivity_to_lookaround. unfold first_branch.
+          destruct (tree_res tlk GroupMap.empty 0 forward) eqn:Heqdummy. 1: eauto.
+          admit. (* Need to prove group map irrelevance *) (*apply TreeMSInterp.result_indep_gm with (ms2 := ms) (gl2 := []) (dir2 := lkdir) in Heqdummy. congruence.*)
+        * unfold lk_group_map. rewrite positivity_to_lookaround. replace (lk_dir _) with lkdir by now destruct lkdir. (* Sort of apply Hgmlk, which uses a more restricted group map and a Z.to_nat as index *) admit.
         * assumption.
-      + (* Lookahead fails *)
-        intro H. injection H as <-.
-        apply tree_pop_reg. apply tree_lk_fail.
-        * rewrite lkdir_to_lookaround. now inversion IH.
-        * unfold lk_result. rewrite positivity_to_lookaround. unfold TreeMSInterp.first_branch'. set (msdummy := match_state _ _ _).
-          erewrite TreeMSInterp.result_indep_gm by eauto. intros [res]; discriminate.
+      + (* Lookaround fails *)
+        intro H. injection H as <-. intros Hgmms Hgmgl.
+        apply tree_lk_fail.
+        * rewrite lkdir_to_lookaround. (* Apply IH which uses a more restricted group map *) admit.
+        * unfold lk_result. rewrite positivity_to_lookaround. unfold first_branch.
+          (* Group map independence *)
+          admit.
     - (* Negative lookaround *)
-      destruct TreeMSInterp.tree_res' as [mslk|] eqn:Hmslk; simpl.
+      (* gmlk' is the group map after the lookaround, but without the currently open groups *)
+      destruct tree_res as [gmlk'|] eqn:Hgmlk; simpl.
       + (* Lookaround succeeds *)
-        intro H. injection H as <-.
-        apply tree_pop_reg. apply tree_lk_fail.
-        1: rewrite lkdir_to_lookaround; now inversion IH.
-        unfold lk_result, TreeMSInterp.first_branch'. simpl. rewrite positivity_to_lookaround. intro H.
-        apply TreeMSInterp.result_indep_gm with (ms2 := ms) (gl2 := []) (dir2 := lkdir) in H. congruence.
-      + specialize (Htmcvalid inp Hinpcompat ms).
+        intro H. injection H as <-. intros Hgmms Hgmgl.
+        apply tree_lk_fail.
+        1: rewrite lkdir_to_lookaround; admit. (* Morally, apply IH which uses a more restricted group map *)
+        unfold lk_result, first_branch. simpl. rewrite positivity_to_lookaround. intro H.
+        (*apply TreeMSInterp.result_indep_gm with (ms2 := ms) (gl2 := []) (dir2 := lkdir) in H. congruence.*) (* Need to prove group map independence *) admit.
+      + (* Lookaround fails *)
+        specialize (Htmcvalid inp Hinpcompat ms gm).
         destruct (tmc ms) as [tnext|] eqn:Heqnext; simpl. 2: discriminate.
         intro H. injection H as <-.
         specialize (Htmcvalid tnext Hmsinp eq_refl).
-        apply tree_pop_reg. apply tree_lk; auto. 1: rewrite lkdir_to_lookaround; now inversion IH.
-        unfold lk_result, TreeMSInterp.first_branch'. rewrite positivity_to_lookaround. simpl.
-        eapply TreeMSInterp.result_indep_gm; eauto.
-  Qed.
+        intros Hgmms Hgmgl. specialize (Htmcvalid Hgmms Hgmgl).
+        apply tree_lk with (gmlk := gm); auto.
+        1: rewrite lkdir_to_lookaround; admit. (* Morally, apply IH which uses a more restricted group map *)
+        * unfold lk_result, first_branch. rewrite positivity_to_lookaround.
+          (* Group map independence *)
+          admit.
+        * unfold lk_group_map. rewrite positivity_to_lookaround. reflexivity.
+  Admitted.
 
 
   (** ** Lemmas for character descriptors *)
@@ -332,14 +344,14 @@ Section LWEquivTree.
     tm_valid tm rer (Regex.Character cd) dir.
   Proof.
     intros charset cd Hequiv rer tm dir Hcasesenst Heqtm. subst tm.
-    unfold tm_valid. intros tmc cont str0 Htmcvalid.
-    unfold tMC_valid. intros inp Hinpcompat. unfold tMC_is_tree. intros ms t Hmsinp.
+    unfold tm_valid. intros tmc gl actions str0 Hgldisj Htmcvalid.
+    unfold tMC_valid. intros inp Hinpcompat. unfold tMC_is_tree. intros ms gm t Hmsinp.
     unfold tCharacterSetMatcher. simpl.
     set (nextend := if (dir ==? forward)%wt then _ else _).
     set (next_outofbounds := ((_ <? 0)%Z || _)%bool).
     destruct next_outofbounds eqn:Hoob; simpl.
-    + intro Htm_succ. injection Htm_succ as <-.
-      apply tree_pop_reg. apply tree_char_fail.
+    + intro Htm_succ. injection Htm_succ as <-. intros Hgmms Hgmgl.
+      apply tree_char_fail.
       destruct dir; simpl in *.
       * eapply read_oob_fail_end_bool; eauto. * eapply read_oob_fail_begin_bool; eauto.
     + (* If we are in bounds, then getting the character should succeed. Since we don't prove anything in the case of errors, we just assume this here *)
@@ -350,8 +362,7 @@ Section LWEquivTree.
       destruct Hnextinp as [inp_adv Hnextinp].
       destruct CharSet.contains; simpl in *.
       * (* Case 1: the character matches. We then want to prove that we have a read success. *)
-        intro Htm_succ.
-        apply tree_pop_reg.
+        intros Htm_succ Hgmms Hgmgl.
         (* We first need to replace t with Success (Read chr child). *)
         remember (match_state _ _ _) as ms_adv in Htm_succ.
         unfold tMC_valid, tMC_is_tree in Htmcvalid.
@@ -369,14 +380,13 @@ Section LWEquivTree.
           - replace (Z.min _ _) with nextend in Hgetchr by lia. apply Hgetchr.
         }
         (* The subtree is valid: results from three lemmas. *)
-        apply Htmcvalid with (ms := ms_adv).
+        apply Htmcvalid with (ms := ms_adv); auto.
         -- eapply advance_input_compat; eassumption.
         -- eapply ms_matches_inp_adv; eauto.
            destruct dir; unfold advance_ms; subst ms_adv; simpl in *; reflexivity.
-        -- assumption.
+        -- subst ms_adv. apply Hgmms.
       * (* Case 2: it is not equal. *)
-        intro Htm_succ. injection Htm_succ as <-.
-        apply tree_pop_reg.
+        intro Htm_succ. injection Htm_succ as <-. intros Hgmms Hgmgl.
         apply tree_char_fail.
         eapply read_char_fail; eauto.
         2: { rewrite exist_canonicalized_contains by assumption. pose proof Hequiv chr as Hequivchr'. rewrite Hequivchr in Hequivchr'. symmetry in Hequivchr'. eassumption. }
@@ -395,14 +405,14 @@ Section LWEquivTree.
     tm_valid tm rer (Regex.Character (CdInv cd)) dir.
   Proof.
     intros charset cd Hequiv rer tm dir Hcasesenst Heqtm. subst tm.
-    unfold tm_valid. intros tmc cont str0 Htmcvalid.
-    unfold tMC_valid. intros inp Hinpcompat. unfold tMC_is_tree. intros ms t Hmsinp.
+    unfold tm_valid. intros tmc gl actions str0 Hgldisj Htmcvalid.
+    unfold tMC_valid. intros inp Hinpcompat. unfold tMC_is_tree. intros ms gm t Hmsinp.
     unfold tCharacterSetMatcher. simpl.
     set (nextend := if (dir ==? forward)%wt then _ else _).
     set (next_outofbounds := ((_ <? 0)%Z || _)%bool).
     destruct next_outofbounds eqn:Hoob; simpl.
-    + intro Htm_succ. injection Htm_succ as <-.
-      apply tree_pop_reg. apply tree_char_fail.
+    + intro Htm_succ. injection Htm_succ as <-. intros Hgmms Hgmgl.
+      apply tree_char_fail.
       destruct dir; simpl in *.
       * eapply read_oob_fail_end_bool; eauto. * eapply read_oob_fail_begin_bool; eauto.
     + (* If we are in bounds, then getting the character should succeed. Since we don't prove anything in the case of errors, we just assume this here *)
@@ -413,8 +423,7 @@ Section LWEquivTree.
       destruct Hnextinp as [inp_adv Hnextinp].
       destruct CharSet.contains; simpl in *.
       * (* Case 1: the character matches. *)
-        intro Htm_succ. injection Htm_succ as <-.
-        apply tree_pop_reg.
+        intro Htm_succ. injection Htm_succ as <-. intros Hgmms Hgmgl.
         apply tree_char_fail.
         eapply read_char_success; eauto.
         2: { rewrite exist_canonicalized_contains by assumption. pose proof Hequiv chr as Hequivchr'. rewrite Hequivchr in Hequivchr'. symmetry in Hequivchr'. eassumption. }
@@ -422,8 +431,7 @@ Section LWEquivTree.
         -- replace (Z.min _ _) with (MatchState.endIndex ms) in Hgetchr by lia. auto.
         -- replace (Z.min _ _) with nextend in Hgetchr by lia. auto.
       * (* Case 2: the character doesn't match. We then want to prove that we have a read success. *)
-        intro Htm_succ.
-        apply tree_pop_reg.
+        intros Htm_succ Hgmms Hgmgl.
         (* We first need to replace t with Success (Read chr child). *)
         remember (match_state _ _ _) as ms_adv in Htm_succ.
         unfold tMC_valid, tMC_is_tree in Htmcvalid.
@@ -441,11 +449,11 @@ Section LWEquivTree.
           - replace (Z.min _ _) with nextend in Hgetchr by lia. apply Hgetchr.
         }
         (* The subtree is valid: results from three lemmas. *)
-        apply Htmcvalid with (ms := ms_adv).
+        apply Htmcvalid with (ms := ms_adv); auto.
         -- eapply advance_input_compat; eassumption.
         -- eapply ms_matches_inp_adv; eauto.
            destruct dir; unfold advance_ms; subst ms_adv; simpl in *; reflexivity.
-        -- assumption.
+        -- subst ms_adv. auto.
   Qed.
 
   (* Lemma for character class escapes *)
