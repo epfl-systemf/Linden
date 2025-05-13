@@ -59,7 +59,11 @@ Module GroupMap.
     (* Assumes, but does not check, the g is associated to an open range *)
     Definition close (gid : group_id) (gm : t) : t :=
       match find gid gm with
-      | Some (Range startIdx _) => MapS.add gid (Range startIdx (Some currIdx)) gm
+      | Some (Range startIdx _) => 
+          if startIdx <=? currIdx then
+            MapS.add gid (Range startIdx (Some currIdx)) gm
+          else
+            MapS.add gid (Range currIdx (Some startIdx)) gm
       | None => gm
       end.
 
