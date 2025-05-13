@@ -27,6 +27,12 @@ Section Semantics.
     | false => first_branch t = None
     end.
 
+  Definition lk_group_map (lk: lookaround) (t: tree) (gm: group_map) (idx: nat): option group_map :=
+    match (positivity lk) with
+    | true => tree_res t gm idx (lk_dir lk)
+    | false => Some gm
+    end.
+
   (** * Anchor semantics *)
 
   Definition is_boundary (i:input) : bool :=
@@ -153,14 +159,15 @@ Section Semantics.
       (TREECONT: is_tree (Areg r1 :: Aclose gid :: cont) inp (GroupMap.open (idx inp) gid gm) dir treecont),
       is_tree (Areg (Group gid r1) :: cont) inp gm dir (GroupAction (Open gid) treecont)
   | tree_lk:
-    forall lk r1 cont treecont treelk inp gm dir
+    forall lk r1 cont treecont treelk inp gm gmlk dir
       (* there is a tree for the lookaround *)
       (TREELK: is_tree [Areg r1] inp gm (lk_dir lk) treelk)
-    (* this tree has the correct expected result (positivity) *)
+      (* this tree has the correct expected result (positivity) *)
       (RES_LK: lk_result lk treelk)
       (* TODO: below, this is not the right gm, because it should be updated with the groups that have been defined inside the lookaround *)
       (* We should wait until the final version of group maps before fixing this *)
-      (TREECONT: is_tree cont inp gm dir treecont),
+      (GM_LK: lk_group_map lk treelk gm (idx inp) = Some gmlk)
+      (TREECONT: is_tree cont inp gmlk dir treecont),
       is_tree (Areg (Lookaround lk r1) :: cont) inp gm dir (LK lk treelk treecont)
   | tree_lk_fail:
     forall lk r1 cont treelk inp gm dir
@@ -232,7 +239,8 @@ Section Semantics.
     (* Following two bullets copied from backtree repo *)
     - inversion H1; subst; auto.
       2: { apply IHis_tree1 in TREELK. subst. exfalso. apply FAIL_LK. auto. }
-      apply IHis_tree1 in TREELK. apply IHis_tree2 in TREECONT. subst. auto.
+      apply IHis_tree1 in TREELK. subst treelk0. rewrite GM_LK in GM_LK0. injection GM_LK0 as GM_LK0. subst gmlk0.
+      apply IHis_tree2 in TREECONT. subst. auto.
     - inversion H0; subst; auto.
       { apply IHis_tree in TREELK. subst. exfalso. apply FAIL_LK. auto. }
       apply IHis_tree in TREELK. subst. auto.
