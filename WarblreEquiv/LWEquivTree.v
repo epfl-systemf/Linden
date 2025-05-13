@@ -121,8 +121,8 @@ Section LWEquivTree.
   Proof.
     intros rer greedy parenIndex parenCount tm lreg dir Htmvalid Hgroupsvalid fuel.
     destruct fuel as [|fuel]. 1: discriminate.
-    simpl. unfold tm_valid, tMC_valid, tMC_is_tree. intros tmc cont str0 Htmctree inp Hinpcompat ms t Hmsinp Heqt.
-    apply tree_pop_reg. apply tree_quant_minzero_pluszero. eapply Htmctree; eauto.
+    simpl. unfold tm_valid, tMC_valid, tMC_is_tree. intros tmc gl actions str0 Hgldisj Htmctree inp Hinpcompat ms gm t Hmsinp Heqt Hgmms Hgmgl.
+    apply tree_quant_done. eapply Htmctree; eauto.
   Qed.
 
 
@@ -139,19 +139,22 @@ Section LWEquivTree.
     1: discriminate.
 
     intro delta.
-    destruct (delta =? NoI.N (nat_to_nni 0))%NoI eqn:Hpluszero.
-    1: { rewrite noi_eqb_eq in Hpluszero. subst delta. now apply tRepeatMatcher'_zero_valid. }
-    simpl. rewrite Hpluszero.
-    intros tmc cont str0 Htmc_valid inp Hinp_compat ms t Hms_inp HmatchSuccess.
+    destruct (delta =? NoI.N (nat_to_nni 0))%NoI eqn:Hdeltazero.
+    1: { rewrite noi_eqb_eq in Hdeltazero. subst delta. now apply tRepeatMatcher'_done_valid. }
+    simpl. rewrite Hdeltazero.
+    unfold tm_valid.
+    intros tmc gl actions str0 Hgldisj Htmc_valid inp Hinp_compat.
+    unfold tMC_is_tree. intros ms gm t Hmsinp HmatchSuccess Hgmms Hgmgl.
     destruct List.List.Update.Nat.Batch.update as [cap'|] eqn:Heqcap'; simpl in *. 2: discriminate.
     set (tmcloop := fun y: MatchState => if (_ =? _)%Z then _ else _) in HmatchSuccess.
     set (msreset := match_state _ _ cap') in HmatchSuccess.
-    assert (tMC_valid tmcloop rer (Acheck (ms_suffix ms dir)::Areg (Regex.Quantified greedy 0 (delta - 1)%NoI lreg)::cont) str0 dir) as Htmcloop_valid. {
-      intros inp' Hinp'_compat ms1 t1 Hms1_inp Htmcloop_succeeds.
+    assert (tMC_valid tmcloop gl rer (Acheck (ms_suffix ms dir)::Areg (Regex.Quantified greedy 0 (delta - 1)%NoI lreg)::actions) str0 dir) as Htmcloop_valid. {
+      unfold tMC_valid. intros inp' Hinp'_compat.
+      unfold tMC_is_tree. intros ms1 gm1 t1 Hms1inp Htmcloop_succeeds Hgm1ms1 Hgm1gl.
       unfold tmcloop in Htmcloop_succeeds.
       destruct (_ =? _)%Z eqn:Heqcheck.
       - (* Case 1: the input has not progressed *)
-        injection Htmcloop_succeeds as <-. apply tree_pop_check_fail.
+        injection Htmcloop_succeeds as <-. apply tree_check_fail.
         rewrite ms_suffix_current_str with (ms := ms1) by assumption.
         unfold ms_suffix.
         rewrite Z.eqb_eq in Heqcheck.
@@ -165,47 +168,49 @@ Section LWEquivTree.
         destruct tRepeatMatcher' as [subtree|] eqn:Heqsubtree; simpl in *.
         2: discriminate.
         injection Htmcloop_succeeds as <-.
-        apply tree_pop_check.
+        apply tree_check.
         + eapply endInd_neq_advanced; eauto.
-        + rewrite noi_decr in Heqsubtree. specialize (IHfuel (delta - 1)%NoI tmc cont str0 Htmc_valid inp' Hinp'_compat ms1 subtree Hms1_inp Heqsubtree). apply IHfuel.
+        + rewrite noi_decr in Heqsubtree. specialize (IHfuel (delta - 1)%NoI tmc gl actions str0 Hgldisj Htmc_valid inp' Hinp'_compat ms1 gm1 subtree Hms1inp Heqsubtree Hgm1ms1 Hgm1gl). apply IHfuel.
     }
-    specialize (Htmvalid tmcloop (Acheck (ms_suffix ms dir)::Areg (Regex.Quantified greedy 0 (delta-1)%NoI lreg)::cont) str0 Htmcloop_valid inp Hinp_compat).
+    unfold tm_valid in Htmvalid.
+    specialize (Htmvalid tmcloop gl (Acheck (ms_suffix ms dir)::Areg (Regex.Quantified greedy 0 (delta-1)%NoI lreg)::actions) str0 Hgldisj Htmcloop_valid inp Hinp_compat).
     specialize (Htmc_valid inp Hinp_compat).
     unfold tMC_is_tree in Htmvalid, Htmc_valid.
     assert (ms_matches_inp msreset inp) as Hmsreset_inp. {
-      unfold msreset. inversion Hms_inp. simpl. now constructor.
+      unfold msreset. inversion Hmsinp. simpl. now constructor.
     }
 
     destruct greedy.
     + (* Greedy star *)
       destruct tm as [z|] eqn:Heqz; simpl. 2: discriminate.
       destruct tmc as [z'|] eqn:Heqz'; simpl. 2: discriminate.
-      specialize (Htmvalid msreset z Hmsreset_inp Heqz).
-      specialize (Htmc_valid ms z' Hms_inp Heqz').
-      apply tree_pop_reg.
+      specialize (Htmvalid msreset (GroupMap.reset (seq (parenIndex + 1) parenCount) gm) z Hmsreset_inp Heqz).
+      specialize_prove Htmvalid by admit.
+      specialize_prove Htmvalid by admit.
+      specialize (Htmc_valid ms gm z' Hmsinp Heqz' Hgmms Hgmgl).
       rewrite noi_nonzero_succprec with (x := delta). 2: now apply noi_eqb_neq.
-      eapply tree_quant_minzero_pluspos.
+      eapply tree_quant_free.
       * symmetry. apply Hgroupsvalid.
       * rewrite ms_suffix_current_str with (ms := ms). 2: assumption.
-        inversion Htmvalid.
-        apply TREECONT.
+        apply Htmvalid.
       * apply Htmc_valid.
       * inversion HmatchSuccess. reflexivity.
 
     + (* Lazy star *)
       destruct tmc as [z'|] eqn:Heqz'; simpl. 2: discriminate.
       destruct tm as [z|] eqn:Heqz; simpl. 2: discriminate.
-      specialize (Htmvalid msreset z Hmsreset_inp Heqz).
-      specialize (Htmc_valid ms z' Hms_inp Heqz').
-      apply tree_pop_reg.
+      specialize (Htmvalid msreset (GroupMap.reset (seq (parenIndex + 1) parenCount) gm) z Hmsreset_inp Heqz).
+      specialize_prove Htmvalid by admit.
+      specialize_prove Htmvalid by admit.
+      specialize (Htmc_valid ms gm z' Hmsinp Heqz' Hgmms Hgmgl).
       rewrite noi_nonzero_succprec with (x := delta). 2: now apply noi_eqb_neq.
-      eapply tree_quant_minzero_pluspos.
+      eapply tree_quant_free.
       * symmetry. apply Hgroupsvalid.
       * rewrite ms_suffix_current_str with (ms := ms). 2: assumption.
-        inversion Htmvalid. apply TREECONT.
+        apply Htmvalid.
       * apply Htmc_valid.
       * inversion HmatchSuccess. reflexivity.
-  Qed.
+  Admitted.
 
   (* Main theorem for repeated matching *)
   Lemma tRepeatMatcher'_valid:
@@ -221,8 +226,8 @@ Section LWEquivTree.
   Proof.
     intros rer greedy parenIndex parenCount mini delta tm lreg dir Htmvalid Hgroupsvalid fuel.
     destruct mini as [|mini'].
-    - replace (NoI.N 0 + delta)%NoI with delta by now destruct delta. now apply tRepeatMatcher'_minzero_valid.
-    - apply tRepeatMatcher'_minnonzero_valid; auto. intro fuel0. now apply tRepeatMatcher'_minzero_valid.
+    - replace (NoI.N 0 + delta)%NoI with delta by now destruct delta. now apply tRepeatMatcher'_free_valid.
+    - apply tRepeatMatcher'_forced_valid; auto. intro fuel0. now apply tRepeatMatcher'_free_valid.
   Qed.
 
 
