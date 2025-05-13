@@ -405,41 +405,39 @@ Section LWEquivTMatcher.
       intros mc tmc gl Hgldisj Hequiv gm idx ms Hmsstr0 Hmsidx Hgmms Hgmgl.
       simpl in *.
       injection Heqm as <-. injection Heqtm as <-.
+      (* treecont and origcont close the group and continue with the rest of the regexp *)
       remember (fun y : MatchState => _) as treecont.
       remember (fun y : MatchState => let! r =<< _ in let! cap =<< _ in mc _) as origcont.
       remember (StaticSemantics.countLeftCapturingParensBefore _ ctx + 1) as gid.
-      set (gl' := ((gid, idx (*, dir*))::gl)%list).
-      admit.
-      (*
+      set (gl' := ((gid, idx)::gl)%list).
       specialize (IH msub tmsub dir Heqmsub Heqtmsub str0 origcont treecont gl').
+      (* Letting parenIndex be gid-1 and parenCount be the number of groups defined
+         by the sub-regexp plus one, gl is disjoint from [parenIndex + 1, parenIndex + parenCount]
+         so gl' = (gid, idx)::gl is disjoint from [parenIndex + 2 = gid + 1, parenIndex + parenCount] *)
+      specialize_prove IH by admit.
       specialize_prove IH. {
-        intros y Hy_ms_sameinp.
-        rewrite Heqtreecont, Heqorigcont.
-        set (extr1 := MatchState.endIndex ms). set (extr2 := MatchState.endIndex y).
-        remember (if (dir ==? forward)%wt then _ else _) as rangeresult. destruct rangeresult as [r|] eqn:Heqrange; simpl. 2: constructor.
+        unfold equiv_tree_mcont.
+        intros gmafter idxafter msafter Hmsafterstr0 Hmsafteridxafter Hgmaftermsafter Hgmaftergl'.
+        rewrite Heqtreecont, Heqorigcont. clear Heqtreecont Heqorigcont.
+        set (extr1 := MatchState.endIndex ms). set (extr2 := MatchState.endIndex msafter).
+        set (if (dir ==? forward)%wt then _ else _) as rangeresult. destruct rangeresult as [r|] eqn:Heqrange; simpl. 2: constructor.
         destruct (gid =? 0) eqn:Hgid_nonzero; simpl. 1: constructor.
         destruct List.List.Update.Nat.One.update as [cap'|] eqn:Hcapupd; simpl. 2: constructor.
-        remember (match_state _ _ cap') as ms'.
-        destruct (tmc ms') as [t|] eqn:Heqt; simpl. 2: constructor.
-        destruct (mc ms') as [res|] eqn:Heqres; simpl. 2: constructor.
-        constructor. simpl. rewrite EqDec.reflb. rewrite Hgid_nonzero.
-        replace (Some (capture_range _ _)) with r.
-        2: {
-          destruct dir; simpl in *; destruct negb; try solve[discriminate]; inversion Heqrangeresult; auto.
-        }
-        unfold CaptureRange_or_undefined in Hcapupd. rewrite Hcapupd.
-        specialize (Hequiv ms').
-        specialize_prove Hequiv. { rewrite Heqms'; auto. }
-        rewrite Heqt, Heqres in Hequiv.
-        inversion Hequiv as [t' ms'' gl'' dir' res' Hequiv' Heqt' Heqms'' Heqgl'' Heqdir' Heqres' | |].
-        clear t' ms'' gl'' res' Heqt' Heqms'' Heqgl'' Heqres'.
-        rewrite Heqms' in Hequiv'. rewrite Hy_ms_sameinp. rewrite Hmsstr0 in Hequiv'.
-        assumption.
+        set (match_state _ _ cap') as mscont.
+        destruct (tmc mscont) as [t|] eqn:Heqt; simpl. 2: constructor.
+        destruct (mc mscont) as [res|] eqn:Heqres; simpl. 2: constructor.
+        constructor. simpl. unfold equiv_tree_mcont in Hequiv.
+        specialize (Hequiv (GroupMap.close idxafter gid gmafter) idxafter mscont Hmsstr0 Hmsafteridxafter).
+        specialize_prove Hequiv by admit.
+        specialize_prove Hequiv by admit.
+        inversion Hequiv; congruence.
       }
-      specialize (IH ms Hmsstr0). simpl in *.
+      unfold equiv_tree_mcont in IH.
+      specialize (IH (GroupMap.open idx gid gm) idx ms Hmsstr0 Hmsidx).
+      do 2 specialize_prove IH by admit.
       destruct (tmsub ms treecont) as [t|] eqn:Heqt; simpl. 2: constructor.
       destruct (msub ms origcont) as [res|] eqn:Heqres; simpl. 2: constructor.
-      constructor. inversion IH. auto.*)
+      constructor. simpl. inversion IH. auto.
 
     - (* Input start *)
       simpl. intros ctx m tm dir Heqm Heqtm. injection Heqm as <-. injection Heqtm as <-.
