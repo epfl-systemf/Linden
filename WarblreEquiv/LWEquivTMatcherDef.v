@@ -48,10 +48,6 @@ Section LWEquivTMatcherDef.
     (* the tree returned by the TMatcherContinuation, when interpreted using the group map gm and end index idx, yields a result equivalent to that of the MatcherContinuation. *)
     equiv_results (tmc ms) gm idx dir (mc ms).
 
-  (* Disjointness of open groups list with list of defined groups; needed for capture reset case *)
-  Definition open_groups_disjoint (gl: open_groups) (def_groups: list group_id) :=
-    forall gid idx, In (gid, idx) gl -> ~In gid def_groups.
-
   (* A (T)Matcher matches a regexp in some direction, then calls a continuation after matching
      the said regexp.
      We say that a Matcher m and a TMatcher tm of direction dir are equivalent under the input
