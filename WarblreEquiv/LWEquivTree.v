@@ -579,20 +579,21 @@ Section LWEquivTree.
 
     - (* Empty *)
       simpl. intros _ _ _.
-      intros tm dir Hcompsucc tmc cont str0 Htmc_tree inp Hinp_compat.
+      intros tm dir Hcompsucc. unfold tm_valid. intros tmc gl actions str0 Hgldisj Htmc_tree inp Hinp_compat.
       injection Hcompsucc as <-.
-      intros ms t Hms_inp Htmc_succ.
-      apply tree_pop_reg. unfold tMC_valid, tMC_is_tree in Htmc_tree.
-      now apply Htmc_tree with (ms := ms).
+      unfold tMC_is_tree. intros ms gm t Hmsinp Htmc_succ Hgmms Hgmgl.
+      admit. (* Missing rule for Epsilon *)
+      (*apply tree_pop_reg. unfold tMC_valid, tMC_is_tree in Htmc_tree.
+      now apply Htmc_tree with (ms := ms).*)
 
 
     - (* Character *)
-      simpl. intros ctx Hroot _ tm dir Hcompile_succ tmc cont str0 Htmc_tree inp Hinp_compat ms t Hms_inp Htm_succ.
+      simpl. intros ctx Hroot _ tm dir Hcompile_succ tmc gl actions str0 Hgldisj Htmc_tree inp Hinp_compat ms gm t Hmsinp Htm_succ Hgmms Hgmgl.
       injection Hcompile_succ as Hcompile_succ. symmetry in Hcompile_succ.
       eapply charSetMatcher_noninv_pt; eauto. apply equiv_cd_single.
 
-    (* Dot *)
-    - simpl. intros ctx Hroot _ tm dir Hcompile_succ tmc cont str0 Htmc_tree inp Hinp_compat ms t Hms_inp Htm_succ.
+      (* Dot *)
+    - simpl. intros ctx Hroot _ tm dir Hcompile_succ tmc gl actions str0 Hgldisj Htmc_tree inp Hinp_compat ms gm t Hmsinp Htm_succ Hgmms Hgmgl.
       injection Hcompile_succ as Hcompile_succ. symmetry in Hcompile_succ.
       eapply charSetMatcher_noninv_pt; eauto. rewrite Hdotall. apply equiv_cd_dot.
 
