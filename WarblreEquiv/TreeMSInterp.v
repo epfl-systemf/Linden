@@ -83,8 +83,7 @@ Section TreeMSInterp.
         end
     | Read c t1 =>
       tree_res' t1 (advance_ms s dir) gl dir
-    | CheckFail _ => None
-    | CheckPass _ t1 => tree_res' t1 s gl dir
+    | Progress _ t1 => tree_res' t1 s gl dir
     | GroupAction g t1 => 
         let (s', gl') := group_effect' g s gl dir in tree_res' t1 s' gl' dir
     | LK lk tlk t =>
@@ -103,7 +102,6 @@ Section TreeMSInterp.
             end
         end
     | LKFail _ _ => None
-    | AnchorFail _ => None
     | AnchorPass _ t => tree_res' t s gl dir
     | ReadBackRef _ t => tree_res' t s gl dir
     end.
