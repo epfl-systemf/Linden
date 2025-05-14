@@ -612,8 +612,7 @@ Section LWEquivTree.
 
 
     - (* Disjunction *)
-      intros ctx Hroot Heqn.
-      simpl in *.
+      intros ctx Hroot Heqn. simpl in *.
       specialize (IH1 (Disjunction_left wr2 :: ctx)).
       specialize (IH2 (Disjunction_right wr1 :: ctx)).
       specialize_prove IH1 by eauto using same_root_down0, Down_Disjunction_left.
@@ -630,65 +629,60 @@ Section LWEquivTree.
       destruct (tCompileSubPattern wr1 _ rer dir) as [tm1|] eqn:Htm1; simpl. 2: discriminate.
       destruct (tCompileSubPattern wr2 _ rer dir) as [tm2|] eqn:Htm2; simpl. 2: discriminate.
       simpl in Hcompsucc. injection Hcompsucc as <-.
-      intros tmc cont str0 Htmc_tree inp Hinp_compat s t Hs_inp Heqt.
-      specialize (IH1 tm1 dir Htm1 tmc cont str0 Htmc_tree inp Hinp_compat).
-      specialize (IH2 tm2 dir Htm2 tmc cont str0 Htmc_tree inp Hinp_compat).
-      destruct (tm1 s tmc) as [t1|] eqn:Heqt1; simpl. 2: discriminate.
-      destruct (tm2 s tmc) as [t2|] eqn:Heqt2; simpl. 2: discriminate.
-      specialize (IH1 s t1 Hs_inp). specialize (IH2 s t2 Hs_inp).
+      unfold tm_valid. intros tmc gl actions str0 Hgldisj Htmc_tree.
+      unfold tMC_valid. intros inp Hinp_compat.
+      unfold tMC_is_tree. intros ms gm t Hmsinp Heqt Hgmms Hgmgl.
+      specialize (IH1 tm1 dir Htm1 tmc gl actions str0).
+      specialize_prove IH1 by admit. specialize (IH1 Htmc_tree inp Hinp_compat).
+      specialize (IH2 tm2 dir Htm2 tmc gl actions str0).
+      specialize_prove IH2 by admit. specialize (IH2 Htmc_tree inp Hinp_compat).
+      destruct (tm1 ms tmc) as [t1|] eqn:Heqt1; simpl. 2: discriminate.
+      destruct (tm2 ms tmc) as [t2|] eqn:Heqt2; simpl. 2: discriminate.
+      specialize (IH1 ms gm t1 Hmsinp Heqt1 Hgmms Hgmgl).
+      specialize (IH2 ms gm t2 Hmsinp Heqt2 Hgmms Hgmgl).
       simpl in *.
-      rewrite Heqt1 in IH1. rewrite Heqt2 in IH2.
-      apply tree_pop_reg.
       injection Heqt as <-.
-      specialize (IH1 eq_refl). specialize (IH2 eq_refl).
-      inversion IH1. inversion IH2.
       now apply tree_disj.
 
 
     - (* Sequence *)
       intros ctx Hroot Heqn. simpl in *. intros tm dir Hcompsucc.
-      specialize (IH1 (Seq_left wr2 :: ctx)).
-      specialize (IH2 (Seq_right wr1 :: ctx)).
+      specialize (IH1 (Seq_left wr2 :: ctx)). specialize (IH2 (Seq_right wr1 :: ctx)).
       specialize_prove IH1 by eauto using same_root_down0, Down_Seq_left.
       specialize_prove IH1. {
-        unfold StaticSemantics.countLeftCapturingParensBefore in *.
-        simpl.
-        lia.
+        unfold StaticSemantics.countLeftCapturingParensBefore in *. simpl. lia.
       }
       specialize_prove IH2 by eauto using same_root_down0, Down_Seq_right.
       specialize_prove IH2. {
-        unfold StaticSemantics.countLeftCapturingParensBefore in *.
-        simpl.
-        assert (H: num_groups lr1 = StaticSemantics.countLeftCapturingParensWithin_impl wr1) by (eapply num_groups_equiv; eassumption).
-        lia.
+        unfold StaticSemantics.countLeftCapturingParensBefore in *. simpl.
+        assert (H: num_groups lr1 = StaticSemantics.countLeftCapturingParensWithin_impl wr1) by (eapply num_groups_equiv; eassumption). lia.
       }
       destruct (tCompileSubPattern wr1 _ rer dir) as [tm1|] eqn:Htm1; simpl. 2: discriminate.
       destruct (tCompileSubPattern wr2 _ rer dir) as [tm2|] eqn:Htm2; simpl. 2: discriminate.
       specialize (IH1 tm1 dir Htm1). specialize (IH2 tm2 dir Htm2).
-      intros tmc cont str0 Htmc_tree inp Hinp_compat ms t Hms_inp Heqt.
+      unfold tm_valid. intros tmc gl actions str0 Hgldisj Htmc_tree.
+      unfold tMC_valid. intros inp Hinp_compat ms gm t Hmsinp Heqt Hgmms Hgmgl.
       simpl in Hcompsucc. destruct dir; injection Hcompsucc as <-.
-      + remember (fun s1 => tm2 s1 tmc) as tmc2.
-        assert (tMC_valid tmc2 rer (Areg lr2::cont) str0 forward) as Htmc2_tree. {
-          intros inp' Hinp'_compat.
-          rewrite Heqtmc2.
-          unfold tm_valid, tMC_valid in IH2.
-          now apply IH2 with (str0 := str0).
+      + (* Forward direction *)
+        set (fun s1 => tm2 s1 tmc) as tmc2 in Heqt.
+        assert (tMC_valid tmc2 gl rer (Areg lr2::actions) str0 forward) as Htmc2_tree. {
+          unfold tMC_valid. intros inp' Hinp'_compat.
+          unfold tm_valid in IH2. unfold tMC_valid at 2 in IH2.
+          apply IH2 with (str0 := str0); auto. admit.
         }
-        specialize (IH1 tmc2 (Areg lr2 :: cont) str0 Htmc2_tree inp Hinp_compat ms t Hms_inp Heqt).
-        apply tree_pop_reg.
-        inversion IH1.
-        now apply tree_sequence_fwd.
-      + remember (fun s2 => tm1 s2 tmc) as tmc1.
-        assert (tMC_valid tmc1 rer (Areg lr1::cont) str0 backward) as Htmc1_tree. {
+        specialize (IH1 tmc2 gl (Areg lr2 :: actions) str0).
+        specialize_prove IH1 by admit. specialize (IH1 Htmc2_tree inp Hinp_compat ms gm t Hmsinp Heqt Hgmms Hgmgl).
+        now apply tree_sequence.
+      + (* Backward direction *)
+        set (fun s2 => tm1 s2 tmc) as tmc1 in Heqt.
+        assert (tMC_valid tmc1 gl rer (Areg lr1::actions) str0 backward) as Htmc1_tree. {
           intros inp' Hinp'_compat.
-          rewrite Heqtmc1.
-          unfold tm_valid, tMC_valid in IH1.
-          now apply IH1 with (str0 := str0).
+          unfold tm_valid in IH1. unfold tMC_valid at 2 in IH1.
+          apply IH1 with (str0 := str0); auto. admit.
         }
-        specialize (IH2 tmc1 (Areg lr1::cont) str0 Htmc1_tree inp Hinp_compat ms t Hms_inp Heqt).
-        apply tree_pop_reg.
-        inversion IH2.
-        now apply tree_sequence_bwd.
+        specialize (IH2 tmc1 gl (Areg lr1 :: actions) str0).
+        specialize_prove IH2 by admit. specialize (IH2 Htmc1_tree inp Hinp_compat ms gm t Hmsinp Heqt Hgmms Hgmgl).
+        now apply tree_sequence.
 
 
     - (* Quantifier *)
