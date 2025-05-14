@@ -687,9 +687,9 @@ Section LWEquivTree.
 
     - (* Quantifier *)
       intros ctx Hroot Heqn. simpl. intros tm dir Hcompsucc.
-      destruct tCompileSubPattern as [m|] eqn:Heqm; simpl. 2: discriminate.
+      destruct tCompileSubPattern as [tmsub|] eqn:Heqtmsub; simpl. 2: discriminate.
       simpl in Hcompsucc.
-      intros tmc cont str0 Htmc_valid.
+      intros tmc gl actions str0 Hgldisj Htmc_valid.
       set (StaticSemantics.countLeftCapturingParensBefore _ ctx) as parenIndex in Hcompsucc.
       set (StaticSemantics.countLeftCapturingParensWithin _ _) as parenCount in Hcompsucc.
       set (Semantics.CompiledQuantifier_min _) as mini in Hcompsucc.
@@ -700,17 +700,18 @@ Section LWEquivTree.
       specialize_prove IH. {
         unfold StaticSemantics.countLeftCapturingParensBefore in *. simpl. lia.
       }
-      specialize (IH m dir Heqm).
-      pose proof tRepeatMatcher'_valid rer greedy parenIndex parenCount mini (maxi-mini)%NoI m lr dir IH as Hrepeat.
+      specialize (IH tmsub dir Heqtmsub).
+      pose proof tRepeatMatcher'_valid rer greedy parenIndex parenCount mini (maxi-mini)%NoI tmsub lr dir IH as Hrepeat.
       specialize_prove Hrepeat. {
         subst n. apply equiv_def_groups with (wr := wr) (ctx := ctx); auto.
       }
       destruct (mini <=? maxi)%NoI eqn:Hmini_le_maxi. 2: discriminate.
       injection Hcompsucc as <-.
-      unfold tRepeatMatcher.
-      intros inp Hinpcompat ms t Hmsinp Heqt.
-      specialize (Hrepeat (Semantics.repeatMatcherFuel mini ms) tmc cont str0 Htmc_valid inp Hinpcompat ms t Hmsinp).
-      rewrite noi_add_diff in Hrepeat by assumption. specialize (Hrepeat Heqt).
+      unfold tRepeatMatcher, tMC_valid.
+      intros inp Hinpcompat ms gm t Hmsinp Heqt Hgmms Hgmgl.
+      specialize (Hrepeat (Semantics.repeatMatcherFuel mini ms) tmc gl actions str0).
+      specialize_prove Hrepeat by admit. specialize (Hrepeat Htmc_valid inp Hinpcompat ms gm t Hmsinp).
+      rewrite noi_add_diff in Hrepeat by assumption. specialize (Hrepeat Heqt Hgmms Hgmgl).
       inversion Hequivquant as [
           Heqwquant Heqlquant |
           Heqwquant Heqlquant |
@@ -729,27 +730,28 @@ Section LWEquivTree.
       specialize_prove IH. {
         unfold StaticSemantics.countLeftCapturingParensBefore in *. simpl. lia.
       }
-      destruct (tCompileSubPattern wr _ rer dir) as [mr|] eqn:Heqmr; simpl. 2: discriminate.
-      specialize (IH mr dir Heqmr).
+      destruct (tCompileSubPattern wr _ rer dir) as [tmsub|] eqn:Heqtmsub; simpl. 2: discriminate.
+      specialize (IH tmsub dir Heqtmsub).
       simpl in Hcompsucc. injection Hcompsucc as <-.
-      intros tmc cont str0 Htmc_tree inp Hinp_compat ms t Hms_inp Heqt.
+      intros tmc gl actions str0 Hgldisj Htmc_tree inp Hinp_compat ms gm t Hmsinp Heqt Hgmms Hgmgl.
       remember (fun y: MatchState => _) as tmc2 in Heqt.
-      specialize (IH tmc2 (Aclose (S n) :: cont)).
+      specialize (IH tmc2 ((S n, idx inp)::gl) (Aclose (S n) :: actions) str0).
+      specialize_prove IH by admit.
       assert (StaticSemantics.countLeftCapturingParensBefore (Group name wr) ctx + 1 = S n) as Heqid by lia.
-      assert (tMC_valid tmc2 rer (Aclose (S n) :: cont) str0 dir) as Htmc2_tree.
+      assert (tMC_valid tmc2 ((S n, idx inp)::gl) rer (Aclose (S n) :: actions) str0 dir) as Htmc2_tree.
       {
         intros inpend Hinpend_compat.
         subst tmc2. clear Heqt.
         unfold tMC_is_tree.
-        intros msend subtree Hmsend_inp Heqsubtree.
+        intros msend gmend subtree Hmsend_inp Heqsubtree Hgmendmsend Hgmendgl'.
         remember (if (dir ==? forward)%wt then _ else _) as rres. destruct rres as [r|] eqn:Hrres; simpl in *. 2: discriminate.
         rewrite Heqid in Heqsubtree. change ((S n) =? 0) with false in Heqsubtree.
         destruct (List.List.Update.Nat.One.update) as [cap|] eqn:Heqcap; simpl in *. 2: discriminate.
         specialize (Htmc_tree inpend Hinpend_compat).
         unfold tMC_is_tree in Htmc_tree.
-        remember (match_state _ _ cap) as msupd. specialize (Htmc_tree msupd).
+        remember (match_state _ _ cap) as msupd. specialize (Htmc_tree msupd (GroupMap.close (idx inpend) (S n) gmend)).
         replace (MatchState.input ms) with str0 in *.
-        2: { symmetry. eapply inp_compat_ms_str0. - apply Hinp_compat. - apply Hms_inp. }
+        2: { symmetry. eapply inp_compat_ms_str0. - apply Hinp_compat. - apply Hmsinp. }
         assert (MatchState.input msend = str0) as Hmsendstr0. {
           eapply inp_compat_ms_str0. - apply Hinpend_compat. - assumption.
         }
@@ -762,15 +764,13 @@ Section LWEquivTree.
           rewrite <- Hmsendstr0. now destruct msend.
         }
         specialize (Htmc_tree Hmsupd_inp' eq_refl).
-        apply tree_pop_close. assumption.
+        do 2 specialize_prove Htmc_tree by admit.
+        apply tree_close. assumption.
       }
-      specialize (IH str0 Htmc2_tree inp Hinp_compat ms).
-      apply tree_pop_reg.
-      destruct (mr ms tmc2) as [subtree|] eqn:Heqsubtree; simpl in *. 2: discriminate.
-      injection Heqt as <-.
-      rewrite Heqid.
-      apply tree_group.
-      specialize (IH subtree Hms_inp eq_refl). inversion IH. assumption.
+      specialize (IH Htmc2_tree inp Hinp_compat ms (GroupMap.open (idx inp) (S n) gm)).
+      destruct (tmsub ms tmc2) as [subtree|] eqn:Heqsubtree; simpl in *. 2: discriminate.
+      injection Heqt as <-. rewrite Heqid.
+      apply tree_group. apply IH; auto. all: admit.
 
     - (* Lookarounds *)
       (* We use the lemma tLookaroundMatcher_pt *)
@@ -785,72 +785,73 @@ Section LWEquivTree.
 
       + (* Input start *)
         intros ctx Hroot Heqn tm dir Heqtm. injection Heqtm as <-.
-        unfold tm_valid. intros tmc cont str0 Htmcvalid inp Hinpcompat ms t Hmsinp.
+        unfold tm_valid. intros tmc gl actions str0 Hgldisj Htmcvalid inp Hinpcompat ms gm t Hmsinp.
         rewrite Hnomultiline. simpl.
         destruct (MatchState.endIndex ms =? 0)%Z eqn:Hatbegin; simpl.
-        * rewrite Z.eqb_eq in Hatbegin. unfold tMC_valid in Htmcvalid. specialize (Htmcvalid inp Hinpcompat ms).
+        * rewrite Z.eqb_eq in Hatbegin. unfold tMC_valid in Htmcvalid. specialize (Htmcvalid inp Hinpcompat ms gm).
           destruct (tmc ms) as [subtree|]; simpl in *. 2: discriminate.
           specialize (Htmcvalid subtree Hmsinp eq_refl).
-          intro H. injection H as <-.
-          apply tree_pop_reg. apply tree_anchor. 2: assumption.
+          intro H. injection H as <-. intros Hgmms Hgmgl.
+          specialize (Htmcvalid Hgmms Hgmgl).
+          apply tree_anchor. 2: assumption.
           unfold anchor_satisfied.
           pose proof begin_input_pref_empty _ _ Hatbegin Hmsinp as Hprefnil. now destruct Hprefnil as [next ->].
-        * intro H. injection H as <-.
-          apply tree_pop_reg. apply tree_anchor_fail. unfold anchor_satisfied.
+        * intro H. injection H as <-. intros Hgmms Hgmgl.
+          apply tree_anchor_fail. unfold anchor_satisfied.
           rewrite Z.eqb_neq in Hatbegin.
           pose proof begin_input_pref_nonempty _ _ Hatbegin Hmsinp as Hprefnotnil. now destruct Hprefnotnil as [next [x [pref ->]]].
 
       + (* Input end *)
         intros ctx Hroot Heqn tm dir Heqtm. injection Heqtm as <-.
-        unfold tm_valid. intros tmc cont str0 Htmcvalid inp Hinpcompat ms t Hmsinp.
+        unfold tm_valid. intros tmc gl actions str0 Hgldisj Htmcvalid inp Hinpcompat ms gm t Hmsinp.
         rewrite Hnomultiline. simpl.
         destruct (MatchState.endIndex ms =? _)%Z eqn:Hatend; simpl.
-        * rewrite Z.eqb_eq in Hatend. specialize (Htmcvalid inp Hinpcompat ms).
+        * rewrite Z.eqb_eq in Hatend. specialize (Htmcvalid inp Hinpcompat ms gm).
           destruct (tmc ms) as [subtree|]; simpl in *. 2: discriminate.
           specialize (Htmcvalid subtree Hmsinp eq_refl).
-          intro H. injection H as <-.
-          apply tree_pop_reg. apply tree_anchor. 2: assumption.
+          intro H. injection H as <-. intros Hgmms Hgmgl. specialize (Htmcvalid Hgmms Hgmgl).
+          apply tree_anchor. 2: assumption.
           unfold anchor_satisfied.
           pose proof end_input_next_empty _ _ Hatend Hmsinp as Hnextnil. now destruct Hnextnil as [pref ->].
         * rewrite Z.eqb_neq in Hatend.
-          intro H. injection H as <-.
-          apply tree_pop_reg. apply tree_anchor_fail. unfold anchor_satisfied.
+          intro H. injection H as <-. intros Hgmms Hgmgl.
+          apply tree_anchor_fail. unfold anchor_satisfied.
           pose proof end_input_next_nonempty _ _ Hatend Hmsinp as Hnextnotnil. now destruct Hnextnotnil as [pref [x [next ->]]].
 
       + (* Word boundary *)
         intros ctx Hroot Heqn tm dir Heqtm. injection Heqtm as <-.
-        unfold tm_valid. intros tmc cont str0 Htmcvalid.
-        unfold tMC_valid. intros inp Hinpcompat ms t Hmsinp Heqt.
+        unfold tm_valid. intros tmc gl actions str0 Hgldisj Htmcvalid.
+        unfold tMC_valid. intros inp Hinpcompat ms gm t Hmsinp Heqt Hgmms Hgmgl.
         destruct Semantics.isWordChar as [a|] eqn:Hwca; simpl in *. 2: discriminate.
         destruct (Semantics.isWordChar rer (_ ms) (MatchState.endIndex ms)) as [b|] eqn:Hwcb; simpl in *. 2: discriminate.
         rewrite ifthenelse_xorb in Heqt. pose proof is_boundary_xorb _ _ _ _ _ Hcasesenst Hmsinp Hwca Hwcb as Hisboundary.
         destruct xorb.
         * (* We are on a boundary *)
-          unfold tMC_valid in Htmcvalid. specialize (Htmcvalid inp Hinpcompat ms).
+          unfold tMC_valid in Htmcvalid. specialize (Htmcvalid inp Hinpcompat ms gm).
           destruct (tmc ms) as [subtree|] eqn:Hsubtree; simpl in *. 2: discriminate.
-          specialize (Htmcvalid subtree Hmsinp eq_refl). injection Heqt as <-.
-          apply tree_pop_reg. apply tree_anchor. 2: assumption. unfold anchor_satisfied.
+          specialize (Htmcvalid subtree Hmsinp eq_refl Hgmms Hgmgl). injection Heqt as <-.
+          apply tree_anchor. 2: assumption. unfold anchor_satisfied.
           destruct inp as [next pref]. congruence.
         * (* We are not *)
-          apply tree_pop_reg. injection Heqt as <-. apply tree_anchor_fail.
+          injection Heqt as <-. apply tree_anchor_fail.
           unfold anchor_satisfied. destruct inp as [next pref]; unfold LindenParameters in *; simpl in *; congruence.
 
       + (* Non word boundary *)
         intros ctx Hroot Heqn tm dir Heqtm. injection Heqtm as <-.
-        intros tmc cont str0 Htmcvalid inp Hinpcompat ms t Hmsinp Heqt.
+        intros tmc gl actions str0 Hgldisj Htmcvalid inp Hinpcompat ms gm t Hmsinp Heqt Hgmms Hgmgl.
         destruct Semantics.isWordChar as [a|] eqn:Hwca; simpl in *. 2: discriminate.
         destruct (Semantics.isWordChar rer (_ ms) (MatchState.endIndex ms)) as [b|] eqn:Hwcb; simpl in *. 2: discriminate.
         rewrite ifthenelse_negb_xorb in Heqt. pose proof is_boundary_xorb _ _ _ _ _ Hcasesenst Hmsinp Hwca Hwcb as Hisboundary.
         destruct xorb.
         * (* We are on a boundary *)
           simpl in Heqt. injection Heqt as <-.
-          apply tree_pop_reg. apply tree_anchor_fail. unfold anchor_satisfied. destruct inp as [next pref].
+          apply tree_anchor_fail. unfold anchor_satisfied. destruct inp as [next pref].
           setoid_rewrite <- Hisboundary. reflexivity.
         * (* We are not *)
-          specialize (Htmcvalid inp Hinpcompat ms).
+          specialize (Htmcvalid inp Hinpcompat ms gm).
           destruct (tmc ms) as [subtree|] eqn:Hsubtree; simpl in *. 2: discriminate.
-          specialize (Htmcvalid subtree Hmsinp eq_refl). injection Heqt as <-.
-          apply tree_pop_reg. apply tree_anchor. 2: assumption. unfold anchor_satisfied.
+          specialize (Htmcvalid subtree Hmsinp eq_refl Hgmms Hgmgl). injection Heqt as <-.
+          apply tree_anchor. 2: assumption. unfold anchor_satisfied.
           destruct inp as [next pref]. rewrite <- Hisboundary. reflexivity.
-  Qed.
+  Admitted.
 End LWEquivTree.
