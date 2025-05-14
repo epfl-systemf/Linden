@@ -55,7 +55,6 @@ Proof. intros. unfold seqop. destruct o1; destruct o2; auto. Qed.
 (** * Priority Trees  *)
 
 
-
 Section Tree.
   Context `{characterClass: Character.class}.
   
@@ -64,14 +63,12 @@ Section Tree.
   | Match
   | Choice (t1 t2:tree)
   | Read (c:Character) (t:tree)
-  | CheckFail (str:string) (* failed to make progress wrt some string *)
-  | CheckPass (str:string) (t:tree)
-  | GroupAction (g:groupaction) (t: tree)
-  | LK (lk: lookaround) (tlk: tree) (t: tree) (* First tree is the lookaround tree. *)
-  | LKFail (lk: lookaround) (tlk: tree)
-  | AnchorFail (a: anchor)
-  | AnchorPass (a: anchor) (t: tree)
   | ReadBackRef (str: string) (t:tree)
+  | Progress (str:string) (t:tree)
+  | AnchorPass (a: anchor) (t: tree)
+  | GroupAction (g:groupaction) (t: tree)
+  | LK (lk: lookaround) (tlk: tree) (t: tree) (* tlk is the lookaround tree. *)
+  | LKFail (lk: lookaround) (tlk: tree)       (* Also records the lookaround tree *)
   .
 
   (** ** Maximum group ID of a tree *)
@@ -93,15 +90,12 @@ Section Tree.
   (* Maximum group ID of a tree *)
   Fixpoint max_gid_tree (t: tree) :=
     match t with
-    | Mismatch | Match | CheckFail _ => 0
+    | Mismatch | Match => 0
     | Choice t1 t2 => max (max_gid_tree t1) (max_gid_tree t2)
-    | Read _ t | CheckPass _ t => max_gid_tree t
+    | Read _ t | ReadBackRef _ t | Progress _ t | AnchorPass _ t => max_gid_tree t
     | GroupAction act t => max (max_gid_groupaction act) (max_gid_tree t)
     | LK _ tlk t => max (max_gid_tree tlk) (max_gid_tree t)
     | LKFail _ tlk => max_gid_tree tlk
-    | AnchorFail _ => 0
-    | AnchorPass _ t => max_gid_tree t
-    | ReadBackRef _ t => max_gid_tree t (* the group is not defined by a reference to it *)
     end.
 
 
@@ -132,9 +126,8 @@ Section Tree.
     | Choice t1 t2 =>
         seqop (tree_res t1 gm idx dir) (tree_res t2 gm idx dir)
     | Read c t1 => tree_res t1 gm (advance_idx idx dir) dir
-    | CheckFail _ => None
-    | CheckPass _ t1 => tree_res t1 gm idx dir
-    | GroupAction g t1 => tree_res t1 (GroupMap.update idx g gm) idx dir
+    | Progress _ t1 => tree_res t1 gm idx dir
+    | GroupAction a t1 => tree_res t1 (GroupMap.update idx a gm) idx dir
     | LK lk tlk t1 =>
         match (positivity lk) with
         | true => 
@@ -151,7 +144,6 @@ Section Tree.
             end
         end
     | LKFail _ _ => None
-    | AnchorFail _ => None
     | AnchorPass _ t => tree_res t gm idx dir
     | ReadBackRef _ t => tree_res t gm idx dir
     end.
@@ -171,9 +163,8 @@ Section Tree.
     | Choice t1 t2 =>
         tree_leaves t1 gm idx dir ++ tree_leaves t2 gm idx dir
     | Read c t1 => tree_leaves t1 gm (advance_idx idx dir) dir
-    | CheckFail _ => []
-    | CheckPass _ t1 => tree_leaves t1 gm idx dir
-    | GroupAction g t1 => tree_leaves t1 (GroupMap.update idx g gm) idx dir
+    | Progress _ t1 => tree_leaves t1 gm idx dir
+    | GroupAction a t1 => tree_leaves t1 (GroupMap.update idx a gm) idx dir
     | LK lk tlk t1 =>
         match (positivity lk) with (* Do we want to explore all the branches of the lookahead tree that succeed? *)
         | true =>
@@ -190,7 +181,6 @@ Section Tree.
             end
         end
     | LKFail _ _ => []
-    | AnchorFail _ => []
     | AnchorPass _ t => tree_leaves t gm idx dir
     | ReadBackRef _ t => tree_leaves t gm idx dir
     end.
@@ -242,11 +232,10 @@ Section Tree.
     forall t gm idx dir,
       tree_res t gm idx dir = hd_error (tree_leaves t gm idx dir).
   Proof.
-    intros t. induction t; intros. 1-7,9-11: simpl; auto.
-    - rewrite IHt1. rewrite IHt2. rewrite hd_error_app. unfold seqop.
+    intros t. induction t; intros; try solve [simpl; auto].
+    - simpl. rewrite IHt1. rewrite IHt2. rewrite hd_error_app. unfold seqop.
       destruct (hd_error (tree_leaves t1 gm idx dir)) eqn:HD; auto.
     - destruct (positivity lk) eqn:Hlkpos. + now apply first_tree_leaf_poslk. + now apply first_tree_leaf_neglk.
-    - simpl. auto.
   Qed.
 
   (** * Group Map irrelevance  *)
@@ -295,13 +284,14 @@ Section Tree.
       tree_leaves t gm1 idx1 dir1 = [] -> tree_leaves t gm2 idx2 dir2 = [].
   Proof.
     intros t.
-    induction t; intros. 1-7,9-11: simpl; auto;
-      simpl in H; try solve[inversion H];
-      try solve[eapply IHt in H; eauto].
-    - apply app_eq_nil in H as [NIL1 NIL2].
-      apply IHt1 with (gm2:=gm2) (idx2:=idx2) (dir2 := dir2) in NIL1. apply IHt2 with (gm2:=gm2) (idx2:=idx2) (dir2 := dir2) in NIL2.
+    induction t; intros; eauto.
+    - simpl in H. inversion H.
+    - simpl in H. simpl. apply app_eq_nil in H as [NIL1 NIL2].
+      apply IHt1 with (gm2:=gm2) (idx2:=idx2) (dir2:=dir2) in NIL1. apply IHt2 with (gm2:=gm2) (idx2:=idx2) (dir2:=dir2) in NIL2.
       rewrite NIL1. rewrite NIL2. auto.
-    - destruct (positivity lk) eqn:Hlkpos. + eapply leaves_group_map_indep_poslk; eauto. + eapply leaves_group_map_indep_neglk; eauto.
-    - eapply IHt in H. eauto.
+    - destruct (positivity lk) eqn:Hlkpos.
+      + eapply leaves_group_map_indep_poslk; eauto.
+      + eapply leaves_group_map_indep_neglk; eauto.
   Qed.
+
 End Tree.

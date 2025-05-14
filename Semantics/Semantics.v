@@ -18,20 +18,22 @@ Section Semantics.
   (* TODO: Read a substring from a group map *)
   Parameter read_backref : group_map -> input -> Direction -> option (string * input).
   
-  (** * Lookaround tree correctness  *)
-  (* Positive lookarounds expect trees with a result, and negative ones expect trees without results *)
+  (** * Lookaround tree functions  *)
 
+  (* Positive lookarounds expect trees with a result, and negative ones expect trees without results *)
   Definition lk_result (lk:lookaround) (t:tree) : Prop :=
     match (positivity lk) with
     | true => exists res, first_branch t = Some res
     | false => first_branch t = None
     end.
 
+  (* Computes the updated group_map after finding the first result in a tree of lookarounds *)
   Definition lk_group_map (lk: lookaround) (t: tree) (gm: group_map) (idx: nat): option group_map :=
     match (positivity lk) with
     | true => tree_res t gm idx (lk_dir lk)
     | false => Some gm
     end.
+
 
   (** * Anchor semantics *)
 
@@ -91,26 +93,30 @@ Section Semantics.
 
   (* `is_tree actions str t` means that `t` is a correct backtracking tree for all `actions` on `s` *)
   Inductive is_tree: actions -> input -> group_map -> Direction -> tree -> Prop :=
-  | tree_epsilon:
+  | tree_done:
     (* nothing to do on an empty list of actions *)
     forall inp gm dir,
       is_tree [] inp gm dir Match
   | tree_check:
   (* pops a successful check from the action list *)
-    forall inp gm dir strcheck tail treecont
+    forall inp gm dir strcheck cont treecont
       (PROGRESS: current_str inp dir <> strcheck)
-      (TREECONT: is_tree tail inp gm dir treecont),
-      is_tree (Acheck strcheck :: tail) inp gm dir (CheckPass strcheck treecont)
+      (TREECONT: is_tree cont inp gm dir treecont),
+      is_tree (Acheck strcheck :: cont) inp gm dir (Progress strcheck treecont)
   | tree_check_fail:
   (* pops a failing check from the action list *)
-    forall inp gm dir strcheck tail
+    forall inp gm dir strcheck cont
       (CHECKFAIL: current_str inp dir = strcheck),
-      is_tree (Acheck strcheck :: tail) inp gm dir (CheckFail strcheck)
+      is_tree (Acheck strcheck :: cont) inp gm dir Mismatch
   | tree_close:
   (* pops the closing of a group from the action list *)
-    forall inp gm dir tail treecont gid
-      (TREECONT: is_tree tail inp (GroupMap.close (idx inp) gid gm) dir treecont),
-      is_tree (Aclose gid :: tail) inp gm dir (GroupAction (Close gid) treecont)
+    forall inp gm dir cont treecont gid
+      (TREECONT: is_tree cont inp (GroupMap.close (idx inp) gid gm) dir treecont),
+      is_tree (Aclose gid :: cont) inp gm dir (GroupAction (Close gid) treecont)
+  | tree_epsilon:
+    forall inp gm dir cont tcont
+      (ISTREE: is_tree cont inp gm dir tcont),
+      is_tree ((Areg Epsilon)::cont) inp gm dir tcont
   | tree_char:
     forall c cd inp gm nextinp dir cont tcont
       (READ: read_char cd inp dir = Some (c, nextinp))
@@ -164,8 +170,7 @@ Section Semantics.
       (TREELK: is_tree [Areg r1] inp gm (lk_dir lk) treelk)
       (* this tree has the correct expected result (positivity) *)
       (RES_LK: lk_result lk treelk)
-      (* TODO: below, this is not the right gm, because it should be updated with the groups that have been defined inside the lookaround *)
-      (* We should wait until the final version of group maps before fixing this *)
+      (* we update the group_map with the groups defined in the lookaround *)
       (GM_LK: lk_group_map lk treelk gm (idx inp) = Some gmlk)
       (TREECONT: is_tree cont inp gmlk dir treecont),
       is_tree (Areg (Lookaround lk r1) :: cont) inp gm dir (LK lk treelk treecont)
@@ -182,7 +187,7 @@ Section Semantics.
   | tree_anchor_fail:
     forall a cont inp gm dir
       (ANCHOR: anchor_satisfied a inp = false),
-      is_tree (Areg (Anchor a) :: cont) inp gm dir (AnchorFail a)
+      is_tree (Areg (Anchor a) :: cont) inp gm dir Mismatch
   | tree_backref:
     forall gid inp gm nextinp dir cont tcont br_str
       (READ_BACKREF: read_backref gm inp dir = Some (br_str, nextinp))
@@ -218,6 +223,7 @@ Section Semantics.
       exfalso. apply PROGRESS. auto.
     - inversion H0; subst; auto.
       apply IHis_tree in TREECONT. subst. auto.
+    - inversion H0; auto.
     - inversion H0; subst; auto; rewrite READ0 in READ; inversion READ; subst.
       apply IHis_tree in TREECONT. subst. auto.
     - inversion H; subst; auto.
@@ -236,7 +242,6 @@ Section Semantics.
         apply IHis_tree1 in ISTREE1. apply IHis_tree2 in SKIP. subst. auto.
     - inversion H0; subst; auto.
       apply IHis_tree in TREECONT. subst. auto.
-    (* Following two bullets copied from backtree repo *)
     - inversion H1; subst; auto.
       2: { apply IHis_tree1 in TREELK. subst. exfalso. apply FAIL_LK. auto. }
       apply IHis_tree1 in TREELK. subst treelk0. rewrite GM_LK in GM_LK0. injection GM_LK0 as GM_LK0. subst gmlk0.

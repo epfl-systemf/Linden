@@ -56,7 +56,7 @@ Section LWEquivTree.
     forall rer str dir, tMC_valid id_tmcont [] rer [] str dir.
   Proof.
     intros rer str dir inp Hinp_compat ms gm t Hmsinp Heqt Hgmms Hgmgl.
-    injection Heqt as <-. apply tree_epsilon.
+    injection Heqt as <-. apply tree_done.
   Qed.
 
 

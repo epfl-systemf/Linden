@@ -77,7 +77,7 @@ Section TMatching.
       (*>> a. Assert: y is a MatchState. <<*)
       (*>> b. If min = 0 and y's endIndex = x's endIndex, return failure. <<*)
       if (min == 0)%nat && (MatchState.endIndex y =? MatchState.endIndex x)%Z
-        then Success (CheckFail (ms_suffix x dir)) else
+        then Success Mismatch else
       (*>> c. If min = 0, let min2 be 0; otherwise let min2 be min - 1. <<*)
       let min2 :=
         if (min == 0)%nat then 0
@@ -92,7 +92,7 @@ Section TMatching.
       let! subtree =<< tRepeatMatcher' m dir min2 max2 greedy y c parenIndex parenCount fuel' in
       (* We only add a CheckPass if min is zero, else we directly yield the subtree *)
       if (min == 0)%nat then
-        Success (CheckPass (ms_suffix x dir) subtree)
+        Success (Progress (ms_suffix x dir) subtree)
       else
         Success subtree
     in
@@ -395,7 +395,7 @@ Section TMatching.
           Success (AnchorPass BeginInput t)
         else
         (*>> f. Return failure. <<*)
-        Success (AnchorFail BeginInput)): TMatcher)
+        Success Mismatch): TMatcher)
 
   (** >> Assertion :: $ <<*)
   | InputEnd =>
@@ -416,7 +416,7 @@ Section TMatching.
           Success (AnchorPass EndInput t)
         else
         (*>> g. Return failure. <<*)
-          Success (AnchorFail EndInput)): TMatcher)
+          Success Mismatch): TMatcher)
 
   (** >> Assertion :: \b <<*)
   | WordBoundary =>
@@ -438,7 +438,7 @@ Section TMatching.
           Success (AnchorPass Regex.WordBoundary t)
         else
         (*>> h. Return failure. <<*)
-          Success (AnchorFail Regex.WordBoundary)): TMatcher)
+          Success Mismatch): TMatcher)
 
   (** >> Assertion :: \B <<*)
   | NotWordBoundary =>
@@ -460,7 +460,7 @@ Section TMatching.
           Success (AnchorPass NonWordBoundary t)
         else
         (*>> h. Return failure. <<*)
-          Success (AnchorFail NonWordBoundary)): TMatcher)
+          Success Mismatch): TMatcher)
 
   | AtomEsc (ACharacterEsc ce) =>
       (*>> 1. Let cv be the CharacterValue of CharacterEscape. <<*)
