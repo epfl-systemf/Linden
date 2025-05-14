@@ -1,4 +1,5 @@
-From Linden Require Import LWEquivTMatcherDef Tree LindenParameters ListLemmas WarblreLemmas Groups.
+From Linden Require Import LWEquivTMatcherDef Tree LindenParameters
+ListLemmas WarblreLemmas Groups GroupMapMS.
 From Warblre Require Import Result Notation Base Errors Parameters List.
 Import Notation.
 Import Result.Notations.
@@ -94,5 +95,43 @@ Section LWEquivTMatcherLemmas.
     intro res.
     now destruct res.
   Qed.
+
+  Definition nat_in_range_dec:
+    forall lIncl hExcl i, {lIncl <= i < hExcl} + {~(lIncl <= i < hExcl)}.
+  Proof.
+    intros. pose proof (Compare_dec.le_dec lIncl i). pose proof (Compare_dec.lt_dec i hExcl).
+    destruct H; destruct H0; tauto.
+  Defined.
+
+  Lemma groupmap_reset_inindices:
+    forall (gm gmreset: GroupMap.t) (gidl: group_set),
+    gmreset = GroupMap.reset gidl gm ->
+    forall gid: group_id, List.In gid gidl -> GroupMap.find gid gmreset = None.
+  Admitted.
+
+  Lemma groupmap_reset_outindices: True.
+  Admitted.
+
+  (* Equivalence of a group map and a MatchState is preserved when performing the same
+  capture reset on both sides. *)
+  Lemma equiv_gm_ms_reset {F} `{Result.AssertionError F}:
+    forall gm ms gm_reset ms_reset parenIndex parenCount cap',
+      equiv_groupmap_ms gm ms ->
+      List.List.Update.Nat.Batch.update None (MatchState.captures ms)
+        (List.List.Range.Nat.Bounds.range (parenIndex + 1 - 1) (parenIndex + parenCount + 1 - 1)) = Success cap' ->
+      ms_reset = match_state (MatchState.input ms) (MatchState.endIndex ms) cap' ->
+      gm_reset = GroupMap.reset (List.seq (parenIndex + 1) parenCount) gm ->
+      equiv_groupmap_ms gm_reset ms_reset.
+  Proof.
+    intros gm ms gm_reset ms_reset parenIndex parenCount cap' Hgmms Hupdsucc Heqms_reset Heqgm_reset.
+    unfold equiv_groupmap_ms. intro gid_prec.
+    destruct (nat_in_range_dec (parenIndex + 1 - 1) (parenIndex + parenCount + 1 - 1) gid_prec) as [Hinrange | Houtrange].
+    - assert (Hinrange_linden: parenIndex + 1 <= S gid_prec < parenIndex + parenCount + 1) by lia.
+      unfold List.Range.Nat.Bounds.range in Hupdsucc. rewrite range_seq in Hupdsucc.
+      replace (parenIndex + parenCount + 1 - 1 - _) with parenCount in Hupdsucc by lia.
+      replace (parenIndex + parenCount + 1 - 1) with ((parenIndex + 1 - 1) + parenCount) in Hinrange by lia.
+      apply <- List.in_seq in Hinrange.
+  Admitted.
+    
 
 End LWEquivTMatcherLemmas.

@@ -204,7 +204,7 @@ Section TMatching.
         let! z =<<
           if pos then
             destruct! (Some y) <- rstate in
-            let cap := to_capture_list y 1 (RegExpRecord.capturingGroupsCount rer) in
+            let cap := to_capture_list y 1 (length (MatchState.captures x)) in
             let input := MatchState.input x in
             let xe := MatchState.endIndex x in
             Success (match_state input xe cap)
