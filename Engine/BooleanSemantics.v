@@ -2,10 +2,57 @@ Require Import List Lia.
 Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
-From Linden Require Import Tree.
-From Linden Require Import Semantics.
+From Linden Require Import Tree Semantics.
+From Warblre Require Import Numeric Base.
+
 
 (* An alternate definition of the semantics, using a boolean to know if one can exit a loop *)
+(* And not using a group_map to exhibit the uniform-future property by construction *)
+
+Context `{characterClass: Character.class}.
+
+
+(** * PikeVM supported subset  *)
+
+Inductive pike_regex : regex -> Prop :=
+| pike_eps:
+  pike_regex Epsilon
+| pike_char:
+  forall cd, pike_regex (Regex.Character cd)
+| pike_disj:
+  forall r1 r2,
+    pike_regex r1 ->
+    pike_regex r2 ->
+    pike_regex (Disjunction r1 r2)
+| pike_seq:
+  forall r1 r2,
+    pike_regex r1 ->
+    pike_regex r2 ->
+    pike_regex (Sequence r1 r2)
+| pike_star:
+  forall r1,
+    pike_regex r1 ->
+    pike_regex (Quantified true 0 NoI.Inf r1)
+| pike_group:
+  forall g r1,
+    pike_regex r1 ->
+    pike_regex (Group g r1).
+
+Inductive pike_action: action -> Prop :=
+| pike_areg:
+  forall r1,
+    pike_regex r1 ->
+    pike_action (Areg r1)
+| pike_aclose: forall g, pike_action (Aclose g)
+| pike_acheck: forall s, pike_action (Acheck s).
+
+Inductive pike_actions: actions -> Prop :=
+| pike_nil: pike_actions []
+| pike_cons: forall a l,
+    pike_action a ->
+    pike_actions l ->
+    pike_actions (a::l).
+
 
 (** * Loop Boolean  *)
 (* The loop boolean, indicating if we can exit a loop iteration or not *)
@@ -19,67 +66,89 @@ Inductive LoopBool : Type :=
 (** * Boolean Semantics  *)
 (* where checks consult the boolean instead of actually comparing strings *)
 
-Inductive bool_tree: regex -> continuation -> input -> LoopBool -> tree -> Prop :=
-| bool_epsilon:
-  (* on an empty continuation *)
-  forall inp b,
-    bool_tree Epsilon [] inp b Match
-| bool_pop_reg:
-  (* pops a regex from the continuation list *)
-  forall inp regcont tailcont treecont b
-    (TREECONT: bool_tree regcont tailcont inp b treecont),
-    bool_tree Epsilon (Areg regcont :: tailcont) inp b treecont
-| bool_pop_check:
-  (* pops a successful check from the continuation list *)
-  (* this only checks the boolean allows exit and not the strcheck in the tree *)
-  forall inp strcheck tailcont treecont
-    (TREECONT: bool_tree Epsilon tailcont inp CanExit treecont),
-    bool_tree Epsilon (Acheck strcheck :: tailcont) inp CanExit (CheckPass strcheck treecont)
-| bool_pop_check_fail:
-  (* pops a failing check from the continuation list *)
-  (* this require the boolean to disallow exit *)
-  forall inp strcheck tailcont,
-    bool_tree Epsilon (Acheck strcheck :: tailcont) inp CannotExit (CheckFail strcheck)
-| bool_pop_close:
-(* pops the closing of a group from the continuation list *)
-  forall inp tailcont treecont gid b
-    (TREECONT: bool_tree Epsilon tailcont inp b treecont),
-    bool_tree Epsilon (Aclose gid :: tailcont) inp b (GroupAction (Close gid) treecont)
-| bool_char:
-  (* changes the boolean so that we can now exit *)
-  forall c cd inp nextinp cont tcont b
-    (READ: read_char cd inp = Some (c, nextinp))
-    (TREECONT: bool_tree Epsilon cont nextinp CanExit tcont),
-    bool_tree (Character cd) cont inp b (Read c tcont)
-| bool_char_fail:
-  forall cd inp cont b
-    (READ: read_char cd inp = None),
-    bool_tree (Character cd) cont inp b Mismatch
-| bool_disj:
-  forall r1 r2 cont t1 t2 inp b
-    (ISTREE1: bool_tree r1 cont inp b t1)
-    (ISTREE2: bool_tree r2 cont inp b t2),
-    bool_tree (Disjunction r1 r2) cont inp b (Choice t1 t2)
-| bool_sequence:
-  (* adding next regex to the continuation *)
-  forall r1 r2 cont t inp b
-    (CONT: bool_tree r1 (Areg r2 :: cont) inp b t),
-    bool_tree (Sequence r1 r2) cont inp b t
-| bool_star:
-  forall r1 greedy cont titer tskip tquant inp gidl b
-    (* the list of capture groups to reset *)
-    (RESET: gidl = def_groups r1)
-    (* doing one iteration, then a check, then executing the next quantifier *)
-    (* switching the boolean such that we can't exit right away *)
-    (ISTREE1: bool_tree r1 (Acheck (current_str inp)::Areg (Star greedy r1)::cont) inp CannotExit titer)
-    (* skipping the star entirely *)
-    (SKIP: bool_tree Epsilon cont inp b tskip)
-    (CHOICE: tquant = greedy_choice greedy (GroupAction (Reset gidl) titer) tskip),
-    bool_tree (Star greedy r1) cont inp b tquant
-| bool_group:
-  forall r1 cont treecont inp gid b
-    (TREECONT: bool_tree r1 (Aclose gid :: cont) inp b treecont),
-    bool_tree (Group gid r1) cont inp b (GroupAction (Open gid) treecont).
+
+  Inductive bool_tree: actions -> input -> LoopBool -> tree -> Prop :=
+  | tree_done:
+    (* nothing to do on an empty list of actions *)
+    forall inp b,
+      bool_tree [] inp b Match
+  | tree_check:
+    (* pops a successful check from the action list *)
+    (* NEW: this only checks the boolean allows exit and not the strcheck in the tree *)
+    forall inp strcheck cont treecont
+      (TREECONT: bool_tree cont inp CanExit treecont),
+      bool_tree (Acheck strcheck :: cont) inp CanExit (Progress strcheck treecont)
+  | tree_check_fail:
+  (* pops a failing check from the action list *)
+    forall inp strcheck cont,
+      bool_tree (Acheck strcheck :: cont) inp CannotExit Mismatch
+  | tree_close:
+  (* pops the closing of a group from the action list *)
+    forall inp b cont treecont gid
+      (TREECONT: bool_tree cont inp b treecont),
+      bool_tree (Aclose gid :: cont) inp b (GroupAction (Close gid) treecont)
+  | tree_epsilon:
+    forall inp b cont tcont
+      (ISTREE: bool_tree cont inp b tcont),
+      bool_tree ((Areg Epsilon)::cont) inp b tcont
+  | tree_char:
+    forall c cd inp b nextinp cont tcont
+      (READ: read_char cd inp forward = Some (c, nextinp))
+      (* NEW: changes the boolean to CanExit *)
+      (TREECONT: bool_tree cont nextinp CanExit tcont),
+      bool_tree (Areg (Regex.Character cd) :: cont) inp b (Read c tcont)
+  | tree_char_fail:
+    forall cd inp b cont
+      (READ: read_char cd inp forward = None),
+      bool_tree (Areg (Regex.Character cd) :: cont) inp b Mismatch
+  | tree_disj:
+    forall r1 r2 cont t1 t2 inp b
+      (ISTREE1: bool_tree (Areg r1 :: cont) inp b t1)
+      (ISTREE2: bool_tree (Areg r2 :: cont) inp b t2),
+      bool_tree (Areg (Disjunction r1 r2) :: cont) inp b (Choice t1 t2)
+  | tree_sequence:
+    (* adding next regex to the continuation *)
+    forall r1 r2 cont t inp b
+      (CONT: bool_tree (Areg r1 :: Areg r2 :: cont) inp b t),
+      bool_tree (Areg (Sequence r1 r2) :: cont) inp b t
+  | tree_quant_forced:
+    (* the quantifier is forced to iterate, because there is a strictly positive minimum *)
+    forall r1 greedy min plus cont titer inp b gidl
+      (* the list of capture groups to reset *)
+      (RESET: gidl = def_groups r1)
+      (* doing one iteration *)
+      (ISTREE1: bool_tree (Areg r1 :: Areg (Quantified greedy min plus r1) :: cont) inp b titer),
+      bool_tree (Areg (Quantified greedy (S min) plus r1) :: cont) inp b (GroupAction (Reset gidl) titer)
+  | tree_quant_done:
+    (* the quantifier is done iterating, because min and max are zero *)
+    forall r1 greedy cont tskip inp b
+      (SKIP: bool_tree cont inp b tskip),
+      bool_tree (Areg (Quantified greedy 0 (NoI.N 0) r1) :: cont) inp b tskip
+  | tree_quant_free:
+    (* the quantifier is free to iterate or stop *)
+    forall r1 greedy plus cont titer tskip tquant inp b gidl
+      (* the list of capture groups to reset *)
+      (RESET: gidl = def_groups r1)
+      (* doing one iteration, then a check, then executing the next quantifier *)
+      (* NEW: switchgint the boolean to CannotExit *)
+      (ISTREE1: bool_tree (Areg r1 :: Acheck (current_str inp forward) :: Areg (Quantified greedy 0 plus r1) :: cont) inp CannotExit titer)
+      (* skipping the quantifier entirely *)
+      (SKIP: bool_tree cont inp b tskip)
+      (CHOICE: tquant = greedy_choice greedy (GroupAction (Reset gidl) titer) tskip),
+      bool_tree (Areg (Quantified greedy 0 (NoI.N 1 + plus)%NoI r1) :: cont) inp b tquant
+  | tree_group:
+    forall r1 cont treecont inp b gid
+      (TREECONT: bool_tree (Areg r1 :: Aclose gid :: cont) inp b treecont),
+      bool_tree (Areg (Group gid r1) :: cont) inp b (GroupAction (Open gid) treecont)
+  | tree_anchor:
+    forall a cont treecont inp b
+      (ANCHOR: anchor_satisfied a inp = true)
+      (TREECONT: bool_tree cont inp b treecont),
+      bool_tree (Areg (Anchor a) :: cont) inp b (AnchorPass a treecont)
+  | tree_anchor_fail:
+    forall a cont inp b
+      (ANCHOR: anchor_satisfied a inp = false),
+      bool_tree (Areg (Anchor a) :: cont) inp b Mismatch.
 
 
 (** * Boolean Tree Equivalence  *)
@@ -129,8 +198,8 @@ Proof.
 Qed.
   
 
-Inductive bool_encoding: LoopBool -> string -> continuation -> Prop :=
-(* with an empty continuation we can be encoded with any boolean *)
+Inductive bool_encoding: LoopBool -> string -> actions -> Prop :=
+(* an empty continuation can be encoded with any boolean *)
 | nil_encode:
   forall str b,
     bool_encoding b str []
@@ -161,7 +230,7 @@ Inductive bool_encoding: LoopBool -> string -> continuation -> Prop :=
 
 (* Generalizes the encoding to inputs *)
 (* later: add direction, so that the input can be read in two directions *)
-Inductive encodes : LoopBool -> input -> continuation -> Prop :=
+Inductive encodes : LoopBool -> input -> actions -> Prop :=
 | encode_forward:
   forall b next pref cont
     (ENCODE: bool_encoding b next cont),
@@ -199,17 +268,11 @@ Lemma false_encoding:
     bool_encoding CannotExit str (Acheck str::cont).
 Proof.
   intros str cont b H.
-  induction H.
+  induction cont.
   - constructor. constructor.
-  - inversion IHbool_encoding; subst.
-    + apply to_false. constructor. auto.
-    + apply cons_false. constructor. auto.
-  - inversion IHbool_encoding; subst.
-    + apply to_false. constructor. auto.
-    + apply cons_false. constructor. auto.
-  - apply to_false. apply cons_true; auto.
-  - apply cons_false. auto.
-  - apply cons_false. auto.
+  - destruct b.
+    + apply to_false. auto.
+    + apply cons_false. auto.
 Qed.
 
 (* if the string is different than the check, we know the boolean is true *)
@@ -237,53 +300,102 @@ Proof.
   exfalso. apply NEQ. auto.
 Qed.
 
+Lemma encode_next:
+  forall b inp cont r,
+    encodes b inp (Areg r::cont) <->
+    encodes b inp cont.
+Proof.
+  intros b inp cont r. split; intros H.
+  - inversion H; subst.
+    constructor. inversion ENCODE; subst. auto.
+  - destruct inp. constructor. inversion H; subst.
+    constructor. auto.
+Qed.
+
+Lemma encode_close:
+  forall b inp cont g,
+    encodes b inp (Aclose g::cont) <->
+    encodes b inp cont.
+Proof.
+  intros b inp cont g. split; intros H.
+  - inversion H; subst.
+    constructor. inversion ENCODE; subst. auto.
+  - destruct inp. constructor. inversion H; subst.
+    constructor. auto.
+Qed.
+
+
+
 (** * Second Step: encoding equality  *)
 (* the two tree constructions are equal *)
 
 Theorem encode_equal:
-  forall r inp cont b t
+  forall inp cont b t gm
+    (PIKE: pike_actions cont)
     (ENCODE: encodes b inp cont)
-    (TREE: is_tree r cont inp t),
-    bool_tree r cont inp b t.
+    (TREE: is_tree cont inp gm forward t),
+    bool_tree cont inp b t.
 Proof.
-  intros r inp cont b0 t ENCODE TREE.
-  generalize dependent b0.
-  induction TREE; intros.
-  - constructor.
-  - constructor.
-    eapply IHTREE; eauto.
-    inversion ENCODE; subst; constructor; inversion ENCODE0; auto.
-  - assert (b0 = CanExit).
-    { remember (Acheck strcheck::tailcont) as cont'.
+  intros inp cont b t gm PIKE ENCODE TREE.
+  generalize dependent b.
+  remember forward as dir.
+  induction TREE; inversion PIKE; subst; intros;
+    try solve[constructor; auto]; try solve [inversion H1; inversion H0].
+  - assert (b = CanExit).
+    { remember (Acheck strcheck::cont) as cont'.
       destruct ENCODE; subst; eapply encoding_different; eauto. }
     subst. constructor. eapply IHTREE; eauto.
     inversion ENCODE; subst; constructor; inversion ENCODE0; auto.
-  - assert (b0 = CannotExit).
-    { remember (Acheck strcheck :: tailcont) as cont'.
+  - assert (b = CannotExit).
+    { remember (Acheck (current_str inp forward) :: cont) as cont'.
       destruct ENCODE; subst; eapply encoding_same; eauto. }
     subst. constructor.
-  - constructor. apply IHTREE.
-    inversion ENCODE; subst; constructor; inversion ENCODE0; auto.
-  - econstructor; eauto. apply IHTREE.
+  - constructor; apply IHTREE; auto;
+      inversion ENCODE; subst; constructor; inversion ENCODE0; auto.
+  - constructor; apply IHTREE; auto;
+      inversion ENCODE; subst; constructor; inversion ENCODE0; auto.
+  - apply encode_next in ENCODE.
+    subst. econstructor; eauto. apply IHTREE; auto.
     destruct nextinp. destruct ENCODE; constructor; simpl in READ.
-    destruct next0; inversion READ. destruct (char_match c0 cd); inversion READ; subst. eapply true_encoding; eauto.
-  - constructor; auto.
-  - constructor; auto.
-  - constructor. apply IHTREE; eauto.
+    destruct next0; inversion READ. destruct (char_match t cd); inversion READ; subst. eapply true_encoding; eauto.
+  - apply encode_next in ENCODE. inversion H1. inversion H0. subst. constructor.
+    + apply IHTREE1; auto.
+      { constructor; try constructor; auto. }
+      apply encode_next. auto.
+    + apply IHTREE2; auto.
+      { constructor; try constructor; auto. }
+      apply encode_next. auto.
+  - constructor. subst. simpl in IHTREE. apply IHTREE; eauto.
+    { inversion H1. subst. inversion H0. subst.
+      repeat progress (constructor; auto). }
     inversion ENCODE; subst; constructor; constructor; auto.
-  - eapply bool_star; eauto.
-    apply IHTREE1.
-    destruct ENCODE; constructor; simpl; eapply false_encoding; constructor; eauto.
-  - constructor. apply IHTREE.
-    destruct ENCODE; constructor; constructor; auto.
+    constructor. inversion ENCODE0; subst. auto.
+  (* - constructor; auto. apply IHTREE; auto. *)
+    (* { inversion H1. inversion H0. } *)
+    (* apply encode_next. apply encode_next. apply encode_next in ENCODE. auto. *)
+  (* - constructor; auto. apply IHTREE; auto. *)
+  (*   apply encode_next in ENCODE. auto. *)
+  - eapply tree_quant_free; eauto.
+    + subst. eapply IHTREE1; auto.
+      { inversion H1. inversion H0. subst. destruct plus; inversion H5.
+        repeat progress (constructor; auto). }
+      apply encode_next. destruct inp. simpl. constructor. eapply false_encoding.
+      constructor. apply encode_next in ENCODE. inversion ENCODE; subst. eauto.
+    + subst. eapply IHTREE2; auto. apply encode_next in ENCODE. auto.
+  - constructor. apply IHTREE; auto.
+    { inversion H1. inversion H0. subst. repeat progress (constructor; auto). }
+    apply encode_next in ENCODE.
+    apply encode_next. apply encode_close. auto.
 Qed.
     
 Corollary boolean_correct:
   forall r str t,
-    backtree r str t ->
-    bool_tree r [] (init_input str) CanExit t.
+    pike_regex r ->
+    priotree r str t ->
+    bool_tree [Areg r] (init_input str) CanExit t.
 Proof.
-  unfold backtree. intros r str t H.
+  unfold priotree. intros r str t PIKE H.
   eapply encode_equal; eauto.
-  constructor. constructor.
+  { constructor; constructor; auto. }
+  constructor. constructor. constructor.
 Qed.
