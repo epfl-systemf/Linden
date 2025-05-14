@@ -1,4 +1,5 @@
-From Linden Require Import LWEquivTMatcherDef TreeMSInterp Tree LindenParameters ListLemmas WarblreLemmas.
+From Linden Require Import LWEquivTMatcherDef Tree LindenParameters
+ListLemmas WarblreLemmas Groups GroupMapMS.
 From Warblre Require Import Result Notation Base Errors Parameters List.
 Import Notation.
 Import Result.Notations.
@@ -28,29 +29,30 @@ Section LWEquivTMatcherLemmas.
 
   (* Equivalence lemma for the case of a choice between two branches. *)
   Lemma equiv_choice:
-    forall (ms: MatchState) (gl: open_groups) (dir: Direction) resopt1 topt1 resopt2 topt2,
-      equiv_results topt1 ms gl dir resopt1 -> equiv_results topt2 ms gl dir resopt2 ->
-      equiv_results (tree_choice topt1 topt2) ms gl dir (match_choice resopt1 resopt2).
+    forall (gm: GroupMap.t) (idx: nat) (dir: Direction) resopt1 topt1 resopt2 topt2,
+      equiv_results topt1 gm idx dir resopt1 -> equiv_results topt2 gm idx dir resopt2 ->
+      equiv_results (tree_choice topt1 topt2) gm idx dir (match_choice resopt1 resopt2).
   Proof.
-    intros ms gl dir resopt1 topt1 resopt2 topt2 Hequiv1 Hequiv2.
+    intros gm idx dir resopt1 topt1 resopt2 topt2 Hequiv1 Hequiv2.
     unfold tree_choice, match_choice.
-    inversion Hequiv1 as [ t1 ms' gl' dir' res1 Hequiv1' Heqt1 Heqms' Heqgl' Heqdir' Heqres1 |
+    inversion Hequiv1 as [ t1 gm' idx' dir' res1 Hequiv1' Heqt1 Heqgm' Heqidx' Heqdir' Heqres1 |
                          | ].
     2,3: constructor.
-    subst ms' gl' dir'.
-    inversion Hequiv2 as [ t2 ms' gl' dir' res2 Hequiv2' Heqt2 Heqms' Heqgl' Heqdir' Heqres2 |
+    subst gm' idx' dir'.
+    inversion Hequiv2 as [ t2 gm' idx' dir' res2 Hequiv2' Heqt2 Heqgm' Heqidx' Heqdir' Heqres2 |
                          | ]; simpl.
     - replace (if (res1 !=? None)%wt then _ else _)
         with (Success (F := MatchError) (if (res1 !=? None)%wt then res1 else res2
              )) by now destruct res1.
       constructor. simpl.
-      rewrite <- Hequiv1'. rewrite <- Hequiv2'.
-      now destruct res1.
+      inversion Hequiv1' as [Hleaf1None Hres1None | gmleaf1 msres1 Hequivgmms Hleaf1Some Hres1Some].
+      + simpl. assumption.
+      + simpl. constructor. assumption.
     - constructor.
     - (* Something is happening here; may be simplified later *)
       destruct res1; simpl. 2: constructor.
       destruct topt2.
-      + simpl. constructor. simpl. rewrite <- Hequiv1'. reflexivity.
+      + simpl. apply Equiv_results. simpl. inversion Hequiv1'. simpl. constructor. assumption.
       + constructor.
   Qed.
 
@@ -94,24 +96,42 @@ Section LWEquivTMatcherLemmas.
     now destruct res.
   Qed.
 
-
-  (* The capture reset defined in TreeMSInterp.v does the same thing as the capture reset used in Warblre. *)
-  Lemma capture_reset_lw_same:
-    forall (ms ms_reset: MatchState) (parenIndex parenCount: nat) (cap': list (option CaptureRange)),
-      ms_reset = match_state (MatchState.input ms) (MatchState.endIndex ms) cap' ->
-      List.Update.Nat.Batch.update None (MatchState.captures ms) (List.Range.Nat.Bounds.range (parenIndex + 1 - 1) (parenIndex + parenCount + 1 - 1)) = Success cap' ->
-      reset_groups_ms (F := MatchError) (List.seq (parenIndex + 1) parenCount) ms = ms_reset.
+  Definition nat_in_range_dec:
+    forall lIncl hExcl i, {lIncl <= i < hExcl} + {~(lIncl <= i < hExcl)}.
   Proof.
-    intros ms ms_reset parenIndex parenCount cap' Heqms_reset Hupdatesucc.
-    unfold reset_groups_ms.
-    destruct ms.
-    rewrite <- range_seq.
-    unfold List.List.Range.Nat.Bounds.range in Hupdatesucc.
-    rewrite decr_range by lia.
-    replace (parenIndex + parenCount + 1 - 1 - (parenIndex + 1 - 1)) with parenCount in Hupdatesucc by lia.
-    simpl in Hupdatesucc.
-    rewrite Hupdatesucc.
-    simpl in *.
-    congruence.
-  Qed.
+    intros. pose proof (Compare_dec.le_dec lIncl i). pose proof (Compare_dec.lt_dec i hExcl).
+    destruct H; destruct H0; tauto.
+  Defined.
+
+  Lemma groupmap_reset_inindices:
+    forall (gm gmreset: GroupMap.t) (gidl: group_set),
+    gmreset = GroupMap.reset gidl gm ->
+    forall gid: group_id, List.In gid gidl -> GroupMap.find gid gmreset = None.
+  Admitted.
+
+  Lemma groupmap_reset_outindices: True.
+  Admitted.
+
+  (* Equivalence of a group map and a MatchState is preserved when performing the same
+  capture reset on both sides. *)
+  Lemma equiv_gm_ms_reset {F} `{Result.AssertionError F}:
+    forall gm ms gm_reset ms_reset parenIndex parenCount cap',
+      equiv_groupmap_ms gm ms ->
+      List.List.Update.Nat.Batch.update None (MatchState.captures ms)
+        (List.List.Range.Nat.Bounds.range (parenIndex + 1 - 1) (parenIndex + parenCount + 1 - 1)) = Success cap' ->
+      ms_reset = match_state (MatchState.input ms) (MatchState.endIndex ms) cap' ->
+      gm_reset = GroupMap.reset (List.seq (parenIndex + 1) parenCount) gm ->
+      equiv_groupmap_ms gm_reset ms_reset.
+  Proof.
+    intros gm ms gm_reset ms_reset parenIndex parenCount cap' Hgmms Hupdsucc Heqms_reset Heqgm_reset.
+    unfold equiv_groupmap_ms. intro gid_prec.
+    destruct (nat_in_range_dec (parenIndex + 1 - 1) (parenIndex + parenCount + 1 - 1) gid_prec) as [Hinrange | Houtrange].
+    - assert (Hinrange_linden: parenIndex + 1 <= S gid_prec < parenIndex + parenCount + 1) by lia.
+      unfold List.Range.Nat.Bounds.range in Hupdsucc. rewrite range_seq in Hupdsucc.
+      replace (parenIndex + parenCount + 1 - 1 - _) with parenCount in Hupdsucc by lia.
+      replace (parenIndex + parenCount + 1 - 1) with ((parenIndex + 1 - 1) + parenCount) in Hinrange by lia.
+      apply <- List.in_seq in Hinrange.
+  Admitted.
+    
+
 End LWEquivTMatcherLemmas.

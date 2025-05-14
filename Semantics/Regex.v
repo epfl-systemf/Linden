@@ -48,7 +48,7 @@ Section Regex.
   | Character (cd : char_descr)   (* includes character classes and dot *)
   | Disjunction (r1 r2 : regex) 
   | Sequence (r1 r2 : regex)
-  | Quantified (greedy:bool) (min: nat) (plus: non_neg_integer_or_inf) (r1: regex)
+  | Quantified (greedy:bool) (min: nat) (delta: non_neg_integer_or_inf) (r1: regex) (* means any number of repetitions of r1 between min and min+delta *)
   | Lookaround (lk: lookaround) (r: regex)
   | Group (id : group_id) (r : regex)
   | Anchor (a: anchor)

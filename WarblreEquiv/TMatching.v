@@ -1,5 +1,6 @@
 From Coq Require Import PeanoNat ZArith Bool Lia Program.Equality List Program.Wf.
-From Linden Require Import Tree LindenParameters TreeMSInterp Regex MSInput LKFactorization.
+(*Import ListNotations.*)
+From Linden Require Import Tree LindenParameters Regex MSInput LKFactorization Groups.
 From Warblre Require Import Patterns Result Notation Errors Node RegExpRecord Base Coercions Semantics Typeclasses.
 Import Patterns.
 Import Result.Result.
@@ -33,6 +34,27 @@ Section TMatching.
   Definition TMatcherContinuation := Notation.MatchState -> TMatchResult.
   Definition TMatcher := Notation.MatchState -> TMatcherContinuation -> TMatchResult.
 
+  (* Converting a MatchState to a GroupMap.t for looking up a tree in lookarounds *)
+  Definition add_option_capture_range (gid_gm: group_id * GroupMap.t) (cap_opt: option CaptureRange): group_id * GroupMap.t :=
+    let '(gid, gm) := gid_gm in
+    match cap_opt with
+    | None => (S gid, gm)
+    | Some (capture_range startIdx endIdx) => (S gid, GroupMap.add gid (GroupMap.Range (Z.to_nat startIdx) (Some (Z.to_nat endIdx))) gm)
+    end.
+  
+  Definition to_group_map (ms: MatchState): GroupMap.t :=
+    snd (List.fold_left add_option_capture_range (MatchState.captures ms) (1, GroupMap.empty)).
+
+  Fixpoint to_capture_list (gm: GroupMap.t) (gid: group_id) (num_left: nat): list (option CaptureRange) :=
+    match num_left with
+    | 0 => nil
+    | S num_left' =>
+      let tl := to_capture_list gm (S gid) num_left' in
+      match GroupMap.find gid gm with
+      | None | Some (GroupMap.Range _ None) => None::tl
+      | Some (GroupMap.Range startIdx (Some endIdx)) => Some (capture_range (Z.of_nat startIdx) (Z.of_nat endIdx))::tl
+      end
+    end.
 
   (** >>
       22.2.2.3.1 RepeatMatcher ( m, min, max, greedy, x, c, parenIndex, parenCount )
@@ -55,7 +77,7 @@ Section TMatching.
       (*>> a. Assert: y is a MatchState. <<*)
       (*>> b. If min = 0 and y's endIndex = x's endIndex, return failure. <<*)
       if (min == 0)%nat && (MatchState.endIndex y =? MatchState.endIndex x)%Z
-        then Success (CheckFail (ms_suffix x dir)) else
+        then Success Mismatch else
       (*>> c. If min = 0, let min2 be 0; otherwise let min2 be min - 1. <<*)
       let min2 :=
         if (min == 0)%nat then 0
@@ -70,7 +92,7 @@ Section TMatching.
       let! subtree =<< tRepeatMatcher' m dir min2 max2 greedy y c parenIndex parenCount fuel' in
       (* We only add a CheckPass if min is zero, else we directly yield the subtree *)
       if (min == 0)%nat then
-        Success (CheckPass (ms_suffix x dir) subtree)
+        Success (Progress (ms_suffix x dir) subtree)
       else
         Success subtree
     in
@@ -164,20 +186,25 @@ Section TMatching.
       let! child =<< c y in
       Success (Read chr child).
 
+  Definition isNone {A} (x: option A): bool :=
+    match x with
+    | None => true
+    | Some _ => false
+    end.
 
   Definition tLookaroundMatcher (tCompileSubPattern: Regex -> RegexContext -> RegExpRecord -> Direction -> Result TMatcher CompileError) (lkdir: Direction) (pos: bool) (lkreg: Regex) (ctx: RegexContext) (rer: RegExpRecord) (direction: Direction) : Result TMatcher CompileError :=
     let! m =<< tCompileSubPattern lkreg (lkCtx lkdir pos :: ctx) rer lkdir in
     Success ((fun (x: MatchState) (c: TMatcherContinuation) =>
       let d: TMatcherContinuation := fun (y: MatchState) => Success Match in
       let! r =<< m x d in
-      let rstate := tree_res' r x nil lkdir in
-      if (pos && rstate == None) || (negb pos && rstate != None) then
+      let rstate := tree_res r (to_group_map x) (Z.to_nat x.(MatchState.endIndex)) lkdir in
+      if (pos && isNone rstate) || (negb pos && negb (isNone rstate)) then
           Success (LKFail (to_lookaround lkdir pos) r)
       else
         let! z =<<
           if pos then
             destruct! (Some y) <- rstate in
-            let cap := MatchState.captures y in
+            let cap := to_capture_list y 1 (length (MatchState.captures x)) in
             let input := MatchState.input x in
             let xe := MatchState.endIndex x in
             Success (match_state input xe cap)
@@ -368,7 +395,7 @@ Section TMatching.
           Success (AnchorPass BeginInput t)
         else
         (*>> f. Return failure. <<*)
-        Success (AnchorFail BeginInput)): TMatcher)
+        Success Mismatch): TMatcher)
 
   (** >> Assertion :: $ <<*)
   | InputEnd =>
@@ -389,7 +416,7 @@ Section TMatching.
           Success (AnchorPass EndInput t)
         else
         (*>> g. Return failure. <<*)
-          Success (AnchorFail EndInput)): TMatcher)
+          Success Mismatch): TMatcher)
 
   (** >> Assertion :: \b <<*)
   | WordBoundary =>
@@ -411,7 +438,7 @@ Section TMatching.
           Success (AnchorPass Regex.WordBoundary t)
         else
         (*>> h. Return failure. <<*)
-          Success (AnchorFail Regex.WordBoundary)): TMatcher)
+          Success Mismatch): TMatcher)
 
   (** >> Assertion :: \B <<*)
   | NotWordBoundary =>
@@ -433,7 +460,7 @@ Section TMatching.
           Success (AnchorPass NonWordBoundary t)
         else
         (*>> h. Return failure. <<*)
-          Success (AnchorFail NonWordBoundary)): TMatcher)
+          Success Mismatch): TMatcher)
 
   | AtomEsc (ACharacterEsc ce) =>
       (*>> 1. Let cv be the CharacterValue of CharacterEscape. <<*)

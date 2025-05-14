@@ -4,8 +4,7 @@ Import ListNotations.
 From Linden Require Import Regex Chars.
 From Linden Require Import Tree.
 From Linden Require Import NumericLemmas.
-From Linden Require Import TreeMSInterp.
-From Warblre Require Import Numeric Base Errors. (* we don't really care about the kind of error that first_branch' may need, but we need an instance of these errors *)
+From Warblre Require Import Numeric Base.
 From Linden Require Import Groups.
 From Coq Require Import Lia.
 
@@ -24,8 +23,8 @@ Section Semantics.
   (* Positive lookarounds expect trees with a result, and negative ones expect trees without results *)
   Definition lk_result (lk:lookaround) (t:tree) : Prop :=
     match (positivity lk) with
-    | true => exists res, first_branch' t = Some res
-    | false => first_branch' t = None
+    | true => exists res, first_branch t = Some res
+    | false => first_branch t = None
     end.
 
   (* Computes the updated group_map after finding the first result in a tree of lookarounds *)
@@ -112,7 +111,7 @@ Section Semantics.
   | tree_close:
   (* pops the closing of a group from the action list *)
     forall inp gm dir cont treecont gid
-      (TREECONT: is_tree cont inp (close_group gm gid (idx inp)) dir treecont),
+      (TREECONT: is_tree cont inp (GroupMap.close (idx inp) gid gm) dir treecont),
       is_tree (Aclose gid :: cont) inp gm dir (GroupAction (Close gid) treecont)
   | tree_epsilon:
     forall inp gm dir cont tcont
@@ -143,7 +142,7 @@ Section Semantics.
       (* the list of capture groups to reset *)
       (RESET: gidl = def_groups r1)
       (* doing one iteration *)
-      (ISTREE1: is_tree (Areg r1 :: Areg (Quantified greedy min plus r1) :: cont) inp (reset_groups gm gidl) dir titer),
+      (ISTREE1: is_tree (Areg r1 :: Areg (Quantified greedy min plus r1) :: cont) inp (GroupMap.reset gidl gm) dir titer),
       is_tree (Areg (Quantified greedy (S min) plus r1) :: cont) inp gm dir (GroupAction (Reset gidl) titer)
   | tree_quant_done:
     (* the quantifier is done iterating, because min and max are zero *)
@@ -156,14 +155,14 @@ Section Semantics.
       (* the list of capture groups to reset *)
       (RESET: gidl = def_groups r1)
       (* doing one iteration, then a check, then executing the next quantifier *)
-      (ISTREE1: is_tree (Areg r1 :: Acheck (current_str inp dir) :: Areg (Quantified greedy 0 plus r1) :: cont) inp (reset_groups gm gidl) dir titer)
+      (ISTREE1: is_tree (Areg r1 :: Acheck (current_str inp dir) :: Areg (Quantified greedy 0 plus r1) :: cont) inp (GroupMap.reset gidl gm) dir titer)
       (* skipping the quantifier entirely *)
       (SKIP: is_tree cont inp gm dir tskip)
       (CHOICE: tquant = greedy_choice greedy (GroupAction (Reset gidl) titer) tskip),
       is_tree (Areg (Quantified greedy 0 (NoI.N 1 + plus)%NoI r1) :: cont) inp gm dir tquant
   | tree_group:
     forall r1 cont treecont inp gm dir gid
-      (TREECONT: is_tree (Areg r1 :: Aclose gid :: cont) inp (open_group gm gid (idx inp)) dir treecont),
+      (TREECONT: is_tree (Areg r1 :: Aclose gid :: cont) inp (GroupMap.open (idx inp) gid gm) dir treecont),
       is_tree (Areg (Group gid r1) :: cont) inp gm dir (GroupAction (Open gid) treecont)
   | tree_lk:
     forall lk r1 cont treecont treelk inp gm gmlk dir
@@ -202,7 +201,7 @@ Section Semantics.
 
 
   Definition priotree (r:regex) (str:string) (t:tree): Prop :=
-    is_tree [Areg r] (init_input str) empty_group_map forward t.
+    is_tree [Areg r] (init_input str) GroupMap.empty forward t.
 
 
   (** * Determinism  *)

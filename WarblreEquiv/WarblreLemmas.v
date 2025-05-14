@@ -1,6 +1,6 @@
 From Warblre Require Import Match Notation Parameters RegExpRecord List Result Semantics.
 From Linden Require Import Chars MSInput CharSet.
-From Coq Require Import ZArith Lia.
+From Coq Require Import ZArith Lia List.
 Import Notation.
 Import Match.MatchState.
 
@@ -25,6 +25,20 @@ Proof.
   - intro base. simpl. f_equal. replace (base + 1)%nat with (S base) by lia.
     apply IHl.
 Qed.
+
+Lemma batch_update_inindices {T F} `{Result.AssertionError F}:
+  forall (l l': list T) (x: T) (indices: list nat),
+    List.List.Update.Nat.Batch.update x l indices = Success l' ->
+    forall i: nat, In i indices -> List.nth_error l' i = Some x.
+Proof.
+Admitted.
+
+Lemma batch_update_outindices {T F} `{Result.AssertionError F}:
+  forall (l l': list T) (x: T) (indices: list nat),
+    List.List.Update.Nat.Batch.update x l indices = Success l' ->
+    forall i: nat, ~In i indices -> List.nth_error l' i = List.nth_error l i.
+Proof.
+Admitted.
 
 
 (* Generalization of Warblre.props.StrictlyNullable.capture_reset_preserve_validity to arbitrary parenthesis indexes and counts.

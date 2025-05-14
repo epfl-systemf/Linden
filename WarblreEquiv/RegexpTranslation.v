@@ -20,7 +20,7 @@ Section RegexpTranslation.
     | Quantified _ _ _ r1 => num_groups r1
     | Group _ r1 => S (num_groups r1)
     | Lookaround _ r1 => num_groups r1
-    | Anchor _ => 0
+    | Anchor _ | Backreference _ => 0
     end.
 
   (* Equivalence of greedy/lazy quantifier prefixes. *)

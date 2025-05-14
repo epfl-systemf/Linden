@@ -33,9 +33,9 @@ Section LWEquivMain.
       (* letting res and tres be the respective results of these matchers on some input string str, *)
       res = matcher str 0 -> tres = tmatcher str 0 ->
       (* these results define the same capture groups if both matchings succeed and *)
-      LWEquivTMatcherDef.equiv_results tres (MatchState.init rer str 0) [] forward res /\
+      LWEquivTMatcherDef.equiv_results tres GroupMap.empty 0 forward res /\
         (* in this case, the priority tree of the tree matcher respects the relational semantics. *)
-        (tres = Success t -> is_tree lreg [] (init_input str) forward t).
+        (tres = Success t -> is_tree [Areg lreg] (init_input str) GroupMap.empty forward t).
   Proof.
     intros wreg lreg str rer matcher tmatcher res tres t Hcasesenst Hnomultiline HdotAll Hcapcount Hequiv.
     unfold Semantics.compilePattern, tCompilePattern.
@@ -52,11 +52,13 @@ Section LWEquivMain.
     intros Heqres Heqtres. subst res tres.
     destruct negb. (* Negative length! *) 1: { split. - constructor. - discriminate. }
     split.
-    - apply Hcompile_tcompile. + apply id_equiv. + reflexivity.
-    - specialize (Hpt id_tmcont [] str (id_tmcont_valid rer str forward)).
-      specialize (Hpt (init_input str) (MSInput.init_input_compat str)).
-      set (ms := match_state str 0 _). specialize (Hpt ms t).
+    - unfold equiv_tree_matcher in Hcompile_tcompile. apply Hcompile_tcompile with (gl := []); auto.
+      + admit. + apply id_equiv. + admit. + admit.
+    - unfold tm_valid in Hpt. specialize (Hpt id_tmcont [] [] str).
+      specialize_prove Hpt by admit. specialize (Hpt (id_tmcont_valid rer str forward)).
+      unfold tMC_valid in Hpt. specialize (Hpt (init_input str) (MSInput.init_input_compat str)).
+      set (ms := match_state str 0 _). specialize (Hpt ms GroupMap.empty t).
       specialize_prove Hpt by apply MSInput.init_ms_matches_inp. simpl in Hpt.
-      intro Hsucctm. specialize (Hpt Hsucctm). now inversion Hpt.
-  Qed.
+      intro Hsucctm. specialize (Hpt Hsucctm). apply Hpt. all: admit.
+  Admitted.
 End LWEquivMain.
