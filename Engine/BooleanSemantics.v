@@ -53,6 +53,46 @@ Inductive pike_actions: actions -> Prop :=
     pike_actions l ->
     pike_actions (a::l).
 
+Inductive pike_subtree: tree -> Prop :=
+| pike_mismatch: pike_subtree Mismatch
+| pike_match: pike_subtree Match
+| pike_choice: forall t1 t2,
+    pike_subtree t1 -> pike_subtree t2 ->
+    pike_subtree (Choice t1 t2)
+| pike_read: forall cd t1,
+    pike_subtree t1 ->
+    pike_subtree (Read cd t1)
+| pike_progress: forall str t1,
+    pike_subtree t1 ->
+    pike_subtree (Progress str t1)
+| pike_groupaction: forall ga t1,
+    pike_subtree t1 ->
+    pike_subtree (GroupAction ga t1).
+
+Lemma pike_actions_pike_tree:
+  forall cont inp gm dir t,
+    pike_actions cont ->
+    is_tree cont inp gm dir t ->
+    pike_subtree t.
+Proof.
+  intros cont inp gm dir t PIKE ISTREE.
+  induction ISTREE; try constructor; try apply IHISTREE; try inversion PIKE; auto.
+  - apply IHISTREE1. inversion PIKE. subst. constructor; auto.
+    inversion H1. inversion H0. subst. constructor; auto.
+  - apply IHISTREE2. inversion PIKE. subst. constructor; auto.
+    inversion H1. inversion H0. subst. constructor; auto.
+  - inversion H1. subst. inversion H4. subst. destruct dir; simpl; repeat constructor; auto.
+  - inversion H1. subst. inversion H4.
+  - inversion H1. subst. inversion H4. subst.
+    constructor; auto. constructor. apply IHISTREE1. repeat constructor; auto.
+    destruct plus; inversion H3. constructor; auto.
+  - inversion H1. subst. inversion H4; subst. repeat constructor; auto.
+  - inversion H1; subst. inversion H4.
+  - inversion H1; subst. inversion H4.
+  - inversion H1; subst. inversion H4.
+  - inversion H1; subst. inversion H4.
+Qed.
+
 
 (** * Loop Boolean  *)
 (* The loop boolean, indicating if we can exit a loop iteration or not *)

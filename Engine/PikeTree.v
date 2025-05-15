@@ -8,6 +8,8 @@ Require Import List.
 Import ListNotations.
 
 From Linden Require Import Regex Chars Groups Tree.
+From Linden Require Import BooleanSemantics.
+From Warblre Require Import Numeric Base.
 
 (** * Pike Tree Small Step Semantics  *)
 
@@ -27,19 +29,28 @@ Definition StepDead := StepActive []. (* the thread died *)
 (* this corresponds to an atomic step of a single tree *)
 Definition tree_bfs_step (t:tree) (gm:group_map) (idx:nat): step_result :=
   match t with
-  | Mismatch => StepDead
+  | Mismatch | ReadBackRef _ _ | AnchorPass _ _ | LK _ _ _ | LKFail _ _ => StepDead
   | Match => StepMatch
   | Choice t1 t2 => StepActive [(t1,gm); (t2,gm)]
   | Read c t1 => StepBlocked t1
-  | CheckFail _ => StepDead
-  | CheckPass _ t1 => StepActive [(t1,gm)]
-  | GroupAction a t1 => StepActive [(t1, group_effect a gm idx)]
+  | Progress _ t1 => StepActive [(t1,gm)]
+  | GroupAction a t1 => StepActive [(t1, GroupMap.update idx a gm)]
   end.
+(* trees for unsupported features also return StepDead *)
+(* I could support them in this algorithm, but the only problem is ReadBackref which may advance the string in more than one index *)
 
 (* The semantic states of the PikeTree algorithm *)
 Inductive pike_tree_state : Type :=
 | PTS (idx:nat) (active: list (tree * group_map)) (best: option leaf) (blocked: list (tree * group_map))
 | PTS_final (best: option leaf).
+
+Definition pike_pts (pts:pike_tree_state) : Prop :=
+  match pts with
+  | PTS_final _ => True
+  | PTS idx active best blocked =>
+      (forall t gm, In (t, gm) active -> pike_subtree t) /\
+        (forall t gm, In (t, gm) blocked -> pike_subtree t)
+  end.
 
 Definition upd_blocked {X:Type} (newblocked: option X) (blocked: list X) :=
   match newblocked with Some b => b::blocked | None => blocked end.
@@ -71,7 +82,7 @@ Inductive pike_tree_step : pike_tree_state -> pike_tree_state -> Prop :=
     pike_tree_step (PTS idx ((t,gm)::active) best blocked) (PTS idx active best (blocked ++ [(newt,gm)])).
 
 Definition pike_tree_initial_state (t:tree) : pike_tree_state :=
-  (PTS 0 [(t, empty_group_map)] None []).
+  (PTS 0 [(t, GroupMap.empty)] None []).
 
 
 (** * Pike Tree Properties  *)
@@ -94,13 +105,13 @@ Qed.
 (* we show it's related to the baktracking exploration of the tree *)
 
 Definition list_result (l:list (tree * group_map)) (idx:nat) : option leaf :=
-  seqop_list l (fun tgm => tree_res (fst tgm) (snd tgm) idx).
+  seqop_list l (fun tgm => tree_res (fst tgm) (snd tgm) idx forward).
 
 Lemma list_result_cons:
   forall t gm l idx,
-    list_result ((t,gm)::l) idx = seqop (tree_res t gm idx) (list_result l idx).
+    list_result ((t,gm)::l) idx = seqop (tree_res t gm idx forward) (list_result l idx).
 Proof.
-  intros. unfold list_result. destruct (tree_res t gm idx) eqn:RES.
+  intros. unfold list_result. destruct (tree_res t gm idx forward) eqn:RES.
   - erewrite seqop_list_head_some; simpl; eauto.
   - erewrite seqop_list_head_none; simpl; eauto.
 Qed.
@@ -111,7 +122,7 @@ Lemma list_result_app:
 Proof.
   intros l1. induction l1; intros; auto.
   destruct a as [t gm]. unfold list_result.
-  destruct (tree_res t gm idx) eqn:RES.
+  destruct (tree_res t gm idx forward) eqn:RES.
   - erewrite seqop_list_head_some; simpl; eauto.
     erewrite seqop_list_head_some; simpl; eauto.
   - erewrite seqop_list_head_none; simpl; eauto.
@@ -131,25 +142,87 @@ Definition state_result (pts: pike_tree_state) : option leaf :=
 (* the state result is an invariant of the pike step *)
 Theorem pts_result_preservation:
   forall pts1 pts2,
+    pike_pts pts1 ->
     pike_tree_step pts1 pts2 ->
     state_result pts1 = state_result pts2.
 Proof.
-  intros pts1 pts2 H.
+  intros pts1 pts2 PTS H.
   inversion H; subst.
   - simpl. auto.
   - simpl. auto.
   - destruct t; simpl in STEP; inversion STEP; subst.
     + rewrite app_nil_l. unfold state_result. apply f_equal. unfold list_result. rewrite seqop_list_head_none; auto.
     + unfold state_result. apply f_equal. apply f_equal2; auto.
-    + rewrite app_nil_l. unfold state_result. apply f_equal. unfold list_result. rewrite seqop_list_head_none; auto.
+    + assert (pike_subtree (ReadBackRef str t)).
+      { inversion PTS. specialize (H0 (ReadBackRef str t) gm). apply H0. simpl. auto. }
+      inversion H0.
     + unfold state_result. apply f_equal. rewrite list_result_cons. simpl. rewrite list_result_cons. auto.
+    + assert (pike_subtree (AnchorPass a t)).
+      { inversion PTS. specialize (H0 (AnchorPass a t) gm). apply H0. simpl. auto. }
+      inversion H0.
     + unfold state_result. apply f_equal. rewrite list_result_cons. simpl. rewrite list_result_cons. auto.
+    + assert (pike_subtree (LK lk t1 t2)).
+      { inversion PTS. specialize (H0 (LK lk t1 t2) gm). apply H0. simpl. auto. }
+      inversion H0.
+    + assert (pike_subtree (LKFail lk t)).
+      { inversion PTS. specialize (H0 (LKFail lk t) gm). apply H0. simpl. auto. }
+      inversion H0.
   - destruct t; simpl in STEP; inversion STEP; subst.
     simpl. apply f_equal. rewrite list_result_cons. auto.
   - destruct t; simpl in STEP; inversion STEP; subst.
     simpl. rewrite list_result_app. rewrite list_result_cons. simpl.
     rewrite <- seqop_assoc with (o3:=best). rewrite seqop_assoc. apply f_equal. auto.
 Qed.
+
+(* the algorithm shuffles around subtree in the supported pike subset *)
+Theorem pts_subset_preservation:
+  forall pts1 pts2,
+    pike_pts pts1 ->
+    pike_tree_step pts1 pts2 ->
+    pike_pts pts2.
+Proof.
+  intros pts1 pts2 PTS H.
+  inversion H; subst.
+  - constructor.
+  - destruct PTS as [PTSAC PTSBL]. split.
+    + eapply PTSBL; eauto.
+    + intros. inversion H0.
+  - destruct PTS as [PTSAC PTSBL]. split.
+    + intros. destruct t; simpl in STEP; inversion STEP; subst.
+      * simpl in H0. eapply PTSAC. right. eauto.
+      * rewrite in_app_iff in H0. destruct H0 as [[IN | IN] | IN].
+        ** inversion IN; subst. specialize (PTSAC _ _ ltac:(left; reflexivity)).
+           inversion PTSAC. subst. auto.
+        ** inversion IN; subst. 2: { inversion H0. } specialize (PTSAC _ _ ltac:(left; reflexivity)).
+           inversion PTSAC. inversion H0. subst. auto.
+        ** eapply PTSAC; eauto. right. eauto.
+      * specialize (PTSAC _ _ ltac:(left; reflexivity)). inversion PTSAC.
+      * rewrite in_app_iff in H0. destruct H0 as [IN | IN].
+        ** inversion IN; subst. 2: { inversion H0. } specialize (PTSAC _ _ ltac:(left; reflexivity)).
+           inversion PTSAC. inversion H0. subst. auto.
+        ** eapply PTSAC; eauto. right. eauto.
+      * eapply PTSAC; eauto. right. simpl in H0. eauto.
+      * rewrite in_app_iff in H0. destruct H0 as [IN | IN].
+        ** inversion IN; subst. 2: { inversion H0. } specialize (PTSAC _ _ ltac:(left; reflexivity)).
+           inversion PTSAC. inversion H0. subst. auto.
+        ** eapply PTSAC; eauto. right. eauto.
+      * eapply PTSAC; eauto. right. eauto.
+      * eapply PTSAC; eauto. right. eauto.
+    + eapply PTSBL; eauto.
+  - destruct PTS as [PTSAC PTSBL]. split.
+    + intros. inversion H0.
+    + eapply PTSBL; eauto.
+  - destruct PTS as [PTSAC PTSBL]. split.
+    + intros. eapply PTSAC; eauto. right. eauto.
+    + intros. destruct t; simpl in STEP; inversion STEP; subst.
+      rewrite in_app_iff in H0. destruct H0 as [BL | NEW].
+      * eapply PTSBL; eauto.
+      * inversion NEW; subst.
+        2: { inversion H0. }
+        specialize (PTSAC _ _ ltac:(left; reflexivity)).
+        inversion PTSAC. inversion H0. subst. auto.
+Qed.
+
 
 (* the invariant is properly initialized: at the beginning, the result of the state is the first result of the tree *)
 Lemma pts_result_init:
