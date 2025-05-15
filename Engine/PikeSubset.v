@@ -79,11 +79,14 @@ Definition pike_list (l: list (tree * group_map)) : Prop :=
 
 Lemma pike_list_cons:
   forall t gm l,
-    pike_list ((t,gm)::l) -> pike_subtree t /\ pike_list l.
+    pike_list ((t,gm)::l) <-> pike_subtree t /\ pike_list l.
 Proof.
-  intros t gm l H. unfold pike_list in *. split.
+  intros t gm l. unfold pike_list. split; try split; intros. 
   - eapply H; eauto. left. eauto.
-  - intros. eapply H; eauto. right. eauto.
+  - eapply H; eauto. right. eauto.
+  - destruct H. inversion H0; subst.
+    + inversion H2. subst. auto.
+    + eapply H1. eauto.
 Qed.
 
 Lemma pike_list_app:
@@ -150,6 +153,7 @@ Ltac invert_subset :=
   | [ H : pike_regex (Backreference _) |- _ ] => inversion H; clear H
 
   | [ |- pike_list (_ ++ _) ] => apply pike_list_app; split
+  | [ |- pike_list (_ :: _) ] => apply pike_list_cons; split
   | [ |- pike_list [] ] => apply pike_list_empty
   | [ |- pike_list [(_,_)] ] => apply pike_list_single
   | [ |- pike_list [(_,_);(_,_)] ] => apply pike_list_twice

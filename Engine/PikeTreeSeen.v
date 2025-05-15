@@ -186,10 +186,13 @@ Inductive state_nd: nat -> list (tree*group_map) -> option leaf -> list (tree*gr
 
 (* Invariant of the PikeTreeSeen execution *)
 (* at any moment, all the possibles results of the current state are all equal (equal to the first result of the original tree) *)
+(* at any moment, all trees manipulated by the algorithms are trees for the subset of regexes supported  *)
 Inductive piketreeinv: pike_tree_seen_state -> option leaf -> Prop :=
 | pi:
   forall result blocked active best idx seen
-    (SAMERES: forall res, state_nd idx active best blocked seen res -> res = result),
+    (SAMERES: forall res, state_nd idx active best blocked seen res -> res = result)
+    (SUBSET_AC: pike_list active)
+    (SUBSET_BL: pike_list blocked),
     piketreeinv (PTSS idx active best blocked seen) result
 | sr_final:
   forall best,
@@ -202,7 +205,7 @@ Lemma init_piketree_inv:
     pike_subtree t -> 
     piketreeinv (pike_tree_seen_initial_state t) (tree_res t GroupMap.empty 0 forward).
 Proof.
-  intros t. unfold pike_tree_seen_initial_state. constructor.
+  intros t. unfold pike_tree_seen_initial_state. constructor; pike_subset; auto.
   intros res STATEND. inversion STATEND; subst.
   simpl. rewrite seqop_none. inversion ACTIVE; subst.
   inversion TLR; subst. rewrite seqop_none.
@@ -344,7 +347,7 @@ Proof.
   2: { inversion PSTEP. }
   inversion PSTEP; subst; [| | |destruct t; inversion STEP; subst| |].
   (* skipping *)
-  - constructor. intros res STATEND.
+  - constructor; pike_subset; auto. intros res STATEND.
     apply SAMERES. inversion STATEND; subst.
     econstructor; eauto. replace r2 with (seqop None r2) by (simpl; auto).
     eapply tlr_cons; eauto. apply tr_skip. auto.
@@ -353,18 +356,19 @@ Proof.
     { apply SAMERES. econstructor; econstructor. }
     subst. constructor.
   (* nextchar *)
-  - constructor. intros res STATEND. inversion STATEND; subst.
+  - constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
     apply list_nd_initial in ACTIVE.
+    2: { destruct tgm. pike_subset; auto. }
     simpl. subst. specialize (SAMERES (seqop (list_result (tgm::blocked0) (idx+1)) (seqop None best))).
     simpl in SAMERES. apply SAMERES. econstructor; constructor.
   (* mismatch *)
-  - simpl. constructor. intros res STATEND. inversion STATEND; subst. apply SAMERES.
+  - simpl. constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst. apply SAMERES.
     econstructor; eauto. econstructor; eauto. 
     + eapply tr_mismatch.
-    + eapply list_add_seen with (gm:=gm) in ACTIVE; eauto.
+    + eapply list_add_seen with (gm:=gm) in ACTIVE; eauto. 
     + auto.
   (* choice *)
-  - simpl. constructor. intros res STATEND. inversion STATEND; subst.
+  - simpl. constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
     inversion ACTIVE; subst. inversion TLR; subst.
     apply SAMERES.
     apply add_parent_tree in TR.
@@ -377,7 +381,7 @@ Proof.
     destruct (seqop l1 l0) as [leaf|] eqn:CHOICE.
     + econstructor; eauto. rewrite seqop_assoc.
       eapply tlr_cons; eauto.
-      * apply list_result_nd.
+      * apply list_result_nd. auto.
       * rewrite CHOICE. simpl. auto.
     (* when the tree did not contribute, adding it to seen does not change the results *)
     + destruct l1; destruct l0; inversion CHOICE.
@@ -385,31 +389,29 @@ Proof.
       eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
       eapply list_add_seen_nd with (gm:=gm) in TLR0; auto.
       econstructor; eauto.
-  (* checkfail *)
-  - simpl. constructor. intros res STATEND. inversion STATEND; subst. apply SAMERES.
-    econstructor; eauto. econstructor; eauto.
-    + eapply tr_checkfail.
-    + eapply list_add_seen with (gm:=gm) in ACTIVE; eauto.
-    + auto.
-  (* checkpass *)
-  - simpl. constructor. intros res STATEND. inversion STATEND; subst.
+  (* progress fail *)
+  - simpl. constructor; pike_subset; auto. 
+  (* progress *)
+  - simpl. constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
     inversion ACTIVE; subst.
     apply SAMERES.
     apply add_parent_tree in TR.
     2: { simpl. lia. }
-    assert (PARENT: tree_nd (CheckPass str t) gm idx seen l1).
-    { apply tr_checkpass; auto. }
+    assert (PARENT: tree_nd (Progress str t) gm idx seen l1).
+    { apply tr_progress; auto. }
     (* case analysis: did t contribute to the result? *)
     destruct l1 as [leaf1|].
     + econstructor; eauto. simpl.
       eapply tlr_cons; eauto.
-      apply list_result_nd.
+      apply list_result_nd; auto.
     (* when the tree did not contribute, adding it to seen does not change the results *)
     + econstructor; eauto.
       eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
       econstructor; eauto.
+  (* anchor pass *)
+  - simpl. constructor; pike_subset; auto.
   (* group action *)
-  - simpl. constructor. intros res STATEND. inversion STATEND; subst.
+  - simpl. constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
     inversion ACTIVE; subst.
     apply SAMERES.
     apply add_parent_tree in TR.
@@ -420,22 +422,26 @@ Proof.
     destruct l1 as [leaf1|].
     + econstructor; eauto. simpl.
       eapply tlr_cons; eauto.
-      apply list_result_nd.
+      apply list_result_nd; auto.
     (* when the tree did not contribute, adding it to seen does not change the results *)
     + econstructor; eauto.
       eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
       econstructor; eauto.
+  (* LK *)
+  - simpl. constructor; pike_subset; auto.
+  (* LKFail *)
+  - simpl. constructor; pike_subset; auto.
   (* match *)
-  - destruct t; inversion STEP; subst. constructor.
+  - destruct t; inversion STEP; subst. constructor; pike_subset; auto.
     intros res STATEND. inversion STATEND; subst.
     inversion ACTIVE; subst. simpl. 
     apply SAMERES. eapply sr with (r2:=Some gm); eauto.
     replace (Some gm) with (seqop (Some gm) (list_result active0 idx)) by (simpl; auto).
     econstructor; auto.
     + apply tr_match.
-    + apply list_result_nd.
+    + apply list_result_nd; auto.
   (* blocked *)
-  - destruct t; inversion STEP; subst. constructor.
+  - destruct t; inversion STEP; subst. constructor; pike_subset; auto.
     intros res STATEND. inversion STATEND; subst.
     apply SAMERES.
     rewrite list_result_app. rewrite list_result_cons.
@@ -447,13 +453,13 @@ Proof.
     (* if the blocked tree contained a match, then we don't care about the result of active *)
     (* we can simply use the result obtained without skipping anything *)
     + eapply tlr_cons.
-      * apply tree_res_nd.
-      * apply list_result_nd.
+      * apply tree_res_nd. pike_subset.
+      * apply list_result_nd; auto.
       * simpl. rewrite REST. simpl. auto.
     + eapply tlr_cons.
       (* if the blocked tree did not contain a match, we prove that the adding it to the seen set *)
       (* does not change the skipping of the following active trees, using list_add_seen *)
-      * apply tree_res_nd. 
-      * eapply list_add_seen in ACTIVE; eauto.
+      * apply tree_res_nd. pike_subset.
+      * eapply list_add_seen in ACTIVE; eauto. pike_subset.
       * simpl. rewrite REST. simpl. auto.
 Qed.
