@@ -6,8 +6,9 @@ Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics NFA.
-From Linden Require Import BooleanSemantics.
+From Linden Require Import BooleanSemantics PikeSubset.
 From Linden Require Import PikeVM.
+From Warblre Require Import Base.
 
 (** * Sets of seen pcs *)
 
@@ -43,7 +44,7 @@ Inductive pike_vm_seen_state : Type :=
 | PVSS_final (best: option leaf).
 
 Definition pike_vm_seen_initial_state (inp:input) : pike_vm_seen_state :=
-  PVSS inp 0 [(0,empty_group_map,CanExit)] None [] initial_seenpcs.
+  PVSS inp 0 [(0,GroupMap.empty,CanExit)] None [] initial_seenpcs.
 
 (* small-tep semantics for the PikeVM algorithm *)
 Inductive pike_vm_seen_step (c:code): pike_vm_seen_state -> pike_vm_seen_state -> Prop :=
@@ -54,13 +55,13 @@ Inductive pike_vm_seen_step (c:code): pike_vm_seen_state -> pike_vm_seen_state -
 | pvss_end:
   (* when the list of active is empty and we've reached the end of string *)
   forall inp idx best blocked seen
-    (ADVANCE: advance_input inp = None),
+    (ADVANCE: advance_input inp forward = None),
     pike_vm_seen_step c (PVSS inp idx [] best blocked seen) (PVSS_final best)
 | pvss_nextchar:
   (* when the list of active threads is empty (but not blocked), restart from the blocked ones, proceeding to the next character *)
   (* reset the set of seen pcs *)
   forall inp1 inp2 idx best blocked seen thr
-    (ADVANCE: advance_input inp1 = Some inp2),
+    (ADVANCE: advance_input inp1 forward = Some inp2),
     pike_vm_seen_step c (PVSS inp1 idx [] best (thr::blocked) seen) (PVSS inp2 (idx+1) (thr::blocked) best [] initial_seenpcs)
 | pvss_skip:
   (* when the pc has already been seen at this current index, we skip it entirely *)
@@ -119,7 +120,7 @@ Proof.
   destruct active as [|[[pc gm] b] active].
   - destruct blocked as [|t blocked].
     + eexists. econstructor.
-    + destruct (advance_input inp) eqn:INP.
+    + destruct (advance_input inp forward) eqn:INP.
       * eexists. apply pvss_nextchar. eauto.
       * eexists. apply pvss_end. eauto.
   - destruct (seen_thread seen (pc,gm,b)) eqn:SEEN.
