@@ -7,11 +7,11 @@ Section EquivDef.
   Context `{characterClass: Character.class}.
 
   Definition equiv_cont (mc: MatcherContinuation) (gl: open_groups) (act: actions) (dir: Direction): Prop :=
-    forall (gm: group_map) (ms: MatchState) (inp: input) (res: option MatchState) (t: tree),
+    forall (gm: group_map) (ms: MatchState) (inp: input) (res: option MatchState) (fuel: nat) (t: tree),
       equiv_groupmap_ms gm ms -> group_map_equiv_open_groups gm gl ->
       ms_matches_inp ms inp ->
       mc ms = Success res ->
-      compute_tree act inp gm dir = Some t ->
+      compute_tree' act inp gm dir fuel = Some t ->
       equiv_groupmap_ms_opt (tree_res t gm (idx inp) dir) res.
 
   Definition equiv_matcher (m: Matcher) (reg: regex) (dir: Direction): Prop :=
