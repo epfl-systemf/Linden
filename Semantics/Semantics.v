@@ -203,6 +203,59 @@ Section Semantics.
   Definition priotree (r:regex) (str:string) (t:tree): Prop :=
     is_tree [Areg r] (init_input str) GroupMap.empty forward t.
 
+    
+  (* Computation of a priority tree *)
+  Fixpoint compute_tree' (act: actions) (inp: input) (gm: group_map) (dir: Direction) (fuel: nat): option tree :=
+    match fuel with
+    | 0 => None
+    | S fuel' =>
+      match act with
+      (* tree_done *)
+      | [] => Some Match
+      (* tree_check, tree_check_fail: TODO *)
+      (* tree_close: TODO *)
+      (* tree_epsilon *)
+      | Areg Epsilon::cont => compute_tree' cont inp gm dir fuel'
+      (* tree_char, tree_char_fail *)
+      | Areg (Regex.Character cd)::cont =>
+          match read_char cd inp dir with
+          | Some (c, nextinp) =>
+              let tcont := compute_tree' cont nextinp gm dir fuel' in
+              match tcont with
+              | None => None
+              | Some tcont => Some (Read c tcont)
+              end
+          | None => Some Mismatch
+          end
+      (* tree_disj *)
+      | Areg (Disjunction r1 r2)::cont =>
+        let t1 := compute_tree' (Areg r1 :: cont) inp gm dir fuel' in
+        let t2 := compute_tree' (Areg r2 :: cont) inp gm dir fuel' in
+        match t1, t2 with
+        | None, _ | _, None => None
+        | Some t1, Some t2 => Some (Choice t1 t2)
+        end
+      (* tree_sequence *)
+      | Areg (Sequence r1 r2)::cont =>
+        compute_tree' (seq_list r1 r2 dir ++ cont) inp gm dir fuel'
+      (* everything else: TODO *)
+      | _ => Some Mismatch
+      end
+    end.
+  
+  Parameter compute_fuel: actions -> input -> nat.
+  Axiom compute_fuel_succ: forall act inp gm dir, compute_tree' act inp gm dir (compute_fuel act inp) <> None.
+
+  Definition compute_tree (act: actions) (inp: input) (gm: group_map) (dir: Direction) :=
+    compute_tree' act inp gm dir (compute_fuel act inp).
+
+  Lemma compute_tree'_more_fuel:
+    forall act inp gm dir fuel fuel',
+    fuel' >= fuel ->
+    compute_tree' act inp gm dir fuel <> None ->
+    compute_tree' act inp gm dir fuel' = compute_tree' act inp gm dir fuel.
+  Admitted.
+
 
   (** * Determinism  *)
 
