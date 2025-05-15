@@ -8,8 +8,8 @@ Require Import List.
 Import ListNotations.
 
 From Linden Require Import Regex Chars Groups Tree.
-From Linden Require Import BooleanSemantics.
-From Warblre Require Import Numeric Base.
+From Linden Require Import BooleanSemantics PikeSubset.
+From Warblre Require Import Base.
 
 (** * Pike Tree Small Step Semantics  *)
 
@@ -48,8 +48,7 @@ Definition pike_pts (pts:pike_tree_state) : Prop :=
   match pts with
   | PTS_final _ => True
   | PTS idx active best blocked =>
-      (forall t gm, In (t, gm) active -> pike_subtree t) /\
-        (forall t gm, In (t, gm) blocked -> pike_subtree t)
+      pike_list active /\ pike_list blocked
   end.
 
 Definition upd_blocked {X:Type} (newblocked: option X) (blocked: list X) :=
@@ -184,43 +183,12 @@ Proof.
   intros pts1 pts2 PTS H.
   inversion H; subst.
   - constructor.
-  - destruct PTS as [PTSAC PTSBL]. split.
-    + eapply PTSBL; eauto.
-    + intros. inversion H0.
-  - destruct PTS as [PTSAC PTSBL]. split.
-    + intros. destruct t; simpl in STEP; inversion STEP; subst.
-      * simpl in H0. eapply PTSAC. right. eauto.
-      * rewrite in_app_iff in H0. destruct H0 as [[IN | IN] | IN].
-        ** inversion IN; subst. specialize (PTSAC _ _ ltac:(left; reflexivity)).
-           inversion PTSAC. subst. auto.
-        ** inversion IN; subst. 2: { inversion H0. } specialize (PTSAC _ _ ltac:(left; reflexivity)).
-           inversion PTSAC. inversion H0. subst. auto.
-        ** eapply PTSAC; eauto. right. eauto.
-      * specialize (PTSAC _ _ ltac:(left; reflexivity)). inversion PTSAC.
-      * rewrite in_app_iff in H0. destruct H0 as [IN | IN].
-        ** inversion IN; subst. 2: { inversion H0. } specialize (PTSAC _ _ ltac:(left; reflexivity)).
-           inversion PTSAC. inversion H0. subst. auto.
-        ** eapply PTSAC; eauto. right. eauto.
-      * eapply PTSAC; eauto. right. simpl in H0. eauto.
-      * rewrite in_app_iff in H0. destruct H0 as [IN | IN].
-        ** inversion IN; subst. 2: { inversion H0. } specialize (PTSAC _ _ ltac:(left; reflexivity)).
-           inversion PTSAC. inversion H0. subst. auto.
-        ** eapply PTSAC; eauto. right. eauto.
-      * eapply PTSAC; eauto. right. eauto.
-      * eapply PTSAC; eauto. right. eauto.
-    + eapply PTSBL; eauto.
-  - destruct PTS as [PTSAC PTSBL]. split.
-    + intros. inversion H0.
-    + eapply PTSBL; eauto.
-  - destruct PTS as [PTSAC PTSBL]. split.
-    + intros. eapply PTSAC; eauto. right. eauto.
-    + intros. destruct t; simpl in STEP; inversion STEP; subst.
-      rewrite in_app_iff in H0. destruct H0 as [BL | NEW].
-      * eapply PTSBL; eauto.
-      * inversion NEW; subst.
-        2: { inversion H0. }
-        specialize (PTSAC _ _ ltac:(left; reflexivity)).
-        inversion PTSAC. inversion H0. subst. auto.
+  - destruct PTS as [PTSAC PTSBL]. pike_subset.
+  - destruct PTS as [PTSAC PTSBL]. pike_subset.
+    destruct t; simpl in STEP; inversion STEP; subst; pike_subset; auto.
+  - destruct PTS as [PTSAC PTSBL]. repeat pike_subset. 
+  - destruct PTS as [PTSAC PTSBL]. repeat pike_subset. auto.
+    destruct t; simpl in STEP; inversion STEP; subst; pike_subset; auto.
 Qed.
 
 

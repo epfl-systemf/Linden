@@ -2,96 +2,13 @@ Require Import List Lia.
 Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
-From Linden Require Import Tree Semantics.
-From Warblre Require Import Numeric Base.
+From Linden Require Import Tree Semantics PikeSubset.
+From Warblre Require Import Base.
 
 
 (* An alternate definition of the semantics, using a boolean to know if one can exit a loop *)
 (* And not using a group_map to exhibit the uniform-future property by construction *)
 
-Context `{characterClass: Character.class}.
-
-
-(** * PikeVM supported subset  *)
-
-Inductive pike_regex : regex -> Prop :=
-| pike_eps:
-  pike_regex Epsilon
-| pike_char:
-  forall cd, pike_regex (Regex.Character cd)
-| pike_disj:
-  forall r1 r2,
-    pike_regex r1 ->
-    pike_regex r2 ->
-    pike_regex (Disjunction r1 r2)
-| pike_seq:
-  forall r1 r2,
-    pike_regex r1 ->
-    pike_regex r2 ->
-    pike_regex (Sequence r1 r2)
-| pike_star:
-  forall r1,
-    pike_regex r1 ->
-    pike_regex (Quantified true 0 NoI.Inf r1)
-| pike_group:
-  forall g r1,
-    pike_regex r1 ->
-    pike_regex (Group g r1).
-
-Inductive pike_action: action -> Prop :=
-| pike_areg:
-  forall r1,
-    pike_regex r1 ->
-    pike_action (Areg r1)
-| pike_aclose: forall g, pike_action (Aclose g)
-| pike_acheck: forall s, pike_action (Acheck s).
-
-Inductive pike_actions: actions -> Prop :=
-| pike_nil: pike_actions []
-| pike_cons: forall a l,
-    pike_action a ->
-    pike_actions l ->
-    pike_actions (a::l).
-
-Inductive pike_subtree: tree -> Prop :=
-| pike_mismatch: pike_subtree Mismatch
-| pike_match: pike_subtree Match
-| pike_choice: forall t1 t2,
-    pike_subtree t1 -> pike_subtree t2 ->
-    pike_subtree (Choice t1 t2)
-| pike_read: forall cd t1,
-    pike_subtree t1 ->
-    pike_subtree (Read cd t1)
-| pike_progress: forall str t1,
-    pike_subtree t1 ->
-    pike_subtree (Progress str t1)
-| pike_groupaction: forall ga t1,
-    pike_subtree t1 ->
-    pike_subtree (GroupAction ga t1).
-
-Lemma pike_actions_pike_tree:
-  forall cont inp gm dir t,
-    pike_actions cont ->
-    is_tree cont inp gm dir t ->
-    pike_subtree t.
-Proof.
-  intros cont inp gm dir t PIKE ISTREE.
-  induction ISTREE; try constructor; try apply IHISTREE; try inversion PIKE; auto.
-  - apply IHISTREE1. inversion PIKE. subst. constructor; auto.
-    inversion H1. inversion H0. subst. constructor; auto.
-  - apply IHISTREE2. inversion PIKE. subst. constructor; auto.
-    inversion H1. inversion H0. subst. constructor; auto.
-  - inversion H1. subst. inversion H4. subst. destruct dir; simpl; repeat constructor; auto.
-  - inversion H1. subst. inversion H4.
-  - inversion H1. subst. inversion H4. subst.
-    constructor; auto. constructor. apply IHISTREE1. repeat constructor; auto.
-    destruct plus; inversion H3. constructor; auto.
-  - inversion H1. subst. inversion H4; subst. repeat constructor; auto.
-  - inversion H1; subst. inversion H4.
-  - inversion H1; subst. inversion H4.
-  - inversion H1; subst. inversion H4.
-  - inversion H1; subst. inversion H4.
-Qed.
 
 
 (** * Loop Boolean  *)
