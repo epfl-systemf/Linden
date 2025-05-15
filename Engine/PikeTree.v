@@ -183,7 +183,7 @@ Proof.
   intros pts1 pts2 PTS H.
   inversion H; subst.
   - constructor.
-  - destruct PTS as [PTSAC PTSBL]. pike_subset.
+  - destruct PTS as [PTSAC PTSBL]. pike_subset. 
   - destruct PTS as [PTSAC PTSBL]. pike_subset.
     destruct t; simpl in STEP; inversion STEP; subst; pike_subset; auto.
   - destruct PTS as [PTSAC PTSBL]. repeat pike_subset. 
