@@ -3,7 +3,8 @@ Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree.
-From Linden Require Import Semantics.
+From Linden Require Import Semantics PikeSubset.
+From Warblre Require Import Numeric.
 
 (** * NFA Bytecdode *)
 (* the bytecode generated for the PikeVM algorithm *)
@@ -19,7 +20,9 @@ Inductive bytecode: Type :=
 | SetRegClose: group_id -> bytecode
 | ResetRegs: list group_id -> bytecode
 | BeginLoop: bytecode
-| EndLoop: label -> bytecode.    (* also contains the backedge instead of adding a jump *)
+| EndLoop: label -> bytecode    (* also contains the backedge instead of adding a jump *)
+| KillThread: bytecode         (* for unsupported features *)
+.
 
 Definition code : Type := list bytecode.
 
@@ -81,7 +84,7 @@ Qed.
 Definition next_pcs (pc:label) (b:bytecode) : list label :=
   match b with
   | Consume _ | SetRegOpen _ | SetRegClose _ | ResetRegs _ | BeginLoop => [S pc]
-  | Accept => []
+  | Accept | KillThread => []
   | Jmp l | EndLoop l => [l]
   | Fork l1 l2 => [l1; l2]
   end.
@@ -106,12 +109,13 @@ Fixpoint compile (r:regex) (fresh:label) : code * label :=
       let (bc1, f1) := compile r1 fresh in
       let (bc2, f2) := compile r2 f1 in
       (bc1 ++ bc2, f2)
-  | Star greedy r1 =>
+  | Quantified greedy 0 (NoI.Inf) r1 =>
       let (bc1, f1) := compile r1 (S (S (S fresh))) in
       ([greedy_fork greedy (S fresh) (S f1); BeginLoop; ResetRegs (def_groups r1)] ++ bc1 ++ [EndLoop fresh], S f1)
   | Group gid r1 =>
       let (bc1, f1) := compile r1 (S fresh) in
       ([SetRegOpen gid] ++ bc1 ++ [SetRegClose gid], S f1)
+  | _ => ([KillThread], S fresh) (* unsupported features *)
   end.
 
 (* adds an accept at the end of the code *)
@@ -152,13 +156,18 @@ Inductive nfa_rep : regex -> code -> label -> label -> Prop :=
     (RESET: get_pc c (S (S start)) = Some (ResetRegs (def_groups r1)))
     (NFA1: nfa_rep r1 c (S (S (S start))) end1)
     (END: get_pc c end1 = Some (EndLoop start)),
-    nfa_rep (Star greedy r1) c start (S end1)
+    nfa_rep (Quantified greedy 0 (NoI.Inf) r1) c start (S end1)
 | nfa_rep_group:
   forall c r1 gid start end1
     (OPEN: get_pc c start = Some (SetRegOpen gid))
     (NFA1: nfa_rep r1 c (S start) end1)
     (CLOSE: get_pc c end1 = Some (SetRegClose gid)),
-    nfa_rep (Group gid r1) c start (S end1).
+    nfa_rep (Group gid r1) c start (S end1)
+| nfa_unsupported:
+  forall c r lbl
+    (UNSUPPORTED: ~ pike_regex r)
+    (KILL: get_pc c lbl = Some KillThread),
+    nfa_rep r c lbl (S lbl).
 
 (** * Compile Characterization  *)
 
@@ -174,7 +183,7 @@ Proof.
   intros r c start endl suffix H. generalize dependent suffix.
   induction H; intros; econstructor;
     try (erewrite get_suffix; eauto); try apply IHnfa_rep;
-    try apply IHnfa_rep1; try apply IHnfa_rep2.
+    try apply IHnfa_rep1; try apply IHnfa_rep2. auto.
 Qed.
 
 (* correctness of the returned fresh label *)
@@ -195,12 +204,19 @@ Proof.
     destruct (compile r1 fresh) as [bc1 f1] eqn:COMP1. destruct (compile r2 f1) as [bc2 f2] eqn:COMP2.
     inversion H0. subst f2. apply IHr1 in COMP1. apply IHr2 in COMP2.
     rewrite <- COMP1 in COMP2. rewrite app_length. lia.
-  - inversion COMPILE.
-    destruct (compile r (S (S (S fresh)))) as [bc1 f1] eqn:COMP1. inversion H0. apply IHr in COMP1.
+  - inversion COMPILE. destruct min.
+    2: { inversion H0. simpl. lia. }
+    destruct delta.
+    { inversion H0. simpl. lia. }
+    destruct (compile r (S (S (S fresh)))) as [bc1 f1] eqn:COMP1. 
+    inversion H0. apply IHr in COMP1.
     subst. simpl. rewrite app_length. simpl. lia.
+  - inversion COMPILE. simpl. lia.
   - inversion COMPILE.
     destruct (compile r (S fresh)) as [bc1 f1] eqn:COMP1. inversion H0. apply IHr in COMP1.
     subst. simpl. rewrite app_length. simpl. lia.
+  - inversion COMPILE. simpl. lia.
+  - inversion COMPILE. simpl. lia.
 Qed.
 
 (* this shows that the compilation function adheres to the representation predicate *)
@@ -239,7 +255,15 @@ Proof.
     + apply IHr2 with (prev:=prev ++ bc1) in COMP2; auto.
       * rewrite app_assoc. auto.
       * apply fresh_correct in COMP1. rewrite app_length. lia.
-  - inversion H. destruct (compile r (S (S (S start)))) as [bc1 end1] eqn:COMP1. inversion H2. subst. constructor.
+  - inversion H. destruct min.
+    2: { inversion H2. subst. apply nfa_unsupported.
+         - unfold not. intros. inversion H0.
+         - rewrite get_first. simpl. auto. }
+    destruct delta.
+    { inversion H2. subst. apply nfa_unsupported.
+      - unfold not. intros. inversion H0.
+      - rewrite get_first. simpl. auto. }
+    destruct (compile r (S (S (S start)))) as [bc1 end1] eqn:COMP1. inversion H2. subst. constructor.
     + rewrite get_first. simpl. auto.
     + rewrite get_second. simpl. auto.
     + rewrite get_third. simpl. auto.
@@ -255,6 +279,9 @@ Proof.
       2: { rewrite <- app_assoc. auto. }
       apply fresh_correct in COMP1. subst. apply get_first_0.
       simpl. rewrite app_length. simpl. lia.
+  - inversion H. subst. apply nfa_unsupported.
+    + unfold not. intros. inversion H0.
+    + rewrite get_first. simpl. auto.
   - inversion H. destruct (compile r (S start)) as [bc1 end1] eqn:COMP1. inversion H2. subst.
     constructor.
     + rewrite get_first. simpl. auto.
@@ -266,6 +293,12 @@ Proof.
     + replace (prev ++ SetRegOpen id :: bc1 ++ [SetRegClose id]) with ((prev ++ SetRegOpen id :: bc1) ++ [SetRegClose id]).
       2:{ rewrite <- app_assoc. auto. }
       apply get_first_0. apply fresh_correct in COMP1. subst. rewrite app_length. simpl. lia.
+  - inversion H. subst. apply nfa_unsupported.
+    + unfold not. intros. inversion H0.
+    + rewrite get_first. simpl. auto.
+  - inversion H. subst. apply nfa_unsupported.
+    + unfold not. intros. inversion H0.
+    + rewrite get_first. simpl. auto.
 Qed.
 
 
@@ -290,20 +323,20 @@ Inductive action_rep : action -> code -> label -> label -> Prop :=
 (* continuation_rep cont c pc1 pc2 means that the bytecode for cont is located in c between labels pc1 and pc2 *)
 (* inside the representation of the continuation, there might be extra jump instructions *)
 (* the nat is a measure of how many there are *)
-Inductive continuation_rep : continuation -> code -> label -> label -> nat -> Prop :=
+Inductive actions_rep : actions -> code -> label -> label -> nat -> Prop :=
 | empty_bc:
   (* when the continuation is empty, it means we have nothing more to do and found a match *)
   (* in the bytecode, this means an accept *)
   forall c pc
     (ACCEPT: get_pc c pc = Some Accept),
-    continuation_rep [] c pc pc 0
+    actions_rep [] c pc pc 0
 | cons_bc:
   forall a cont c pcstart pcmid pcend n
     (ACTION: action_rep a c pcstart pcmid)
-    (CONT: continuation_rep cont c pcmid pcend n),
-    continuation_rep (a::cont) c pcstart pcend n
+    (CONT: actions_rep cont c pcmid pcend n),
+    actions_rep (a::cont) c pcstart pcend n
 | jump_bc:
   forall cont c pcstart pcend n pc
-    (CONT: continuation_rep cont c pcstart pcend n)
+    (CONT: actions_rep cont c pcstart pcend n)
     (JMP: get_pc c pc = Some (Jmp pcstart)),
-    continuation_rep cont c pc pcend (n+1).
+    actions_rep cont c pc pcend (n+1).

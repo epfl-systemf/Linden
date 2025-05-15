@@ -28,9 +28,9 @@ Inductive pike_regex : regex -> Prop :=
     pike_regex r2 ->
     pike_regex (Sequence r1 r2)
 | pike_star:
-  forall r1,
+  forall r1 b,
     pike_regex r1 ->
-    pike_regex (Quantified true 0 NoI.Inf r1)
+    pike_regex (Quantified b 0 NoI.Inf r1)
 | pike_group:
   forall g r1,
     pike_regex r1 ->
@@ -173,6 +173,8 @@ Proof.
   - apply IHISTREE1. pike_subset. 
   - apply IHISTREE2. pike_subset.
   - destruct dir; simpl; pike_subset. 
-  - apply IHISTREE1. pike_subset. destruct plus; inversion H3. constructor. auto.
+  - destruct greedy.
+    + pike_subset. apply IHISTREE1. pike_subset. destruct plus; inversion H3. constructor. auto.
+    + pike_subset. apply IHISTREE1. pike_subset. destruct plus; inversion H3. constructor. auto.
   - apply IHISTREE. pike_subset.
 Qed.
