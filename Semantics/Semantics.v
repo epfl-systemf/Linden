@@ -213,7 +213,13 @@ Section Semantics.
       (* tree_done *)
       | [] => Some Match
       (* tree_check, tree_check_fail: TODO *)
-      (* tree_close: TODO *)
+      (* tree_close: *)
+      | Aclose gid :: cont =>
+        let treecont := compute_tree' cont inp (GroupMap.close (idx inp) gid gm) dir fuel' in
+        match treecont with
+        | Some treecont => Some (GroupAction (Close gid) treecont)
+        | None => None
+        end
       (* tree_epsilon *)
       | Areg Epsilon::cont => compute_tree' cont inp gm dir fuel'
       (* tree_char, tree_char_fail *)
@@ -238,6 +244,14 @@ Section Semantics.
       (* tree_sequence *)
       | Areg (Sequence r1 r2)::cont =>
         compute_tree' (seq_list r1 r2 dir ++ cont) inp gm dir fuel'
+      
+      (* tree_group *)
+      | Areg (Group gid r1)::cont =>
+        let treecont := compute_tree' (Areg r1 :: Aclose gid :: cont) inp (GroupMap.open (idx inp) gid gm) dir fuel' in
+        match treecont with
+        | Some treecont => Some (GroupAction (Open gid) treecont)
+        | None => None
+        end
       (* everything else: TODO *)
       | _ => Some Mismatch
       end
