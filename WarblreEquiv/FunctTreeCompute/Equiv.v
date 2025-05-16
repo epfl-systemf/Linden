@@ -13,6 +13,20 @@ Local Open Scope result_flow.
 Section Equiv.
   Context `{characterClass: Character.class}.
 
+  Lemma repeatMatcher'_done_equiv:
+    forall greedy parenIndex parenCount,
+    forall (m: Matcher) (lreg: regex) (dir: Direction),
+      equiv_matcher m lreg dir ->
+      def_groups lreg = List.seq (parenIndex + 1) parenCount ->
+      forall fuel, equiv_matcher (fun ms mc => Semantics.repeatMatcher' m 0 (NoI.N 0) greedy ms mc parenIndex parenCount fuel) (Regex.Quantified greedy 0 (NoI.N 0) lreg) dir.
+  Proof.
+    intros greedy parenIndex parenCount m lreg dir Hequiv Hgroupsvalid fuel.
+    unfold equiv_matcher. intros str0 mc gl act Hequivcont Hgldisj.
+    unfold equiv_cont. intros gm ms inp res [|treefuel] t Hinpcompat Hgmms Hgmgl Hmsinp; simpl; try discriminate.
+    destruct fuel as [|fuel]; simpl; try discriminate.
+    intros Hres Ht. eapply Hequivcont; eauto.
+  Qed.
+
   Theorem equiv:
     forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
       (* Assume that we do not ignore case, *)
@@ -62,7 +76,7 @@ Section Equiv.
       intro Hsubtreesucc.
       eauto using Hequivcont.
   
-    - (* Character *)
+    - (* Character; TODO generalize to all character descriptors *)
       intros ctx Hroot Heqn m dir Hcompsucc.
       injection Hcompsucc as <-.
       unfold equiv_matcher. intros str0 mc gl act Hequivcont Hgldisj.
@@ -188,7 +202,15 @@ Section Equiv.
         intros Hres Ht. eapply IH2; eauto. admit. (* Group disjointness from sub-regexp *)
 
     - (* Quantified *)
-      admit.
+      intros ctx Hroot Heqn m dir. simpl.
+      destruct Semantics.compileSubPattern as [msub|] eqn:Hcompsuccsub; simpl; try discriminate.
+      set (min := Semantics.CompiledQuantifier_min _).
+      set (max := Semantics.CompiledQuantifier_max _).
+      rewrite compilequant_greedy with (lquant := lquant) (greedy := greedy) by assumption.
+      set (parenIndex := StaticSemantics.countLeftCapturingParensBefore _ ctx).
+      set (parenCount := StaticSemantics.countLeftCapturingParensWithin _ _).
+      destruct (min <=? max)%NoI eqn:Hmini_le_maxi; simpl; try discriminate.
+      intro H. injection H as <-. admit.
 
     - (* Group *)
       intros ctx Hroot Heqn m dir. simpl.
