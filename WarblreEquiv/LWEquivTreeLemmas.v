@@ -232,6 +232,29 @@ Section LWEquivTreeLemmas.
       now setoid_rewrite char_match_warblre with (rer := rer).
   Qed.
 
+  (* Same as above, but with another definition of the next end index. *)
+  Lemma read_char_success':
+    forall ms inp chr cd charset rer dir inp_adv nextend,
+      (* Let cd and charset be equivalent. *)
+      equiv_cd_charset cd charset ->
+      (* If we do not ignore case, *)
+      RegExpRecord.ignoreCase rer = false ->
+      (* then for any match state and corresponding Linden input, *)
+      ms_matches_inp ms inp ->
+      nextend = (if (dir ==? forward)%wt then (MatchState.endIndex ms + 1)%Z else (MatchState.endIndex ms - 1)%Z) ->
+      (* if reading character c succeeds in the Warblre sense, *)
+      List.Indexing.Int.indexing (MatchState.input ms) (Z.min (MatchState.endIndex ms) nextend) = Success chr ->
+      CharSet.exist_canonicalized rer charset (Character.canonicalize rer chr) = true ->
+      (* then reading character c succeeds in the Linden sense. *)
+      advance_input inp dir = Some inp_adv ->
+      read_char cd inp dir = Some (chr, inp_adv) /\
+        read_char (CdInv cd) inp dir = None.
+  Proof.
+    intros ms inp chr cd charset rer dir inp_adv nextend Hequivcd Hcasesenst Hmsinp Heqnextend Hreadsuccess Hexist_canon Hinp_adv. destruct dir; simpl in *.
+    - replace (Z.min (endIndex ms) nextend) with (endIndex ms) in Hreadsuccess by lia. eapply read_char_success; eauto.
+    - replace (Z.min (endIndex ms) nextend) with nextend in Hreadsuccess by lia. eapply read_char_success; eauto. subst nextend. apply Hreadsuccess.
+  Qed.
+
 
   (* Same as char_match_warblre, but in the mismatching case. *)
   Lemma char_mismatch_warblre:
@@ -308,6 +331,25 @@ Section LWEquivTreeLemmas.
       rewrite List.rev_length, Nat.sub_diag in Hreadsuccess.
       injection Hreadsuccess as <-.
       now setoid_rewrite char_mismatch_warblre with (rer := rer).
+  Qed.
+
+  (* Same as read_char_fail, but with another definition of the next end index. *)
+  Lemma read_char_fail':
+    forall rer ms chr inp inp_adv dir cd charset nextend,
+      equiv_cd_charset cd charset ->
+      RegExpRecord.ignoreCase rer = false ->
+      ms_matches_inp ms inp ->
+      nextend = (if (dir ==? forward)%wt then (MatchState.endIndex ms + 1)%Z else (MatchState.endIndex ms - 1)%Z) ->
+      List.Indexing.Int.indexing (MatchState.input ms) (Z.min (MatchState.endIndex ms) nextend) = Success chr ->
+      CharSet.exist_canonicalized rer charset (Character.canonicalize rer chr) = false ->
+      advance_input inp dir = Some inp_adv ->
+      read_char cd inp dir = None /\
+        read_char (CdInv cd) inp dir = Some (chr, inp_adv).
+  Proof.
+    intros rer ms chr inp inp_adv dir cd charset nextend Hequivcd Hcasesenst Hmsinp Heqnextend Hgetchr Hexist_canon Hinp_adv.
+    destruct dir; simpl in *.
+    - replace (Z.min (MatchState.endIndex ms) nextend) with (MatchState.endIndex ms) in Hgetchr by lia. eauto using read_char_fail.
+    - replace (Z.min (MatchState.endIndex ms) nextend) with nextend in Hgetchr by lia. subst nextend. eauto using read_char_fail.
   Qed.
 
 
@@ -579,6 +621,18 @@ Section LWEquivTreeLemmas.
       pose proof read_oob_fail_begin ms inp Hoob Hmatches.
       destruct H as [next H]. subst inp. simpl. reflexivity.
     - exfalso. rewrite Z.gtb_gt in Hoob. apply (endInd_gtlen_abs _ _ Hmatches Hoob).
+  Qed.
+
+  (* Combining the two above lemmas: if we try to read out of bounds in the Warblre sense, then reading a character in the Linden sense fails. *)
+  Lemma read_oob_fail_bool:
+    forall (ms: MatchState) (inp: Chars.input) (dir: Direction) (nextend: Z),
+      ms_matches_inp ms inp ->
+      nextend = (if (dir ==? forward)%wt then (MatchState.endIndex ms + 1)%Z else (MatchState.endIndex ms - 1)%Z) ->
+      ((nextend <? 0)%Z || (nextend >? Z.of_nat (length (MatchState.input ms)))%Z)%bool = true ->
+      forall cd: char_descr, read_char cd inp dir = None.
+  Proof.
+    intros ms inp dir nextend Hmsinp -> Hoob.
+    destruct dir; simpl in *; eauto using read_oob_fail_begin_bool, read_oob_fail_end_bool.
   Qed.
 
   (* If we can read inbounds (in the Warblre sense), this means that we can successfully advance our input (in the Linden sense). *)

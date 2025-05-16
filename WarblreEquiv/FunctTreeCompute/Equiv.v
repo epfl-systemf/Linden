@@ -1,10 +1,12 @@
-From Linden Require Import EquivDef RegexpTranslation Regex LindenParameters Semantics.
+From Linden Require Import EquivDef RegexpTranslation Regex LindenParameters
+  Semantics LWEquivTreeLemmas CharDescrCharSet Tactics.
 From Warblre Require Import Parameters Semantics RegExpRecord Patterns
-  Node Result Notation Typeclasses List Base.
+  Node Result Notation Typeclasses List Base Node.
 Import Patterns.
 Import Result.Notations.
 Import Notation.
-From Coq Require Import ZArith PeanoNat.
+Import NodeProps.Zipper.
+From Coq Require Import ZArith PeanoNat Lia.
 
 Local Open Scope result_flow.
 
@@ -66,34 +68,123 @@ Section Equiv.
       unfold equiv_matcher. intros mc gl act Hequivcont Hgldisj.
       unfold equiv_cont. intros gm ms inp res fuel t Hgmms Hgmgl Hmsinp.
       unfold Semantics.characterSetMatcher.
-      destruct (((if (dir ==? forward)%wt then _ else _) <? 0)%Z || _)%bool eqn:Hoob; simpl.
+      set (nextend := if (dir ==? forward)%wt then _ else _).
+      destruct ((nextend <? 0)%Z || _)%bool eqn:Hoob; simpl.
       + (* Out of bounds *)
         intro Hres. injection Hres as <-. destruct fuel as [|fuel]; try discriminate. simpl.
-        replace (Chars.read_char (Chars.CdSingle c) inp dir) with (@None (Character * Chars.input)) by admit.
+        erewrite read_oob_fail_bool by eauto.
         intro Heqt. injection Heqt as <-. simpl. constructor.
       + (* In bounds *)
+        pose proof next_inbounds_nextinp ms inp dir nextend Hmsinp eq_refl Hoob as [inp' Hadv].
         destruct List.Indexing.Int.indexing as [chr|] eqn:Hgetchr; simpl; try discriminate.
         destruct CharSet.CharSetExt.exist_canonicalized eqn:Hexist; simpl.
-        * admit.
-        * admit.
+        * (* Read succeeds *)
+          intro Hcontsucc. destruct fuel as [|fuel]; simpl; try discriminate.
+          unshelve erewrite (proj1 (read_char_success' ms inp chr _ _ rer dir inp' nextend _ Hcasesenst Hmsinp eq_refl Hgetchr Hexist Hadv)).
+          1: apply equiv_cd_single.
+          destruct compute_tree' as [tcont|] eqn:Htcont; simpl; try discriminate.
+          intro H. injection H as <-. simpl.
+          unfold equiv_cont in Hequivcont.
+          replace (Tree.advance_idx _ _) with (idx inp') by admit.
+          eapply Hequivcont with (ms := match_state (MatchState.input ms) nextend (MatchState.captures ms)); eauto.
+          eapply ms_matches_inp_adv; eauto. unfold MSInput.advance_ms. now destruct dir.
+        * (* Read fails *)
+          intro Hcontsucc. injection Hcontsucc as <-.
+          destruct fuel as [|fuel]; simpl; try discriminate.
+          unshelve erewrite (proj1 (read_char_fail' rer ms chr inp inp' dir _ _ nextend _ Hcasesenst Hmsinp eq_refl Hgetchr Hexist Hadv)).
+          1: apply equiv_cd_single.
+          intro H. injection H as <-. simpl. constructor.
     
-    - (* Dot *)
+    - (* Dot; probably very similar to character *)
       admit.
     
-    - (* AtomEsc (ACharacterClassEsc esc) *)
+    - (* AtomEsc (ACharacterClassEsc esc); idem *)
       admit.
     
-    - (* AtomEsc (ACharacterEsc esc) *)
+    - (* AtomEsc (ACharacterEsc esc); idem *)
       admit.
     
-    - (* CharacterClass *)
+    - (* CharacterClass; idem *)
       admit.
 
-    - (* Disjunction TODO *)
-      admit.
+    - (* Disjunction *)
+      intros ctx Hroot Heqn m dir.
+      simpl.
+      (* Compilation of the two sub-regexes succeeds *)
+      destruct Semantics.compileSubPattern as [m1|] eqn:Hcompsucc1; simpl; try discriminate.
+      destruct (Semantics.compileSubPattern _ (Disjunction_right _ :: ctx)) as [m2|] eqn:Hcompsucc2; simpl; try discriminate.
+      intro H. injection H as <-.
+      (* Specialize the induction hypotheses naturally *)
+      specialize (IH1 (Disjunction_left wr2 :: ctx)%list).
+      specialize_prove IH1 by eauto using Down.same_root_down0, Down_Disjunction_left.
+      specialize_prove IH1. { simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia. }
+      specialize (IH1 m1 dir Hcompsucc1).
+      specialize (IH2 (Disjunction_right wr1 :: ctx)%list).
+      specialize_prove IH2 by eauto using Down.same_root_down0, Down_Disjunction_right.
+      specialize_prove IH2. { simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. erewrite num_groups_equiv by eauto. lia. }
+      specialize (IH2 m2 dir Hcompsucc2).
+      (* Introduce the required variables *)
+      unfold equiv_matcher. intros mc gl act Hequivcont Hgldisj.
+      unfold equiv_cont. intros gm ms inp res fuel t Hgmms Hgmgl Hmsinp.
+      unfold equiv_matcher in IH1, IH2.
+      (* Specialize the induction hypotheses again naturally *)
+      specialize (IH1 mc gl act Hequivcont). specialize_prove IH1 by admit. (* Group disjointness from sub-regexp *)
+      specialize (IH2 mc gl act Hequivcont). specialize_prove IH2 by admit. (* Group disjointness from sub-regexp *)
+      unfold equiv_cont in IH1, IH2.
+      (* Eliminate failing cases *)
+      destruct fuel as [|fuel]; simpl; try discriminate.
+      destruct m1 as [res1|] eqn:Hres1; simpl; try discriminate.
+      destruct compute_tree' as [t1|] eqn:Ht1; simpl; try discriminate.
+      destruct (compute_tree' (Areg lr2 :: act)%list _ _ _ _) as [t2|] eqn:Ht2; simpl; try discriminate.
+      specialize (IH1 gm ms inp res1 fuel t1 Hgmms Hgmgl Hmsinp Hres1 Ht1).
+      (* Case analysis on whether the left branch matches *)
+      destruct res1 as [msres1|] eqn:Hmsres1; simpl.
+      + (* Left choice matches *)
+        intro H. injection H as <-. intro H. injection H as <-.
+        simpl.
+        inversion IH1 as [ | gm1 msres1' IH1' Heqgm1 Heqmsres1' ]. simpl. constructor. assumption.
+      + (* Left choice does not match *)
+        rename res into res2.
+        intros Hres2 H. injection H as <-. simpl.
+        inversion IH1 as [ HNone1 | ]. simpl.
+        eauto using IH2.
 
-    - (* Sequence TODO *)
-      admit.
+    - (* Sequence *)
+      intros ctx Hroot Heqn m dir. simpl.
+      (* Compilation of the two sub-regexes succeeds *)
+      destruct Semantics.compileSubPattern as [m1|] eqn:Hcompsucc1; simpl; try discriminate.
+      destruct (Semantics.compileSubPattern _ (Seq_right _ :: ctx)%list) as [m2|] eqn:Hcompsucc2; simpl; try discriminate.
+      (* Specialize the induction hypotheses naturally *)
+      specialize (IH1 (Seq_left wr2 :: ctx)%list).
+      specialize_prove IH1 by eauto using Down.same_root_down0, Down_Seq_left.
+      specialize_prove IH1. { simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia. }
+      specialize (IH1 m1 dir Hcompsucc1).
+      specialize (IH2 (Seq_right wr1 :: ctx)%list).
+      specialize_prove IH2 by eauto using Down.same_root_down0, Down_Seq_right.
+      specialize_prove IH2. { simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. erewrite num_groups_equiv by eauto. lia. }
+      specialize (IH2 m2 dir Hcompsucc2).
+      (* Two similar reasonings for each direction *)
+      destruct dir; intro H; injection H as <-.
+      + (* Forward *)
+        unfold equiv_matcher. intros mc gl act Hequivcont Hgldisj.
+        unfold equiv_cont. intros gm ms inp res [|fuel] t Hgmms Hgmgl Hmsinp; try discriminate; simpl.
+        set (mc2 := fun s => _).
+        assert (Hequivcont2: equiv_cont mc2 gl (Areg lr2 :: act)%list forward). {
+          unfold equiv_cont. clear gm ms inp res fuel t Hgmms Hgmgl Hmsinp.
+          intros gm ms inp res fuel t Hgmms Hgmgl Hmsinp. unfold mc2.
+          intros Hres Ht. eapply IH2; eauto. admit. (* Group disjointness from sub-regexp *)
+        }
+        intros Hres Ht. eapply IH1; eauto. admit. (* Group disjointness from sub-regexp *)
+      + (* Backward *)
+        unfold equiv_matcher. intros mc gl act Hequivcont Hgldisj.
+        unfold equiv_cont. intros gm ms inp res [|fuel] t Hgmms Hgmgl Hmsinp; try discriminate; simpl.
+        set (mc1 := fun s => _).
+        assert (Hequivcont1: equiv_cont mc1 gl (Areg lr1 :: act)%list backward). {
+          unfold equiv_cont. clear gm ms inp res fuel t Hgmms Hgmgl Hmsinp.
+          intros gm ms inp res fuel t Hgmms Hgmgl Hmsinp. unfold mc1.
+          intros Hres Ht. eapply IH1; eauto. admit. (* Group disjointness from sub-regexp *)
+        }
+        intros Hres Ht. eapply IH2; eauto. admit. (* Group disjointness from sub-regexp *)
 
     - (* Quantified *)
       admit.
