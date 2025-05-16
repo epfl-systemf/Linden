@@ -212,8 +212,17 @@ Section Semantics.
       match act with
       (* tree_done *)
       | [] => Some Match
-      (* tree_check, tree_check_fail: TODO *)
-      (* tree_close: *)
+      (* tree_check, tree_check_fail *)
+      | Acheck strcheck :: cont =>
+        if (current_str inp dir ==? strcheck)%wt then
+          Some Mismatch
+        else
+          let treecont := compute_tree' cont inp gm dir fuel' in
+          match treecont with
+          | Some treecont => Some (Progress strcheck treecont)
+          | None => None
+          end
+      (* tree_close *)
       | Aclose gid :: cont =>
         let treecont := compute_tree' cont inp (GroupMap.close (idx inp) gid gm) dir fuel' in
         match treecont with
@@ -244,7 +253,35 @@ Section Semantics.
       (* tree_sequence *)
       | Areg (Sequence r1 r2)::cont =>
         compute_tree' (seq_list r1 r2 dir ++ cont) inp gm dir fuel'
-      
+      (* tree_quant_forced *)
+      | Areg (Quantified greedy (S min) delta r1)::cont =>
+        let gidl := def_groups r1 in
+        let titer := compute_tree' (Areg r1 :: Areg (Quantified greedy min delta r1) :: cont) inp (GroupMap.reset gidl gm) dir fuel' in
+        match titer with
+        | Some titer => Some (GroupAction (Reset gidl) titer)
+        | None => None
+        end
+      (* tree_quant_done *)
+      | Areg (Quantified greedy 0 (NoI.N 0) r1)::cont =>
+        compute_tree' cont inp gm dir fuel'
+      (* tree_quant_free: finite max *)
+      | Areg (Quantified greedy 0 (NoI.N (S delta)) r1)::cont =>
+        let gidl := def_groups r1 in
+        let titer := compute_tree' (Areg r1 :: Acheck (current_str inp dir) :: Areg (Quantified greedy 0 (NoI.N delta) r1) :: cont) inp (GroupMap.reset gidl gm) dir fuel' in
+        let tskip := compute_tree' cont inp gm dir fuel' in
+        match titer, tskip with
+        | Some titer, Some tskip => Some (greedy_choice greedy (GroupAction (Reset gidl) titer) tskip)
+        | _, _ => None
+        end
+      (* tree_quant_free: infinite max *)
+      | Areg (Quantified greedy 0 +∞ r1)::cont =>
+        let gidl := def_groups r1 in
+        let titer := compute_tree' (Areg r1 :: Acheck (current_str inp dir) :: Areg (Quantified greedy 0 +∞ r1) :: cont) inp (GroupMap.reset gidl gm) dir fuel' in
+        let tskip := compute_tree' cont inp gm dir fuel' in
+        match titer, tskip with
+        | Some titer, Some tskip => Some (greedy_choice greedy (GroupAction (Reset gidl) titer) tskip)
+        | _, _ => None
+        end
       (* tree_group *)
       | Areg (Group gid r1)::cont =>
         let treecont := compute_tree' (Areg r1 :: Aclose gid :: cont) inp (GroupMap.open (idx inp) gid gm) dir fuel' in
@@ -252,7 +289,7 @@ Section Semantics.
         | Some treecont => Some (GroupAction (Open gid) treecont)
         | None => None
         end
-      (* everything else: TODO *)
+      (* tree_lk, tree_lk_fail, tree_anchor, tree_anchor_fail, tree_backref, tree_backref_fail: TODO *)
       | _ => Some Mismatch
       end
     end.
