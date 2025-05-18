@@ -5,24 +5,25 @@ Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics BooleanSemantics.
-From Linden Require Import NFA PikeTree PikeVM.
+From Linden Require Import NFA PikeTree PikeVM PikeSubset.
+From Warblre Require Import Base.
 
 (** * Simulation Invariant  *)
 
 (* a tree and a thread are equivalent when they are about to execute the same thing *)
-(* this means when the tree represents a given regex and continuation, *)
-(* the thread is at a pc that will execute the nfa of that same regex and continuation *)
+(* this means when the tree represents a given list of actions, *)
+(* the thread is at a pc that will execute the nfa of that same list of actions *)
 (* the nat is a measure of stuttering steps in the continuation *)
 Inductive tree_thread (code:code) (inp:input) : (tree * group_map) -> thread -> nat -> Prop :=
 | tt_eq:
-  forall tree gm pc b pc_cont pc_end r cont n
-    (TREE: bool_tree r cont inp b tree)
-    (NFA: nfa_rep r code pc pc_cont)
-    (CONT: continuation_rep cont code pc_cont pc_end n),
+  forall tree gm pc b pc_end actions n
+    (TREE: bool_tree actions inp b tree)
+    (CONT: actions_rep actions code pc pc_end n)
+    (SUBSET: pike_actions actions),
     tree_thread code inp (tree, gm) (pc, gm, b) n
 | tt_reset:
   forall tree gm pc b n gidl
-    (TT: tree_thread code inp (tree,reset_groups gm gidl) (pc+1,reset_groups gm gidl,b) n)
+    (TT: tree_thread code inp (tree,GroupMap.reset gidl gm) (pc+1,GroupMap.reset gidl gm,b) n)
     (RESET: get_pc code pc = Some (ResetRegs gidl)),
     tree_thread code inp (GroupAction (Reset gidl) tree,gm) (pc,gm,b) n
 | tt_begin:
@@ -36,15 +37,18 @@ Inductive tree_thread (code:code) (inp:input) : (tree * group_map) -> thread -> 
 Lemma initial_tree_thread:
   forall r code tree inp
     (COMPILE: compilation r = code)
-    (TREE: bool_tree r [] inp CanExit tree),
-    tree_thread code inp (tree, empty_group_map) (0, empty_group_map, CanExit) 0.
+    (TREE: bool_tree [Areg r] inp CanExit tree)
+    (SUBSET: pike_regex r),
+    tree_thread code inp (tree, GroupMap.empty) (0, GroupMap.empty, CanExit) 0.
 Proof.
-  intros r code tree inp COMPILE TREE.
+  intros r code tree inp COMPILE TREE SUBSET.
   unfold compilation in COMPILE. destruct (compile r 0) as [c fresh] eqn:COMP.
   apply compile_nfa_rep with (prev := []) in COMP as REP; auto. simpl in REP.
   apply fresh_correct in COMP. simpl in COMP. subst.
-  subst. eapply tt_eq with (pc_cont := length c) (pc_end := length c); eauto.
-  - simpl in REP. apply nfa_rep_extend. auto.
+  subst. eapply tt_eq with (pc_end := length c); eauto.
+  2: { repeat (constructor; auto). }
+  apply cons_bc with (pcmid := length c).
+  - constructor. apply nfa_rep_extend. auto.
   - constructor. replace (length c) with (length c + 0) by auto. rewrite get_prefix. auto.
 Qed.
 
@@ -75,10 +79,10 @@ Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> nat -> Prop 
     (ACTIVE: list_tree_thread code inp treeactive threadactive measureactive)
     (* blocked threads should be equivalent for the next input *)
     (* nothing to say if there is no next input *)
-    (BLOCKED: forall nextinp, advance_input inp = Some nextinp -> list_tree_thread code nextinp treeblocked threadblocked measureblocked)
+    (BLOCKED: forall nextinp, advance_input inp forward = Some nextinp -> list_tree_thread code nextinp treeblocked threadblocked measureblocked)
     (* these two properties are needed to ensure the two algorithms stop at he same time *)
-    (ENDVM: advance_input inp = None -> threadblocked = [])
-    (ENDTREE: advance_input inp = None -> treeblocked = [])
+    (ENDVM: advance_input inp forward = None -> threadblocked = [])
+    (ENDTREE: advance_input inp forward = None -> treeblocked = [])
     (* the measure is simply the measure of the top priority thread *)
     (MEASURE: n = hd 0 (measureactive++measureblocked)),
     pike_inv code (PTS idx treeactive best treeblocked) (PVS inp idx threadactive best threadblocked) n
@@ -92,18 +96,21 @@ Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> nat -> Prop 
 (* the initial states of both smallstep semantics are related with the invariant *)
 Lemma initial_pike_inv:
   forall r inp tree code
-    (TREE: bool_tree r [] inp CanExit tree)
-    (COMPILE: compilation r = code),
+    (TREE: bool_tree [Areg r] inp CanExit tree)
+    (COMPILE: compilation r = code)
+    (SUBSET: pike_regex r),
     pike_inv code (pike_tree_initial_state tree) (pike_vm_initial_state inp) 0.
 Proof.
-  intros r inp tree code TREE COMPILE.
+  intros r inp tree code TREE COMPILE SUBSET.
   unfold compilation in COMPILE. destruct (compile r 0) as [c fresh] eqn:COMP.
   apply compile_nfa_rep with (prev := []) in COMP as REP; auto. simpl in REP.
   apply fresh_correct in COMP. simpl in COMP. subst.
   eapply pikeinv; econstructor.
   { constructor. }
-  apply tt_eq with (pc_cont:=length c) (pc_end:=length c) (r:=r) (cont:=[]); auto.
-  - subst. apply nfa_rep_extend. auto.
+  apply tt_eq with (pc_end:=length c) (actions:=[Areg r]); auto.
+  2: { constructor; constructor; auto. }
+  apply cons_bc with (pcmid:=length c).
+  - constructor. apply nfa_rep_extend. auto. 
   - constructor. replace (length c) with (length c + 0) by auto. rewrite get_prefix. auto.
 Qed.
 
@@ -119,16 +126,18 @@ Qed.
 (* With the definitions below, we provide ways to kow when is a state going to stutter *)
 
 (* returns true if that state will stutter *)
+(* or if we are at an unsupported feature *)
 Definition stutters (pc:label) (code:code) : bool :=
   match get_pc code pc with
   | Some (Jmp _) => true
   | Some BeginLoop => true
+  | Some KillThread => true
   | _ => false
   end.
 
 Lemma does_stutter:
   forall pc code, stutters pc code = true ->
-             get_pc code pc = Some BeginLoop \/ exists next, get_pc code pc = Some (Jmp next).
+             get_pc code pc = Some BeginLoop \/ (exists next, get_pc code pc = Some (Jmp next)) \/ get_pc code pc = Some KillThread.
 Proof.
   unfold stutters. intros. destruct (get_pc code pc); try destruct b; inversion H; eauto.
 Qed.
@@ -144,6 +153,37 @@ Lemma doesnt_stutter_begin:
 Proof.
   unfold stutters, not. intros. destruct (get_pc code pc); try destruct b; inversion H0. inversion H.
 Qed.
+
+Lemma doesnt_stutter_kill:
+  forall pc code, stutters pc code = false -> get_pc code pc = Some KillThread -> False.
+Proof.
+  unfold stutters, not. intros. destruct (get_pc code pc); try destruct b; inversion H0. inversion H.
+Qed.
+
+Ltac no_stutter := 
+  match goal with
+  | [ H : stutters ?pc ?code = false, H1: get_pc ?code ?pc = Some (Jmp _) |- _ ] => exfalso; eapply doesnt_stutter_jmp; eauto
+  | [ H : stutters ?pc ?code = false, H1: get_pc ?code ?pc = Some (BeginLoop) |- _ ] => exfalso; eapply doesnt_stutter_begin; eauto
+  | [ H : stutters ?pc ?code = false, H1: get_pc ?code ?pc = Some (KillThread) |- _ ] => exfalso; eapply doesnt_stutter_kill; eauto
+  end.
+
+Ltac invert_rep :=
+   match goal with
+   | [ H : actions_rep (Areg _ :: _) _ _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : actions_rep (Aclose _ :: _) _ _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : actions_rep (Acheck _ :: _) _ _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : actions_rep [] _ _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : action_rep (Areg _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : action_rep (Aclose _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : action_rep (Acheck _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : nfa_rep (Epsilon) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : nfa_rep (Regex.Character _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : nfa_rep (Disjunction _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : nfa_rep (Sequence _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : nfa_rep (Quantified _ _ _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : nfa_rep (Group _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | _ => try no_stutter
+   end.
 
 
 (** * Invariant Preservation  *)
@@ -162,23 +202,20 @@ Theorem generate_match:
 Proof.
   intros tree gm idx inp code pc b n TREESTEP NOSTUTTER TT.
   unfold tree_bfs_step in TREESTEP. destruct tree; inversion TREESTEP. subst. clear TREESTEP.
-  inversion TT; subst.
-  2: { apply doesnt_stutter_begin in NOSTUTTER; auto. contradiction. }
+  inversion TT; subst; try no_stutter.
   remember Match as TMATCH.
-  generalize dependent pc_cont. generalize dependent pc_end.
+  generalize dependent pc_end.
   (* here we have to proceed by induction because there are many ways to get a Match tree *)
-  (* it could be the regex epsilon, it could be a continuation, it could be epsilon followed by epsilon etc *)
+  (* it could be epsilon, it could be epsilon followed by epsilon etc *)
   induction TREE; intros; subst; try inversion HeqTMATCH.
-  - unfold epsilon_step. inversion NFA. inversion CONT; subst.
-    2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
+  - simpl. repeat invert_rep.
     rewrite ACCEPT. auto.
-  - inversion NFA. inversion CONT; subst.
-    2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
-    inversion ACTION. subst. eapply IHTREE; eauto. 
-  - inversion NFA. subst. eapply IHTREE; eauto.
-    econstructor; eauto. constructor. auto.
+  - repeat invert_rep. pike_subset. eapply IHTREE; eauto.
+  - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
+    repeat (econstructor; eauto).
+  - repeat invert_rep.
   - destruct greedy; inversion CHOICE.
-Qed.
+ Qed.
 
 
 Theorem generate_blocked:
@@ -187,100 +224,101 @@ Theorem generate_blocked:
     (NOSTUTTER: stutters pc code = false)
     (TT: tree_thread code inp (tree, gm) (pc, gm, b) n),
     epsilon_step (pc,gm,b) code inp idx = EpsBlocked (pc+1,gm,CanExit) /\
-      (forall nextinp, advance_input inp = Some nextinp -> tree_thread code nextinp (nexttree,gm) (pc+1,gm,CanExit) n) /\
-      exists nextinp, advance_input inp = Some nextinp.
+      (forall nextinp, advance_input inp forward = Some nextinp -> tree_thread code nextinp (nexttree,gm) (pc+1,gm,CanExit) n) /\
+      exists nextinp, advance_input inp forward = Some nextinp.
 Proof.
   intros tree gm idx inp code pc b nexttree n TREESTEP NOSTUTTER TT.
   unfold tree_bfs_step in TREESTEP. destruct tree; inversion TREESTEP. subst. clear TREESTEP.
-  inversion TT; subst.
-  2: { exfalso. eapply doesnt_stutter_begin; eauto. }
+  inversion TT; subst; try no_stutter.
   remember (Read c nexttree) as TREAD.
-  generalize dependent pc_cont. generalize dependent pc_end.
+  generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTREAD; subst.
-  - inversion NFA. inversion CONT; subst.
-    2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
-    inversion ACTION. subst. eapply IHTREE; eauto.
-  - assert (CHECK: check_read cd inp = CanRead /\ advance_input inp = Some nextinp) by (apply can_read_correct; eauto).
-    destruct CHECK as [CHECK ADVANCE]. 
-    inversion NFA. subst. 
-    split; try split.
+  - repeat invert_rep. eapply IHTREE; eauto. pike_subset. auto.
+  - assert (CHECK: check_read cd inp forward = CanRead /\ advance_input inp forward = Some nextinp) by (apply can_read_correct; eauto).
+    destruct CHECK as [CHECK ADVANCE].
+    repeat invert_rep. split; try split; eauto.
     + simpl. rewrite CONSUME. rewrite CHECK. auto.
     + intros. rewrite ADVANCE in H. inversion H. subst.
-      eapply tt_eq; eauto. 
-      replace (S pc) with (pc + 1) by lia.
-      constructor.
-    + eauto.
-  - inversion NFA. subst. eapply IHTREE; eauto.
-    econstructor; eauto. constructor. auto.
+      eapply tt_eq; eauto.
+      replace (pc + 1) with (S pc) by lia. eauto.
+      pike_subset; auto.
+  - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
+    repeat (econstructor; eauto).
+  - repeat invert_rep. 
   - destruct greedy; inversion CHOICE.
 Qed.
+
 
 Theorem generate_open:
   forall gid tree gm idx inp code pc b n
     (TT: tree_thread code inp (GroupAction (Open gid) tree, gm) (pc, gm, b) n)
     (NOSTUTTER: stutters pc code = false),
-    epsilon_step (pc, gm, b) code inp idx = EpsActive [(pc + 1, open_group gm gid idx, b)] /\
-      tree_thread code inp (tree,open_group gm gid idx) (pc + 1, open_group gm gid idx, b) n.
+    epsilon_step (pc, gm, b) code inp idx = EpsActive [(pc + 1, GroupMap.open idx gid gm, b)] /\
+      tree_thread code inp (tree,GroupMap.open idx gid gm) (pc + 1, GroupMap.open idx gid gm, b) n.
 Proof.
   intros gid tree gm idx inp code pc b n TT NOSTUTTER.
-  inversion TT; subst.
-  2: { exfalso. eapply doesnt_stutter_begin; eauto. }
+  inversion TT; subst; try invert_rep.
   remember (GroupAction (Open gid) tree) as TOPEN.
-  generalize dependent pc_cont. generalize dependent pc_end.
+  generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTOPEN; subst.
-  - inversion NFA. inversion CONT; subst.
-    2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
-    inversion ACTION. subst. eapply IHTREE; eauto.
-  - inversion NFA. subst. eapply IHTREE; eauto.
-    econstructor; eauto. constructor. auto.
+  - repeat invert_rep. eapply IHTREE; eauto. pike_subset. auto.
+  - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
+    repeat (econstructor; eauto).
+  - repeat invert_rep.
   - destruct greedy; inversion CHOICE.
-  - inversion NFA. subst. simpl. rewrite OPEN. split; auto.
-    replace (pc+1) with (S pc) by lia. eapply tt_eq; eauto.
-    apply cons_bc with (pcmid:=S end1); eauto. constructor. auto.
+  - repeat invert_rep. simpl. rewrite OPEN. split; auto.
+    eapply tt_eq; eauto.
+    2: { pike_subset. }
+    replace (pc+1) with (S pc) by lia. 
+    apply cons_bc with (pcmid:=end1); repeat (econstructor; eauto).
 Qed.
+
+
 
 Theorem generate_close:
   forall gid tree gm idx inp code pc b n
     (TT: tree_thread code inp (GroupAction (Close gid) tree, gm) (pc, gm, b) n)
     (NOSTUTTER: stutters pc code = false),
-    epsilon_step (pc, gm, b) code inp idx = EpsActive [(pc + 1, close_group gm gid idx, b)] /\
-      tree_thread code inp (tree,close_group gm gid idx) (pc + 1, close_group gm gid idx, b) n.
+    epsilon_step (pc, gm, b) code inp idx = EpsActive [(pc + 1, GroupMap.close idx gid gm, b)] /\
+      tree_thread code inp (tree,GroupMap.close idx gid gm) (pc + 1, GroupMap.close idx gid gm, b) n.
 Proof.
   intros gid tree gm idx inp code pc b n TT NOSTUTTER.
-  inversion TT; subst.
-  2: { exfalso. eapply doesnt_stutter_begin; eauto. }
+  inversion TT; subst; try no_stutter.
   remember (GroupAction (Close gid) tree) as TCLOSE.
-  generalize dependent pc_cont. generalize dependent pc_end.
+  generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTCLOSE; subst.
-  - inversion NFA. inversion CONT; subst.
-    2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
-    inversion ACTION. subst. eapply IHTREE; eauto.
-  - inversion NFA. inversion CONT; subst.
-    2: { exfalso. eapply doesnt_stutter_jmp; eauto. }
-    inversion ACTION. subst. simpl. rewrite CLOSE.
-    split. auto. econstructor; eauto. replace (S pc_cont) with (pc_cont + 1) by lia. constructor.
-  - inversion NFA. subst. eapply IHTREE; eauto.
-    econstructor; eauto. constructor. auto.
+  - repeat invert_rep. simpl. rewrite CLOSE. pike_subset.
+    econstructor; eauto. replace (pc + 1) with (S pc) by lia. eauto.
+  - repeat invert_rep. eapply IHTREE; eauto. pike_subset. auto.
+  - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
+    repeat (econstructor; eauto).
+  - repeat invert_rep.
   - destruct greedy; inversion CHOICE.
 Qed.
 
+
 Theorem no_tree_reset:
-  (* The tree of a regex or a continuation cannot start with ResetGroups *)
-  forall gidl tree inp r cont b,
-    bool_tree r cont inp b (GroupAction (Reset gidl) tree) -> False.
+  (* A tree corresponding to some actions cannot start with ResetGroups *)
+  forall gidl tree inp actions b,
+    pike_actions actions ->
+    bool_tree actions inp b (GroupAction (Reset gidl) tree) -> False.
 Proof.
-  intros gidl tree inp r cont b H.
+  intros gidl tree inp actions b PIKE H.
   remember (GroupAction (Reset gidl) tree) as TRESET.
   induction H; inversion HeqTRESET; subst; auto.
-  destruct greedy; inversion CHOICE.
+  - pike_subset. eapply IHbool_tree; eauto.
+  - apply IHbool_tree; auto. pike_subset.
+  - pike_subset.
+  - apply IHbool_tree; auto. pike_subset.
+  - destruct greedy; inversion CHOICE.
 Qed.
 
 Corollary generate_reset:  
   forall gidl tree inp code pc b gm n idx
     (TT: tree_thread code inp (GroupAction (Reset gidl) tree, gm) (pc,gm,b) n)
     (NOSTUTTER: stutters pc code = false),
-    epsilon_step (pc,gm,b) code inp idx = EpsActive [(pc+1, reset_groups gm gidl, b)] /\
-      tree_thread code inp (tree,reset_groups gm gidl) (pc+1, reset_groups gm gidl, b) n.
+    epsilon_step (pc,gm,b) code inp idx = EpsActive [(pc+1, GroupMap.reset gidl gm, b)] /\
+      tree_thread code inp (tree,GroupMap.reset gidl gm) (pc+1, GroupMap.reset gidl gm, b) n.
 Proof.
   intros.
   inversion TT; subst.
@@ -442,13 +480,13 @@ Proof.
     constructor; auto. constructor.
   - destruct g.
     + eapply generate_open in TT as [STEP EQ]; auto.
-      exists [(pc+1,open_group gm g idx,b)]. exists [n]. split; eauto.
+      exists [(pc+1,GroupMap.open idx g gm,b)]. exists [n]. split; eauto.
       constructor; auto. constructor.
     + eapply generate_close in TT as [STEP EQ]; auto.
-      exists [(pc+1,close_group gm g idx,b)]. exists [n]. split; eauto.
+      exists [(pc+1,GroupMap.close idx g gm,b)]. exists [n]. split; eauto.
       constructor; auto. constructor.
     + eapply generate_reset in TT as [STEP EQ]; auto.
-      exists [(pc + 1, reset_groups gm gl, b)]. exists [n]. split; eauto.
+      exists [(pc + 1, GroupMap.reset gl gm, b)]. exists [n]. split; eauto.
       constructor; auto. constructor. 
 Qed.
 
