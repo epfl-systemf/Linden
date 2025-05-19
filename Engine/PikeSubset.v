@@ -162,7 +162,7 @@ Ltac invert_subset :=
   end.
 
 Ltac pike_subset :=
-  repeat (invert_subset; subst); repeat (constructor; auto).
+  repeat (invert_subset; subst); repeat (constructor; auto); auto.
 
 
 (* prove that one can only construct pike subtrees from pike regexes *)

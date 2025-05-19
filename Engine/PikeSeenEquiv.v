@@ -7,7 +7,8 @@ From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeTreeSeen PikeVMSeen.
-From Linden Require Import PikeEquiv.
+From Linden Require Import PikeEquiv PikeSubset.
+From Warblre Require Import Base.
 
 (** * Simulation Invariant  *)
 
@@ -33,10 +34,10 @@ Inductive pike_inv (code:code): pike_tree_seen_state -> pike_vm_seen_state -> na
     (ACTIVE: list_tree_thread code inp treeactive threadactive measureactive)
     (* blocked threads should be equivalent for the next input *)
     (* nothing to say if there is no next input *)
-    (BLOCKED: forall nextinp, advance_input inp = Some nextinp -> list_tree_thread code nextinp treeblocked threadblocked measureblocked)
+    (BLOCKED: forall nextinp, advance_input inp forward = Some nextinp -> list_tree_thread code nextinp treeblocked threadblocked measureblocked)
     (* these two properties are needed to ensure the two algorithms stop at he same time *)
-    (ENDVM: advance_input inp = None -> threadblocked = [])
-    (ENDTREE: advance_input inp = None -> treeblocked = [])
+    (ENDVM: advance_input inp forward = None -> threadblocked = [])
+    (ENDTREE: advance_input inp forward = None -> treeblocked = [])
     (* any pc in threadseen must correspond to a tree in treeseen *)
     (SEEN: seen_inclusion code inp treeseen threadseen (hd_error treeactive) n)
     (* the measure is simply the measure of the top priority thread *)
@@ -141,20 +142,23 @@ Admitted.
 (* the initial states of both smallstep semantics are related with the invariant *)
 Lemma initial_pike_inv:
   forall r inp tree code
-    (TREE: bool_tree r [] inp CanExit tree)
-    (COMPILE: compilation r = code),
+    (TREE: bool_tree [Areg r] inp CanExit tree)
+    (COMPILE: compilation r = code)
+    (SUBSET: pike_regex r),
     pike_inv code (pike_tree_seen_initial_state tree) (pike_vm_seen_initial_state inp) 0.
 Proof.
-  intros r inp tree code TREE COMPILE.
+  intros r inp tree code TREE COMPILE SUBSET.
   unfold compilation in COMPILE. destruct (compile r 0) as [c fresh] eqn:COMP.
   apply compile_nfa_rep with (prev := []) in COMP as REP; auto. simpl in REP.
   apply fresh_correct in COMP. simpl in COMP. subst.
   eapply pikeinv; auto.
   - econstructor.
     + constructor.
-    + apply tt_eq with (pc_cont:=length c) (pc_end:=length c) (r:=r) (cont:=[]); auto.
-      * apply nfa_rep_extend. auto.
-      * constructor. replace (length c) with (length c + 0) by auto.
+    + apply tt_eq with (pc_end:=length c) (actions:=[Areg r]); auto.
+      2: { pike_subset. }
+      eapply cons_bc; constructor.
+      * apply nfa_rep_extend; auto.
+      * replace (length c) with (length c + 0) by auto.
         rewrite get_prefix. auto.
   - constructor.
   - apply initial_inclusion.

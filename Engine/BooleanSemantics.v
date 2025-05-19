@@ -356,3 +356,22 @@ Proof.
   { constructor; constructor; auto. }
   constructor. constructor. constructor.
 Qed.
+
+
+(* Pie actions translate to Pike trees *)
+Theorem subset_semantics:
+  forall actions tree inp b
+    (SUBSET: pike_actions actions)
+    (ISTREE: bool_tree actions inp b tree),
+    pike_subtree tree.
+Proof.
+  intros actions tree inp b SUBSET ISTREE.
+  induction ISTREE; try eapply IHISTREE; pike_subset.
+  - eapply IHISTREE1. pike_subset.
+  - eapply IHISTREE2. pike_subset.
+  - destruct plus; inversion H3. destruct greedy; pike_subset.
+    + eapply IHISTREE1. pike_subset.
+    + eapply IHISTREE1. pike_subset.
+  - eapply IHISTREE. pike_subset.
+Qed.
+
