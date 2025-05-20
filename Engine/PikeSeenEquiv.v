@@ -7,7 +7,8 @@ From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeTreeSeen PikeVMSeen.
-From Linden Require Import PikeEquiv.
+From Linden Require Import PikeEquiv PikeSubset.
+From Warblre Require Import Base.
 
 (** * Simulation Invariant  *)
 
@@ -33,10 +34,10 @@ Inductive pike_inv (code:code): pike_tree_seen_state -> pike_vm_seen_state -> na
     (ACTIVE: list_tree_thread code inp treeactive threadactive measureactive)
     (* blocked threads should be equivalent for the next input *)
     (* nothing to say if there is no next input *)
-    (BLOCKED: forall nextinp, advance_input inp = Some nextinp -> list_tree_thread code nextinp treeblocked threadblocked measureblocked)
+    (BLOCKED: forall nextinp, advance_input inp forward = Some nextinp -> list_tree_thread code nextinp treeblocked threadblocked measureblocked)
     (* these two properties are needed to ensure the two algorithms stop at he same time *)
-    (ENDVM: advance_input inp = None -> threadblocked = [])
-    (ENDTREE: advance_input inp = None -> treeblocked = [])
+    (ENDVM: advance_input inp forward = None -> threadblocked = [])
+    (ENDTREE: advance_input inp forward = None -> treeblocked = [])
     (* any pc in threadseen must correspond to a tree in treeseen *)
     (SEEN: seen_inclusion code inp treeseen threadseen (hd_error treeactive) n)
     (* the measure is simply the measure of the top priority thread *)
@@ -120,6 +121,27 @@ Qed.
 
 (** * Representation Unicity lemmas  *)
 
+(* even though nfa_rep can hold at the same place for two regexes, they should have the same tree *)
+(* Lemma nfa_rep_unicity: *)
+(*   forall r1 r2 code pc pcend t inp b, *)
+(*     nfa_rep r1 code pc pcend -> *)
+(*     nfa_rep r2 code pc pcend -> *)
+(*     bool_tree [Areg r1] inp b t -> *)
+(*     bool_tree [Areg r2] inp b t. *)
+(* Admitted. *)
+
+(* (* same for actions *) *)
+(* Lemma actions_rep_unicity: *)
+(*   forall a1 a2 code pc pcend t inp b n, *)
+(*     actions_rep a1 code pc pcend n -> *)
+(*     actions_rep a2 code pc pcend n -> *)
+(*     bool_tree a1 inp b t -> *)
+(*     bool_tree a2 inp b t. *)
+(* Proof. *)
+(*   intros a1 a2 code pc pcend t inp b n H H0 H1. *)
+(* Admitted. *)
+
+
 Lemma tt_same_measure:
   forall code inp t gm pc b n1 n2
     (TT1: tree_thread code inp (t,gm) (pc,gm,b) n1)
@@ -128,6 +150,16 @@ Lemma tt_same_measure:
 Proof.
 Admitted.
 
+(* would this be easier if we made the tree explicit in the relation? *)
+(* note that nfa_rep has no unicity prop: we could represent both epsilon and epsilon:epsilon *)
+(* same goes for actions_rep *)
+(* but in these cases, even from different actions, the trees are still the same *)
+(* could we compute a tree from a pc and an input? compute_tree pc inp *)
+(* then show tt code inp (t,gm) (pc,_,_) -> t = compute_tree pc inp *)
+(* Another idea is that even though multiple actions could correspond to the same pc *)
+(* when they are compiled each pc corresponds to a precise set of actions? *)
+(* no, it depends on the input for stars *)
+(* But I should be able to use th generate lemmas if my intermediate theorem uses a tree derivation to build another *)
 Lemma tt_same_tree:
   forall code inp t1 gm1 t2 gm2 n1 n2 pc b
     (TT1: tree_thread code inp (t1,gm1) (pc,gm1,b) n1)
@@ -136,25 +168,29 @@ Lemma tt_same_tree:
 Proof.
 Admitted.
 
+
 (** * Invariant Initialization  *)
 
 (* the initial states of both smallstep semantics are related with the invariant *)
 Lemma initial_pike_inv:
   forall r inp tree code
-    (TREE: bool_tree r [] inp CanExit tree)
-    (COMPILE: compilation r = code),
+    (TREE: bool_tree [Areg r] inp CanExit tree)
+    (COMPILE: compilation r = code)
+    (SUBSET: pike_regex r),
     pike_inv code (pike_tree_seen_initial_state tree) (pike_vm_seen_initial_state inp) 0.
 Proof.
-  intros r inp tree code TREE COMPILE.
+  intros r inp tree code TREE COMPILE SUBSET.
   unfold compilation in COMPILE. destruct (compile r 0) as [c fresh] eqn:COMP.
   apply compile_nfa_rep with (prev := []) in COMP as REP; auto. simpl in REP.
   apply fresh_correct in COMP. simpl in COMP. subst.
   eapply pikeinv; auto.
   - econstructor.
     + constructor.
-    + apply tt_eq with (pc_cont:=length c) (pc_end:=length c) (r:=r) (cont:=[]); auto.
-      * apply nfa_rep_extend. auto.
-      * constructor. replace (length c) with (length c + 0) by auto.
+    + apply tt_eq with (pc_end:=length c) (actions:=[Areg r]); auto.
+      2: { pike_subset. }
+      eapply cons_bc; constructor.
+      * apply nfa_rep_extend; auto.
+      * replace (length c) with (length c + 0) by auto.
         rewrite get_prefix. auto.
   - constructor.
   - apply initial_inclusion.

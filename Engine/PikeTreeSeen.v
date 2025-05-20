@@ -12,7 +12,8 @@ Import ListNotations.
 Require Import Lia.
 
 From Linden Require Import Regex Chars Groups Tree.
-From Linden Require Import PikeTree.
+From Linden Require Import PikeTree PikeSubset.
+From Warblre Require Import Base.
 
 (** * Seen Sets  *)
 Parameter seentrees: Type.
@@ -74,7 +75,7 @@ Inductive pike_tree_seen_step : pike_tree_seen_state -> pike_tree_seen_state -> 
     pike_tree_seen_step (PTSS idx ((t,gm)::active) best blocked seen1) (PTSS idx active best (blocked ++ [(newt,gm)]) seen2).
 
 Definition pike_tree_seen_initial_state (t:tree) : pike_tree_seen_state :=
-  (PTSS 0 [(t, empty_group_map)] None [] initial_seentrees).
+  (PTSS 0 [(t, GroupMap.empty)] None [] initial_seentrees).
 
 
 (** * Pike Tree Seen Correction  *)
@@ -100,36 +101,43 @@ Inductive tree_nd: tree -> group_map -> nat -> seentrees -> option leaf -> Prop 
   forall t cd gm idx l seen
     (TR: tree_nd t gm (idx+1) seen l),
     tree_nd (Read cd t) gm idx seen l
-| tr_checkpass:
+| tr_progress:
   forall t str gm idx l seen
     (TR: tree_nd t gm idx seen l),
-    tree_nd (CheckPass str t) gm idx seen l
-| tr_checkfail:
-  forall str gm idx seen, tree_nd (CheckFail str) gm idx seen None
+    tree_nd (Progress str t) gm idx seen l
 | tr_groupaction:
   forall t act gm idx l seen
-    (TR: tree_nd t (group_effect act gm idx) idx seen l),
+    (TR: tree_nd t (GroupMap.update idx act gm) idx seen l),
     tree_nd (GroupAction act t) gm idx seen l.
+(* To keep this relation as simple as possible, it does not compute
+the results of a tree which does not corespond to the regexes
+supported by the engine. We could support them, but we won't need them
+and it would require adding a direction as argument *)
+
+
 
 (* the normal result, obtained with function tree_res without skipping anything, is a possible result *)
 Lemma tree_res_nd:
   forall t gm idx seen,
-    tree_nd t gm idx seen (tree_res t gm idx).
+    pike_subtree t -> 
+    tree_nd t gm idx seen (tree_res t gm idx forward).
 Proof.
-  intros t. induction t; intros; simpl; try solve[constructor; auto].
+  intros t. induction t; intros; simpl; try solve[inversion H]; try solve[pike_subset; constructor; auto].
 Qed.
 
 (* when there is nothing in seen, there is only one possible result *)
 Lemma tree_nd_initial:
   forall t gm idx res,
+    pike_subtree t ->
     tree_nd t gm idx initial_seentrees res ->
-    res = tree_res t gm idx.
+    res = tree_res t gm idx forward.
 Proof.
-  intros t gm idx res H.
+  intros t gm idx res PIKE H.
   remember initial_seentrees as init.
-  induction H; simpl; auto.
+  induction H; simpl; pike_subset; auto.
   - subst. rewrite initial_nothing in SEEN. inversion SEEN.
-  - specialize (IHtree_nd1 Heqinit). specialize (IHtree_nd2 Heqinit). subst. auto.
+  - pike_subset. specialize (IHtree_nd1 H3 (@eq_refl _ _)).
+    specialize (IHtree_nd2 H4 (@eq_refl _ _)). subst. auto.
 Qed.
 
 Inductive list_nd: list (tree * group_map) -> nat -> seentrees -> option leaf -> Prop :=
@@ -145,24 +153,26 @@ Inductive list_nd: list (tree * group_map) -> nat -> seentrees -> option leaf ->
 (* the normal result for a list, without skipping anything, is a possible result *)
 Lemma list_result_nd:
   forall active idx seen,
+    pike_list active -> 
     list_nd active idx seen (list_result active idx).
 Proof.
-  intros active. induction active; intros; try constructor.
-  destruct a as [t gm]. rewrite list_result_cons.
-  econstructor; eauto. apply tree_res_nd.
+  intros active. induction active; try destruct a as [t gm]; intros; pike_subset; try constructor.
+  rewrite list_result_cons.
+  econstructor; eauto. apply tree_res_nd. auto.
 Qed.
 
 (* when there is nothing in seen, there is only one possible result *)
 Lemma list_nd_initial:
   forall l idx res,
+    pike_list l ->
     list_nd l idx initial_seentrees res ->
     res = list_result l idx.
 Proof.
-  intros l idx res H.
+  intros l idx res PIKE H.
   remember initial_seentrees as init.
-  induction H; simpl; auto.
-  subst. rewrite list_result_cons. specialize (IHlist_nd (eq_refl _)). subst.
-  apply tree_nd_initial in TR. subst. auto.
+  induction H; simpl; auto; pike_subset.
+  rewrite list_result_cons. specialize (IHlist_nd H1 (eq_refl _)). subst.
+  apply tree_nd_initial in TR; subst; auto.
 Qed.
 
 
@@ -175,11 +185,14 @@ Inductive state_nd: nat -> list (tree*group_map) -> option leaf -> list (tree*gr
     state_nd idx active best blocked seen rseq.
 
 (* Invariant of the PikeTreeSeen execution *)
-(* at any moment, all the possibles results of the current state are all equal (equal to the first result of the original tree) *)
+(* at any moment, all the possible results of the current state are all equal (equal to the first result of the original tree) *)
+(* at any moment, all trees manipulated by the algorithms are trees for the subset of regexes supported  *)
 Inductive piketreeinv: pike_tree_seen_state -> option leaf -> Prop :=
 | pi:
   forall result blocked active best idx seen
-    (SAMERES: forall res, state_nd idx active best blocked seen res -> res = result),
+    (SAMERES: forall res, state_nd idx active best blocked seen res -> res = result)
+    (SUBSET_AC: pike_list active)
+    (SUBSET_BL: pike_list blocked),
     piketreeinv (PTSS idx active best blocked seen) result
 | sr_final:
   forall best,
@@ -189,13 +202,14 @@ Inductive piketreeinv: pike_tree_seen_state -> option leaf -> Prop :=
 
 Lemma init_piketree_inv:
   forall t,
-    piketreeinv (pike_tree_seen_initial_state t) (tree_res t empty_group_map 0).
+    pike_subtree t -> 
+    piketreeinv (pike_tree_seen_initial_state t) (tree_res t GroupMap.empty 0 forward).
 Proof.
-  intros t. unfold pike_tree_seen_initial_state. constructor.
+  intros t. unfold pike_tree_seen_initial_state. constructor; pike_subset; auto.
   intros res STATEND. inversion STATEND; subst.
   simpl. rewrite seqop_none. inversion ACTIVE; subst.
   inversion TLR; subst. rewrite seqop_none.
-  apply tree_nd_initial in TR. auto.
+  apply tree_nd_initial in TR; auto.
 Qed.
 
 (** * Non deterministic results lemmas  *)
@@ -203,18 +217,13 @@ Qed.
 (* a tree having no results is independent of the gm and the idx *)
 Lemma no_tree_result:
   forall t gm1 gm2 idx1 idx2
-    (NORES: tree_res t gm1 idx1 = None),
-    tree_res t gm2 idx2 = None.
+    (NORES: tree_res t gm1 idx1 forward = None),
+    tree_res t gm2 idx2 forward = None.
 Proof.
-  intros t.
-  induction t; intros; auto;
-    simpl in NORES; simpl; try solve [eapply IHt; eauto].
-  - inversion NORES.
-  - simpl in NORES. simpl.
-    destruct(tree_res t1 gm1 idx1) eqn:T1; destruct (tree_res t2 gm1 idx1) eqn:T2; inversion NORES.
-    specialize (IHt1 _ gm2 _ idx2 T1).
-    specialize (IHt2 _ gm2 _ idx2 T2).
-    rewrite IHt1. rewrite IHt2. auto.
+  intros. rewrite first_tree_leaf. rewrite first_tree_leaf in NORES.
+  destruct (tree_leaves t gm1 idx1 forward) eqn:HTL.
+  2: { inversion NORES. }
+  eapply leaves_group_map_indep in HTL. rewrite HTL. auto.
 Qed.    
 
 (* the same is true for a non-deterministic result *)
@@ -236,27 +245,29 @@ Qed.
 (* skipping over a new tree doesn't change the result if the tree that is being skipped does not have results *)
 Lemma add_seen:
   forall t seen tseen gm idx res
-    (NORES: tree_res tseen gm idx = None)
-    (TREEND: tree_nd t gm idx (add_seentrees seen tseen) res),
+    (NORES: tree_res tseen gm idx forward = None)
+    (TREEND: tree_nd t gm idx (add_seentrees seen tseen) res)
+    (SUBSET: pike_subtree tseen),
     tree_nd t gm idx seen res.
 Proof.
-  intros t seen tseen gm idx res NORES TREEND.
+  intros t seen tseen gm idx res NORES TREEND SUBSET.
   remember (add_seentrees seen tseen) as add.
   induction TREEND; subst; try solve[constructor; auto];
     try solve [constructor; apply IHTREEND; auto; eapply no_tree_result; eauto].
   apply in_add in SEEN as [EQ | SEEN].
-  + subst. rewrite <- NORES. apply tree_res_nd.
+  + subst. rewrite <- NORES. apply tree_res_nd; auto.
   + apply tr_skip. auto.
 Qed.
 
 (* same lemma generalizes to lists of trees *)
 Lemma list_add_seen:
   forall l seen tseen gm idx res
-    (NORES: tree_res tseen gm idx = None)
-    (LISTND: list_nd l idx (add_seentrees seen tseen) res),
+    (NORES: tree_res tseen gm idx forward = None)
+    (LISTND: list_nd l idx (add_seentrees seen tseen) res)
+    (SUBSET: pike_subtree tseen),
     list_nd l idx seen res.
 Proof.
-  intros l seen tseen gm idx res NORES LISTND.
+  intros l seen tseen gm idx res NORES LISTND SUBSET.
   remember (add_seentrees seen tseen) as add.
   induction LISTND; subst; econstructor; eauto.
   eapply add_seen; eauto. eapply no_tree_result; eauto.
@@ -296,9 +307,10 @@ Qed.
 (* none of these subtrees can contain the parent tree that generated them *)
 Fixpoint size (t:tree) : nat :=
   match t with
-  | Mismatch | Match | CheckFail _ => O
-  | Read _ t1 | CheckPass _ t1 | GroupAction _ t1 => 1 + size t1
+  | Mismatch | Match | LKFail _ _ => O
+  | Read _ t1 | Progress _ t1 | GroupAction _ t1 | AnchorPass _ t1 | ReadBackRef _ t1 => 1 + size t1
   | Choice t1 t2 => size t1 + size t2 + 1
+  | LK _ tlk t1 => 1 + size t1
   end.
 
 (* skipping over a new tree does not change the result of another tree if we know that the newly *)
@@ -335,7 +347,7 @@ Proof.
   2: { inversion PSTEP. }
   inversion PSTEP; subst; [| | |destruct t; inversion STEP; subst| |].
   (* skipping *)
-  - constructor. intros res STATEND.
+  - constructor; pike_subset; auto. intros res STATEND.
     apply SAMERES. inversion STATEND; subst.
     econstructor; eauto. replace r2 with (seqop None r2) by (simpl; auto).
     eapply tlr_cons; eauto. apply tr_skip. auto.
@@ -344,18 +356,19 @@ Proof.
     { apply SAMERES. econstructor; econstructor. }
     subst. constructor.
   (* nextchar *)
-  - constructor. intros res STATEND. inversion STATEND; subst.
+  - constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
     apply list_nd_initial in ACTIVE.
+    2: { destruct tgm. pike_subset; auto. }
     simpl. subst. specialize (SAMERES (seqop (list_result (tgm::blocked0) (idx+1)) (seqop None best))).
     simpl in SAMERES. apply SAMERES. econstructor; constructor.
   (* mismatch *)
-  - simpl. constructor. intros res STATEND. inversion STATEND; subst. apply SAMERES.
+  - simpl. constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst. apply SAMERES.
     econstructor; eauto. econstructor; eauto. 
     + eapply tr_mismatch.
-    + eapply list_add_seen with (gm:=gm) in ACTIVE; eauto.
+    + eapply list_add_seen with (gm:=gm) in ACTIVE; eauto. 
     + auto.
   (* choice *)
-  - simpl. constructor. intros res STATEND. inversion STATEND; subst.
+  - simpl. constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
     inversion ACTIVE; subst. inversion TLR; subst.
     apply SAMERES.
     apply add_parent_tree in TR.
@@ -368,7 +381,7 @@ Proof.
     destruct (seqop l1 l0) as [leaf|] eqn:CHOICE.
     + econstructor; eauto. rewrite seqop_assoc.
       eapply tlr_cons; eauto.
-      * apply list_result_nd.
+      * apply list_result_nd. auto.
       * rewrite CHOICE. simpl. auto.
     (* when the tree did not contribute, adding it to seen does not change the results *)
     + destruct l1; destruct l0; inversion CHOICE.
@@ -376,31 +389,29 @@ Proof.
       eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
       eapply list_add_seen_nd with (gm:=gm) in TLR0; auto.
       econstructor; eauto.
-  (* checkfail *)
-  - simpl. constructor. intros res STATEND. inversion STATEND; subst. apply SAMERES.
-    econstructor; eauto. econstructor; eauto.
-    + eapply tr_checkfail.
-    + eapply list_add_seen with (gm:=gm) in ACTIVE; eauto.
-    + auto.
-  (* checkpass *)
-  - simpl. constructor. intros res STATEND. inversion STATEND; subst.
+  (* progress fail *)
+  - simpl. constructor; pike_subset; auto. 
+  (* progress *)
+  - simpl. constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
     inversion ACTIVE; subst.
     apply SAMERES.
     apply add_parent_tree in TR.
     2: { simpl. lia. }
-    assert (PARENT: tree_nd (CheckPass str t) gm idx seen l1).
-    { apply tr_checkpass; auto. }
+    assert (PARENT: tree_nd (Progress str t) gm idx seen l1).
+    { apply tr_progress; auto. }
     (* case analysis: did t contribute to the result? *)
     destruct l1 as [leaf1|].
     + econstructor; eauto. simpl.
       eapply tlr_cons; eauto.
-      apply list_result_nd.
+      apply list_result_nd; auto.
     (* when the tree did not contribute, adding it to seen does not change the results *)
     + econstructor; eauto.
       eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
       econstructor; eauto.
+  (* anchor pass *)
+  - simpl. constructor; pike_subset; auto.
   (* group action *)
-  - simpl. constructor. intros res STATEND. inversion STATEND; subst.
+  - simpl. constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
     inversion ACTIVE; subst.
     apply SAMERES.
     apply add_parent_tree in TR.
@@ -411,22 +422,26 @@ Proof.
     destruct l1 as [leaf1|].
     + econstructor; eauto. simpl.
       eapply tlr_cons; eauto.
-      apply list_result_nd.
+      apply list_result_nd; auto.
     (* when the tree did not contribute, adding it to seen does not change the results *)
     + econstructor; eauto.
       eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
       econstructor; eauto.
+  (* LK *)
+  - simpl. constructor; pike_subset; auto.
+  (* LKFail *)
+  - simpl. constructor; pike_subset; auto.
   (* match *)
-  - destruct t; inversion STEP; subst. constructor.
+  - destruct t; inversion STEP; subst. constructor; pike_subset; auto.
     intros res STATEND. inversion STATEND; subst.
     inversion ACTIVE; subst. simpl. 
     apply SAMERES. eapply sr with (r2:=Some gm); eauto.
     replace (Some gm) with (seqop (Some gm) (list_result active0 idx)) by (simpl; auto).
     econstructor; auto.
     + apply tr_match.
-    + apply list_result_nd.
+    + apply list_result_nd; auto.
   (* blocked *)
-  - destruct t; inversion STEP; subst. constructor.
+  - destruct t; inversion STEP; subst. constructor; pike_subset; auto.
     intros res STATEND. inversion STATEND; subst.
     apply SAMERES.
     rewrite list_result_app. rewrite list_result_cons.
@@ -438,13 +453,13 @@ Proof.
     (* if the blocked tree contained a match, then we don't care about the result of active *)
     (* we can simply use the result obtained without skipping anything *)
     + eapply tlr_cons.
-      * apply tree_res_nd.
-      * apply list_result_nd.
+      * apply tree_res_nd. pike_subset.
+      * apply list_result_nd; auto.
       * simpl. rewrite REST. simpl. auto.
     + eapply tlr_cons.
       (* if the blocked tree did not contain a match, we prove that the adding it to the seen set *)
       (* does not change the skipping of the following active trees, using list_add_seen *)
-      * apply tree_res_nd. 
-      * eapply list_add_seen in ACTIVE; eauto.
+      * apply tree_res_nd. pike_subset.
+      * eapply list_add_seen in ACTIVE; eauto. pike_subset.
       * simpl. rewrite REST. simpl. auto.
 Qed.

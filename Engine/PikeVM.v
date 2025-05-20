@@ -5,7 +5,8 @@ Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics NFA.
-From Linden Require Import BooleanSemantics.
+From Linden Require Import BooleanSemantics PikeSubset.
+From Warblre Require Import Base.
 
 (** * PikeVM Semantics  *)
 (* exponential for now because we're not tracking the seen set yet *)
@@ -23,13 +24,13 @@ Definition block_thread (t:thread) : thread :=
   match t with (l,r,b) => (l+1,r,CanExit) end.
 
 Definition open_thread (t:thread) (gid:group_id) (idx:nat) : thread :=
-  match t with (l,r,b) => (l+1, open_group r gid idx, b) end.
+  match t with (l,r,b) => (l+1, GroupMap.open idx gid r, b) end.
 
 Definition close_thread (t:thread) (gid:group_id) (idx:nat) : thread :=
-  match t with (l,r,b) => (l+1, close_group r gid idx, b) end.
+  match t with (l,r,b) => (l+1, GroupMap.close idx gid r, b) end.
 
 Definition reset_thread (t:thread) (gidl:list group_id) : thread :=
-  match t with (l,r,b) => (l+1, reset_groups r gidl, b) end.
+  match t with (l,r,b) => (l+1, GroupMap.reset gidl r, b) end.
 
 Definition begin_thread (t:thread) : thread :=
   match t with (l,r,b) => (l+1,r,CannotExit) end.
@@ -50,7 +51,7 @@ Definition epsilon_step (t:thread) (c:code) (i:input) (idx:nat): epsilon_result 
       | Some instr =>
           match instr with
           | Accept => EpsMatch
-          | Consume cd => match check_read cd i with
+          | Consume cd => match check_read cd i forward with
                          | CannotRead => EpsDead
                          | CanRead => EpsBlocked (block_thread t)
                          end
@@ -64,6 +65,7 @@ Definition epsilon_step (t:thread) (c:code) (i:input) (idx:nat): epsilon_result 
                            | CannotExit => EpsDead
                            | CanExit => EpsActive [upd_label t next]
                            end
+          | KillThread => EpsDead
           end
       end
   end.
@@ -74,7 +76,7 @@ Inductive pike_vm_state : Type :=
 | PVS_final (best: option leaf).
 
 Definition pike_vm_initial_state (inp:input) : pike_vm_state :=
-  PVS inp 0 [(0,empty_group_map,CanExit)] None [].
+  PVS inp 0 [(0,GroupMap.empty,CanExit)] None [].
 
 Definition gm_of (t:thread) : group_map :=
   match t with (pc,gm,b) => gm end.
@@ -88,12 +90,12 @@ Inductive pike_vm_step (c:code): pike_vm_state -> pike_vm_state -> Prop :=
 | pvs_end:
   (* when the list of active is empty and we've reached the end of string *)
   forall inp idx best blocked
-    (ADVANCE: advance_input inp = None),
+    (ADVANCE: advance_input inp forward = None),
     pike_vm_step c (PVS inp idx [] best blocked) (PVS_final best)
 | pvs_nextchar:
   (* when the list of active threads is empty (but not blocked), restart from the blocked ones, proceeding to the next character *)
   forall inp1 inp2 idx best blocked thr
-    (ADVANCE: advance_input inp1 = Some inp2),
+    (ADVANCE: advance_input inp1 forward = Some inp2),
     pike_vm_step c (PVS inp1 idx [] best (thr::blocked)) (PVS inp2 (idx+1) (thr::blocked) best [])
 | pvs_active:
   (* generated new active threads: add them in front of the low-priority ones *)
