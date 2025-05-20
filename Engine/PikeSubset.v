@@ -164,6 +164,15 @@ Ltac invert_subset :=
 Ltac pike_subset :=
   repeat (invert_subset; subst); repeat (constructor; auto); auto.
 
+Ltac in_subset :=
+  match goal with
+  | [ H : ~ pike_regex (Epsilon) |- _ ] => try solve[exfalso; apply H; pike_subset]
+  | [ H : ~ pike_regex (Regex.Character _) |- _ ] => try solve[exfalso; apply H; pike_subset]
+  | [ H : ~ pike_regex (Disjunction _ _) |- _ ] => try solve[exfalso; apply H; pike_subset]
+  | [ H : ~ pike_regex (Sequence _ _) |- _ ] => try solve[exfalso; apply H; pike_subset]
+  | [ H : ~ pike_regex (Quantified _ _ _ _) |- _ ] => try solve[exfalso; apply H; pike_subset]
+  | [ H : ~ pike_regex (Group _ _) |- _ ] => try solve[exfalso; apply H; pike_subset]
+  end.
 
 (* prove that one can only construct pike subtrees from pike regexes *)
 Lemma pike_actions_pike_tree:

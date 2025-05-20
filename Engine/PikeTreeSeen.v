@@ -185,7 +185,7 @@ Inductive state_nd: nat -> list (tree*group_map) -> option leaf -> list (tree*gr
     state_nd idx active best blocked seen rseq.
 
 (* Invariant of the PikeTreeSeen execution *)
-(* at any moment, all the possibles results of the current state are all equal (equal to the first result of the original tree) *)
+(* at any moment, all the possible results of the current state are all equal (equal to the first result of the original tree) *)
 (* at any moment, all trees manipulated by the algorithms are trees for the subset of regexes supported  *)
 Inductive piketreeinv: pike_tree_seen_state -> option leaf -> Prop :=
 | pi:

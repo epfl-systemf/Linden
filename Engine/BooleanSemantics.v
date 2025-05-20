@@ -374,4 +374,3 @@ Proof.
     + eapply IHISTREE1. pike_subset.
   - eapply IHISTREE. pike_subset.
 Qed.
-

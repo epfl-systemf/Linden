@@ -186,16 +186,17 @@ Proof.
     try apply IHnfa_rep1; try apply IHnfa_rep2. auto.
 Qed.
 
+
+
 (* correctness of the returned fresh label *)
 Lemma fresh_correct:
   forall r fresh l next,
     compile r fresh = (l, next) ->
     fresh + List.length l = next.
 Proof.
+  Ltac inv_comp H := inversion H; subst; simpl; lia.
   intros r.
-  induction r; intros fresh l next COMPILE.
-  - inversion COMPILE. subst. simpl. lia.
-  - inversion COMPILE. subst. simpl. lia.
+  induction r; intros fresh l next COMPILE; try solve[inv_comp COMPILE].
   - inversion COMPILE.
     destruct (compile r1 (S fresh)) as [bc1 f1] eqn:COMP1. destruct (compile r2 (S f1)) as [bc2 f2] eqn:COMP2.
     inversion H0. subst f2. apply IHr1 in COMP1. apply IHr2 in COMP2. simpl.
@@ -211,12 +212,9 @@ Proof.
     destruct (compile r (S (S (S fresh)))) as [bc1 f1] eqn:COMP1. 
     inversion H0. apply IHr in COMP1.
     subst. simpl. rewrite app_length. simpl. lia.
-  - inversion COMPILE. simpl. lia.
   - inversion COMPILE.
     destruct (compile r (S fresh)) as [bc1 f1] eqn:COMP1. inversion H0. apply IHr in COMP1.
     subst. simpl. rewrite app_length. simpl. lia.
-  - inversion COMPILE. simpl. lia.
-  - inversion COMPILE. simpl. lia.
 Qed.
 
 (* this shows that the compilation function adheres to the representation predicate *)

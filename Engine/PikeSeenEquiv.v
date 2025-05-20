@@ -121,6 +121,27 @@ Qed.
 
 (** * Representation Unicity lemmas  *)
 
+(* even though nfa_rep can hold at the same place for two regexes, they should have the same tree *)
+(* Lemma nfa_rep_unicity: *)
+(*   forall r1 r2 code pc pcend t inp b, *)
+(*     nfa_rep r1 code pc pcend -> *)
+(*     nfa_rep r2 code pc pcend -> *)
+(*     bool_tree [Areg r1] inp b t -> *)
+(*     bool_tree [Areg r2] inp b t. *)
+(* Admitted. *)
+
+(* (* same for actions *) *)
+(* Lemma actions_rep_unicity: *)
+(*   forall a1 a2 code pc pcend t inp b n, *)
+(*     actions_rep a1 code pc pcend n -> *)
+(*     actions_rep a2 code pc pcend n -> *)
+(*     bool_tree a1 inp b t -> *)
+(*     bool_tree a2 inp b t. *)
+(* Proof. *)
+(*   intros a1 a2 code pc pcend t inp b n H H0 H1. *)
+(* Admitted. *)
+
+
 Lemma tt_same_measure:
   forall code inp t gm pc b n1 n2
     (TT1: tree_thread code inp (t,gm) (pc,gm,b) n1)
@@ -129,6 +150,16 @@ Lemma tt_same_measure:
 Proof.
 Admitted.
 
+(* would this be easier if we made the tree explicit in the relation? *)
+(* note that nfa_rep has no unicity prop: we could represent both epsilon and epsilon:epsilon *)
+(* same goes for actions_rep *)
+(* but in these cases, even from different actions, the trees are still the same *)
+(* could we compute a tree from a pc and an input? compute_tree pc inp *)
+(* then show tt code inp (t,gm) (pc,_,_) -> t = compute_tree pc inp *)
+(* Another idea is that even though multiple actions could correspond to the same pc *)
+(* when they are compiled each pc corresponds to a precise set of actions? *)
+(* no, it depends on the input for stars *)
+(* But I should be able to use th generate lemmas if my intermediate theorem uses a tree derivation to build another *)
 Lemma tt_same_tree:
   forall code inp t1 gm1 t2 gm2 n1 n2 pc b
     (TT1: tree_thread code inp (t1,gm1) (pc,gm1,b) n1)
@@ -136,6 +167,7 @@ Lemma tt_same_tree:
     t1 = t2.
 Proof.
 Admitted.
+
 
 (** * Invariant Initialization  *)
 

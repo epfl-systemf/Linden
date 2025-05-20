@@ -482,6 +482,7 @@ Proof.
     inversion SUBSETTREE.
 Qed.
 
+(* TODO: simplify/automate this proof *)
 (* in the case where we are at a stuttering step, we show that we still preserve the invariant and decrease the measure *)
 Theorem stutter_step:
   forall tree gm inp code pc b n idx
@@ -521,19 +522,56 @@ Proof.
     exists pcstart. exists b. exists n0. split; try split; try lia.
     + simpl. rewrite JMP. auto.
     + apply tt_eq with (pc_end:=pc_end) (actions:=Aclose gid::cont); try constructor; auto; pike_subset.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-Admitted.
-(* TODO: maybe rephrase the induction? In the jmp case of the representation *)
+  - invert_rep.
+    + invert_rep. invert_rep; try in_subset.
+      eapply IHTREE; eauto. pike_subset.
+    + exists pcstart. exists b. exists n0. split; try split; try lia.
+      * simpl. rewrite JMP. auto.
+      * apply tt_eq with (pc_end:=pc_end) (actions:=Areg Epsilon :: cont); try constructor; auto; pike_subset.
+  - invert_rep.
+    { invert_rep. invert_rep; try in_subset; try stutter. }
+    exists pcstart. exists b. exists n0. split; try split; try lia.
+    + simpl. rewrite JMP. auto.
+    + apply tt_eq with (pc_end:=pc_end) (actions:=Areg (Regex.Character cd) :: cont); try constructor; auto; pike_subset.
+      eapply tree_char; eauto.
+  - invert_rep.
+    { invert_rep. invert_rep; try in_subset; try stutter. }
+    exists pcstart. exists b. exists n0. split; try split; try lia.
+    + simpl. rewrite JMP. auto.
+    + apply tt_eq with (pc_end:=pc_end) (actions:=Areg (Regex.Character cd) :: cont); try constructor; auto; pike_subset.
+  - invert_rep.
+    { invert_rep. invert_rep; try in_subset; try stutter. }
+    exists pcstart. exists b. exists n0. split; try split; try lia.
+    * simpl. rewrite JMP. auto.
+    * apply tt_eq with (pc_end:=pc_end) (actions:=Areg (Disjunction r1 r2) :: cont); try constructor; auto; pike_subset.
+  - invert_rep.
+    + invert_rep. invert_rep; try in_subset.
+      eapply IHTREE; eauto. pike_subset.
+      repeat (econstructor; eauto).
+    + exists pcstart. exists b. exists n0. split; try split; try lia.
+      * simpl. rewrite JMP. auto.
+      * apply tt_eq with (pc_end:=pc_end) (actions:=Areg (Sequence r1 r2) :: cont); try constructor; auto; pike_subset.
+  - invert_rep.
+    { invert_rep. invert_rep; try in_subset; try stutter. }
+    exists pcstart. exists b. exists n0. split; try split; try lia.
+    * simpl. rewrite JMP. auto.
+    * apply tt_eq with (pc_end:=pc_end) (actions:=Areg (Quantified greedy (S min) plus r1) :: cont); try constructor; auto; pike_subset.
+  - pike_subset.
+  - invert_rep.
+    { invert_rep. invert_rep; try in_subset. destruct greedy; stutter. }
+    exists pcstart. exists b. exists n0. split; try split; try lia.
+    + simpl. rewrite JMP. auto.
+    + pike_subset. destruct plus; inversion H3. simpl in CONT0.
+      apply tt_eq with (pc_end:=pc_end) (actions:=Areg (Quantified greedy 0 (NoI.N 1 + +∞)%NoI r1) :: cont); try constructor; auto; pike_subset.
+      eapply tree_quant_free; eauto.
+  - invert_rep.
+    { invert_rep. invert_rep; try in_subset; try stutter. }
+    exists pcstart. exists b. exists n0. split; try split; try lia.
+    * simpl. rewrite JMP. auto.
+    * apply tt_eq with (pc_end:=pc_end) (actions:=Areg (Group gid r1):: cont); try constructor; auto; pike_subset.
+  - pike_subset.
+  - pike_subset.
+Qed.
 
 
 Theorem invariant_preservation:
@@ -624,28 +662,29 @@ Qed.
 
 
 (** * Backward Style Invariant Preservation *)
-Theorem backward_match:
-  forall tree gm idx inp code pc b n
-    (VMSTEP: epsilon_step (pc,gm,b) code inp idx = EpsMatch)
-    (NOSTUTTER: stutters pc code = false)
-    (TT: tree_thread code inp (tree, gm) (pc, gm, b) n),
-    tree = Match.
-Proof.
-  intros tree gm idx inp code pc b n VMSTEP NOSTUTTER TT.
-  simpl in VMSTEP.
-  (* extracting current instruction *)
-  destruct (get_pc code pc) as [instr|] eqn:CODE.
-  2: { inversion VMSTEP. }
-  destruct instr; try solve [inversion VMSTEP].
-  2: { destruct (check_read c inp); inversion VMSTEP. }
-  2: { destruct b; inversion VMSTEP. }
-  (* extracting relevant invariant case *)
-  inversion TT; subst.
-  2: { rewrite RESET in CODE. inversion CODE. }
-  2: { rewrite BEGIN in CODE. inversion CODE. }
-  (* there are many ways that we could be at an Accept instruction *)
-  (* we could have r = epsilon, cont = [] *)
-  (* or r = Epsilon;Epsilon, cont = []... *)
-Abort.
+(* Deprecated *)
+(* Theorem backward_match: *)
+(*   forall tree gm idx inp code pc b n *)
+(*     (VMSTEP: epsilon_step (pc,gm,b) code inp idx = EpsMatch) *)
+(*     (NOSTUTTER: stutters pc code = false) *)
+(*     (TT: tree_thread code inp (tree, gm) (pc, gm, b) n), *)
+(*     tree = Match. *)
+(* Proof. *)
+(*   intros tree gm idx inp code pc b n VMSTEP NOSTUTTER TT. *)
+(*   simpl in VMSTEP. *)
+(*   (* extracting current instruction *) *)
+(*   destruct (get_pc code pc) as [instr|] eqn:CODE. *)
+(*   2: { inversion VMSTEP. } *)
+(*   destruct instr; try solve [inversion VMSTEP]. *)
+(*   2: { destruct (check_read c inp); inversion VMSTEP. } *)
+(*   2: { destruct b; inversion VMSTEP. } *)
+(*   (* extracting relevant invariant case *) *)
+(*   inversion TT; subst. *)
+(*   2: { rewrite RESET in CODE. inversion CODE. } *)
+(*   2: { rewrite BEGIN in CODE. inversion CODE. } *)
+(*   (* there are many ways that we could be at an Accept instruction *) *)
+(*   (* we could have r = epsilon, cont = [] *) *)
+(*   (* or r = Epsilon;Epsilon, cont = []... *) *)
+(* Abort. *)
 (* It's really harder to reason from the VM step *)
 (* It's much easier to reason from a Pike tree step, ast it allows inductive reasoning on the bool_tree semantics  *)
