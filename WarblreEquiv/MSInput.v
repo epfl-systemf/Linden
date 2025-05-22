@@ -129,6 +129,57 @@ Section MSInput.
       + apply Hmatches2.
   Qed.
 
+  (* Two MatchStates that have the same end index and are compatible with the same input string have the same suffix. *)
+  Lemma ms_same_end_same_suffix:
+    forall ms ms' inp inp' str0 dir,
+      (MatchState.endIndex ms =? MatchState.endIndex ms')%Z = true ->
+      ms_matches_inp ms inp -> ms_matches_inp ms' inp' ->
+      input_compat inp str0 -> input_compat inp' str0 ->
+      ms_suffix ms dir = ms_suffix ms' dir.
+  Proof.
+    intros ms ms' inp inp' str0 dir Hsameend Hmsinp Hms'inp' Hinpcompat Hinp'compat.
+    rewrite Z.eqb_eq in Hsameend.
+    unfold ms_suffix.
+    rewrite <- Hsameend.
+    rewrite <- inp_compat_ms_same_inp with (str0 := str0) (inp1 := inp) (inp2 := inp') (ms1 := ms) (ms2 := ms') by assumption.
+    reflexivity.
+  Qed.
+
+  (* Same, but formulated in terms of the Linden input. *)
+  Lemma ms_same_end_inp_same_curr:
+    forall ms ms' inp inp' str0 dir,
+      (MatchState.endIndex ms =? MatchState.endIndex ms')%Z = true ->
+      ms_matches_inp ms inp -> ms_matches_inp ms' inp' ->
+      input_compat inp str0 -> input_compat inp' str0 ->
+      current_str inp dir = current_str inp' dir.
+  Proof.
+    intros ms ms' inp inp' str0 dir Hsameend Hmsinp Hms'inp' Hinpcompat Hinp'compat.
+    rewrite ms_suffix_current_str with (ms := ms) by assumption.
+    rewrite ms_suffix_current_str with (ms := ms') by assumption.
+    eauto using ms_same_end_same_suffix.
+  Qed.
+
+  (* Two MatchStates that do not have the same end index and are compatible with the same input string do not have the same suffix. *)
+  Lemma ms_diff_end_diff_suffix:
+    forall ms ms' inp inp' str0 dir,
+      (MatchState.endIndex ms =? MatchState.endIndex ms')%Z = false ->
+      ms_matches_inp ms inp -> ms_matches_inp ms' inp' ->
+      input_compat inp str0 -> input_compat inp' str0 ->
+      ms_suffix ms dir <> ms_suffix ms' dir.
+  Proof.
+    (* TODO. True because the assumptions that ms and ms' match inp and inp' respectively imply that the end indices are in bounds. *)
+  Admitted.
+
+  (* Same, but formulated in terms of the Linden input. *)
+  Lemma ms_diff_end_inp_diff_curr:
+    forall ms ms' inp inp' str0 dir,
+      (MatchState.endIndex ms =? MatchState.endIndex ms')%Z = false ->
+      ms_matches_inp ms inp -> ms_matches_inp ms' inp' ->
+      input_compat inp str0 -> input_compat inp' str0 ->
+      (current_str inp dir ==? current_str inp' dir)%wt = false.
+  Proof.
+  Admitted.
+
   (* Whether a MatchState matches an input does not depend on its captures. *)
   Lemma ms_matches_inp_capchg:
     forall str endInd cap cap' inp,

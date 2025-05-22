@@ -1,5 +1,6 @@
 From Linden Require Import EquivDef RegexpTranslation Regex LindenParameters
-  Semantics LWEquivTreeLemmas CharDescrCharSet Tactics.
+  Semantics LWEquivTreeLemmas CharDescrCharSet Tactics NumericLemmas
+  MSInput Chars Groups.
 From Warblre Require Import Parameters Semantics RegExpRecord Patterns
   Node Result Notation Typeclasses List Base Node.
 Import Patterns.
@@ -18,7 +19,9 @@ Section Equiv.
     forall (m: Matcher) (lreg: regex) (dir: Direction),
       equiv_matcher m lreg dir ->
       def_groups lreg = List.seq (parenIndex + 1) parenCount ->
-      forall fuel, equiv_matcher (fun ms mc => Semantics.repeatMatcher' m 0 (NoI.N 0) greedy ms mc parenIndex parenCount fuel) (Regex.Quantified greedy 0 (NoI.N 0) lreg) dir.
+      forall fuel, equiv_matcher
+        (fun ms mc => Semantics.repeatMatcher' m 0 (NoI.N 0) greedy ms mc parenIndex parenCount fuel)
+        (Regex.Quantified greedy 0 (NoI.N 0) lreg) dir.
   Proof.
     intros greedy parenIndex parenCount m lreg dir Hequiv Hgroupsvalid fuel.
     unfold equiv_matcher. intros str0 mc gl act Hequivcont Hgldisj.
@@ -26,6 +29,176 @@ Section Equiv.
     destruct fuel as [|fuel]; simpl; try discriminate.
     intros Hres Ht. eapply Hequivcont; eauto.
   Qed.
+
+  Lemma repeatMatcher'_free_equiv:
+    forall greedy parenIndex parenCount,
+    forall (m: Matcher) (lreg: regex) (dir: Direction),
+      equiv_matcher m lreg dir ->
+      def_groups lreg = List.seq (parenIndex + 1) parenCount ->
+      forall fuel delta, equiv_matcher
+        (fun ms mc => Semantics.repeatMatcher' m 0 delta greedy ms mc parenIndex parenCount fuel)
+        (Regex.Quantified greedy 0 delta lreg) dir.
+    Proof.
+      intros greedy parenIndex parenCount m lreg dir Hequiv Hgroupsvalid fuel.
+      induction fuel as [|fuel IHfuel]. 1: discriminate.
+
+      intro delta.
+      destruct (delta =? NoI.N (nat_to_nni 0))%NoI eqn:Hdeltazero.
+      1: { rewrite noi_eqb_eq in Hdeltazero. subst delta. now apply repeatMatcher'_done_equiv. }
+      simpl. rewrite Hdeltazero.
+      unfold equiv_matcher. intros str0 mc gl act Hequivcont Hgldisj.
+      unfold equiv_cont. intros gm ms inp res fueltree t Hinpcompat Hgmms Hgmgl Hmsinp.
+      destruct List.Update.Nat.Batch.update as [cap'|] eqn:Heqcap'; simpl; try discriminate.
+      set (mcloop := fun y: MatchState => if (_ =? _)%Z then _ else _).
+      set (msreset := match_state _ _ cap').
+      assert (Hmcloopequiv: equiv_cont mcloop gl (Acheck (current_str inp dir)::Areg (Regex.Quantified greedy 0 (delta - 1)%NoI lreg)::act)%list dir str0). {
+        unfold equiv_cont. intros gm' ms' inp' res' fueltree' t' Hinp'compat Hgm'ms' Hgm'gl Hms'inp'.
+        unfold mcloop.
+        destruct (_ =? _)%Z eqn:Heqcheck.
+        - (* Case 1: the input has not progressed *)
+          intro H. injection H as <-.
+          destruct fueltree' as [|fueltree']; simpl; try discriminate.
+          rewrite ms_same_end_inp_same_curr with (ms := ms') (ms' := ms) (inp := inp') (inp' := inp) (str0 := str0) by assumption.
+          rewrite EqDec.reflb.
+          intro H. injection H as <-.
+          constructor.
+        - (* Case 2: the input has progressed *)
+          set (delta' := if (delta =? +∞)%NoI then _ else _).
+          specialize (IHfuel delta').
+          unfold equiv_matcher in IHfuel. specialize (IHfuel str0 mc gl act Hequivcont Hgldisj).
+          unfold equiv_cont in IHfuel.
+          intros Hres'succ.
+          destruct fueltree' as [|fueltree']; simpl; try discriminate.
+          rewrite ms_diff_end_inp_diff_curr with (ms := ms') (ms' := ms) (str0 := str0) by assumption.
+          destruct compute_tree' as [treecont|] eqn:Htreecontsucc; simpl; try discriminate.
+          intro H. injection H as <-.
+          simpl. eapply IHfuel; eauto.
+          replace (delta') with (delta-1)%NoI. 1: apply Htreecontsucc.
+          unfold delta'. now destruct delta.
+      }
+      (* About m msreset mcloop *)
+      unfold equiv_matcher in Hequiv. specialize (Hequiv str0 mcloop gl _ Hmcloopequiv Hgldisj).
+      set (gmreset := GroupMap.reset (def_groups lreg) gm).
+      unfold equiv_cont in Hequiv.
+      specialize (Hequiv gmreset msreset inp).
+      destruct fueltree as [|fueltree]; simpl; try discriminate.
+      (* About mc ms *)
+      unfold equiv_cont in Hequivcont. specialize (Hequivcont gm ms inp).
+      
+      (* Case analysis on greediness *)
+      destruct greedy.
+      - destruct (m msreset mcloop) as [resloop|] eqn:Hresloopsucc; simpl; try discriminate.
+        specialize (Hequiv resloop fueltree).
+        destruct resloop as [resloopms|]; simpl.
+        + (* resloop is not None *)
+          intro H. injection H as <-.
+          destruct delta as [[|delta']|]; simpl in *; try discriminate.
+          * (* delta is finite *)
+            destruct (compute_tree' _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree' act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            intro H. injection H as <-.
+            replace (delta' - 0) with delta' in * by lia.
+            specialize (Hequiv titer Hinpcompat). do 2 specialize_prove Hequiv by admit.
+            specialize_prove Hequiv. {
+              destruct ms. eapply ms_matches_inp_capchg; eauto.
+            }
+            specialize (Hequiv eq_refl Htitersucc).
+            inversion Hequiv. simpl. unfold gmreset in H. rewrite <- H. simpl. constructor. assumption.
+          * (* delta is infinite; copy-pasting and removing one line *)
+            destruct (compute_tree' _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree' act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            intro H. injection H as <-.
+            specialize (Hequiv titer Hinpcompat). do 2 specialize_prove Hequiv by admit.
+            specialize_prove Hequiv. {
+              destruct ms. eapply ms_matches_inp_capchg; eauto.
+            }
+            specialize (Hequiv eq_refl Htitersucc).
+            inversion Hequiv. simpl. unfold gmreset in H. rewrite <- H. simpl. constructor. assumption.
+        + (* resloop is None *)
+          intro Hcontsucc. destruct delta as [[|delta']|]; simpl in *; try discriminate.
+          * (* delta is finite *)
+            destruct (compute_tree' _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree' act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            intro H. injection H as <-.
+            replace (delta' - 0) with delta' in * by lia.
+            specialize (Hequiv titer Hinpcompat). do 2 specialize_prove Hequiv by admit.
+            specialize_prove Hequiv. {
+              destruct ms. eapply ms_matches_inp_capchg; eauto.
+            }
+            specialize (Hequiv eq_refl Htitersucc).
+            inversion Hequiv. simpl. unfold gmreset in H0. rewrite <- H0. simpl. eapply Hequivcont; eauto.
+          * (* delta is infinite; copy-pasting and removing one line *)
+            destruct (compute_tree' _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree' act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            intro H. injection H as <-.
+            specialize (Hequiv titer Hinpcompat). do 2 specialize_prove Hequiv by admit.
+            specialize_prove Hequiv. {
+              destruct ms. eapply ms_matches_inp_capchg; eauto.
+            }
+            specialize (Hequiv eq_refl Htitersucc).
+            inversion Hequiv. simpl. unfold gmreset in H0. rewrite <- H0. simpl. eapply Hequivcont; eauto.
+      
+      - destruct (mc ms) as [resskip|] eqn:Hresskipsucc; simpl; try discriminate.
+        (* Probably similar to greedy case *)
+        admit.
+  Admitted.
+
+  Lemma repeatMatcher'_equiv:
+    forall greedy parenIndex parenCount,
+    forall (m: Matcher) (lreg: regex) (dir: Direction),
+      equiv_matcher m lreg dir ->
+      def_groups lreg = List.seq (parenIndex + 1) parenCount ->
+      forall fuel min delta, equiv_matcher
+        (fun ms mc => Semantics.repeatMatcher' m min (NoI.N min + delta)%NoI greedy ms mc parenIndex parenCount fuel)
+        (Regex.Quantified greedy min delta lreg) dir.
+  Proof.
+    intros greedy parenIndex parenCount m lreg dir Hequiv Hgroupsvalid fuel.
+    induction fuel as [|fuel IHfuel]. 1: discriminate.
+
+    intros min delta.
+    set (max := (NoI.N min + delta)%NoI).
+    destruct (max =? NoI.N (nat_to_nni 0))%NoI eqn:Hmaxzero.
+    1: { (* Apply repeatMatcher'_done_equiv *)
+      rewrite noi_eqb_eq in Hmaxzero. rewrite Hmaxzero.
+      unfold max in Hmaxzero. destruct delta as [delta|]; try discriminate.
+      simpl in Hmaxzero. destruct min; try discriminate. destruct delta; try discriminate. apply repeatMatcher'_done_equiv; auto.
+    }
+    destruct min as [|min'].
+    1: { (* Apply repeatMatcher'_free_equiv *)
+      subst max. replace (NoI.N 0 + delta)%NoI with delta by now destruct delta.
+      apply repeatMatcher'_free_equiv; auto.
+    }
+    (* Now we have min <> 0 *)
+    unfold equiv_matcher.
+    intros str0 mc gl act Hequivcont Hgldisj. unfold equiv_cont.
+    intros gm ms inp res fueltree t Hinpcompat Hgmms Hgmgl Hmsinp.
+    simpl.
+    rewrite Hmaxzero.
+    replace (min' - 0) with min' by lia.
+    destruct List.Update.Nat.Batch.update as [capreset|] eqn:Hcapreset; simpl; try discriminate.
+    rewrite mini_plus_plusminus_one with (mini := min') (plus := delta). 2: reflexivity.
+    specialize (IHfuel min' delta). unfold equiv_matcher in IHfuel. specialize (IHfuel str0 mc gl act Hequivcont Hgldisj).
+    unfold equiv_matcher in Hequiv. specialize (Hequiv str0 _ gl _ IHfuel Hgldisj).
+    set (msreset := match_state _ _ capreset).
+    unfold equiv_cont in Hequiv.
+    specialize (Hequiv (GroupMap.reset (def_groups lreg) gm) msreset inp res).
+    intro Hressucc. destruct fueltree as [|fueltree]; simpl; try discriminate.
+    destruct (compute_tree' _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+    intro H. injection H as <-.
+    simpl. eapply Hequiv; eauto. 1,2: admit.
+    destruct ms. eapply ms_matches_inp_capchg; eauto.
+  Admitted.
+    
+  Corollary repeatMatcher_equiv:
+    forall greedy parenIndex parenCount,
+    forall (m: Matcher) (lreg: regex) (dir: Direction),
+      equiv_matcher m lreg dir ->
+      def_groups lreg = List.seq (parenIndex + 1) parenCount ->
+      forall min delta, equiv_matcher
+        (fun ms mc => Semantics.repeatMatcher m min (NoI.N min + delta)%NoI greedy ms mc parenIndex parenCount)
+        (Regex.Quantified greedy min delta lreg) dir.
+  Proof.
+  Admitted.
 
   Theorem equiv:
     forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
@@ -204,13 +377,33 @@ Section Equiv.
     - (* Quantified *)
       intros ctx Hroot Heqn m dir. simpl.
       destruct Semantics.compileSubPattern as [msub|] eqn:Hcompsuccsub; simpl; try discriminate.
+      specialize (IH (Quantified_inner (wgreedylazy wquant)::ctx)%list).
+      specialize_prove IH by eauto using Down.same_root_down0, Down_Quantified_inner.
+      specialize_prove IH. {
+        simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia.
+      }
+      specialize (IH msub dir Hcompsuccsub).
       set (min := Semantics.CompiledQuantifier_min _).
       set (max := Semantics.CompiledQuantifier_max _).
       rewrite compilequant_greedy with (lquant := lquant) (greedy := greedy) by assumption.
       set (parenIndex := StaticSemantics.countLeftCapturingParensBefore _ ctx).
       set (parenCount := StaticSemantics.countLeftCapturingParensWithin _ _).
       destruct (min <=? max)%NoI eqn:Hmini_le_maxi; simpl; try discriminate.
-      intro H. injection H as <-. admit.
+      intro H. injection H as <-.
+      rewrite <- noi_add_diff with (x := min) (y := max) by assumption.
+      pose proof equiv_def_groups wr lr n parenCount (Quantified_inner (wgreedylazy wquant) :: ctx)%list Hequiv eq_refl as Hgroupsvalid.
+      rewrite Heqn in Hgroupsvalid. replace (StaticSemantics.countLeftCapturingParensBefore _ _) with parenIndex in Hgroupsvalid. 2: {
+        unfold parenIndex, StaticSemantics.countLeftCapturingParensBefore. reflexivity.
+      }
+      inversion Hequivquant as [
+          Heqwquant Heqlquant |
+          Heqwquant Heqlquant |
+          Heqwquant Heqlquant |
+          nrep Heqwquant Heqlquant |
+          nmin Heqwquant Heqlquant |
+          mini' maxi' Hle' Heqwquant Heqlquant]; subst wquant lquant;
+      inversion Hequivgreedy as [Heqwgl Heqgreedy | Heqwgl Heqgreedy]; subst wgreedylazy greedy; simpl in *; try apply repeatMatcher_equiv; auto.
+      all: replace (nrep - min) with 0 by lia; apply repeatMatcher_equiv; auto.
 
     - (* Group *)
       intros ctx Hroot Heqn m dir. simpl.
