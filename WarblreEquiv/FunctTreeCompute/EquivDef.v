@@ -23,10 +23,16 @@ Section EquivDef.
       (* the first branch of t is equivalent to the result res. *)
       equiv_groupmap_ms_opt (tree_res t gm (idx inp) dir) res.
 
+  (* Definition of when a Matcher recognizes a regex in a given direction. *)
+  (* A Matcher m is said to recognize a regex reg in direction dir when: *)
   Definition equiv_matcher (m: Matcher) (reg: regex) (dir: Direction): Prop :=
+    (* for any input string str0, *)
     forall (str0: string) (mc: MatcherContinuation) (gl: open_groups) (act: actions),
+    (* for any MatcherContinuation mc working with the list of open groups gl on the string str0 performing the actions act, *)
     equiv_cont mc gl act dir str0 ->
+    (* if the open groups do not contain any of the groups defined by reg, *)
     open_groups_disjoint gl (def_groups reg) ->
+    (* plugging the continuation mc into the matcher m yields a continuation that performs the actions Areg reg :: act. *)
     equiv_cont (fun ms => m ms mc) gl (Areg reg :: act)%list dir str0.
 
 End EquivDef.
