@@ -1,6 +1,6 @@
 From Linden Require Import EquivDef RegexpTranslation Regex LindenParameters
   Semantics LWEquivTreeLemmas CharDescrCharSet Tactics NumericLemmas
-  MSInput Chars Groups.
+  MSInput Chars Groups EquivLemmas.
 From Warblre Require Import Parameters Semantics RegExpRecord Patterns
   Node Result Notation Typeclasses List Base Node.
 Import Patterns.
@@ -98,20 +98,20 @@ Section Equiv.
             destruct (compute_tree' act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
             intro H. injection H as <-.
             replace (delta' - 0) with delta' in * by lia.
-            specialize (Hequiv titer Hinpcompat). do 2 specialize_prove Hequiv by admit.
-            specialize_prove Hequiv. {
-              destruct ms. eapply ms_matches_inp_capchg; eauto.
-            }
+            specialize (Hequiv titer Hinpcompat).
+            specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
+            specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
+            specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
             specialize (Hequiv eq_refl Htitersucc).
             inversion Hequiv. simpl. unfold gmreset in H. rewrite <- H. simpl. constructor. assumption.
           * (* delta is infinite; copy-pasting and removing one line *)
             destruct (compute_tree' _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
             destruct (compute_tree' act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
             intro H. injection H as <-.
-            specialize (Hequiv titer Hinpcompat). do 2 specialize_prove Hequiv by admit.
-            specialize_prove Hequiv. {
-              destruct ms. eapply ms_matches_inp_capchg; eauto.
-            }
+            specialize (Hequiv titer Hinpcompat).
+            specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
+            specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
+            specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
             specialize (Hequiv eq_refl Htitersucc).
             inversion Hequiv. simpl. unfold gmreset in H. rewrite <- H. simpl. constructor. assumption.
         + (* resloop is None *)
@@ -121,20 +121,20 @@ Section Equiv.
             destruct (compute_tree' act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
             intro H. injection H as <-.
             replace (delta' - 0) with delta' in * by lia.
-            specialize (Hequiv titer Hinpcompat). do 2 specialize_prove Hequiv by admit.
-            specialize_prove Hequiv. {
-              destruct ms. eapply ms_matches_inp_capchg; eauto.
-            }
+            specialize (Hequiv titer Hinpcompat).
+            specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
+            specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
+            specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
             specialize (Hequiv eq_refl Htitersucc).
             inversion Hequiv. simpl. unfold gmreset in H0. rewrite <- H0. simpl. eapply Hequivcont; eauto.
           * (* delta is infinite; copy-pasting and removing one line *)
             destruct (compute_tree' _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
             destruct (compute_tree' act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
             intro H. injection H as <-.
-            specialize (Hequiv titer Hinpcompat). do 2 specialize_prove Hequiv by admit.
-            specialize_prove Hequiv. {
-              destruct ms. eapply ms_matches_inp_capchg; eauto.
-            }
+            specialize (Hequiv titer Hinpcompat).
+            specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
+            specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
+            specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
             specialize (Hequiv eq_refl Htitersucc).
             inversion Hequiv. simpl. unfold gmreset in H0. rewrite <- H0. simpl. eapply Hequivcont; eauto.
       
@@ -185,9 +185,11 @@ Section Equiv.
     intro Hressucc. destruct fueltree as [|fueltree]; simpl; try discriminate.
     destruct (compute_tree' _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
     intro H. injection H as <-.
-    simpl. eapply Hequiv; eauto. 1,2: admit.
-    destruct ms. eapply ms_matches_inp_capchg; eauto.
-  Admitted.
+    simpl. eapply Hequiv; eauto.
+    - eapply equiv_gm_ms_reset; eauto.
+    - eapply equiv_open_groups_reset; eauto.
+    - destruct ms. eapply ms_matches_inp_capchg; eauto.
+  Qed.
     
   Corollary repeatMatcher_equiv:
     forall greedy parenIndex parenCount,
@@ -272,7 +274,7 @@ Section Equiv.
           destruct compute_tree' as [tcont|] eqn:Htcont; simpl; try discriminate.
           intro H. injection H as <-. simpl.
           unfold equiv_cont in Hequivcont.
-          replace (Tree.advance_idx _ _) with (idx inp') by admit.
+          rewrite advance_idx_advance_input with (inp' := inp') by assumption.
           eapply Hequivcont with (ms := match_state (MatchState.input ms) nextend (MatchState.captures ms)); eauto.
           1: eauto using advance_input_compat.
           eapply ms_matches_inp_adv; eauto. unfold MSInput.advance_ms. now destruct dir.
@@ -316,8 +318,10 @@ Section Equiv.
       unfold equiv_cont. intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp.
       unfold equiv_matcher in IH1, IH2.
       (* Specialize the induction hypotheses again naturally *)
-      specialize (IH1 str0 mc gl act Hequivcont). specialize_prove IH1 by admit. (* Group disjointness from sub-regexp *)
-      specialize (IH2 str0 mc gl act Hequivcont). specialize_prove IH2 by admit. (* Group disjointness from sub-regexp *)
+      specialize (IH1 str0 mc gl act Hequivcont).
+      specialize_prove IH1 by eauto using disj_parent_disj_child, Child_Disjunction_left.
+      specialize (IH2 str0 mc gl act Hequivcont).
+      specialize_prove IH2 by eauto using disj_parent_disj_child, Child_Disjunction_right.
       unfold equiv_cont in IH1, IH2.
       (* Eliminate failing cases *)
       destruct fuel as [|fuel]; simpl; try discriminate.
@@ -360,9 +364,11 @@ Section Equiv.
         assert (Hequivcont2: equiv_cont mc2 gl (Areg lr2 :: act)%list forward str0). {
           unfold equiv_cont. clear gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp.
           intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp. unfold mc2.
-          intros Hres Ht. eapply IH2; eauto. admit. (* Group disjointness from sub-regexp *)
+          intros Hres Ht. eapply IH2; eauto.
+          eauto using disj_parent_disj_child, Child_Sequence_right.
         }
-        intros Hres Ht. eapply IH1; eauto. admit. (* Group disjointness from sub-regexp *)
+        intros Hres Ht. eapply IH1; eauto.
+        eauto using disj_parent_disj_child, Child_Sequence_left.
       + (* Backward *)
         unfold equiv_matcher. intros str0 mc gl act Hequivcont Hgldisj.
         unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp; try discriminate; simpl.
@@ -370,9 +376,9 @@ Section Equiv.
         assert (Hequivcont1: equiv_cont mc1 gl (Areg lr1 :: act)%list backward str0). {
           unfold equiv_cont. clear gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp.
           intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp. unfold mc1.
-          intros Hres Ht. eapply IH1; eauto. admit. (* Group disjointness from sub-regexp *)
+          intros Hres Ht. eapply IH1; eauto. eauto using disj_parent_disj_child, Child_Sequence_left.
         }
-        intros Hres Ht. eapply IH2; eauto. admit. (* Group disjointness from sub-regexp *)
+        intros Hres Ht. eapply IH2; eauto. eauto using disj_parent_disj_child, Child_Sequence_right.
 
     - (* Quantified *)
       intros ctx Hroot Heqn m dir. simpl.
