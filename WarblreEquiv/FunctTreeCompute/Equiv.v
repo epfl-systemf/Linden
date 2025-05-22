@@ -428,7 +428,9 @@ Section Equiv.
         destruct List.Update.Nat.One.update as [cap'|] eqn:Heqcap'; simpl; try discriminate.
         intros Hres' Ht'. injection Ht' as <-. simpl.
         eapply Hequivcont with (ms := match_state (MatchState.input ms) (MatchState.endIndex ms') cap'); eauto.
-        all: admit.
+        - eapply equiv_gm_ms_close_group; eauto.
+        - eapply equiv_open_groups_close_group; eauto.
+        - eapply ms_matches_inp_close_group; eauto.
       }
       destruct compute_tree' as [treecont|] eqn:Htreecont; simpl; try discriminate.
       intros Hres H. injection H as <-. simpl.

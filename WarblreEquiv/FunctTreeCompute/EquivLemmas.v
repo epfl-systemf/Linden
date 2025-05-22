@@ -1,9 +1,9 @@
-From Linden Require Import Regex GroupMapMS LindenParameters Groups Tree Chars Semantics.
-From Warblre Require Import Parameters List Notation Result.
-From Coq Require Import List.
+From Linden Require Import Regex GroupMapMS LindenParameters Groups Tree Chars Semantics MSInput.
+From Warblre Require Import Parameters List Notation Result Typeclasses Base Errors.
+From Coq Require Import List ZArith.
 Import ListNotations.
 Import Notation.
-Import Result.
+Import Result.Notations.
 
 Section EquivLemmas.
   Context `{characterClass: Character.class}.
@@ -69,5 +69,48 @@ Section EquivLemmas.
   Proof.
   Admitted.
 
+  (* Lemma for closing a group *)
+  Lemma equiv_gm_ms_close_group:
+    forall ms ms' inp inp' gm' n gl dir (rres: Result (option CaptureRange) MatchError) r cap' str0
+      (Hmsinp: ms_matches_inp ms inp)
+      (Hinpcompat: input_compat inp str0)
+      (Hms'inp': ms_matches_inp ms' inp')
+      (Hinp'compat: input_compat inp' str0)
+      (Hgm'ms': equiv_groupmap_ms gm' ms')
+      (Hgm'gl': group_map_equiv_open_groups gm' ((S n, idx inp)::gl))
+      (Heqrres: rres = 
+        if (dir ==? forward)%wt
+        then
+         if negb (MatchState.endIndex ms <=? MatchState.endIndex ms')%Z
+         then Error Errors.MatchError.AssertionFailed
+         else
+          Coercions.wrap_option Errors.MatchError.type CaptureRange
+            (Coercions.CaptureRange_or_undefined
+               (capture_range (MatchState.endIndex ms) (MatchState.endIndex ms')))
+        else
+         if negb (MatchState.endIndex ms' <=? MatchState.endIndex ms)%Z
+         then Error Errors.MatchError.AssertionFailed
+         else
+          Coercions.wrap_option Errors.MatchError.type CaptureRange
+            (Coercions.CaptureRange_or_undefined
+               (capture_range (MatchState.endIndex ms') (MatchState.endIndex ms))))
+      (Hrressucc: rres = Success r)
+      (Hcapupd: List.Update.Nat.One.update r (MatchState.captures ms') n = Success cap'),
+      equiv_groupmap_ms (GroupMap.close (idx inp') (S n) gm') (match_state (MatchState.input ms) (MatchState.endIndex ms') cap').
+  Admitted.
   
+  Lemma equiv_open_groups_close_group:
+    forall n startidx endidx gm' gl lr,
+      group_map_equiv_open_groups gm' ((S n, startidx)::gl) ->
+      open_groups_disjoint gl (def_groups (Regex.Group (S n) lr)) ->
+      group_map_equiv_open_groups (GroupMap.close endidx (S n) gm') gl.
+  Admitted.
+
+  Lemma ms_matches_inp_close_group:
+    forall ms ms' cap' inp inp' str0,
+      ms_matches_inp ms' inp' ->
+      input_compat inp str0 ->
+      input_compat inp' str0 ->
+      ms_matches_inp (match_state (MatchState.input ms) (MatchState.endIndex ms') cap') inp'.
+  Admitted.
 End EquivLemmas.
