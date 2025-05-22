@@ -41,6 +41,10 @@ Section GroupMapMS.
       GroupMap.find gid gm = Some (GroupMap.Range idx None) <->
       In (gid, idx) gl.
 
+  (* Absence of forbidden groups from the group map *)
+  Definition no_forbidden_groups (gm: GroupMap.t) (forbidden_groups: list group_id) :=
+    forall gid: group_id, In gid forbidden_groups -> GroupMap.find gid gm = None.
+
   (* Disjointness of open groups list with list of defined groups; needed for capture reset case *)
   Definition open_groups_disjoint (gl: open_groups) (def_groups: list group_id) :=
     forall gid idx, In (gid, idx) gl -> ~In gid def_groups.

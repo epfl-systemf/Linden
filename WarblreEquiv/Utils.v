@@ -13,4 +13,7 @@ Module List.
     - tauto.
     - split. + discriminate. + contradiction.
   Qed.
+
+  Definition Disjoint {A} (l1 l2: list A): Prop :=
+    forall x: A, In x l1 -> ~In x l2.
 End List.
