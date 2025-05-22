@@ -8,7 +8,7 @@ From Linden Require Import Groups Semantics.
 From Warblre Require Import Numeric Base.
 
 From Coq Require Import Lia.
-From Coq Require Import Program.
+(* From Coq Require Import Program. *)
 
 Context `{characterClass: Character.class}.
 
@@ -271,14 +271,28 @@ Lemma regex_monoton:
     strict_suffix inp1 inp2 dir ->
     regex_fuel r inp1 dir <= regex_fuel r inp2 dir.
 Proof.
-Admitted.
+  intros r dir inp1 inp2 H.
+  induction r; simpl; try lia.
+  - apply strict_suffix_max_iter in H as MAX.
+    apply PeanoNat.Nat.add_le_mono; try lia.
+    apply PeanoNat.Nat.add_le_mono; try lia.
+    apply PeanoNat.Nat.mul_le_mono; try lia.
+  - apply suffix_same_worst with (dir:=lk_dir lk) in H as WORST.
+    rewrite WORST. lia.
+Qed.
 
 Lemma actions_monoton:
   forall act dir inp1 inp2,
     strict_suffix inp1 inp2 dir ->
     actions_fuel act inp1 dir <= actions_fuel act inp2 dir.
 Proof.
-Admitted.
+  intros act dir inp1 inp2 H. induction act.
+  { simpl. lia. }
+  destruct a.
+  - simpl. apply regex_monoton with (r:=r) in H as R. lia.
+  - simpl. destruct (advance_input i dir) eqn:ADV; try lia.
+  - simpl. lia.
+Qed.
 
 (** * Termination Lemmas  *)
 (* Proving, for each recursive call, that the measure strictly decreases *)
@@ -381,63 +395,187 @@ Qed.
 
 Lemma group_termination:
   forall cont inp dir r1 gid,
-    actions_fuel cont inp dir < actions_fuel (Areg (Group gid r1) :: cont) inp dir.
+    actions_fuel (Areg r1 :: Aclose gid :: cont) inp dir < actions_fuel (Areg (Group gid r1) :: cont) inp dir.
 Proof. intros. simpl. lia. Qed.
+
+
 
 (** * Computing a tree  *)
 
 
-  Program Fixpoint compute_tree (act: actions) (inp: input) (gm: group_map) (dir: Direction) {measure (actions_fuel act inp dir)}: tree :=
-    match act with
-    (* tree_done *)
-    | [] => Match
-    (* tree_check, tree_check_fail *)
-    | Acheck strcheck :: cont =>
-        if (current_str inp dir ==? strcheck)%wt then
-          Mismatch
-        else
-          let treecont := compute_tree cont inp gm dir in
-          (Progress strcheck treecont)
-    (* tree_close *)
-    | Aclose gid :: cont =>
-        let treecont := compute_tree cont inp (GroupMap.close (idx inp) gid gm) dir in
-        (GroupAction (Close gid) treecont)
-    (* tree_epsilon *)
-    | Areg Epsilon::cont => compute_tree cont inp gm dir
-    (* tree_char, tree_char_fail *)
-    | Areg (Regex.Character cd)::cont =>
-        match read_char cd inp dir with
-        | Some (c, nextinp) =>
-            let tcont := compute_tree cont nextinp gm dir in
-            (Read c tcont)
-        | None => Mismatch
-        end
-    (* tree_disj *)
-    | Areg (Disjunction r1 r2)::cont =>
-        let t1 := compute_tree (Areg r1 :: cont) inp gm dir in
-        let t2 := compute_tree (Areg r2 :: cont) inp gm dir in
-        (Choice t1 t2)
-    (* tree_sequence *)
-    | Areg (Sequence r1 r2)::cont =>
-        compute_tree (seq_list r1 r2 dir ++ cont) inp gm dir
-    (* tree_quant_forced *)
-    | Areg (Quantified greedy (S min) delta r1)::cont =>
-        let gidl := def_groups r1 in
-        let titer := compute_tree (Areg r1 :: Areg (Quantified greedy min delta r1) :: cont) inp (GroupMap.reset gidl gm) dir in
-        (GroupAction (Reset gidl) titer)
-    (* tree_quant_done *)
-    | Areg (Quantified greedy 0 (NoI.N 0) r1)::cont =>
-        compute_tree cont inp gm dir
-    (* tree_quant_free *)
-    | Areg (Quantified greedy 0 delta r1)::cont =>
-        let gidl := def_groups r1 in
-        let titer := compute_tree (Areg r1 :: Acheck (current_str inp dir) :: Areg (Quantified greedy 0 (noi_pred delta) r1) :: cont) inp (GroupMap.reset gidl gm) dir in
-        let tskip := compute_tree cont inp gm dir in
-        (greedy_choice greedy (GroupAction (Reset gidl) titer) tskip)
-    (* tree_group *)
-    | Areg (Group gid r1)::cont =>
-        let treecont := compute_tree (Areg r1 :: Aclose gid :: cont) inp (GroupMap.open (idx inp) gid gm) dir in
-        (GroupAction (Open gid) treecont)
-    (* tree_lk, tree_lk_fail, tree_anchor, tree_anchor_fail, tree_backref, tree_backref_fail: TODO *)
-    | _ => Mismatch
-    end.
+Fixpoint compute_tree (act: actions) (inp: input) (gm: group_map) (dir: Direction) (fuel:nat): option tree :=
+  match fuel with
+  | 0 => None
+  | S fuel => 
+      match act with
+      (* tree_done *)
+      | [] => Some Match
+      (* tree_check, tree_check_fail *)
+      | Acheck strcheck :: cont =>
+          if (is_strict_suffix inp strcheck dir) then
+            match (compute_tree cont inp gm dir fuel) with
+            | Some treecont => Some (Progress strcheck treecont)
+            | None => None
+            end
+          else Some Mismatch            
+      (* tree_close *)
+      | Aclose gid :: cont =>
+          match (compute_tree cont inp (GroupMap.close (idx inp) gid gm) dir fuel) with
+          | Some treecont => Some (GroupAction (Close gid) treecont)
+          | None => None
+          end          
+      (* tree_epsilon *)
+      | Areg Epsilon::cont => compute_tree cont inp gm dir fuel
+      (* tree_char, tree_char_fail *)
+      | Areg (Regex.Character cd)::cont =>
+          match read_char cd inp dir with
+          | Some (c, nextinp) =>
+              match (compute_tree cont nextinp gm dir fuel) with
+              | Some treecont => Some (Read c treecont)
+              | None => None
+              end
+          | None => Some Mismatch
+              end
+      (* tree_disj *)
+      | Areg (Disjunction r1 r2)::cont =>
+          match (compute_tree (Areg r1 :: cont) inp gm dir fuel, compute_tree (Areg r2 :: cont) inp gm dir fuel) with
+          | (Some t1, Some t2) => Some (Choice t1 t2)
+          | _ => None
+          end
+      (* tree_sequence *)
+      | Areg (Sequence r1 r2)::cont =>
+          compute_tree (seq_list r1 r2 dir ++ cont) inp gm dir fuel
+      (* tree_quant_forced *)
+      | Areg (Quantified greedy (S min) delta r1)::cont =>
+          let gidl := def_groups r1 in
+          match compute_tree (Areg r1 :: Areg (Quantified greedy min delta r1) :: cont) inp (GroupMap.reset gidl gm) dir fuel with
+          | Some titer => Some (GroupAction (Reset gidl) titer)
+          | None => None
+          end          
+      (* tree_quant_done *)
+      | Areg (Quantified greedy 0 (NoI.N 0) r1)::cont =>
+          compute_tree cont inp gm dir fuel
+      (* tree_quant_free *)
+      | Areg (Quantified greedy 0 delta r1)::cont =>
+          let gidl := def_groups r1 in
+          match  (compute_tree (Areg r1 :: Acheck inp :: Areg (Quantified greedy 0 (noi_pred delta) r1) :: cont) inp (GroupMap.reset gidl gm) dir fuel, compute_tree cont inp gm dir fuel) with
+          | (Some titer, Some tskip) =>  Some (greedy_choice greedy (GroupAction (Reset gidl) titer) tskip)
+          | _ => None
+          end
+      (* tree_group *)
+      | Areg (Group gid r1)::cont =>
+          match compute_tree (Areg r1 :: Aclose gid :: cont) inp (GroupMap.open (idx inp) gid gm) dir fuel with
+          | Some treecont => Some (GroupAction (Open gid) treecont)
+          | _ => None
+          end          
+      (* tree_lk, tree_lk_fail, tree_anchor, tree_anchor_fail, tree_backref, tree_backref_fail: TODO *)
+      | _ => Some Mismatch
+      end
+  end.
+  
+(** * Functional Semantics Termination  *)
+
+Lemma somenone:
+  forall T (x:T), Some x <> None.
+Proof.
+  intros T x. unfold not. intros H. inversion H.
+Qed.
+
+Lemma noi_destruct:
+  forall n, n = NoI.N 0 \/ n <> NoI.N 0.
+Proof.
+  destruct n.
+  2: { right. unfold not. intros H. inversion H. }
+  destruct n.
+  - left. auto.
+  - right. unfold not. intros H. inversion H.
+Qed.
+
+Theorem functional_terminates:
+  forall act inp gm dir fuel,
+    fuel > actions_fuel act inp dir ->
+    compute_tree act inp gm dir fuel <> None.
+Proof.
+  intros act inp gm dir fuel H.
+  generalize dependent act. generalize dependent inp. 
+  generalize dependent gm. generalize dependent dir.
+  induction fuel; intros.
+  { inversion H. }
+  destruct act as [|a act].
+  { simpl. apply somenone. }
+  destruct a.
+  - destruct r.
+    + simpl. generalize (epsilon_termination act inp dir). intros.
+      assert (ENOUGH: fuel > actions_fuel act inp dir) by lia.
+      apply IHfuel with (gm:=gm) in ENOUGH.
+      destruct (compute_tree act inp gm dir fuel); try contradiction.
+      apply somenone.
+    + simpl. destruct (read_char cd inp dir) eqn:READ; try apply somenone.
+      destruct p as [c nextinp].
+      generalize (character_termination act inp dir cd c nextinp READ). intros.
+      assert (ENOUGH: fuel > actions_fuel act nextinp dir) by lia.
+      apply IHfuel with (gm:=gm) in ENOUGH.
+      destruct (compute_tree act nextinp gm dir fuel); try contradiction.
+      apply somenone.
+    + simpl. generalize (disjunction_left_termination act inp dir r1 r2). intros.
+      generalize (disjunction_right_termination act inp dir r1 r2). intros.
+      assert (ENOUGH1: fuel > actions_fuel (Areg r1::act) inp dir) by lia.
+      assert (ENOUGH2: fuel > actions_fuel (Areg r2::act) inp dir) by lia.
+      apply IHfuel with (gm:=gm) in ENOUGH1. apply IHfuel with (gm:=gm) in ENOUGH2.
+      destruct (compute_tree (Areg r1 :: act) inp gm dir fuel); try contradiction.
+      destruct (compute_tree (Areg r2 :: act) inp gm dir fuel); try contradiction.
+      apply somenone.
+    + simpl. generalize (sequence_termination act inp dir r1 r2). intros.
+      assert (ENOUGH: fuel > actions_fuel (seq_list r1 r2 dir ++ act) inp dir) by lia.
+      apply IHfuel with (gm:=gm) in ENOUGH. auto.
+    + destruct min eqn:HMIN.
+      { generalize (noi_destruct delta). intros [DELTA_DONE | DELTA_FREE]; subst.
+        -                       (* quant done *)
+          simpl. generalize (quant_done_termination act inp dir r greedy). intros.
+          assert (ENOUGH: fuel > actions_fuel act inp dir) by lia.
+          apply IHfuel with (gm:=gm) in ENOUGH. auto.
+        -                       (* quant free *)
+          generalize (quant_free_iter_termination act inp dir r greedy delta). intros.
+          generalize (quant_free_skip_termination act inp dir r greedy delta). intros.
+          assert (ENOUGH1: fuel > actions_fuel (Areg r :: Acheck inp :: Areg (Quantified greedy 0 (noi_pred delta) r) :: act) inp dir) by lia.
+          assert (ENOUGH2: fuel > actions_fuel act inp dir) by lia.
+          apply IHfuel with (gm:=(GroupMap.reset (def_groups r) gm)) in ENOUGH1.
+          apply IHfuel with (gm:=gm) in ENOUGH2.
+          simpl. destruct delta.
+          + destruct n. auto.
+            destruct (compute_tree (Areg r :: Acheck inp :: Areg (Quantified greedy 0 (noi_pred (NoI.N (S n))) r) :: act) inp (GroupMap.reset (def_groups r) gm) dir fuel); try contradiction.
+            destruct (compute_tree act inp gm dir fuel); try contradiction.
+            apply somenone.
+          + destruct (compute_tree (Areg r :: Acheck inp :: Areg (Quantified greedy 0 (noi_pred +∞) r) :: act) inp (GroupMap.reset (def_groups r) gm) dir fuel); try contradiction.
+            destruct (compute_tree act inp gm dir fuel); try contradiction.
+            apply somenone.
+      }
+      {                         (* quant forced *)
+        simpl. generalize (quant_forced_termination act inp dir r n delta greedy). intros. subst.
+        assert (ENOUGH: fuel > actions_fuel (Areg r :: Areg (Quantified greedy n delta r) :: act) inp dir) by lia.
+        apply IHfuel with (gm:=(GroupMap.reset (def_groups r) gm)) in ENOUGH.
+        destruct (compute_tree (Areg r :: Areg (Quantified greedy n delta r) :: act) inp (GroupMap.reset (def_groups r) gm) dir fuel); try contradiction.
+        apply somenone.
+      }
+    + simpl. apply somenone.    (* TODO lookarounds *)
+    + simpl. generalize (group_termination act inp dir r id). intros.
+      assert (ENOUGH: fuel > actions_fuel (Areg r :: Aclose id :: act) inp dir) by lia.
+      apply IHfuel with (gm:=(GroupMap.open (idx inp) id gm)) in ENOUGH.
+      destruct (compute_tree (Areg r :: Aclose id :: act) inp (GroupMap.open (idx inp) id gm) dir fuel); try contradiction.
+      apply somenone.
+    + simpl. apply somenone.    (* TODO *)
+    + simpl. apply somenone.    (* TODO *) 
+  - simpl. destruct (is_strict_suffix inp i dir) eqn:SS.
+    + apply is_strict_suffix_correct in SS.
+      eapply check_termination with (cont:=act) in SS as FUEL.
+      assert (ENOUGH: fuel > actions_fuel act inp dir) by lia.
+      apply IHfuel with (gm:=gm) in ENOUGH.
+      destruct (compute_tree act inp gm dir fuel) eqn:CMP; try contradiction.
+      apply somenone.
+    + apply somenone.
+  - simpl. generalize (close_termination act inp dir g). intros.
+    assert (ENOUGH: fuel > actions_fuel act inp dir) by lia.
+    apply IHfuel with (gm:=GroupMap.close (idx inp) g gm) in ENOUGH.
+    destruct (compute_tree act inp (GroupMap.close (idx inp) g gm) dir fuel); try contradiction.
+    apply somenone.
+Qed.
