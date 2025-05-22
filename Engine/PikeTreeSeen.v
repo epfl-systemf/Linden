@@ -397,7 +397,7 @@ Proof.
     apply SAMERES.
     apply add_parent_tree in TR.
     2: { simpl. lia. }
-    assert (PARENT: tree_nd (Progress str t) gm idx seen l1).
+    assert (PARENT: tree_nd (Progress inp t) gm idx seen l1).
     { apply tr_progress; auto. }
     (* case analysis: did t contribute to the result? *)
     destruct l1 as [leaf1|].

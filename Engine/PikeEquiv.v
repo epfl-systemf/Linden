@@ -419,7 +419,7 @@ Proof.
       * apply tt_begin; auto.
         replace (S (S pc)) with (S pc +1) in RESET by lia.
         apply tt_reset; auto.
-        apply tt_eq with (pc_end:=pc_end) (actions:=Areg r1 :: Acheck(current_str inp forward)::Areg(Quantified true 0 +∞ r1)::cont); auto.
+        apply tt_eq with (pc_end:=pc_end) (actions:=Areg r1 :: Acheck(inp)::Areg(Quantified true 0 +∞ r1)::cont); auto.
         2: { pike_subset. }
         apply cons_bc with (pcmid:=end1).
         { constructor. replace (S pc+1+1) with (S (S (S pc))) by lia. auto. }
@@ -431,7 +431,7 @@ Proof.
       * constructor. constructor. apply tt_begin; auto.
         replace (S (S pc)) with (S pc + 1) in RESET by lia.
         apply tt_reset; auto.
-        apply tt_eq with (pc_end:=pc_end) (actions:=Areg r1 :: Acheck(current_str inp forward)::Areg(Quantified false 0 +∞ r1)::cont); auto.
+        apply tt_eq with (pc_end:=pc_end) (actions:=Areg r1 :: Acheck(inp)::Areg(Quantified false 0 +∞ r1)::cont); auto.
         2: { pike_subset. }
         apply cons_bc with (pcmid:=end1).
         { constructor. replace (S pc+1+1) with (S (S (S pc))) by lia. auto. }
