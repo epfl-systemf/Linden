@@ -1,6 +1,6 @@
 From Linden Require Import EquivDef RegexpTranslation Regex LindenParameters
-  Semantics LWEquivTreeLemmas CharDescrCharSet Tactics NumericLemmas
-  MSInput Chars Groups EquivLemmas Utils.
+  Semantics FunctionalSemantics LWEquivTreeLemmas CharDescrCharSet Tactics
+  NumericLemmas MSInput Chars Groups EquivLemmas Utils.
 From Warblre Require Import Parameters Semantics RegExpRecord Patterns
   Node Result Notation Typeclasses List Base Node.
 Import Patterns.
@@ -51,15 +51,15 @@ Section Equiv.
       destruct List.Update.Nat.Batch.update as [cap'|] eqn:Heqcap'; simpl; try discriminate.
       set (mcloop := fun y: MatchState => if (_ =? _)%Z then _ else _).
       set (msreset := match_state _ _ cap').
-      assert (Hmcloopequiv: equiv_cont mcloop gl forbgroups (Acheck (current_str inp dir)::Areg (Regex.Quantified greedy 0 (delta - 1)%NoI lreg)::act)%list dir str0). {
+      assert (Hmcloopequiv: equiv_cont mcloop gl forbgroups (Acheck inp::Areg (Regex.Quantified greedy 0 (delta - 1)%NoI lreg)::act)%list dir str0). {
         unfold equiv_cont. intros gm' ms' inp' res' fueltree' t' Hinp'compat Hgm'ms' Hgm'gl Hms'inp' Hnoforbidden'.
         unfold mcloop.
         destruct (_ =? _)%Z eqn:Heqcheck.
         - (* Case 1: the input has not progressed *)
           intro H. injection H as <-.
           destruct fueltree' as [|fueltree']; simpl; try discriminate.
-          rewrite ms_same_end_inp_same_curr with (ms := ms') (ms' := ms) (inp := inp') (inp' := inp) (str0 := str0) by assumption.
-          rewrite EqDec.reflb.
+          rewrite ms_same_end_same_inp with (ms := ms') (ms' := ms) (inp := inp') (inp' := inp) (str0 := str0) by assumption.
+          rewrite strict_suffix_irreflexive_bool.
           intro H. injection H as <-.
           constructor.
         - (* Case 2: the input has progressed *)
@@ -69,8 +69,9 @@ Section Equiv.
           unfold equiv_cont in IHfuel.
           intros Hres'succ.
           destruct fueltree' as [|fueltree']; simpl; try discriminate.
-          rewrite ms_diff_end_inp_diff_curr with (ms := ms') (ms' := ms) (str0 := str0) by assumption.
-          destruct compute_tree' as [treecont|] eqn:Htreecontsucc; simpl; try discriminate.
+          (* Need matcher invariant *)
+          replace (is_strict_suffix inp' inp dir) with true by admit.
+          destruct compute_tree as [treecont|] eqn:Htreecontsucc; simpl; try discriminate.
           intro H. injection H as <-.
           simpl. eapply IHfuel; eauto.
           replace (delta') with (delta-1)%NoI. 1: apply Htreecontsucc.
@@ -94,8 +95,8 @@ Section Equiv.
           intro H. injection H as <-.
           destruct delta as [[|delta']|]; simpl in *; try discriminate.
           * (* delta is finite *)
-            destruct (compute_tree' _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
-            destruct (compute_tree' act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
             intro H. injection H as <-.
             replace (delta' - 0) with delta' in * by lia.
             specialize (Hequiv titer Hinpcompat).
@@ -106,8 +107,8 @@ Section Equiv.
             specialize (Hequiv eq_refl Htitersucc).
             inversion Hequiv. simpl. unfold gmreset in H. rewrite <- H. simpl. constructor. assumption.
           * (* delta is infinite; copy-pasting and removing one line *)
-            destruct (compute_tree' _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
-            destruct (compute_tree' act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
             intro H. injection H as <-.
             specialize (Hequiv titer Hinpcompat).
             specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
@@ -119,8 +120,8 @@ Section Equiv.
         + (* resloop is None *)
           intro Hcontsucc. destruct delta as [[|delta']|]; simpl in *; try discriminate.
           * (* delta is finite *)
-            destruct (compute_tree' _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
-            destruct (compute_tree' act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
             intro H. injection H as <-.
             replace (delta' - 0) with delta' in * by lia.
             specialize (Hequiv titer Hinpcompat).
@@ -131,8 +132,8 @@ Section Equiv.
             specialize (Hequiv eq_refl Htitersucc).
             inversion Hequiv. simpl. unfold gmreset in H0. rewrite <- H0. simpl. eapply Hequivcont; eauto.
           * (* delta is infinite; copy-pasting and removing one line *)
-            destruct (compute_tree' _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
-            destruct (compute_tree' act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
             intro H. injection H as <-.
             specialize (Hequiv titer Hinpcompat).
             specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
@@ -187,7 +188,7 @@ Section Equiv.
     unfold equiv_cont in Hequiv.
     specialize (Hequiv (GroupMap.reset (def_groups lreg) gm) msreset inp res).
     intro Hressucc. destruct fueltree as [|fueltree]; simpl; try discriminate.
-    destruct (compute_tree' _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+    destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
     intro H. injection H as <-.
     simpl. eapply Hequiv; eauto.
     - eapply equiv_gm_ms_reset; eauto.
@@ -276,7 +277,7 @@ Section Equiv.
           intro Hcontsucc. destruct fuel as [|fuel]; simpl; try discriminate.
           unshelve erewrite (proj1 (read_char_success' ms inp chr _ _ rer dir inp' nextend _ Hcasesenst Hmsinp eq_refl Hgetchr Hexist Hadv)).
           1: apply equiv_cd_single.
-          destruct compute_tree' as [tcont|] eqn:Htcont; simpl; try discriminate.
+          destruct compute_tree as [tcont|] eqn:Htcont; simpl; try discriminate.
           intro H. injection H as <-. simpl.
           unfold equiv_cont in Hequivcont.
           rewrite advance_idx_advance_input with (inp' := inp') by assumption.
@@ -333,8 +334,8 @@ Section Equiv.
       (* Eliminate failing cases *)
       destruct fuel as [|fuel]; simpl; try discriminate.
       destruct m1 as [res1|] eqn:Hres1; simpl; try discriminate.
-      destruct compute_tree' as [t1|] eqn:Ht1; simpl; try discriminate.
-      destruct (compute_tree' (Areg lr2 :: act)%list _ _ _ _) as [t2|] eqn:Ht2; simpl; try discriminate.
+      destruct compute_tree as [t1|] eqn:Ht1; simpl; try discriminate.
+      destruct (compute_tree (Areg lr2 :: act)%list _ _ _ _) as [t2|] eqn:Ht2; simpl; try discriminate.
       specialize (IH1 gm ms inp res1 fuel t1 Hinpcompat Hgmms Hgmgl Hmsinp).
       specialize_prove IH1 by admit. specialize (IH1 Hres1 Ht1).
       (* Case analysis on whether the left branch matches *)

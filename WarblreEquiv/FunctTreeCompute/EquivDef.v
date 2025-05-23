@@ -1,4 +1,4 @@
-From Linden Require Import Semantics Tree Groups Regex Chars.
+From Linden Require Import Semantics FunctionalSemantics Tree Groups Regex Chars.
 From Linden Require Import GroupMapMS MSInput.
 From Linden Require Import Utils.
 From Warblre Require Import Parameters Notation Base Result.
@@ -29,7 +29,7 @@ Section EquivDef.
       (* if the continuation mc called on ms yields the result res, *)
       mc ms = Success res ->
       (* then letting t be the tree corresponding to the actions in act on the input inp with group map gm and direction dir, *)
-      compute_tree' act inp gm dir fuel = Some t ->
+      compute_tree act inp gm dir fuel = Some t ->
       (* the first branch of t is equivalent to the result res. *)
       equiv_groupmap_ms_opt (tree_res t gm (idx inp) dir) res.
 

@@ -92,7 +92,7 @@ Section TMatching.
       let! subtree =<< tRepeatMatcher' m dir min2 max2 greedy y c parenIndex parenCount fuel' in
       (* We only add a CheckPass if min is zero, else we directly yield the subtree *)
       if (min == 0)%nat then
-        Success (Progress (ms_suffix x dir) subtree)
+        Success (Progress (ms_to_input x) subtree)
       else
         Success subtree
     in

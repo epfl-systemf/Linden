@@ -3,7 +3,7 @@ From Warblre Require Import Notation Parameters Match Base Result Typeclasses.
 Import Notation.
 Import Match.
 Import Result.Notations.
-From Linden Require Import Chars LindenParameters.
+From Linden Require Import Chars LindenParameters FunctionalSemantics.
 
 Local Open Scope result_flow.
 
@@ -14,7 +14,7 @@ Section MSInput.
   Context `{characterClass: Character.class}.
 
   (* Advance match state by one character *)
-  Definition advance_ms {H} `{CharacterMarker H} (s: MatchState) (dir: Direction): MatchState :=
+  Definition advance_ms (s: MatchState) (dir: Direction): MatchState :=
     let newend :=
       match dir with
       | forward => (MatchState.endIndex s + 1)%Z
@@ -27,11 +27,16 @@ Section MSInput.
 
 
   (* Computation of the current suffix of a MatchState given a direction; this is used when computing check strings. *)
-  Definition ms_suffix {H} `{CharacterMarker H} (ms: MatchState) (dir: Direction) :=
+  Definition ms_suffix (ms: MatchState) (dir: Direction) :=
     match dir with
     | forward => List.skipn (Z.to_nat (MatchState.endIndex ms)) (MatchState.input ms)
     | backward => List.rev (List.firstn (Z.to_nat (MatchState.endIndex ms)) (MatchState.input ms))
     end.
+
+
+  (* Converting a MatchState to an input; used for new check strings *)
+  Definition ms_to_input (ms: MatchState) :=
+    Input (ms_suffix ms forward) (ms_suffix ms backward).
 
 
 
@@ -145,19 +150,19 @@ Section MSInput.
     reflexivity.
   Qed.
 
-  (* Same, but formulated in terms of the Linden input. *)
-  Lemma ms_same_end_inp_same_curr:
-    forall ms ms' inp inp' str0 dir,
+  (* The corresponding Linden inputs of two MatchStates that have the same end index and are compatible with the same input string are equal. *)
+  Lemma ms_same_end_same_inp:
+    forall ms ms' inp inp' str0,
       (MatchState.endIndex ms =? MatchState.endIndex ms')%Z = true ->
       ms_matches_inp ms inp -> ms_matches_inp ms' inp' ->
       input_compat inp str0 -> input_compat inp' str0 ->
-      current_str inp dir = current_str inp' dir.
+      inp = inp'.
   Proof.
-    intros ms ms' inp inp' str0 dir Hsameend Hmsinp Hms'inp' Hinpcompat Hinp'compat.
-    rewrite ms_suffix_current_str with (ms := ms) by assumption.
-    rewrite ms_suffix_current_str with (ms := ms') by assumption.
-    eauto using ms_same_end_same_suffix.
-  Qed.
+  Admitted.
+
+  Lemma strict_suffix_irreflexive_bool:
+    forall inp dir, is_strict_suffix inp inp dir = false.
+  Admitted.
 
   (* Two MatchStates that do not have the same end index and are compatible with the same input string do not have the same suffix. *)
   Lemma ms_diff_end_diff_suffix:
