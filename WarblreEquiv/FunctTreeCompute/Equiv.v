@@ -15,6 +15,7 @@ Local Open Scope result_flow.
 Section Equiv.
   Context `{characterClass: Character.class}.
 
+  (* Case when the repeat matcher is done iterating the regex because min = max = 0. *)
   Lemma repeatMatcher'_done_equiv:
     forall greedy parenIndex parenCount rer,
     forall (m: Matcher) (lreg: regex) (dir: Direction),
@@ -31,6 +32,7 @@ Section Equiv.
     intros Hres Ht. eapply Hequivcont; eauto using ms_valid_wrt_checks_tail.
   Qed.
 
+  (* Case when the repeat matcher can choose between iterating the sub-regexp and exiting the quantifier because min = 0 but max != 0. *)
   Lemma repeatMatcher'_free_equiv:
     forall greedy parenIndex parenCount rer,
     forall (m: Matcher) (lreg: regex) (dir: Direction),
@@ -41,18 +43,26 @@ Section Equiv.
         (fun ms mc => Semantics.repeatMatcher' m 0 delta greedy ms mc parenIndex parenCount fuel)
         (Regex.Quantified greedy 0 delta lreg) rer dir.
     Proof.
+      (* We perform induction on the fuel. The case fuel = 0 is immediate. *)
       intros greedy parenIndex parenCount rer m lreg dir Hequiv MI Hgroupsvalid fuel.
       induction fuel as [|fuel IHfuel]. 1: discriminate.
 
+      (* For delta = 0, we apply repeatMatcher'_done_equiv. *)
       intro delta.
       destruct (delta =? NoI.N (nat_to_nni 0))%NoI eqn:Hdeltazero.
       1: { rewrite noi_eqb_eq in Hdeltazero. subst delta. now apply repeatMatcher'_done_equiv. }
       simpl. rewrite Hdeltazero.
+      (* Let mc be a continuation equivalent to actions act. *)
       unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
+      (* We now prove that plugging mc into the repeat matcher yields a continuation that performs actions Areg (Quantified greedy 0 delta lreg)::act. *)
+      (* Let ms be a valid input MatchState. *)
       unfold equiv_cont. intros gm ms inp res fueltree t Hinpcompat Hgmms Hgmgl Hmsinp Hvalidms Hmschecks Hnoforbidden.
+      (* Assume that the capture reset succeeds. *)
       destruct List.Update.Nat.Batch.update as [cap'|] eqn:Heqcap'; simpl; try discriminate.
+      (* mcloop performs a progress check then calls the repeat matcher with one less fuel and one less detlta. *)
       set (mcloop := fun y: MatchState => if (_ =? _)%Z then _ else _).
       set (msreset := match_state _ _ cap').
+      (* We characterize mcloop. *)
       assert (Hmcloopequiv: equiv_cont mcloop gl forbgroups (Acheck inp::Areg (Regex.Quantified greedy 0 (delta - 1)%NoI lreg)::act)%list dir str0 rer). {
         unfold equiv_cont. intros gm' ms' inp' res' fueltree' t' Hinp'compat Hgm'ms' Hgm'gl Hms'inp' Hms'valid Hms'checks Hnoforbidden'.
         unfold mcloop.
@@ -106,7 +116,9 @@ Section Equiv.
             specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
             specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
             specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
-            do 3 specialize_prove Hequiv by admit.
+            specialize_prove Hequiv by admit. (* Any capture reset preserves state validity *)
+            specialize_prove Hequiv by admit. (* msreset is valid with respect to the checks in act because of the assumption on ms and wrt the check with inp because msreset matches inp *)
+            specialize_prove Hequiv by admit. (* gmreset does not contain any of the forbidden groups in lreg because those have just been reset, and does not contain any of the rest of the forbidden groups by assumption on gm *)
             specialize (Hequiv eq_refl Htitersucc).
             inversion Hequiv. simpl. unfold gmreset in H. rewrite <- H. simpl. constructor. assumption.
           * (* delta is infinite; copy-pasting and removing one line *)
@@ -151,6 +163,7 @@ Section Equiv.
         admit.
   Admitted.
 
+  (* General case; the proof below mostly deals with the case max > 0 and applies the two above lemmas otherwise *)
   Lemma repeatMatcher'_equiv:
     forall greedy parenIndex parenCount rer,
     forall (m: Matcher) (lreg: regex) (dir: Direction),
@@ -198,11 +211,11 @@ Section Equiv.
     - eapply equiv_gm_ms_reset; eauto.
     - eapply equiv_open_groups_reset; eauto.
     - destruct ms. eapply ms_matches_inp_capchg; eauto.
-    - admit.
-    - admit.
-    - admit.
+    - admit. (* Any capture reset preserves MatchState validity *)
+    - admit. (* A capture reset does not affect validity wrt checks *)
+    - admit. (* The reset group map does not contain any group in lreg because those have just been reset, and does not contain any group in forbgroups because of the assumption on gm *)
   Admitted.
-    
+
   Corollary repeatMatcher_equiv:
     forall greedy parenIndex parenCount rer,
     forall (m: Matcher) (lreg: regex) (dir: Direction),
@@ -215,6 +228,7 @@ Section Equiv.
   Proof.
   Admitted.
 
+  (* Main equivalence theorem: *)
   Theorem equiv:
     forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
       (* Assume that we do not ignore case, *)
@@ -223,7 +237,7 @@ Section Equiv.
       (Hnomultiline: RegExpRecord.multiline rer = false)
       (* and that dot matches all characters. *)
       (Hdotall: RegExpRecord.dotAll rer = true)
-      (* Let lroot and wroot be a pair of equivanent regexes. *)
+      (* Let lroot and wroot be a pair of equivalent regexes. *)
       (root_equiv: equiv_regex wroot lroot)
       (* Assume that the conditions for the matcher invariant are met. *)
       (Hcapcount: StaticSemantics.countLeftCapturingParensWithin wroot nil = RegExpRecord.capturingGroupsCount rer)
@@ -293,6 +307,8 @@ Section Equiv.
           rewrite advance_idx_advance_input with (inp' := inp') by assumption.
           eapply Hequivcont with (ms := match_state (MatchState.input ms) nextend (MatchState.captures ms)); eauto.
           3,4: admit.
+          (* 3: MatchState validity follows from the fact that nextend is not out of bounds *)
+          (* 4: advancing the end index does not make validity wrt checks false *)
           1: eauto using advance_input_compat.
           eapply ms_matches_inp_adv; eauto. unfold MSInput.advance_ms. now destruct dir.
         * (* Read fails *)
@@ -337,10 +353,10 @@ Section Equiv.
       (* Specialize the induction hypotheses again naturally *)
       specialize (IH1 str0 mc gl forbgroups act Hequivcont).
       specialize_prove IH1 by eauto using disj_parent_disj_child, Child_Disjunction_left.
-      specialize_prove IH1 by admit.
+      specialize_prove IH1 by admit. (* Disjointness of groups in lr1 from forbgroups follows from disjointness of groups in Disjunction lr1 lr2 from forbgroups*)
       specialize (IH2 str0 mc gl forbgroups act Hequivcont).
       specialize_prove IH2 by eauto using disj_parent_disj_child, Child_Disjunction_right.
-      specialize_prove IH2 by admit.
+      specialize_prove IH2 by admit. (* Disjointness of groups in lr2 from forbgroups follows from disjointness of groups in Disjunction lr1 lr2 from forbgroups*)
       unfold equiv_cont in IH1, IH2.
       (* Eliminate failing cases *)
       destruct fuel as [|fuel]; simpl; try discriminate.
@@ -348,6 +364,7 @@ Section Equiv.
       destruct compute_tree as [t1|] eqn:Ht1; simpl; try discriminate.
       destruct (compute_tree (Areg lr2 :: act)%list _ _ _ _) as [t2|] eqn:Ht2; simpl; try discriminate.
       specialize (IH1 gm ms inp res1 fuel t1 Hinpcompat Hgmms Hgmgl Hmsinp Hmsvalid).
+      (* 1: follows from Hmschecks (we just add/remove Areg's); 2: follows from Hnoforbidden (going from a disjunction to its children regexes) *)
       do 2 specialize_prove IH1 by admit. specialize (IH1 Hres1 Ht1).
       (* Case analysis on whether the left branch matches *)
       destruct res1 as [msres1|] eqn:Hmsres1; simpl.
@@ -359,7 +376,9 @@ Section Equiv.
         rename res into res2.
         intros Hres2 H. injection H as <-. simpl.
         inversion IH1 as [ HNone1 | ]. simpl.
-        eapply IH2; eauto. all: admit.
+        eapply IH2; eauto.
+        (* 1: follows from Hmschecks (adding/removing an Areg); 2: follows from Hforbidden (going from a disjunction to its children regexes) *)
+        all: admit.
 
     - (* Sequence *)
       intros ctx Hroot Heqn m dir. simpl.
@@ -386,10 +405,14 @@ Section Equiv.
           intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmsvalid Hmschecks Hnoforbidden. unfold mc2.
           intros Hres Ht. eapply IH2; eauto.
           1: eauto using disj_parent_disj_child, Child_Sequence_right.
+          (* Follows from Hdef_forbid_disj: taking a sub-regexp *)
           admit.
         }
         intros Hres Ht. eapply IH1; eauto.
         1: eauto using disj_parent_disj_child, Child_Sequence_left.
+        (* 1: follows from disjointness of def_groups lr1 from def_groups lr2 (because of Hequiv1 and Hequiv2) and from forbgroups (Hdef_forbid_disj) *)
+        (* 2: follows from Hmschecks (adding/removing Areg's) *)
+        (* 3: follows from Hnoforbidden (splitting the sequence into two) *)
         all: admit.
 
       + (* Backward *)
@@ -401,11 +424,11 @@ Section Equiv.
           intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmsvalid Hmschecks Hnoforbidden. unfold mc1.
           intros Hres Ht. eapply IH1; eauto.
           1: eauto using disj_parent_disj_child, Child_Sequence_left.
-          admit.
+          admit. (* Same as forward *)
         }
         intros Hres Ht. eapply IH2; eauto.
         1: eauto using disj_parent_disj_child, Child_Sequence_right.
-        all: admit.
+        all: admit. (* Same as forward *)
 
     - (* Quantified *)
       intros ctx Hroot Heqn m dir. simpl.
@@ -462,21 +485,21 @@ Section Equiv.
         - eapply equiv_gm_ms_close_group; eauto.
         - eapply equiv_open_groups_close_group; eauto.
         - eapply ms_matches_inp_close_group; eauto.
-        - admit.
-        - admit.
-        - admit.
+        - admit. (* Probably follows from proof of matcher invariant for groups *)
+        - admit. (* Does not depend on cap', and we have Hms'checks *)
+        - admit. (* Follows from Hnoforbidden (for groups other than S n) and Hdef_forbid_disj (for S n) *)
       }
       destruct compute_tree as [treecont|] eqn:Htreecont; simpl; try discriminate.
       intros Hres H. injection H as <-. simpl.
       eapply IH; eauto.
       + eauto using Down.same_root_down0, Down_Group_inner.
       + simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia.
-      + admit. (* Group list disjointness *)
-      + admit.
-      + admit. (* Group map equivalence after opening a group *)
+      + admit. (* Group list disjointness; follows from Hgldisj and Hequiv (for group S n) *)
+      + admit. (* Follows from Hdef_forbid_disj immediately *)
+      + admit. (* Group map equivalence after opening a group; follows from Hnoforbidden (!) *)
       + admit. (* Group map equivalence to open groups after opening a group *)
-      + admit.
-      + admit.
+      + admit. (* Follows from Hmschecks (adding/removing Areg's and Aclose's) *)
+      + admit. (* Follows from Hnoforbidden (groups other than S n), Hdef_forbid_disj and Hequiv (S n) *)
 
     - (* Lookaround *)
       admit.
