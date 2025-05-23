@@ -1,8 +1,11 @@
 From Linden Require Import Semantics FunctionalSemantics Tree Groups Regex Chars.
 From Linden Require Import GroupMapMS MSInput.
+From Linden Require Import LindenParameters.
 From Linden Require Import Utils.
-From Warblre Require Import Parameters Notation Base Result.
+From Warblre Require Import Parameters Notation Base Result Match RegExpRecord.
+From Coq Require Import ZArith List.
 Import Notation.
+Import Match.
 
 Section EquivDef.
   Context `{characterClass: Character.class}.
@@ -14,17 +17,37 @@ Section EquivDef.
     | _ => def_groups reg
     end.
 
+
+  (** ** Validity of input MatchStates with respect to a check *)
+  (* A continuation is only equivalent to a list of actions containing some check Acheck inp 
+     for input MatchStates that have either progressed or stayed unmodified wrt the input inp. *)
+
+  (* Validity of a MatchState with respect to one fixed check input. *)
+  Inductive ms_valid_wrt_check: MatchState -> input -> Direction -> Prop :=
+  | Validcheck_forward: forall ms inp,
+      (MatchState.endIndex ms >= Z.of_nat (idx inp))%Z -> ms_valid_wrt_check ms inp forward
+  | Validcheck_backward: forall ms inp,
+      (MatchState.endIndex ms <= Z.of_nat (idx inp))%Z -> ms_valid_wrt_check ms inp backward.
+
+  (* Validity of a MatchState with respect to the checks of a list of actions. *)
+  Definition ms_valid_wrt_checks (ms: MatchState) (act: actions) (dir: Direction): Prop :=
+    forall inpcheck: input, In (Acheck inpcheck) act -> ms_valid_wrt_check ms inpcheck dir.
+
+
   (* Definition of when a MatcherContinuation performs a given list of actions. *)
   (* A MatcherContinuation mc, working on input string str0 and with the open group list gl,
   performs the actions described in act in the direction dir when: *)
-  Definition equiv_cont (mc: MatcherContinuation) (gl: open_groups) (forbgroups: list group_id) (act: actions) (dir: Direction) (str0: string): Prop :=
+  Definition equiv_cont (mc: MatcherContinuation) (gl: open_groups) (forbgroups: list group_id) (act: actions) (dir: Direction) (str0: string) (rer: RegExpRecord): Prop :=
     forall (gm: group_map) (ms: MatchState) (inp: input) (res: option MatchState) (fuel: nat) (t: tree),
-      (* for all corresponding tuples of a MatchState ms, an input inp, a group map gm 
+      (* for all corresponding tuples of a valid MatchState ms, an input inp, a group map gm 
       and a list of open groups gl that use the input string str0, *)
       input_compat inp str0 ->
       equiv_groupmap_ms gm ms -> group_map_equiv_open_groups gm gl ->
       ms_matches_inp ms inp ->
-      (* such that gm does not define any of the groups in the forbidden groups, *)
+      MatchState.Valid (MatchState.input ms) rer ms ->
+      (* such that ms is valid with respect to the checks in act *)
+      ms_valid_wrt_checks ms act dir ->
+      (* and gm does not define any of the groups in the forbidden groups, *)
       no_forbidden_groups gm forbgroups ->
       (* if the continuation mc called on ms yields the result res, *)
       mc ms = Success res ->
@@ -35,16 +58,16 @@ Section EquivDef.
 
   (* Definition of when a Matcher recognizes a regex in a given direction. *)
   (* A Matcher m is said to recognize a regex reg in direction dir when: *)
-  Definition equiv_matcher (m: Matcher) (reg: regex) (dir: Direction): Prop :=
+  Definition equiv_matcher (m: Matcher) (reg: regex) (rer: RegExpRecord) (dir: Direction): Prop :=
     (* for any input string str0, *)
     forall (str0: string) (mc: MatcherContinuation) (gl: open_groups) (forbgroups: list group_id) (act: actions),
     (* for any MatcherContinuation mc working with the list of open groups gl on the string str0 performing the actions act, *)
-    equiv_cont mc gl forbgroups act dir str0 ->
+    equiv_cont mc gl forbgroups act dir str0 rer ->
     (* if the open groups do not contain any of the groups defined by reg, *)
     open_groups_disjoint gl (def_groups reg) ->
     (* and the continuation does not forbid defining any group defined by the regex, *)
     List.Disjoint (def_groups reg) forbgroups ->
     (* plugging the continuation mc into the matcher m yields a continuation that performs the actions Areg reg :: act. *)
-    equiv_cont (fun ms => m ms mc) gl (forbidden_groups reg ++ forbgroups) (Areg reg :: act)%list dir str0.
+    equiv_cont (fun ms => m ms mc) gl (forbidden_groups reg ++ forbgroups) (Areg reg :: act)%list dir str0 rer.
 
 End EquivDef.

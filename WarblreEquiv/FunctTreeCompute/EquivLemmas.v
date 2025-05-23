@@ -1,4 +1,4 @@
-From Linden Require Import Regex GroupMapMS LindenParameters Groups Tree Chars Semantics MSInput.
+From Linden Require Import Regex GroupMapMS LindenParameters Groups Tree Chars Semantics MSInput EquivDef.
 From Warblre Require Import Parameters List Notation Result Typeclasses Base Errors.
 From Coq Require Import List ZArith.
 Import ListNotations.
@@ -7,6 +7,16 @@ Import Result.Notations.
 
 Section EquivLemmas.
   Context `{characterClass: Character.class}.
+
+  (* Validity wrt checks in a list of actions `act` implies validity wrt checks in the tail of `act`. *)
+  Lemma ms_valid_wrt_checks_tail:
+    forall act acts ms dir,
+    ms_valid_wrt_checks ms (act::acts) dir -> ms_valid_wrt_checks ms acts dir.
+  Proof.
+    intros act acts ms dir Hvalid inp Hin.
+    apply Hvalid. now right.
+  Qed.
+
 
   (* Inductive definition that relates a regex to its parent regex. *)
   Inductive ChildRegex: regex -> regex -> Prop :=
