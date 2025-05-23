@@ -1,6 +1,6 @@
 From Linden Require Import EquivDef RegexpTranslation Regex LindenParameters
   Semantics LWEquivTreeLemmas CharDescrCharSet Tactics NumericLemmas
-  MSInput Chars Groups EquivLemmas.
+  MSInput Chars Groups EquivLemmas Utils.
 From Warblre Require Import Parameters Semantics RegExpRecord Patterns
   Node Result Notation Typeclasses List Base Node.
 Import Patterns.
@@ -24,8 +24,8 @@ Section Equiv.
         (Regex.Quantified greedy 0 (NoI.N 0) lreg) dir.
   Proof.
     intros greedy parenIndex parenCount m lreg dir Hequiv Hgroupsvalid fuel.
-    unfold equiv_matcher. intros str0 mc gl act Hequivcont Hgldisj.
-    unfold equiv_cont. intros gm ms inp res [|treefuel] t Hinpcompat Hgmms Hgmgl Hmsinp; simpl; try discriminate.
+    unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
+    unfold equiv_cont. intros gm ms inp res [|treefuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hnoforbidden; simpl; try discriminate.
     destruct fuel as [|fuel]; simpl; try discriminate.
     intros Hres Ht. eapply Hequivcont; eauto.
   Qed.
@@ -46,13 +46,13 @@ Section Equiv.
       destruct (delta =? NoI.N (nat_to_nni 0))%NoI eqn:Hdeltazero.
       1: { rewrite noi_eqb_eq in Hdeltazero. subst delta. now apply repeatMatcher'_done_equiv. }
       simpl. rewrite Hdeltazero.
-      unfold equiv_matcher. intros str0 mc gl act Hequivcont Hgldisj.
-      unfold equiv_cont. intros gm ms inp res fueltree t Hinpcompat Hgmms Hgmgl Hmsinp.
+      unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
+      unfold equiv_cont. intros gm ms inp res fueltree t Hinpcompat Hgmms Hgmgl Hmsinp Hnoforbidden.
       destruct List.Update.Nat.Batch.update as [cap'|] eqn:Heqcap'; simpl; try discriminate.
       set (mcloop := fun y: MatchState => if (_ =? _)%Z then _ else _).
       set (msreset := match_state _ _ cap').
-      assert (Hmcloopequiv: equiv_cont mcloop gl (Acheck (current_str inp dir)::Areg (Regex.Quantified greedy 0 (delta - 1)%NoI lreg)::act)%list dir str0). {
-        unfold equiv_cont. intros gm' ms' inp' res' fueltree' t' Hinp'compat Hgm'ms' Hgm'gl Hms'inp'.
+      assert (Hmcloopequiv: equiv_cont mcloop gl forbgroups (Acheck (current_str inp dir)::Areg (Regex.Quantified greedy 0 (delta - 1)%NoI lreg)::act)%list dir str0). {
+        unfold equiv_cont. intros gm' ms' inp' res' fueltree' t' Hinp'compat Hgm'ms' Hgm'gl Hms'inp' Hnoforbidden'.
         unfold mcloop.
         destruct (_ =? _)%Z eqn:Heqcheck.
         - (* Case 1: the input has not progressed *)
@@ -65,7 +65,7 @@ Section Equiv.
         - (* Case 2: the input has progressed *)
           set (delta' := if (delta =? +∞)%NoI then _ else _).
           specialize (IHfuel delta').
-          unfold equiv_matcher in IHfuel. specialize (IHfuel str0 mc gl act Hequivcont Hgldisj).
+          unfold equiv_matcher in IHfuel. specialize (IHfuel str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj).
           unfold equiv_cont in IHfuel.
           intros Hres'succ.
           destruct fueltree' as [|fueltree']; simpl; try discriminate.
@@ -77,10 +77,10 @@ Section Equiv.
           unfold delta'. now destruct delta.
       }
       (* About m msreset mcloop *)
-      unfold equiv_matcher in Hequiv. specialize (Hequiv str0 mcloop gl _ Hmcloopequiv Hgldisj).
+      unfold equiv_matcher in Hequiv. specialize (Hequiv str0 mcloop gl _ _ Hmcloopequiv Hgldisj).
       set (gmreset := GroupMap.reset (def_groups lreg) gm).
       unfold equiv_cont in Hequiv.
-      specialize (Hequiv gmreset msreset inp).
+      specialize (Hequiv Hdef_forbid_disj gmreset msreset inp).
       destruct fueltree as [|fueltree]; simpl; try discriminate.
       (* About mc ms *)
       unfold equiv_cont in Hequivcont. specialize (Hequivcont gm ms inp).
@@ -102,6 +102,7 @@ Section Equiv.
             specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
             specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
             specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
+            specialize_prove Hequiv by admit.
             specialize (Hequiv eq_refl Htitersucc).
             inversion Hequiv. simpl. unfold gmreset in H. rewrite <- H. simpl. constructor. assumption.
           * (* delta is infinite; copy-pasting and removing one line *)
@@ -112,6 +113,7 @@ Section Equiv.
             specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
             specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
             specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
+            specialize_prove Hequiv by admit.
             specialize (Hequiv eq_refl Htitersucc).
             inversion Hequiv. simpl. unfold gmreset in H. rewrite <- H. simpl. constructor. assumption.
         + (* resloop is None *)
@@ -125,6 +127,7 @@ Section Equiv.
             specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
             specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
             specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
+            specialize_prove Hequiv by admit.
             specialize (Hequiv eq_refl Htitersucc).
             inversion Hequiv. simpl. unfold gmreset in H0. rewrite <- H0. simpl. eapply Hequivcont; eauto.
           * (* delta is infinite; copy-pasting and removing one line *)
@@ -135,6 +138,7 @@ Section Equiv.
             specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
             specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
             specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
+            specialize_prove Hequiv by admit.
             specialize (Hequiv eq_refl Htitersucc).
             inversion Hequiv. simpl. unfold gmreset in H0. rewrite <- H0. simpl. eapply Hequivcont; eauto.
       
@@ -170,15 +174,15 @@ Section Equiv.
     }
     (* Now we have min <> 0 *)
     unfold equiv_matcher.
-    intros str0 mc gl act Hequivcont Hgldisj. unfold equiv_cont.
-    intros gm ms inp res fueltree t Hinpcompat Hgmms Hgmgl Hmsinp.
+    intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj. unfold equiv_cont.
+    intros gm ms inp res fueltree t Hinpcompat Hgmms Hgmgl Hmsinp Hnoforbidden.
     simpl.
     rewrite Hmaxzero.
     replace (min' - 0) with min' by lia.
     destruct List.Update.Nat.Batch.update as [capreset|] eqn:Hcapreset; simpl; try discriminate.
     rewrite mini_plus_plusminus_one with (mini := min') (plus := delta). 2: reflexivity.
-    specialize (IHfuel min' delta). unfold equiv_matcher in IHfuel. specialize (IHfuel str0 mc gl act Hequivcont Hgldisj).
-    unfold equiv_matcher in Hequiv. specialize (Hequiv str0 _ gl _ IHfuel Hgldisj).
+    specialize (IHfuel min' delta). unfold equiv_matcher in IHfuel. specialize (IHfuel str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj).
+    unfold equiv_matcher in Hequiv. specialize (Hequiv str0 _ gl forbgroups _ IHfuel Hgldisj Hdef_forbid_disj).
     set (msreset := match_state _ _ capreset).
     unfold equiv_cont in Hequiv.
     specialize (Hequiv (GroupMap.reset (def_groups lreg) gm) msreset inp res).
@@ -189,7 +193,8 @@ Section Equiv.
     - eapply equiv_gm_ms_reset; eauto.
     - eapply equiv_open_groups_reset; eauto.
     - destruct ms. eapply ms_matches_inp_capchg; eauto.
-  Qed.
+    - admit.
+  Admitted.
     
   Corollary repeatMatcher_equiv:
     forall greedy parenIndex parenCount,
@@ -244,8 +249,8 @@ Section Equiv.
     - (* Epsilon *)
       intros ctx _ _ m dir. simpl.
       intro. injection Hcompsucc as <-.
-      unfold equiv_matcher. intros str0 mc gl act Hequivcont _.
-      unfold equiv_cont. intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmcsucc.
+      unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont _ _.
+      unfold equiv_cont. intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hnoforbidden Hmcsucc.
       destruct fuel as [|fuel]; try discriminate.
       simpl.
       intro Hsubtreesucc.
@@ -254,8 +259,8 @@ Section Equiv.
     - (* Character; TODO generalize to all character descriptors *)
       intros ctx Hroot Heqn m dir Hcompsucc.
       injection Hcompsucc as <-.
-      unfold equiv_matcher. intros str0 mc gl act Hequivcont Hgldisj.
-      unfold equiv_cont. intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp.
+      unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
+      unfold equiv_cont. intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hnoforbidden.
       unfold Semantics.characterSetMatcher.
       set (nextend := if (dir ==? forward)%wt then _ else _).
       destruct ((nextend <? 0)%Z || _)%bool eqn:Hoob; simpl.
@@ -314,21 +319,24 @@ Section Equiv.
       specialize_prove IH2. { simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. erewrite num_groups_equiv by eauto. lia. }
       specialize (IH2 m2 dir Hcompsucc2).
       (* Introduce the required variables *)
-      unfold equiv_matcher. intros str0 mc gl act Hequivcont Hgldisj.
-      unfold equiv_cont. intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp.
+      unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
+      unfold equiv_cont. intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hnoforbidden.
       unfold equiv_matcher in IH1, IH2.
       (* Specialize the induction hypotheses again naturally *)
-      specialize (IH1 str0 mc gl act Hequivcont).
+      specialize (IH1 str0 mc gl forbgroups act Hequivcont).
       specialize_prove IH1 by eauto using disj_parent_disj_child, Child_Disjunction_left.
-      specialize (IH2 str0 mc gl act Hequivcont).
+      specialize_prove IH1 by admit.
+      specialize (IH2 str0 mc gl forbgroups act Hequivcont).
       specialize_prove IH2 by eauto using disj_parent_disj_child, Child_Disjunction_right.
+      specialize_prove IH2 by admit.
       unfold equiv_cont in IH1, IH2.
       (* Eliminate failing cases *)
       destruct fuel as [|fuel]; simpl; try discriminate.
       destruct m1 as [res1|] eqn:Hres1; simpl; try discriminate.
       destruct compute_tree' as [t1|] eqn:Ht1; simpl; try discriminate.
       destruct (compute_tree' (Areg lr2 :: act)%list _ _ _ _) as [t2|] eqn:Ht2; simpl; try discriminate.
-      specialize (IH1 gm ms inp res1 fuel t1 Hinpcompat Hgmms Hgmgl Hmsinp Hres1 Ht1).
+      specialize (IH1 gm ms inp res1 fuel t1 Hinpcompat Hgmms Hgmgl Hmsinp).
+      specialize_prove IH1 by admit. specialize (IH1 Hres1 Ht1).
       (* Case analysis on whether the left branch matches *)
       destruct res1 as [msres1|] eqn:Hmsres1; simpl.
       + (* Left choice matches *)
@@ -339,7 +347,7 @@ Section Equiv.
         rename res into res2.
         intros Hres2 H. injection H as <-. simpl.
         inversion IH1 as [ HNone1 | ]. simpl.
-        eauto using IH2.
+        eapply IH2; eauto. admit.
 
     - (* Sequence *)
       intros ctx Hroot Heqn m dir. simpl.
@@ -358,27 +366,34 @@ Section Equiv.
       (* Two similar reasonings for each direction *)
       destruct dir; intro H; injection H as <-.
       + (* Forward *)
-        unfold equiv_matcher. intros str0 mc gl act Hequivcont Hgldisj.
-        unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp; try discriminate; simpl.
+        unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
+        unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hnoforbidden; try discriminate; simpl.
         set (mc2 := fun s => _).
-        assert (Hequivcont2: equiv_cont mc2 gl (Areg lr2 :: act)%list forward str0). {
-          unfold equiv_cont. clear gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp.
-          intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp. unfold mc2.
+        assert (Hequivcont2: equiv_cont mc2 gl (forbidden_groups lr2 ++ forbgroups) (Areg lr2 :: act)%list forward str0). {
+          unfold equiv_cont. clear gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hnoforbidden.
+          intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hnoforbidden. unfold mc2.
           intros Hres Ht. eapply IH2; eauto.
-          eauto using disj_parent_disj_child, Child_Sequence_right.
+          1: eauto using disj_parent_disj_child, Child_Sequence_right.
+          admit.
         }
         intros Hres Ht. eapply IH1; eauto.
-        eauto using disj_parent_disj_child, Child_Sequence_left.
+        1: eauto using disj_parent_disj_child, Child_Sequence_left.
+        all: admit.
+
       + (* Backward *)
-        unfold equiv_matcher. intros str0 mc gl act Hequivcont Hgldisj.
-        unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp; try discriminate; simpl.
+        unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
+        unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hnoforbidden; try discriminate; simpl.
         set (mc1 := fun s => _).
-        assert (Hequivcont1: equiv_cont mc1 gl (Areg lr1 :: act)%list backward str0). {
-          unfold equiv_cont. clear gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp.
-          intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp. unfold mc1.
-          intros Hres Ht. eapply IH1; eauto. eauto using disj_parent_disj_child, Child_Sequence_left.
+        assert (Hequivcont1: equiv_cont mc1 gl (forbidden_groups lr1 ++ forbgroups) (Areg lr1 :: act)%list backward str0). {
+          unfold equiv_cont. clear gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hnoforbidden.
+          intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hnoforbidden. unfold mc1.
+          intros Hres Ht. eapply IH1; eauto.
+          1: eauto using disj_parent_disj_child, Child_Sequence_left.
+          admit.
         }
-        intros Hres Ht. eapply IH2; eauto. eauto using disj_parent_disj_child, Child_Sequence_right.
+        intros Hres Ht. eapply IH2; eauto.
+        1: eauto using disj_parent_disj_child, Child_Sequence_right.
+        all: admit.
 
     - (* Quantified *)
       intros ctx Hroot Heqn m dir. simpl.
