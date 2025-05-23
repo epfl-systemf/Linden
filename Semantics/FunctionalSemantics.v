@@ -17,7 +17,7 @@ Section FunctionalSemantics.
   (** * Suffixes  *)
 
   (* advance_input is the next suffix *)
-  (* but know we explore the transitive closure of this relation *)
+  (* but now we explore the transitive closure of this relation *)
 
   Inductive strict_suffix : input -> input -> Direction -> Prop :=
   | ss_advance:
@@ -57,11 +57,86 @@ Section FunctionalSemantics.
         end
     end.
 
+  Lemma ss_next':
+    forall inp1 inp2 inp3 dir,
+      strict_suffix inp1 inp2 dir ->
+      advance_input inp3 dir = Some inp2 ->
+      strict_suffix inp1 inp3 dir.
+  Proof.
+    intros inp1 inp2 inp3 dir H12. revert inp3. induction H12 as [inp2 inp1 dir H12 | inp1 inp2 inp3 dir H12 H23 IH].
+    - intros inp3 H23. eauto using ss_next, ss_advance.
+    - intros inp4 H34. eauto using ss_next, ss_advance, IH.
+  Qed.
+
+  Lemma ss_next'_inv:
+    forall inp1 inp2 inp3 dir,
+      advance_input inp2 dir = Some inp1 ->
+      strict_suffix inp2 inp3 dir ->
+      exists inp2',
+        strict_suffix inp1 inp2' dir /\
+        advance_input inp3 dir = Some inp2'.
+  Admitted.
+
+  Lemma strict_suffix_ind':
+    forall (P: input -> input -> Direction -> Prop)
+      (Hadvance: forall inp nextinp dir,
+      advance_input inp dir = Some nextinp -> P nextinp inp dir)
+      (Hnext': forall inp1 inp2 inp3 dir,
+        P inp1 inp2 dir ->
+        advance_input inp3 dir = Some inp2 ->
+        P inp1 inp3 dir),
+      forall inp1 inp2 dir,
+        strict_suffix inp1 inp2 dir -> P inp1 inp2 dir.
+  Admitted.
+
+  Lemma strict_suffix_forward_sound:
+    forall inp next pref,
+      strict_suffix_forward inp next pref = true -> strict_suffix inp (Input next pref) forward.
+  Proof.
+    intros inp next. induction next as [|c next' IH].
+    1: discriminate.
+    intro pref. simpl.
+    destruct (Input next' (c::pref) ==? inp)%wt eqn:Hequal.
+    1: { rewrite EqDec.inversion_true in Hequal. intros _. apply ss_advance. subst inp. reflexivity. }
+    intro H. specialize (IH (c::pref) H).
+    eapply ss_next'; eauto.
+  Qed.
+
+  Lemma strict_suffix_forward_complete:
+    forall inp next pref,
+      strict_suffix inp (Input next pref) forward -> strict_suffix_forward inp next pref = true.
+  Admitted.
+
+  Lemma strict_suffix_backward_sound:
+    forall inp next pref,
+      strict_suffix_backward inp next pref = true -> strict_suffix inp (Input next pref) backward.
+  Proof.
+    intros inp next pref. revert next. induction pref as [|c pref' IH].
+    1: discriminate.
+    intro next. simpl.
+    destruct (Input (c::next) pref' ==? inp)%wt eqn:Hequal.
+    1: { rewrite EqDec.inversion_true in Hequal. intros _. apply ss_advance. subst inp. reflexivity. }
+    intro H. specialize (IH (c::next) H).
+    eapply ss_next'; eauto.
+  Qed.
+
+  Lemma strict_suffix_backward_complete:
+    forall inp next pref,
+      strict_suffix inp (Input next pref) backward -> strict_suffix_backward inp next pref = true.
+  Admitted.
+
   Theorem is_strict_suffix_correct:
     forall inp1 inp2 dir,
       is_strict_suffix inp1 inp2 dir = true <-> strict_suffix inp1 inp2 dir.
   Proof.
-  Admitted.
+    intros [next1 pref1] [next2 pref2] dir. destruct dir; simpl.
+    - split; intro.
+      + now apply strict_suffix_forward_sound.
+      + now apply strict_suffix_forward_complete.
+    - split; intro.
+      + now apply strict_suffix_backward_sound.
+      + now apply strict_suffix_backward_complete.
+  Qed.
 
   Theorem strict_suffix_current:
     forall inp1 inp2 dir,
