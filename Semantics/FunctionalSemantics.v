@@ -68,13 +68,23 @@ Section FunctionalSemantics.
     - intros inp4 H34. eauto using ss_next, ss_advance, IH.
   Qed.
 
+
+  (* Situation: if
+      ---|-------|-|----> dir
+         1       2 3
+     then
+      ---|-|-------|----> dir
+         1 2'      3
+     and either 2 = 2' or strict_suffix 2 2'.
+  *)
   Lemma ss_next'_inv:
     forall inp1 inp2 inp3 dir,
       advance_input inp2 dir = Some inp1 ->
       strict_suffix inp2 inp3 dir ->
       exists inp2',
         strict_suffix inp1 inp2' dir /\
-        advance_input inp3 dir = Some inp2'.
+        advance_input inp3 dir = Some inp2' /\
+        (inp2' = inp2 \/ strict_suffix inp2 inp2' dir).
   Admitted.
 
   Lemma strict_suffix_ind':
