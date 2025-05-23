@@ -16,7 +16,7 @@ Section Semantics.
 
 
   (* TODO: Read a substring from a group map *)
-  Parameter read_backref : group_map -> input -> Direction -> option (string * input).
+  Parameter read_backref : group_map -> group_id -> input -> Direction -> option (string * input).
   
   (** * Lookaround tree functions  *)
 
@@ -190,12 +190,12 @@ Section Semantics.
       is_tree (Areg (Anchor a) :: cont) inp gm dir Mismatch
   | tree_backref:
     forall gid inp gm nextinp dir cont tcont br_str
-      (READ_BACKREF: read_backref gm inp dir = Some (br_str, nextinp))
+      (READ_BACKREF: read_backref gm gid inp dir = Some (br_str, nextinp))
       (TREECONT: is_tree cont nextinp gm dir tcont),
       is_tree (Areg (Backreference gid) :: cont) inp gm dir (ReadBackRef br_str tcont)
   | tree_backref_fail:
     forall gid inp gm dir cont
-      (READ_BACKREF: read_backref gm inp dir = None),
+      (READ_BACKREF: read_backref gm gid inp dir = None),
       is_tree (Areg (Backreference gid) :: cont) inp gm dir Mismatch.
 
 

@@ -488,6 +488,18 @@ Section FunctionalSemantics.
 
   (** * Computing a tree  *)
 
+  Definition lk_succeeds (lk: lookaround) (t: tree): bool :=
+    match positivity lk with
+    | true => match first_branch t with
+      | Some res => true
+      | None => false
+      end
+    | false => match first_branch t with
+      | Some res => false
+      | None => true
+      end
+    end.
+
 
   Fixpoint compute_tree (act: actions) (inp: input) (gm: group_map) (dir: Direction) (fuel:nat): option tree :=
     match fuel with
@@ -554,8 +566,42 @@ Section FunctionalSemantics.
             | Some treecont => Some (GroupAction (Open gid) treecont)
             | _ => None
             end          
-        (* tree_lk, tree_lk_fail, tree_anchor, tree_anchor_fail, tree_backref, tree_backref_fail: TODO *)
-        | _ => Some Mismatch
+        (* tree_lk, tree_lk_fail *)
+        | Areg (Lookaround lk r1)::cont =>
+            let treelk := compute_tree [Areg r1] inp gm (lk_dir lk) fuel in
+            match treelk with None => None | Some treelk =>
+              if lk_succeeds lk treelk then
+                match lk_group_map lk treelk gm (idx inp) with
+                | Some gmlk =>
+                  let treecont := compute_tree cont inp gmlk dir fuel in
+                  match treecont with None => None | Some treecont =>
+                    Some (LK lk treelk treecont)
+                  end
+                | None => Some Mismatch (* should not happen *)
+                end
+              else
+                Some (LKFail lk treelk)
+            end
+        (* tree_anchor, tree_anchor_fail *)
+        | Areg (Anchor a)::cont =>
+          if anchor_satisfied a inp then
+            let treecont := compute_tree cont inp gm dir fuel in
+            match treecont with None => None | Some treecont =>
+              Some (AnchorPass a treecont)
+            end
+          else
+            Some Mismatch
+        (* tree_backref, tree_backref_fail *)
+        | Areg (Backreference gid)::cont =>
+          match read_backref gm gid inp dir with
+          | Some (br_str, nextinp) =>
+            let tcont := compute_tree cont nextinp gm dir fuel in
+            match tcont with None => None | Some tcont =>
+              Some (ReadBackRef br_str tcont)
+            end
+          | None =>
+            Some Mismatch
+          end
         end
     end.
     
@@ -643,14 +689,14 @@ Section FunctionalSemantics.
           destruct (compute_tree (Areg r :: Areg (Quantified greedy n delta r) :: act) inp (GroupMap.reset (def_groups r) gm) dir fuel); try contradiction.
           apply somenone.
         }
-      + simpl. apply somenone.    (* TODO lookarounds *)
+      + simpl. admit.    (* TODO lookarounds *)
       + simpl. generalize (group_termination act inp dir r id). intros.
         assert (ENOUGH: fuel > actions_fuel (Areg r :: Aclose id :: act) inp dir) by lia.
         apply IHfuel with (gm:=(GroupMap.open (idx inp) id gm)) in ENOUGH.
         destruct (compute_tree (Areg r :: Aclose id :: act) inp (GroupMap.open (idx inp) id gm) dir fuel); try contradiction.
         apply somenone.
-      + simpl. apply somenone.    (* TODO *)
-      + simpl. apply somenone.    (* TODO *) 
+      + simpl. admit.    (* TODO anchors *)
+      + simpl. admit.    (* TODO backreferences *) 
     - simpl. destruct (is_strict_suffix inp i dir) eqn:SS.
       + apply is_strict_suffix_correct in SS.
         eapply check_termination with (cont:=act) in SS as FUEL.
@@ -664,6 +710,6 @@ Section FunctionalSemantics.
       apply IHfuel with (gm:=GroupMap.close (idx inp) g gm) in ENOUGH.
       destruct (compute_tree act inp (GroupMap.close (idx inp) g gm) dir fuel); try contradiction.
       apply somenone.
-  Qed.
+  Admitted.
 
 End FunctionalSemantics.
