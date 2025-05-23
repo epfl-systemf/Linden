@@ -73,7 +73,7 @@ Section Semantics.
   (* or closing a group after it's been opened *)
   Inductive action: Type :=
   | Areg: regex -> action
-  | Acheck: string -> action
+  | Acheck: input -> action
   | Aclose: group_id -> action.
 
   Definition actions: Type := list action.
@@ -100,13 +100,13 @@ Section Semantics.
   | tree_check:
   (* pops a successful check from the action list *)
     forall inp gm dir strcheck cont treecont
-      (PROGRESS: current_str inp dir <> strcheck)
+      (PROGRESS: inp <> strcheck)
       (TREECONT: is_tree cont inp gm dir treecont),
       is_tree (Acheck strcheck :: cont) inp gm dir (Progress strcheck treecont)
   | tree_check_fail:
   (* pops a failing check from the action list *)
     forall inp gm dir strcheck cont
-      (CHECKFAIL: current_str inp dir = strcheck),
+      (CHECKFAIL: inp = strcheck),
       is_tree (Acheck strcheck :: cont) inp gm dir Mismatch
   | tree_close:
   (* pops the closing of a group from the action list *)
@@ -155,7 +155,7 @@ Section Semantics.
       (* the list of capture groups to reset *)
       (RESET: gidl = def_groups r1)
       (* doing one iteration, then a check, then executing the next quantifier *)
-      (ISTREE1: is_tree (Areg r1 :: Acheck (current_str inp dir) :: Areg (Quantified greedy 0 plus r1) :: cont) inp (GroupMap.reset gidl gm) dir titer)
+      (ISTREE1: is_tree (Areg r1 :: Acheck inp :: Areg (Quantified greedy 0 plus r1) :: cont) inp (GroupMap.reset gidl gm) dir titer)
       (* skipping the quantifier entirely *)
       (SKIP: is_tree cont inp gm dir tskip)
       (CHOICE: tquant = greedy_choice greedy (GroupAction (Reset gidl) titer) tskip),

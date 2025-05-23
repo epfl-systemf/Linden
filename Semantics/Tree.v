@@ -64,7 +64,7 @@ Section Tree.
   | Choice (t1 t2:tree)
   | Read (c:Character) (t:tree)
   | ReadBackRef (str: string) (t:tree)
-  | Progress (str:string) (t:tree)
+  | Progress (inp:input) (t:tree)
   | AnchorPass (a: anchor) (t: tree)
   | GroupAction (g:groupaction) (t: tree)
   | LK (lk: lookaround) (tlk: tree) (t: tree) (* tlk is the lookaround tree. *)

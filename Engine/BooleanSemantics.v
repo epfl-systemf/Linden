@@ -23,7 +23,6 @@ Inductive LoopBool : Type :=
 (** * Boolean Semantics  *)
 (* where checks consult the boolean instead of actually comparing strings *)
 
-
   Inductive bool_tree: actions -> input -> LoopBool -> tree -> Prop :=
   | tree_done:
     (* nothing to do on an empty list of actions *)
@@ -88,7 +87,7 @@ Inductive LoopBool : Type :=
       (RESET: gidl = def_groups r1)
       (* doing one iteration, then a check, then executing the next quantifier *)
       (* NEW: switchgint the boolean to CannotExit *)
-      (ISTREE1: bool_tree (Areg r1 :: Acheck (current_str inp forward) :: Areg (Quantified greedy 0 plus r1) :: cont) inp CannotExit titer)
+      (ISTREE1: bool_tree (Areg r1 :: Acheck inp :: Areg (Quantified greedy 0 plus r1) :: cont) inp CannotExit titer)
       (* skipping the quantifier entirely *)
       (SKIP: bool_tree cont inp b tskip)
       (CHOICE: tquant = greedy_choice greedy (GroupAction (Reset gidl) titer) tskip),
@@ -155,7 +154,7 @@ Proof.
 Qed.
   
 
-Inductive bool_encoding: LoopBool -> string -> actions -> Prop :=
+Inductive bool_encoding: LoopBool -> input -> actions -> Prop :=
 (* an empty continuation can be encoded with any boolean *)
 | nil_encode:
   forall str b,
@@ -171,7 +170,7 @@ Inductive bool_encoding: LoopBool -> string -> actions -> Prop :=
 | cons_true:
   forall stk str head 
     (ENCODE: bool_encoding CanExit str stk)
-    (STRICT: strict_suffix str head),
+    (STRICT: strict_suffix (current_str str forward) (current_str head forward)),
     bool_encoding CanExit str (Acheck head::stk)
 | to_false:
   (* to switch to false, we need the head of the stack to be equal to the current string
@@ -187,22 +186,22 @@ Inductive bool_encoding: LoopBool -> string -> actions -> Prop :=
 
 (* Generalizes the encoding to inputs *)
 (* later: add direction, so that the input can be read in two directions *)
-Inductive encodes : LoopBool -> input -> actions -> Prop :=
-| encode_forward:
-  forall b next pref cont
-    (ENCODE: bool_encoding b next cont),
-    encodes b (Input next pref) cont.
+(* Inductive encodes : LoopBool -> input -> actions -> Prop := *)
+(* | encode_forward: *)
+(*   forall b next pref cont *)
+(*     (ENCODE: bool_encoding b next cont), *)
+(*     encodes b (Input next pref) cont. *)
 
 
 (* when we are already encoded with true, reading a new character preserves this true encoding *)
 (* when we are encoded with false, reading a new character switches to being encoded with true *)
 Lemma true_encoding:
-  forall str c cont b,
-    bool_encoding b (c::str) cont ->
-    bool_encoding CanExit str cont.
+  forall str c pref cont b,
+    bool_encoding b (Input (c::str) pref) cont ->
+    bool_encoding CanExit (Input str (c::pref)) cont.
 Proof.
-  intros str c cont b H.
-  remember (c::str) as prevstr.
+  intros str c pref cont b H.
+  remember (Input (c::str) pref) as prevstr.
   induction H; intros.
   - constructor.
   - constructor; auto.
@@ -239,8 +238,8 @@ Lemma encoding_different:
     str <> strcheck ->
     b = CanExit.
 Proof.
-  intros b0 str strcheck cont H.
-  remember (Acheck strcheck::cont) as prevcont.
+  intros b0 str [strcheck pref] cont H.
+  remember (Acheck (Input strcheck pref)::cont) as prevcont.
   induction H; intros; auto; inversion Heqprevcont;
     exfalso; auto.
 Qed.
@@ -259,26 +258,24 @@ Qed.
 
 Lemma encode_next:
   forall b inp cont r,
-    encodes b inp (Areg r::cont) <->
-    encodes b inp cont.
+    bool_encoding b inp (Areg r::cont) <->
+    bool_encoding b inp cont.
 Proof.
   intros b inp cont r. split; intros H.
   - inversion H; subst.
-    constructor. inversion ENCODE; subst. auto.
-  - destruct inp. constructor. inversion H; subst.
-    constructor. auto.
+    inversion ENCODE; subst; auto.
+  - destruct inp. constructor. inversion H; subst; auto.
 Qed.
 
 Lemma encode_close:
   forall b inp cont g,
-    encodes b inp (Aclose g::cont) <->
-    encodes b inp cont.
+    bool_encoding b inp (Aclose g::cont) <->
+    bool_encoding b inp cont.
 Proof.
   intros b inp cont g. split; intros H.
   - inversion H; subst.
-    constructor. inversion ENCODE; subst. auto.
-  - destruct inp. constructor. inversion H; subst.
-    constructor. auto.
+    inversion ENCODE; subst; auto.
+  - destruct inp. constructor. inversion H; subst; auto.
 Qed.
 
 
@@ -289,7 +286,7 @@ Qed.
 Theorem encode_equal:
   forall inp cont b t gm
     (PIKE: pike_actions cont)
-    (ENCODE: encodes b inp cont)
+    (ENCODE: bool_encoding b inp cont)
     (TREE: is_tree cont inp gm forward t),
     bool_tree cont inp b t.
 Proof.
@@ -299,22 +296,21 @@ Proof.
   induction TREE; inversion PIKE; subst; intros;
     try solve[constructor; auto]; try solve [inversion H1; inversion H0].
   - assert (b = CanExit).
-    { remember (Acheck strcheck::cont) as cont'.
-      destruct ENCODE; subst; eapply encoding_different; eauto. }
+    { eapply encoding_different; eauto. }
     subst. constructor. eapply IHTREE; eauto.
-    inversion ENCODE; subst; constructor; inversion ENCODE0; auto.
+    inversion ENCODE; subst; auto.
   - assert (b = CannotExit).
-    { remember (Acheck (current_str inp forward) :: cont) as cont'.
-      destruct ENCODE; subst; eapply encoding_same; eauto. }
+    { eapply encoding_same; eauto. }
     subst. constructor.
   - constructor; apply IHTREE; auto;
-      inversion ENCODE; subst; constructor; inversion ENCODE0; auto.
+      inversion ENCODE; subst; auto.
   - constructor; apply IHTREE; auto;
-      inversion ENCODE; subst; constructor; inversion ENCODE0; auto.
+      inversion ENCODE; subst; auto.
   - apply encode_next in ENCODE.
     subst. econstructor; eauto. apply IHTREE; auto.
-    destruct nextinp. destruct ENCODE; constructor; simpl in READ.
-    destruct next0; inversion READ. destruct (char_match t cd); inversion READ; subst. eapply true_encoding; eauto.
+    destruct nextinp. destruct inp. simpl in READ.
+    destruct next0; inversion READ. destruct (char_match t cd); inversion READ; subst.
+    eapply true_encoding; eauto.
   - apply encode_next in ENCODE. inversion H1. inversion H0. subst. constructor.
     + apply IHTREE1; auto.
       { constructor; try constructor; auto. }
@@ -326,18 +322,18 @@ Proof.
     { inversion H1. subst. inversion H0. subst.
       repeat progress (constructor; auto). }
     inversion ENCODE; subst; constructor; constructor; auto.
-    constructor. inversion ENCODE0; subst. auto.
   (* - constructor; auto. apply IHTREE; auto. *)
     (* { inversion H1. inversion H0. } *)
     (* apply encode_next. apply encode_next. apply encode_next in ENCODE. auto. *)
   (* - constructor; auto. apply IHTREE; auto. *)
   (*   apply encode_next in ENCODE. auto. *)
-  - eapply tree_quant_free; eauto.
-    + subst. eapply IHTREE1; auto.
-      { inversion H1. inversion H0. subst. destruct plus; inversion H5.
+  - destruct plus.
+    { pike_subset. }
+    eapply tree_quant_free; eauto.
+    + eapply IHTREE1; auto.
+      { inversion H1. inversion H0. subst.
         repeat progress (constructor; auto). }
-      apply encode_next. destruct inp. simpl. constructor. eapply false_encoding.
-      constructor. apply encode_next in ENCODE. inversion ENCODE; subst. eauto.
+      apply encode_next. eapply false_encoding; eauto.
     + subst. eapply IHTREE2; auto. apply encode_next in ENCODE. auto.
   - constructor. apply IHTREE; auto.
     { inversion H1. inversion H0. subst. repeat progress (constructor; auto). }
@@ -354,7 +350,7 @@ Proof.
   unfold priotree. intros r str t PIKE H.
   eapply encode_equal; eauto.
   { constructor; constructor; auto. }
-  constructor. constructor. constructor.
+  constructor. constructor. 
 Qed.
 
 
