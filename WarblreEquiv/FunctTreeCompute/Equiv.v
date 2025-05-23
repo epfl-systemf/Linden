@@ -431,12 +431,12 @@ Section Equiv.
       intros ctx Hroot Heqn m dir. simpl.
       destruct Semantics.compileSubPattern as [msub | ] eqn:Hcompsuccsub; simpl; try discriminate.
       intro H. injection H as <-.
-      unfold equiv_matcher. intros str0 mc gl act Hequivcont Hgldisj.
-      unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp; simpl; try discriminate.
+      unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
+      unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hnoforbidden; simpl; try discriminate.
       set (mcclose := fun (y: MatchState) => _).
-      assert (Hequivmcclose: equiv_cont mcclose ((S n, idx inp)::gl)%list (Aclose (S n)::act)%list dir str0). {
-        unfold equiv_cont. intros gm' ms' inp' res' [|fuel'] t' Hinp'compat Hgm'ms' Hgm'gl' Hms'inp'; simpl; try discriminate.
-        destruct compute_tree' as [treecont|] eqn:Htreecont; simpl; try discriminate.
+      assert (Hequivmcclose: equiv_cont mcclose ((S n, idx inp)::gl)%list forbgroups (Aclose (S n)::act)%list dir str0). {
+        unfold equiv_cont. intros gm' ms' inp' res' [|fuel'] t' Hinp'compat Hgm'ms' Hgm'gl' Hms'inp' Hnoforbidden'; simpl; try discriminate.
+        destruct compute_tree as [treecont|] eqn:Htreecont; simpl; try discriminate.
         unfold mcclose.
         set (rres := if (dir ==? forward)%wt then _ else _). destruct rres as [r|] eqn:Hrres; simpl; try discriminate.
         replace (StaticSemantics.countLeftCapturingParensBefore _ ctx + 1) with (S n) by lia.
@@ -447,15 +447,18 @@ Section Equiv.
         - eapply equiv_gm_ms_close_group; eauto.
         - eapply equiv_open_groups_close_group; eauto.
         - eapply ms_matches_inp_close_group; eauto.
+        - admit.
       }
-      destruct compute_tree' as [treecont|] eqn:Htreecont; simpl; try discriminate.
+      destruct compute_tree as [treecont|] eqn:Htreecont; simpl; try discriminate.
       intros Hres H. injection H as <-. simpl.
       eapply IH; eauto.
       + eauto using Down.same_root_down0, Down_Group_inner.
       + simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia.
       + admit. (* Group list disjointness *)
+      + admit.
       + admit. (* Group map equivalence after opening a group *)
       + admit. (* Group map equivalence to open groups after opening a group *)
+      + admit.
 
     - (* Lookaround *)
       admit.
