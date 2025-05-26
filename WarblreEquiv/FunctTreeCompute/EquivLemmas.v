@@ -1,4 +1,4 @@
-From Linden Require Import Regex GroupMapMS LindenParameters Groups Tree Chars Semantics MSInput EquivDef.
+From Linden Require Import Regex GroupMapMS LindenParameters Groups Tree Chars Semantics MSInput EquivDef Utils.
 From Warblre Require Import Parameters List Notation Result Typeclasses Base Errors.
 From Coq Require Import List ZArith.
 Import ListNotations.
@@ -8,7 +8,10 @@ Import Result.Notations.
 Section EquivLemmas.
   Context `{characterClass: Character.class}.
 
-  (* Validity wrt checks in a list of actions `act` implies validity wrt checks in the tail of `act`. *)
+
+  (** ** Lemma for validity wrt checks *)
+
+  (* Validity wrt checks in a list of actions `acts` implies validity wrt checks in the tail of `acts`. *)
   Lemma ms_valid_wrt_checks_tail:
     forall act acts ms dir,
     ms_valid_wrt_checks ms (act::acts) dir -> ms_valid_wrt_checks ms acts dir.
@@ -17,6 +20,18 @@ Section EquivLemmas.
     apply Hvalid. now right.
   Qed.
 
+  (* Validity wrt checks in a list of actions `acts` implies validity wrt `Areg reg :: act` for any `reg`. *)
+  Lemma ms_valid_wrt_checks_Areg:
+    forall reg acts ms dir,
+    ms_valid_wrt_checks ms acts dir -> ms_valid_wrt_checks ms (Areg reg :: acts) dir.
+  Proof.
+    intros reg acts ms dir Hvalid inp Hin.
+    destruct Hin as [Habs | Hin]; try discriminate.
+    now apply Hvalid.
+  Qed.
+
+
+  (** ** Lemmas related to inclusion or disjunction of group IDs. *)
 
   (* Inductive definition that relates a regex to its parent regex. *)
   Inductive ChildRegex: regex -> regex -> Prop :=
@@ -27,6 +42,9 @@ Section EquivLemmas.
   | Child_Quantified: forall greedy min delta r, ChildRegex r (Quantified greedy min delta r)
   | Child_Lookaround: forall lk r, ChildRegex r (Lookaround lk r)
   | Child_Group: forall id r, ChildRegex r (Group id r).
+
+  Definition is_quantifier (r: regex): Prop :=
+    exists greedy min delta rsub, r = Quantified greedy min delta rsub.
 
   (* The groups defined in a child regex are included in those defined in the parent regex. *)
   Lemma child_groups_incl_parent:
@@ -43,8 +61,60 @@ Section EquivLemmas.
   Proof.
     intros child parent Hchild gl Hgldisjparent.
     unfold open_groups_disjoint. intros gid idx Hingl Hinchild.
-    unfold open_groups_disjoint, "~" in Hgldisjparent. 
+    unfold open_groups_disjoint, "~" in Hgldisjparent.
     eauto using Hgldisjparent, child_groups_incl_parent.
+  Qed.
+
+  Lemma in_forb_implies_in_def:
+    forall gid r, In gid (forbidden_groups r) -> In gid (def_groups r).
+  Proof.
+    intros gid r Hin. destruct r; simpl in *; auto.
+    inversion Hin.
+  Qed.
+
+  Lemma noforbidden_child:
+    forall child parent, ChildRegex child parent -> ~is_quantifier parent ->
+      forall gm forbgroups,
+        no_forbidden_groups gm (forbidden_groups parent ++ forbgroups) ->
+        no_forbidden_groups gm (forbidden_groups child ++ forbgroups).
+  Proof.
+    intros child parent Hchild Hparnotquant gm forbgroups H.
+    intros gid Hinforb.
+    apply H. rewrite in_app_iff in *. destruct Hinforb. 2: tauto.
+    apply in_forb_implies_in_def in H0. inversion Hchild; subst child parent; simpl; try rewrite in_app_iff; try tauto.
+    left. apply Hparnotquant. now repeat eexists.
+  Qed.
+
+  Lemma noforbidden_seq:
+    forall r1 r2 gm forbgroups,
+      no_forbidden_groups gm (forbidden_groups (Sequence r1 r2) ++ forbgroups) ->
+      no_forbidden_groups gm (forbidden_groups r1 ++ forbidden_groups r2 ++ forbgroups).
+  Proof.
+    intros r1 r2 gm forbgroups Hnoforb.
+    simpl in Hnoforb. unfold no_forbidden_groups. intros gid Hin.
+    apply Hnoforb. do 2 rewrite in_app_iff in *.
+    pose proof in_forb_implies_in_def gid r1. pose proof in_forb_implies_in_def gid r2. tauto.
+  Qed.
+
+  Lemma noforbidden_seq_bwd:
+    forall r1 r2 gm forbgroups,
+      no_forbidden_groups gm (forbidden_groups (Sequence r1 r2) ++ forbgroups) ->
+      no_forbidden_groups gm (forbidden_groups r2 ++ forbidden_groups r1 ++ forbgroups).
+  Proof.
+    intros r1 r2 gm forbgroups Hnoforb.
+    simpl in Hnoforb. unfold no_forbidden_groups. intros gid Hin.
+    apply Hnoforb. do 2 rewrite in_app_iff in *.
+    pose proof in_forb_implies_in_def gid r1. pose proof in_forb_implies_in_def gid r2. tauto.
+  Qed.
+
+  Lemma disj_forbidden_child:
+    forall child parent, ChildRegex child parent ->
+      forall forbgroups,
+        List.Disjoint (def_groups parent) forbgroups ->
+        List.Disjoint (def_groups child) forbgroups.
+  Proof.
+    intros child parent Hchild forbgroups Hdisj gid Hinchild.
+    apply Hdisj. eauto using child_groups_incl_parent.
   Qed.
 
   (* Equivalence of a group map gm with a MatchState ms is preserved by resetting the same groups on both sides. *)

@@ -1,6 +1,6 @@
 From Linden Require Import EquivDef RegexpTranslation Regex LindenParameters
   Semantics FunctionalSemantics LWEquivTreeLemmas CharDescrCharSet Tactics
-  NumericLemmas MSInput Chars Groups EquivLemmas Utils.
+  NumericLemmas MSInput Chars Groups EquivLemmas Utils CharSet.
 From Warblre Require Import Parameters Semantics RegExpRecord Patterns
   Node Result Notation Typeclasses List Base Node Match.
 Import Patterns.
@@ -228,6 +228,79 @@ Section Equiv.
   Proof.
   Admitted.
 
+
+  (* Linking CharSet.exist_canonicalized and CharSet.contains *)
+  Lemma exist_canonicalized_contains:
+    forall rer charset chr,
+    RegExpRecord.ignoreCase rer = false ->
+    CharSet.exist_canonicalized rer charset (Character.canonicalize rer chr) = CharSet.contains charset chr.
+  Proof.
+    intros rer charset chr Hcasesenst.
+    rewrite CharSet.exist_canonicalized_equiv. simpl.
+    apply Bool.eq_true_iff_eq.
+    setoid_rewrite CharSetExt.exist_spec. split.
+    - intros [c [Hcontains Heq]]. setoid_rewrite canonicalize_casesenst in Heq. 2,3: assumption. rewrite EqDec.inversion_true in Heq. subst c. now apply CharSetExt.contains_spec.
+    - intro Hcontains. exists chr. split. 1: now apply CharSetExt.contains_spec.
+      apply EqDec.reflb.
+  Qed.
+
+
+
+  (* Lemma for character set matchers *)
+  Lemma charSetMatcher_noninv_equiv:
+    forall charset cd,
+      equiv_cd_charset cd charset ->
+      forall rer dir,
+        RegExpRecord.ignoreCase rer = false ->
+        equiv_matcher (Semantics.characterSetMatcher rer charset false dir) (Regex.Character cd) rer dir.
+  Proof.
+    intros charset cd Hequiv rer dir Hcasesenst.
+    unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
+    unfold equiv_cont. intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmsvalid Hmschecks Hnoforbidden.
+    unfold Semantics.characterSetMatcher.
+    set (nextend := if (dir ==? forward)%wt then _ else _).
+    destruct ((nextend <? 0)%Z || _)%bool eqn:Hoob; simpl.
+    + (* Out of bounds *)
+      intro Hres. injection Hres as <-. destruct fuel as [|fuel]; try discriminate. simpl.
+      erewrite read_oob_fail_bool by eauto.
+      intro Heqt. injection Heqt as <-. simpl. constructor.
+    + (* In bounds *)
+      pose proof next_inbounds_nextinp ms inp dir nextend Hmsinp eq_refl Hoob as [inp' Hadv].
+      destruct List.Indexing.Int.indexing as [chr|] eqn:Hgetchr; simpl; try discriminate.
+      destruct CharSet.CharSetExt.exist_canonicalized eqn:Hexist; simpl.
+      * (* Read succeeds *)
+        intro Hcontsucc. destruct fuel as [|fuel]; simpl; try discriminate.
+        rewrite (proj1 (read_char_success' ms inp chr _ _ rer dir inp' nextend Hequiv Hcasesenst Hmsinp eq_refl Hgetchr Hexist Hadv)).
+        destruct compute_tree as [tcont|] eqn:Htcont; simpl; try discriminate.
+        intro H. injection H as <-. simpl.
+        unfold equiv_cont in Hequivcont.
+        rewrite advance_idx_advance_input with (inp' := inp') by assumption.
+        eapply Hequivcont with (ms := match_state (MatchState.input ms) nextend (MatchState.captures ms)); eauto.
+        3,4: admit.
+        (* 3: MatchState validity follows from the fact that nextend is not out of bounds *)
+        (* 4: advancing the end index does not make validity wrt checks false *)
+        1: eauto using advance_input_compat.
+        eapply ms_matches_inp_adv; eauto. unfold MSInput.advance_ms. now destruct dir.
+      * (* Read fails *)
+        intro Hcontsucc. injection Hcontsucc as <-.
+        destruct fuel as [|fuel]; simpl; try discriminate.
+        rewrite (proj1 (read_char_fail' rer ms chr inp inp' dir _ _ nextend Hequiv Hcasesenst Hmsinp eq_refl Hgetchr Hexist Hadv)).
+        intro H. injection H as <-. simpl. constructor.
+  Admitted.
+
+  Lemma characterClassEscape_equiv:
+    forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
+      (root_equiv: equiv_regex wroot lroot),
+      RegExpRecord.ignoreCase rer = false ->
+    forall esc wreg lreg ctx,
+      wreg = AtomEsc (ACharacterClassEsc esc) ->
+      Root wroot (wreg, ctx) ->
+      equiv_regex' wreg lreg (StaticSemantics.countLeftCapturingParensBefore wreg ctx) ->
+      forall m dir,
+        Semantics.compileSubPattern wreg ctx rer dir = Success m ->
+        equiv_matcher m lreg rer dir.
+  Admitted.
+
   (* Main equivalence theorem: *)
   Theorem equiv:
     forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
@@ -281,48 +354,19 @@ Section Equiv.
       intro Hsubtreesucc.
       eapply Hequivcont; eauto using ms_valid_wrt_checks_tail.
   
-    - (* Character; TODO generalize to all character descriptors *)
+    - (* Character *)
       intros ctx Hroot Heqn m dir Hcompsucc.
       injection Hcompsucc as <-.
-      unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
-      unfold equiv_cont. intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmsvalid Hmschecks Hnoforbidden.
-      unfold Semantics.characterSetMatcher.
-      set (nextend := if (dir ==? forward)%wt then _ else _).
-      destruct ((nextend <? 0)%Z || _)%bool eqn:Hoob; simpl.
-      + (* Out of bounds *)
-        intro Hres. injection Hres as <-. destruct fuel as [|fuel]; try discriminate. simpl.
-        erewrite read_oob_fail_bool by eauto.
-        intro Heqt. injection Heqt as <-. simpl. constructor.
-      + (* In bounds *)
-        pose proof next_inbounds_nextinp ms inp dir nextend Hmsinp eq_refl Hoob as [inp' Hadv].
-        destruct List.Indexing.Int.indexing as [chr|] eqn:Hgetchr; simpl; try discriminate.
-        destruct CharSet.CharSetExt.exist_canonicalized eqn:Hexist; simpl.
-        * (* Read succeeds *)
-          intro Hcontsucc. destruct fuel as [|fuel]; simpl; try discriminate.
-          unshelve erewrite (proj1 (read_char_success' ms inp chr _ _ rer dir inp' nextend _ Hcasesenst Hmsinp eq_refl Hgetchr Hexist Hadv)).
-          1: apply equiv_cd_single.
-          destruct compute_tree as [tcont|] eqn:Htcont; simpl; try discriminate.
-          intro H. injection H as <-. simpl.
-          unfold equiv_cont in Hequivcont.
-          rewrite advance_idx_advance_input with (inp' := inp') by assumption.
-          eapply Hequivcont with (ms := match_state (MatchState.input ms) nextend (MatchState.captures ms)); eauto.
-          3,4: admit.
-          (* 3: MatchState validity follows from the fact that nextend is not out of bounds *)
-          (* 4: advancing the end index does not make validity wrt checks false *)
-          1: eauto using advance_input_compat.
-          eapply ms_matches_inp_adv; eauto. unfold MSInput.advance_ms. now destruct dir.
-        * (* Read fails *)
-          intro Hcontsucc. injection Hcontsucc as <-.
-          destruct fuel as [|fuel]; simpl; try discriminate.
-          unshelve erewrite (proj1 (read_char_fail' rer ms chr inp inp' dir _ _ nextend _ Hcasesenst Hmsinp eq_refl Hgetchr Hexist Hadv)).
-          1: apply equiv_cd_single.
-          intro H. injection H as <-. simpl. constructor.
+      apply charSetMatcher_noninv_equiv; auto. apply equiv_cd_single.
     
-    - (* Dot; probably very similar to character *)
-      admit.
+    - (* Dot *)
+      intros ctx Hroot Heqn m dir Hcompsucc.
+      injection Hcompsucc as <-.
+      apply charSetMatcher_noninv_equiv; auto. rewrite Hdotall. apply equiv_cd_dot.
     
     - (* AtomEsc (ACharacterClassEsc esc); idem *)
-      admit.
+      intros ctx Hroot Heqn m dir Hcompsucc.
+      eapply characterClassEscape_equiv; eauto. constructor. assumption.
     
     - (* AtomEsc (ACharacterEsc esc); idem *)
       admit.
@@ -353,10 +397,10 @@ Section Equiv.
       (* Specialize the induction hypotheses again naturally *)
       specialize (IH1 str0 mc gl forbgroups act Hequivcont).
       specialize_prove IH1 by eauto using disj_parent_disj_child, Child_Disjunction_left.
-      specialize_prove IH1 by admit. (* Disjointness of groups in lr1 from forbgroups follows from disjointness of groups in Disjunction lr1 lr2 from forbgroups*)
+      specialize_prove IH1 by eauto using disj_forbidden_child, Child_Disjunction_left.
       specialize (IH2 str0 mc gl forbgroups act Hequivcont).
       specialize_prove IH2 by eauto using disj_parent_disj_child, Child_Disjunction_right.
-      specialize_prove IH2 by admit. (* Disjointness of groups in lr2 from forbgroups follows from disjointness of groups in Disjunction lr1 lr2 from forbgroups*)
+      specialize_prove IH2 by eauto using disj_forbidden_child, Child_Disjunction_right.
       unfold equiv_cont in IH1, IH2.
       (* Eliminate failing cases *)
       destruct fuel as [|fuel]; simpl; try discriminate.
@@ -364,8 +408,12 @@ Section Equiv.
       destruct compute_tree as [t1|] eqn:Ht1; simpl; try discriminate.
       destruct (compute_tree (Areg lr2 :: act)%list _ _ _ _) as [t2|] eqn:Ht2; simpl; try discriminate.
       specialize (IH1 gm ms inp res1 fuel t1 Hinpcompat Hgmms Hgmgl Hmsinp Hmsvalid).
-      (* 1: follows from Hmschecks (we just add/remove Areg's); 2: follows from Hnoforbidden (going from a disjunction to its children regexes) *)
-      do 2 specialize_prove IH1 by admit. specialize (IH1 Hres1 Ht1).
+      specialize_prove IH1. { apply ms_valid_wrt_checks_Areg. eauto using ms_valid_wrt_checks_tail. }
+      specialize_prove IH1. { apply noforbidden_child with (parent := Regex.Disjunction lr1 lr2).
+        - apply Child_Disjunction_left.
+        - intros [greedy [min [delta [rsub Habs]]]]; discriminate.
+        - assumption. }
+      specialize (IH1 Hres1 Ht1).
       (* Case analysis on whether the left branch matches *)
       destruct res1 as [msres1|] eqn:Hmsres1; simpl.
       + (* Left choice matches *)
@@ -377,8 +425,11 @@ Section Equiv.
         intros Hres2 H. injection H as <-. simpl.
         inversion IH1 as [ HNone1 | ]. simpl.
         eapply IH2; eauto.
-        (* 1: follows from Hmschecks (adding/removing an Areg); 2: follows from Hforbidden (going from a disjunction to its children regexes) *)
-        all: admit.
+        * apply ms_valid_wrt_checks_Areg. eauto using ms_valid_wrt_checks_tail.
+        * apply noforbidden_child with (parent := Regex.Disjunction lr1 lr2).
+          -- apply Child_Disjunction_right.
+          -- intros [greedy [min [delta [rsub Habs]]]]; discriminate.
+          -- assumption.
 
     - (* Sequence *)
       intros ctx Hroot Heqn m dir. simpl.
@@ -405,15 +456,13 @@ Section Equiv.
           intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmsvalid Hmschecks Hnoforbidden. unfold mc2.
           intros Hres Ht. eapply IH2; eauto.
           1: eauto using disj_parent_disj_child, Child_Sequence_right.
-          (* Follows from Hdef_forbid_disj: taking a sub-regexp *)
-          admit.
+          eauto using disj_forbidden_child, Child_Sequence_right.
         }
         intros Hres Ht. eapply IH1; eauto.
-        1: eauto using disj_parent_disj_child, Child_Sequence_left.
-        (* 1: follows from disjointness of def_groups lr1 from def_groups lr2 (because of Hequiv1 and Hequiv2) and from forbgroups (Hdef_forbid_disj) *)
-        (* 2: follows from Hmschecks (adding/removing Areg's) *)
-        (* 3: follows from Hnoforbidden (splitting the sequence into two) *)
-        all: admit.
+        * eauto using disj_parent_disj_child, Child_Sequence_left.
+        * admit. (* Follows from disjointness of def_groups lr1 from def_groups lr2 (because of Hequiv1 and Hequiv2) and from forbgroups (Hdef_forbid_disj) *)
+        * do 2 apply ms_valid_wrt_checks_Areg. eauto using ms_valid_wrt_checks_tail.
+        * now apply noforbidden_seq.
 
       + (* Backward *)
         unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
@@ -424,11 +473,13 @@ Section Equiv.
           intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmsvalid Hmschecks Hnoforbidden. unfold mc1.
           intros Hres Ht. eapply IH1; eauto.
           1: eauto using disj_parent_disj_child, Child_Sequence_left.
-          admit. (* Same as forward *)
+          eauto using disj_forbidden_child, Child_Sequence_left. (* Same as forward *)
         }
         intros Hres Ht. eapply IH2; eauto.
-        1: eauto using disj_parent_disj_child, Child_Sequence_right.
-        all: admit. (* Same as forward *)
+        * eauto using disj_parent_disj_child, Child_Sequence_right.
+        * admit.
+        * do 2 apply ms_valid_wrt_checks_Areg. eauto using ms_valid_wrt_checks_tail.
+        * now apply noforbidden_seq_bwd.
 
     - (* Quantified *)
       intros ctx Hroot Heqn m dir. simpl.
