@@ -9,6 +9,15 @@ Section EquivLemmas.
   Context `{characterClass: Character.class}.
 
 
+  (* Linking advance_idx with advance_input *)
+  Lemma advance_idx_advance_input:
+    forall inp inp' dir,
+      advance_input inp dir = Some inp' ->
+      Tree.advance_idx (idx inp) dir = idx inp'.
+  Proof.
+  Admitted.
+
+
   (** ** Lemma for validity wrt checks *)
 
   (* Validity wrt checks in a list of actions `acts` implies validity wrt checks in the tail of `acts`. *)
@@ -54,9 +63,10 @@ Section EquivLemmas.
   Qed.
 
 
+
   (** ** Lemmas related to inclusion or disjunction of group IDs. *)
 
-  (* Inductive definition that relates a regex to its parent regex. *)
+  (** * Inductive definition that relates a regex to its parent regex. *)
   Inductive ChildRegex: regex -> regex -> Prop :=
   | Child_Disjunction_left: forall r1 r2, ChildRegex r1 (Disjunction r1 r2)
   | Child_Disjunction_right: forall r1 r2, ChildRegex r2 (Disjunction r1 r2)
@@ -77,6 +87,10 @@ Section EquivLemmas.
     intros child parent Hchild. inversion Hchild; intros gid Hinchild; simpl; auto using in_or_app.
   Qed.
 
+
+
+  (** * Lemmas about disjointness of list of open groups *)
+
   (* Corollary: disjointness from the list of groups of a parent regex implies disjointness from the list of groups of any child regex. *)
   Lemma disj_parent_disj_child:
     forall child parent, ChildRegex child parent ->
@@ -87,6 +101,9 @@ Section EquivLemmas.
     unfold open_groups_disjoint, "~" in Hgldisjparent.
     eauto using Hgldisjparent, child_groups_incl_parent.
   Qed.
+
+
+  (** * Lemmas about absence of forbidden groups *)
 
   Lemma in_forb_implies_in_def:
     forall gid r, In gid (forbidden_groups r) -> In gid (def_groups r).
@@ -140,6 +157,37 @@ Section EquivLemmas.
     apply Hdisj. eauto using child_groups_incl_parent.
   Qed.
 
+  (* Lemma used when closing a group *)
+  Lemma group_map_close_find_other:
+    forall gm idx gid gid',
+      gid <> gid' ->
+      GroupMap.find gid' (GroupMap.close idx gid gm) = GroupMap.find gid' gm.
+  Proof.
+    intros gm idx gid gid' Hneq.
+    unfold GroupMap.close.
+    destruct (GroupMap.find gid gm); simpl. 2: reflexivity.
+    destruct r as [startIdx endIdxOpt].
+    unfold GroupMap.find.
+    admit.
+  Admitted.
+
+  Lemma noforb_close_group:
+    forall n lr idx gm' forbgroups,
+      no_forbidden_groups gm' forbgroups ->
+      List.Disjoint (def_groups (Regex.Group (S n) lr)) forbgroups ->
+      no_forbidden_groups (GroupMap.close idx (S n) gm') forbgroups.
+  Proof.
+    intros n lr idx gm' forbgroups Hnoforb Hdef_forbid_disj.
+    unfold no_forbidden_groups. intros gid Hin.
+    destruct (Nat.eq_dec gid (S n)) as [His_Sn | Hisnot_Sn].
+    - subst gid. exfalso. unfold List.Disjoint, not in Hdef_forbid_disj. apply Hdef_forbid_disj with (x := S n); auto.
+      simpl. left. reflexivity.
+    - rewrite group_map_close_find_other. 2: congruence. now apply Hnoforb.
+  Qed.
+
+
+  (** ** Lemmas related to equivalence of group maps and MatchStates *)
+
   (* Equivalence of a group map gm with a MatchState ms is preserved by resetting the same groups on both sides. *)
   Lemma equiv_gm_ms_reset {F} `{Result.AssertionError F}:
     forall gm ms parenIndex parenCount cap' msreset gidl gmreset
@@ -164,12 +212,19 @@ Section EquivLemmas.
   Proof.
   Admitted.
 
-  (* Linking advance_idx with advance_input *)
-  Lemma advance_idx_advance_input:
-    forall inp inp' dir,
-      advance_input inp dir = Some inp' ->
-      Tree.advance_idx (idx inp) dir = idx inp'.
+  Lemma equiv_gm_ms_open_group:
+    forall n lr idx gm ms forbgroups,
+      equiv_groupmap_ms gm ms ->
+      no_forbidden_groups gm (forbidden_groups (Regex.Group (S n) lr) ++ forbgroups) ->
+      equiv_groupmap_ms (GroupMap.open idx (S n) gm) ms.
   Proof.
+  Admitted.
+
+  Lemma equiv_gm_gl_open_group:
+    forall n lr idx gm gl forbgroups,
+      group_map_equiv_open_groups gm gl ->
+      no_forbidden_groups gm (forbidden_groups (Regex.Group (S n) lr) ++ forbgroups) ->
+      group_map_equiv_open_groups (GroupMap.open idx (S n) gm) ((S n, idx)::gl).
   Admitted.
 
   (* Lemma for closing a group *)

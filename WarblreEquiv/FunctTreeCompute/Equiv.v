@@ -538,7 +538,7 @@ Section Equiv.
         - eapply ms_matches_inp_close_group; eauto.
         - admit. (* Probably follows from proof of matcher invariant for groups *)
         - apply ms_valid_wrt_checks_inpcap with (winp' := MatchState.input ms') (cap' := MatchState.captures ms'). destruct ms'; simpl. eauto using ms_valid_wrt_checks_tail.
-        - admit. (* Follows from Hnoforbidden (for groups other than S n) and Hdef_forbid_disj (for S n) *)
+        - eauto using noforb_close_group.
       }
       destruct compute_tree as [treecont|] eqn:Htreecont; simpl; try discriminate.
       intros Hres H. injection H as <-. simpl.
@@ -547,8 +547,8 @@ Section Equiv.
       + simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia.
       + admit. (* Group list disjointness; follows from Hgldisj and Hequiv (for group S n) *)
       + eauto using disj_forbidden_child, Child_Group.
-      + admit. (* Group map equivalence after opening a group; follows from Hnoforbidden (!) *)
-      + admit. (* Group map equivalence to open groups after opening a group *)
+      + eauto using equiv_gm_ms_open_group. (* Group map equivalence after opening a group; follows from Hnoforbidden (!) *)
+      + eauto using equiv_gm_gl_open_group. (* Group map equivalence to open groups after opening a group *)
       + apply ms_valid_wrt_checks_Areg, ms_valid_wrt_checks_Aclose. eauto using ms_valid_wrt_checks_tail.
       + admit. (* Follows from Hnoforbidden (groups other than S n), Hdef_forbid_disj and Hequiv (S n) *)
 
