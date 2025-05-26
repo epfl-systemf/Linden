@@ -38,6 +38,15 @@ Section Chars.
         match dir with forward => next | backward => pref end
     end.
 
+  Definition input_str (i: input): string :=
+    match i with
+    | Input next pref => List.rev pref ++ next
+    end.
+
+  (* Getting a substring from an input *)
+  Definition substr (inp: input) (startIdx endIdx: nat): string :=
+    List.firstn (endIdx-startIdx) (List.skipn startIdx (input_str inp)).
+
   Definition init_input (str:string) : input :=
     Input str [].
 
@@ -166,6 +175,22 @@ Section Chars.
             | [] => None
             | h::pref' => Some (Input (h::next) pref')
             end
+        end
+    end.
+
+  (* Advancing input several times *)
+  Definition advance_input_n (i: input) (n: nat) (dir: Direction): input :=
+    match i with
+    | Input next pref =>
+        match dir with
+        | forward =>
+            let nnext := List.skipn n next in
+            let read := List.firstn n next in
+            Input nnext (List.rev read ++ pref)
+        | backward =>
+            let npref := List.skipn n pref in
+            let read := List.firstn n pref in
+            Input (List.rev read ++ next) npref
         end
     end.
 

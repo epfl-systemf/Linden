@@ -14,9 +14,35 @@ From Coq Require Import Lia.
 Section Semantics.
   Context `{characterClass: Character.class}.
 
-
-  (* TODO: Read a substring from a group map *)
-  Parameter read_backref : group_map -> group_id -> input -> Direction -> option (string * input).
+  (* Reading a substring from a group map *)
+  Definition read_backref (gm: group_map) (gid: group_id) (inp: input) (dir: Direction): option (string * input) :=
+    match GroupMap.find gid gm with
+    | None | Some (GroupMap.Range _ None) => Some ([], inp)
+    | Some (GroupMap.Range startIdx (Some endIdx)) =>
+      let sub := substr inp startIdx endIdx in
+      let len := endIdx - startIdx in
+      match inp with
+      | Input next pref =>
+        match dir with
+        | forward =>
+          if len >? List.length next then
+            None
+          else
+            if (List.firstn len next ==? sub)%wt then
+              Some (sub, advance_input_n inp len forward)
+            else
+              None
+        | backward =>
+          if len >? List.length pref then
+            None
+          else
+            if (List.rev (List.firstn len pref) ==? sub)%wt then
+              Some (sub, advance_input_n inp len backward)
+            else
+              None
+        end
+      end
+    end.
   
   (** * Lookaround tree functions  *)
 

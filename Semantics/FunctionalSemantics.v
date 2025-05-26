@@ -330,7 +330,7 @@ Section FunctionalSemantics.
         let rfuel := regex_fuel r1 inp dir in
         (2 + rfuel) * (min + max_iter inp dir)
     | Lookaround lk r1 =>
-        1 + (regex_fuel r1 (worst_input inp (lk_dir lk)) (lk_dir lk))
+        2 + (regex_fuel r1 (worst_input inp (lk_dir lk)) (lk_dir lk))
     | Group _ r1 =>
         2 + (regex_fuel r1 inp dir)
     | Anchor _ => 1
@@ -484,6 +484,84 @@ Section FunctionalSemantics.
       actions_fuel (Areg r1 :: Aclose gid :: cont) inp dir < actions_fuel (Areg (Group gid r1) :: cont) inp dir.
   Proof. intros. simpl. lia. Qed.
 
+  Lemma lk_after_termination:
+    forall cont inp dir lk r1,
+      actions_fuel cont inp dir < actions_fuel (Areg (Lookaround lk r1)::cont) inp dir.
+  Proof. intros. simpl. lia. Qed.
+
+  Lemma lk_lk_termination:
+    forall cont inp dir lk r1,
+      actions_fuel [Areg r1] inp (lk_dir lk) < actions_fuel (Areg (Lookaround lk r1)::cont) inp dir.
+  Proof.
+    intros. simpl.
+    destruct (worst_input_suffix inp (worst_input inp (lk_dir lk)) (lk_dir lk) eq_refl).
+    - rewrite H. lia.
+    - pose proof regex_monoton r1 (lk_dir lk) inp (worst_input inp (lk_dir lk)) H. lia.
+  Qed.
+
+  Lemma advance_input_n_0:
+    forall inp dir, advance_input_n inp 0 dir = inp.
+  Proof.
+    intros [next pref] dir. simpl. now destruct dir.
+  Qed.
+
+  Lemma advance_input_n_succ_success:
+    forall inp n dir inpn inpn_adv,
+      inpn = advance_input_n inp n dir ->
+      advance_input inpn dir = Some inpn_adv ->
+      advance_input_n inp (S n) dir = inpn_adv.
+  Admitted.
+
+  Lemma advance_input_n_succ_fail:
+    forall inp n dir inpn,
+      inpn = advance_input_n inp n dir ->
+      advance_input inpn dir = None ->
+      advance_input_n inp (S n) dir = inpn.
+  Admitted.
+
+  Lemma advance_input_n_suffix:
+    forall inp n dir inp',
+      inp' = advance_input_n inp n dir ->
+      inp' = inp \/ strict_suffix inp' inp dir.
+  Admitted.
+
+  Lemma backref_suffix:
+    forall gm gid inp dir br_str nextinp,
+      read_backref gm gid inp dir = Some (br_str, nextinp) ->
+      nextinp = inp \/ strict_suffix nextinp inp dir.
+  Proof.
+    intros ? ? [next pref] ? ? ? ?. unfold read_backref in H.
+    destruct GroupMap.find as [r|].
+    2: { injection H as <-. left. congruence. }
+    destruct r as [startIdx endIdxOpt].
+    destruct endIdxOpt as [endIdx|].
+    2: { injection H as <-. left. congruence. }
+    destruct dir.
+    - destruct Nat.leb; try discriminate.
+      destruct EqDec.eqb; try discriminate.
+      injection H as <-. fold (advance_input_n (Input next pref) (endIdx - startIdx) forward) in H.
+      apply advance_input_n_suffix with (n := endIdx - startIdx). congruence.
+    - destruct Nat.leb; try discriminate.
+      destruct EqDec.eqb; try discriminate.
+      injection H as <-. fold (advance_input_n (Input next pref) (endIdx - startIdx) backward) in H.
+      apply advance_input_n_suffix with (n := endIdx - startIdx). congruence.
+  Qed.
+
+  Lemma backref_termination:
+    forall cont inp dir gid gm br_str nextinp,
+      read_backref gm gid inp dir = Some (br_str, nextinp) ->
+      actions_fuel cont nextinp dir < actions_fuel (Areg (Backreference gid)::cont) inp dir.
+  Proof.
+    intros. simpl. apply backref_suffix in H.
+    destruct H.
+    - subst nextinp. lia.
+    - apply actions_monoton with (act := cont) in H. lia.
+  Qed.
+
+  Lemma anchor_termination:
+    forall cont inp dir a,
+      actions_fuel cont inp dir < actions_fuel (Areg (Anchor a)::cont) inp dir.
+  Proof. intros. simpl. lia. Qed.
 
 
   (** * Computing a tree  *)
@@ -689,14 +767,34 @@ Section FunctionalSemantics.
           destruct (compute_tree (Areg r :: Areg (Quantified greedy n delta r) :: act) inp (GroupMap.reset (def_groups r) gm) dir fuel); try contradiction.
           apply somenone.
         }
-      + simpl. admit.    (* TODO lookarounds *)
+      + simpl.    (* Lookarounds *)
+        assert (LK_ENOUGH: fuel > actions_fuel [Areg r] inp (lk_dir lk)). {
+          pose proof lk_lk_termination act inp dir lk r. lia.
+        }
+        pose proof IHfuel (lk_dir lk) gm inp [Areg r] LK_ENOUGH.
+        destruct compute_tree as [treelk|]; try contradiction.
+        assert (LK_AFTER_ENOUGH: fuel > actions_fuel act inp dir). {
+          pose proof lk_after_termination act inp dir lk r. lia.
+        }
+        destruct lk_succeeds; try apply somenone.
+        destruct lk_group_map as [gmlk|]; try apply somenone.
+        pose proof IHfuel dir gmlk inp act LK_AFTER_ENOUGH.
+        destruct compute_tree; [apply somenone|contradiction].
       + simpl. generalize (group_termination act inp dir r id). intros.
         assert (ENOUGH: fuel > actions_fuel (Areg r :: Aclose id :: act) inp dir) by lia.
         apply IHfuel with (gm:=(GroupMap.open (idx inp) id gm)) in ENOUGH.
         destruct (compute_tree (Areg r :: Aclose id :: act) inp (GroupMap.open (idx inp) id gm) dir fuel); try contradiction.
         apply somenone.
-      + simpl. admit.    (* TODO anchors *)
-      + simpl. admit.    (* TODO backreferences *) 
+      + simpl. destruct anchor_satisfied. 2: apply somenone. (* Anchors *)
+        assert (ENOUGH: fuel > actions_fuel act inp dir). { pose proof anchor_termination act inp dir a. lia. }
+        apply IHfuel with (gm := gm) in ENOUGH.
+        destruct compute_tree; [apply somenone|contradiction].
+      + simpl.    (* Backreferences *) 
+        destruct read_backref as [[br_str nextinp]|] eqn:Hreadbr; try apply somenone.
+        apply backref_termination with (cont := act) in Hreadbr.
+        assert (ENOUGH: fuel > actions_fuel act nextinp dir) by lia.
+        apply IHfuel with (gm := gm) in ENOUGH.
+        destruct compute_tree; [apply somenone|contradiction].
     - simpl. destruct (is_strict_suffix inp i dir) eqn:SS.
       + apply is_strict_suffix_correct in SS.
         eapply check_termination with (cont:=act) in SS as FUEL.
@@ -710,6 +808,6 @@ Section FunctionalSemantics.
       apply IHfuel with (gm:=GroupMap.close (idx inp) g gm) in ENOUGH.
       destruct (compute_tree act inp (GroupMap.close (idx inp) g gm) dir fuel); try contradiction.
       apply somenone.
-  Admitted.
+  Qed.
 
 End FunctionalSemantics.
