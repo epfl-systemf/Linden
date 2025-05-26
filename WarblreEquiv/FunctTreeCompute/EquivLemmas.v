@@ -30,6 +30,29 @@ Section EquivLemmas.
     now apply Hvalid.
   Qed.
 
+  (* Validity wrt checks in a list of actions `acts` implies validity wrt `Aclose gid :: act` for any `gid`. *)
+  Lemma ms_valid_wrt_checks_Aclose:
+    forall gid acts ms dir,
+    ms_valid_wrt_checks ms acts dir -> ms_valid_wrt_checks ms (Aclose gid :: acts) dir.
+  Proof.
+    intros gid acts ms dir Hvalid inp Hin.
+    destruct Hin as [Habs | Hin]; try discriminate.
+    now apply Hvalid.
+  Qed.
+
+  (* Validity wrt checks does not depend on input string (!) or captures, but only on end index *)
+  Lemma ms_valid_wrt_checks_inpcap:
+    forall acts winp winp' endIdx cap cap' dir,
+      ms_valid_wrt_checks (match_state winp' endIdx cap') acts dir ->
+      ms_valid_wrt_checks (match_state winp endIdx cap) acts dir.
+  Proof.
+    intros. intros inpcheck Hin.
+    unfold ms_valid_wrt_checks in H. specialize (H inpcheck Hin).
+    destruct dir; inversion H.
+    - simpl in H0. constructor. simpl. assumption.
+    - simpl in H0. constructor. simpl. assumption.
+  Qed.
+
 
   (** ** Lemmas related to inclusion or disjunction of group IDs. *)
 
