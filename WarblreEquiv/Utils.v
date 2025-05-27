@@ -16,4 +16,23 @@ Module List.
 
   Definition Disjoint {A} (l1 l2: list A): Prop :=
     forall x: A, In x l1 -> ~In x l2.
+
+  Lemma Disjoint_nil_r {A}:
+    forall l: list A, Disjoint l nil.
+  Proof.
+    intros l x _. intro H. inversion H.
+  Qed.
+
+  Lemma Disjoint_nil_l {A}:
+    forall l: list A, Disjoint nil l.
+  Proof.
+    intros l x H. inversion H.
+  Qed.
+
+  Lemma Disjoint_comm {A}:
+    forall l1 l2: list A, Disjoint l1 l2 -> Disjoint l2 l1.
+  Proof.
+    intros l1 l2 Hdisj x Hin2 Hin1.
+    unfold Disjoint, not in Hdisj. eauto using Hdisj.
+  Qed.
 End List.

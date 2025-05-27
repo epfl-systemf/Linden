@@ -15,6 +15,20 @@ Local Open Scope result_flow.
 Section Equiv.
   Context `{characterClass: Character.class}.
 
+  (* The identity continuation *)
+  Definition id_mcont: MatcherContinuation :=
+    fun x => Success (Some x).
+
+  (* The identity continuation is equivalent to the empty list of actions with any list of forbidden groups and any list of open groups *)
+  Lemma id_equiv:
+    forall gl forbgroups dir str0 rer,
+      equiv_cont id_mcont gl forbgroups nil dir str0 rer.
+  Proof.
+    intros. unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hmsvalid Hmschecks Hnoforbidden; simpl; try discriminate.
+    unfold id_mcont. intro H. injection H as <-. intro H. injection H as <-.
+    simpl. constructor. assumption.
+  Qed.
+
   (* Case when the repeat matcher is done iterating the regex because min = max = 0. *)
   Lemma repeatMatcher'_done_equiv:
     forall greedy parenIndex parenCount rer,
@@ -301,6 +315,9 @@ Section Equiv.
         equiv_matcher m lreg rer dir.
   Admitted.
 
+
+  (* Lemma for lookarounds *)
+
   (* Main equivalence theorem: *)
   Theorem equiv:
     forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
@@ -460,7 +477,7 @@ Section Equiv.
         }
         intros Hres Ht. eapply IH1; eauto.
         * eauto using disj_parent_disj_child, Child_Sequence_left.
-        * admit. (* Follows from disjointness of def_groups lr1 from def_groups lr2 (because of Hequiv1 and Hequiv2) and from forbgroups (Hdef_forbid_disj) *)
+        * eauto using disj_forbidden_seq.
         * do 2 apply ms_valid_wrt_checks_Areg. eauto using ms_valid_wrt_checks_tail.
         * now apply noforbidden_seq.
 
@@ -477,7 +494,7 @@ Section Equiv.
         }
         intros Hres Ht. eapply IH2; eauto.
         * eauto using disj_parent_disj_child, Child_Sequence_right.
-        * admit.
+        * eauto using disj_forbidden_seq_bwd.
         * do 2 apply ms_valid_wrt_checks_Areg. eauto using ms_valid_wrt_checks_tail.
         * now apply noforbidden_seq_bwd.
 
@@ -545,15 +562,73 @@ Section Equiv.
       eapply IH; eauto.
       + eauto using Down.same_root_down0, Down_Group_inner.
       + simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia.
-      + admit. (* Group list disjointness; follows from Hgldisj and Hequiv (for group S n) *)
+      + eauto using open_groups_disjoint_open_group. (* Group list disjointness; follows from Hgldisj and Hequiv (for group S n) *)
       + eauto using disj_forbidden_child, Child_Group.
       + eauto using equiv_gm_ms_open_group. (* Group map equivalence after opening a group; follows from Hnoforbidden (!) *)
       + eauto using equiv_gm_gl_open_group. (* Group map equivalence to open groups after opening a group *)
       + apply ms_valid_wrt_checks_Areg, ms_valid_wrt_checks_Aclose. eauto using ms_valid_wrt_checks_tail.
-      + admit. (* Follows from Hnoforbidden (groups other than S n), Hdef_forbid_disj and Hequiv (S n) *)
+      + eauto using noforb_open_group. (* Follows from Hnoforbidden (groups other than S n), Hdef_forbid_disj and Hequiv (S n) *)
 
     - (* Lookaround *)
-      admit.
+      intros ctx Hroot Heqn m dir.
+      inversion Hequivlk as [Heqwlk Heqllk | Heqwlk Heqllk | Heqwlk Heqllk | Heqwlk Heqllk]; simpl.
+      + (* Positive lookahead; need to factorize with other cases later *)
+        subst wlk llk.
+        destruct Semantics.compileSubPattern as [msub|] eqn:Hcompsuccsub; simpl; try discriminate.
+        specialize (IH (Lookahead_inner :: ctx)%list).
+        specialize_prove IH by eauto using Down.same_root_down0, Down_Lookahead_inner.
+        specialize_prove IH. { simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia. }
+        specialize (IH msub forward Hcompsuccsub).
+        intro H. injection H as <-.
+        unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
+        unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hmsvalid Hmschecks Hnoforbidden; simpl; try discriminate.
+        unfold equiv_matcher in IH. specialize (IH str0 id_mcont gl nil nil).
+        specialize_prove IH by now apply id_equiv. specialize (IH Hgldisj). specialize_prove IH by apply List.Disjoint_nil_r.
+        unfold equiv_cont in IH. specialize (IH gm ms inp).
+        destruct msub as [rlk|] eqn:Hrlk; simpl; try discriminate.
+        destruct compute_tree as [tlk|] eqn:Htlk; simpl; try discriminate.
+        specialize (IH rlk fuel tlk Hinpcompat Hgmms Hgmgl Hmsinp Hmsvalid).
+        specialize_prove IH. {
+          unfold ms_valid_wrt_checks. intros inpcheck H. destruct H; [discriminate|inversion H].
+        }
+        specialize_prove IH by admit. (* Follows from Hnoforbidden *)
+        specialize (IH eq_refl Htlk).
+        unfold lk_succeeds. simpl. unfold Tree.first_branch, lk_group_map. simpl.
+        destruct rlk as [rlk|]; simpl.
+        * (* Lookaround succeeds *)
+          inversion IH as [|gmafterlk rlk' Hequivafterlk Heqgmafterlk Heqrlk']. subst rlk'.
+          replace (Tree.tree_res tlk _ 0 forward is not None) with true.
+          2: {
+            symmetry. destruct (Tree.tree_res tlk GroupMap.empty 0 forward) eqn:Hreslk; try reflexivity.
+            symmetry in Heqgmafterlk. apply Tree.res_group_map_indep with (gm2 := gm) (idx2 := idx inp) (dir2 := forward) in Hreslk. congruence.
+          }
+          set (msafterlk := match_state _ _ _).
+          unfold equiv_cont in Hequivcont. specialize (Hequivcont gmafterlk msafterlk inp res fuel).
+          destruct (compute_tree act inp gmafterlk dir fuel) as [treecont|] eqn:Heqtreecont; simpl; try discriminate.
+          specialize (Hequivcont treecont Hinpcompat).
+          specialize_prove Hequivcont by admit. (* Only depends on captures, follows from Hequivafterlk *)
+          specialize_prove Hequivcont by admit. (* Follows from Hgmgl, Heqgmafterlk, Htlk and Hnoforbidden; see paper reasoning (non-trivial, but should not depend on compileSubPattern) *)
+          specialize_prove Hequivcont by admit. (* Follows from Hmsinp, since only the captures change between ms and msafterlk *)
+          specialize_prove Hequivcont by admit. (* Probably follows from proof of matcher invariant in the case of lookarounds *)
+          specialize_prove Hequivcont by admit. (* Follows from Hmschecks; this does not depend on captures *)
+          specialize_prove Hequivcont by admit. (* Follows from Hnoforbidden, Heqgmafterlk and Htlk; non-trivial but should not depend on compileSubPattern *)
+          intro Hcontsucc. specialize (Hequivcont Hcontsucc eq_refl).
+          intro H. injection H as <-.
+          simpl. rewrite <- Heqgmafterlk. assumption.
+        * (* Lookaround fails *)
+          inversion IH as [Htreeresnone|].
+          intro H. injection H as <-.
+          replace (Tree.tree_res tlk _ 0 forward is not None) with false.
+          2: {
+            symmetry. destruct (Tree.tree_res tlk _ 0 forward) eqn:Hreslk; try reflexivity.
+            symmetry in Htreeresnone. apply Tree.res_group_map_indep with (gm2 := GroupMap.empty) (idx2 := 0) (dir2 := forward) in Htreeresnone. congruence.
+          }
+          intro H. injection H as <-.
+          simpl. constructor.
+      
+      + admit.
+      + admit.
+      + admit.
 
     - (* Anchor *)
       admit.

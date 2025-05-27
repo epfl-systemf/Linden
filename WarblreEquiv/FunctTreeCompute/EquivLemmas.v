@@ -1,4 +1,4 @@
-From Linden Require Import Regex GroupMapMS LindenParameters Groups Tree Chars Semantics MSInput EquivDef Utils.
+From Linden Require Import Regex GroupMapMS LindenParameters Groups Tree Chars Semantics MSInput EquivDef Utils RegexpTranslation.
 From Warblre Require Import Parameters List Notation Result Typeclasses Base Errors.
 From Coq Require Import List ZArith.
 Import ListNotations.
@@ -102,6 +102,14 @@ Section EquivLemmas.
     eauto using Hgldisjparent, child_groups_incl_parent.
   Qed.
 
+  (* Used when opening a group *)
+  Lemma open_groups_disjoint_open_group:
+    forall n wr lr idx gl,
+      open_groups_disjoint gl (def_groups (Regex.Group (S n) lr)) ->
+      equiv_regex' wr lr (S n) ->
+      open_groups_disjoint ((S n, idx)::gl) (def_groups lr).
+  Admitted.
+
 
   (** * Lemmas about absence of forbidden groups *)
 
@@ -147,6 +155,22 @@ Section EquivLemmas.
     pose proof in_forb_implies_in_def gid r1. pose proof in_forb_implies_in_def gid r2. tauto.
   Qed.
 
+  Lemma disj_forbidden_seq:
+    forall n wr1 lr1 wr2 lr2 forbgroups,
+      equiv_regex' wr1 lr1 n ->
+      equiv_regex' wr2 lr2 (num_groups lr1 + n) ->
+      List.Disjoint (def_groups (Sequence lr1 lr2)) forbgroups ->
+      List.Disjoint (def_groups lr1) (forbidden_groups lr2 ++ forbgroups).
+  Admitted.
+
+  Lemma disj_forbidden_seq_bwd:
+    forall n wr1 lr1 wr2 lr2 forbgroups,
+      equiv_regex' wr1 lr1 n ->
+      equiv_regex' wr2 lr2 (num_groups lr1 + n) ->
+      List.Disjoint (def_groups (Sequence lr1 lr2)) forbgroups ->
+      List.Disjoint (def_groups lr2) (forbidden_groups lr1 ++ forbgroups).
+  Admitted.
+
   Lemma disj_forbidden_child:
     forall child parent, ChildRegex child parent ->
       forall forbgroups,
@@ -156,6 +180,15 @@ Section EquivLemmas.
     intros child parent Hchild forbgroups Hdisj gid Hinchild.
     apply Hdisj. eauto using child_groups_incl_parent.
   Qed.
+
+  (* Lemma used when opening a group *)
+  Lemma noforb_open_group:
+    forall n wr lr gm idx forbgroups,
+      no_forbidden_groups gm (forbidden_groups (Regex.Group (S n) lr) ++ forbgroups) ->
+      List.Disjoint (def_groups (Regex.Group (S n) lr)) forbgroups ->
+      equiv_regex' wr lr (S n) ->
+      no_forbidden_groups (GroupMap.open idx (S n) gm) (forbidden_groups lr ++ forbgroups).
+  Admitted.
 
   (* Lemma used when closing a group *)
   Lemma group_map_close_find_other:

@@ -294,4 +294,22 @@ Section Tree.
       + eapply leaves_group_map_indep_neglk; eauto.
   Qed.
 
+
+  (* Corollary: group map irrelevance in terms of tree_res *)
+  (* A lemma about hd_error *)
+  Lemma hd_error_none_nil {A}:
+    forall l: list A, hd_error l = None <-> l = [].
+  Proof.
+    intro l. split; intro H.
+    - destruct l. + reflexivity. + discriminate.
+    - subst l. reflexivity.
+  Qed.
+
+  Lemma res_group_map_indep:
+    forall t gm1 gm2 idx1 idx2 dir1 dir2,
+      tree_res t gm1 idx1 dir1 = None -> tree_res t gm2 idx2 dir2 = None.
+  Proof.
+    intros. rewrite first_tree_leaf, hd_error_none_nil in *. eauto using leaves_group_map_indep.
+  Qed. 
+
 End Tree.
