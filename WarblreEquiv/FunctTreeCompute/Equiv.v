@@ -226,7 +226,8 @@ Section Equiv.
     - eapply equiv_open_groups_reset; eauto.
     - destruct ms. eapply ms_matches_inp_capchg; eauto.
     - admit. (* Any capture reset preserves MatchState validity *)
-    - admit. (* A capture reset does not affect validity wrt checks *)
+    - unfold msreset. apply ms_valid_wrt_checks_inpcap with (winp' := MatchState.input ms) (cap' := MatchState.captures ms).
+      do 2 apply ms_valid_wrt_checks_Areg. apply ms_valid_wrt_checks_tail in Hmschecks. now destruct ms.
     - admit. (* The reset group map does not contain any group in lreg because those have just been reset, and does not contain any group in forbgroups because of the assumption on gm *)
   Admitted.
 
@@ -606,12 +607,12 @@ Section Equiv.
           unfold equiv_cont in Hequivcont. specialize (Hequivcont gmafterlk msafterlk inp res fuel).
           destruct (compute_tree act inp gmafterlk dir fuel) as [treecont|] eqn:Heqtreecont; simpl; try discriminate.
           specialize (Hequivcont treecont Hinpcompat).
-          specialize_prove Hequivcont by admit. (* Only depends on captures, follows from Hequivafterlk *)
-          specialize_prove Hequivcont by admit. (* Follows from Hgmgl, Heqgmafterlk, Htlk and Hnoforbidden; see paper reasoning (non-trivial, but should not depend on compileSubPattern) *)
-          specialize_prove Hequivcont by admit. (* Follows from Hmsinp, since only the captures change between ms and msafterlk *)
+          specialize_prove Hequivcont by eauto using equiv_gmafterlk_msafterlk. (* Only depends on captures, follows from Hequivafterlk *)
+          specialize_prove Hequivcont by eauto using equiv_open_groups_lk. (* Follows from Hgmgl, Heqgmafterlk, Htlk and Hnoforbidden; see paper reasoning (non-trivial, but should not depend on compileSubPattern) *)
+          specialize_prove Hequivcont. { unfold msafterlk. apply ms_matches_inp_capchg with (cap := MatchState.captures ms). now destruct ms. }
           specialize_prove Hequivcont by admit. (* Probably follows from proof of matcher invariant in the case of lookarounds *)
-          specialize_prove Hequivcont by admit. (* Follows from Hmschecks; this does not depend on captures *)
-          specialize_prove Hequivcont by admit. (* Follows from Hnoforbidden, Heqgmafterlk and Htlk; non-trivial but should not depend on compileSubPattern *)
+          specialize_prove Hequivcont. { unfold msafterlk. apply ms_valid_wrt_checks_inpcap with (winp' := MatchState.input ms) (cap' := MatchState.captures ms). apply ms_valid_wrt_checks_tail in Hmschecks. now destruct ms. }
+          specialize_prove Hequivcont by eauto using noforb_lk. (* Follows from Hnoforbidden, Heqgmafterlk and Htlk; non-trivial but should not depend on compileSubPattern *)
           intro Hcontsucc. specialize (Hequivcont Hcontsucc eq_refl).
           intro H. injection H as <-.
           simpl. rewrite <- Heqgmafterlk. assumption.
