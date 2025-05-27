@@ -1,4 +1,5 @@
-From Linden Require Import Regex GroupMapMS LindenParameters Groups Tree Chars Semantics MSInput EquivDef Utils RegexpTranslation FunctionalSemantics.
+From Linden Require Import Regex GroupMapMS LindenParameters Groups Tree Chars Semantics
+MSInput EquivDef Utils RegexpTranslation FunctionalSemantics LWEquivTreeLemmas.
 From Warblre Require Import Parameters List Notation Result Typeclasses Base Errors.
 From Coq Require Import List ZArith Lia.
 Import ListNotations.
@@ -15,7 +16,12 @@ Section EquivLemmas.
       advance_input inp dir = Some inp' ->
       Tree.advance_idx (idx inp) dir = idx inp'.
   Proof.
-  Admitted.
+    intros [next pref] inp' []; simpl.
+    - destruct next as [|x next']; try discriminate.
+      intro H. injection H as <-. simpl. lia.
+    - destruct pref as [|x pref']; try discriminate.
+      intro H. injection H as <-. simpl. lia.
+  Qed.
 
 
   (** ** For lookarounds *)
@@ -248,7 +254,15 @@ Section EquivLemmas.
       open_groups_disjoint gl (def_groups (Regex.Group (S n) lr)) ->
       equiv_regex' wr lr (S n) ->
       open_groups_disjoint ((S n, idx)::gl) (def_groups lr).
-  Admitted.
+  Proof.
+    intros n wr lr idx gl Hgldisj Hequiv.
+    pose proof equiv_def_groups' _ _ _ Hequiv as Hdefgroups.
+    simpl in Hgldisj.
+    unfold open_groups_disjoint. intros gid idx' Hin.
+    destruct Hin.
+    - injection H as <- <-. intro Habs. rewrite Hdefgroups in Habs. apply in_seq in Habs. lia.
+    - unfold open_groups_disjoint, not in Hgldisj. intro Habs. eapply Hgldisj; eauto. now right.
+  Qed.
 
 
 
@@ -302,6 +316,12 @@ Section EquivLemmas.
       equiv_regex' wr2 lr2 (num_groups lr1 + n) ->
       List.Disjoint (def_groups (Sequence lr1 lr2)) forbgroups ->
       List.Disjoint (def_groups lr1) (forbidden_groups lr2 ++ forbgroups).
+  Proof.
+    intros n wr1 lr1 wr2 lr2 forbgroups Hequiv1 Hequiv2 Hdisj.
+    unfold List.Disjoint. intros gid Hin1.
+    rewrite in_app_iff. intro Habs. destruct Habs as [Habs | Habs].
+    - admit.
+    - admit.
   Admitted.
 
   Lemma disj_forbidden_seq_bwd:

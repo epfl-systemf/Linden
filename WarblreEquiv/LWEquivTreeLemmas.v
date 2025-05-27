@@ -142,6 +142,18 @@ Section LWEquivTreeLemmas.
     - intros parenCount ctx. inversion Hanchequiv; simpl in *; intro; subst parenCount; auto.
   Qed.
 
+  Corollary equiv_def_groups':
+    forall wr lr n,
+      (* If wr and lr are equivalent with n left capturing parentheses before them, *)
+      equiv_regex' wr lr n ->
+      (* then the groups defined by lr are exactly the groups n+1, n+2, ..., n+num_groups lr. *)
+      def_groups lr = List.seq (n+1) (num_groups lr).
+  Proof.
+    intros wr lr n Hequiv.
+    pose proof num_groups_equiv wr lr n Hequiv as Hnum_groups.
+    exact (equiv_def_groups _ _ _ _ nil Hequiv Hnum_groups).
+  Qed.
+
 
   (* Lemma linking the character matching conditions of Linden and Warblre. *)
   Lemma char_match_warblre:
