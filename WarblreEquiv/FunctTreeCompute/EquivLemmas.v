@@ -1,6 +1,6 @@
-From Linden Require Import Regex GroupMapMS LindenParameters Groups Tree Chars Semantics MSInput EquivDef Utils RegexpTranslation.
+From Linden Require Import Regex GroupMapMS LindenParameters Groups Tree Chars Semantics MSInput EquivDef Utils RegexpTranslation FunctionalSemantics.
 From Warblre Require Import Parameters List Notation Result Typeclasses Base Errors.
-From Coq Require Import List ZArith.
+From Coq Require Import List ZArith Lia.
 Import ListNotations.
 Import Notation.
 Import Result.Notations.
@@ -304,4 +304,143 @@ Section EquivLemmas.
       input_compat inp' str0 ->
       ms_matches_inp (match_state (MatchState.input ms) (MatchState.endIndex ms') cap') inp'.
   Admitted.
+
+
+  (** ** For lookarounds *)
+  (* The following lemmas prove that interpreting a (lookaround) tree corresponding to some regex only affects the groups defined in that regex. *)
+
+  (* Definition of groups defined by a list of actions *)
+  Fixpoint actions_def_groups (a: actions): list group_id :=
+    match a with
+    | nil => nil
+    | Areg r :: q => def_groups r ++ actions_def_groups q
+    | Acheck _ :: q => actions_def_groups q
+    | Aclose gid :: q => gid :: actions_def_groups q
+    end.
+  
+  (* Lemma for a list of actions *)
+  Lemma actions_tree_no_outside_groups:
+    forall acts gm0 inp dir0 fuel t,
+      compute_tree acts inp gm0 dir0 fuel = Some t ->
+      forall gm1 gm2 idx dir,
+        Tree.tree_res t gm1 idx dir = Some gm2 ->
+        forall gid, ~In gid (actions_def_groups acts) -> GroupMap.find gid gm2 = GroupMap.find gid gm1.
+  Proof.
+    intros acts gm0 inp dir0 fuel. revert acts gm0 inp dir0.
+    induction fuel as [|fuel IHfuel]. { discriminate. }
+    intros acts gm0 inp dir0 t. simpl.
+    destruct acts as [|[reg | inpcheck | gid] acts].
+    - (* No action *)
+      intro H. injection H as <-. simpl.
+      intros gm1 gm2 _ _ H. now injection H as <-.
+    
+    - (* Areg *)
+      destruct reg as [ | cd | r1 r2 | r1 r2 | greedy min delta r | lk r | gid r | a | gid].
+
+      + (* Epsilon *)
+        simpl. apply IHfuel.
+
+      + (* Character *)
+        simpl. destruct read_char as [[c nextinp]|].
+        2: { intro H. injection H as <-. discriminate. }
+        specialize (IHfuel acts gm0 nextinp dir0).
+        destruct compute_tree as [treecont|]; simpl; try discriminate.
+        intro H. injection H as <-. intros gm1 gm2 idx dir.
+        simpl. intro Hrescont. specialize (IHfuel treecont eq_refl gm1 gm2 (advance_idx idx dir) dir Hrescont).
+        exact IHfuel.
+      
+      + (* Disjunction *)
+        destruct compute_tree as [t1|] eqn:Heqt1; simpl; try discriminate.
+        destruct (compute_tree (Areg r2 :: acts) _ _ _ _) as [t2|] eqn:Heqt2; simpl; try discriminate.
+        intro H. injection H as <-. simpl.
+        intros gm1 gm2 idx dir Hres gid Hnotin.
+        do 2 rewrite in_app_iff in Hnotin.
+        unfold seqop in Hres. destruct (tree_res t1 gm1 idx dir) as [gmres1|] eqn:Hres1; simpl in *.
+        * admit.
+        * admit.
+
+      + (* Sequence *)
+        destruct dir0.
+        * simpl.
+          intro Htreecomp. specialize (IHfuel (Areg r1 :: Areg r2 :: acts) gm0 inp forward t Htreecomp).
+          simpl in IHfuel. rewrite <- app_assoc. exact IHfuel.
+        * simpl.
+          intro Htreecomp. specialize (IHfuel (Areg r2 :: Areg r1 :: acts) gm0 inp backward t Htreecomp).
+          simpl in IHfuel. rewrite <- app_assoc. intros. eapply IHfuel; eauto.
+          do 2 rewrite in_app_iff. do 2 rewrite in_app_iff in H0. tauto.
+      
+      + (* Quantified *)
+        destruct min as [|min']. 1: destruct delta as [[|ndelta']|].
+        * (* Done *)
+          simpl. intros. eapply IHfuel; eauto. rewrite in_app_iff in H1. tauto.
+        * (* Free, finite delta *)
+          simpl. replace (ndelta' - 0) with ndelta' by lia.
+          destruct (compute_tree (Areg r :: Acheck inp :: _ :: acts) inp _ dir0 fuel) as [titer|] eqn:Hiter; simpl; try discriminate.
+          destruct (compute_tree acts inp gm0 dir0 fuel) as [tskip|] eqn:Hskip; simpl; try discriminate.
+          intro H. injection H as <-.
+          intros gm1 gm2 idx dir.
+          pose proof IHfuel _ _ _ _ _ Hiter (GroupMap.reset (def_groups r) gm1) as IHiter.
+          pose proof IHfuel _ _ _ _ _ Hskip gm1 as IHskip.
+          destruct greedy; simpl.
+          -- (* Greedy *)
+             destruct (tree_res titer _ idx dir) as [gmiter|] eqn:Hiterres; simpl.
+             ++ (* Iteration succeeds *)
+                intro H. injection H as <-.
+                specialize (IHiter gmiter idx dir Hiterres). simpl in IHiter.
+                intros. admit.
+             ++ (* Iteration fails *)
+                intro Hskipres. specialize (IHskip gm2 idx dir Hskipres).
+                intros. apply IHskip. rewrite in_app_iff in H. tauto.
+          -- (* Lazy *)
+             admit.
+        * (* Free, infinite delta *)
+          admit.
+        * (* Forced *)
+          admit.
+        
+      + (* Lookaround *)
+        admit.
+
+      + (* Group *)
+        admit.
+      
+      + (* Anchor *)
+        admit.
+
+      + (* Backreference *)
+        admit.
+    
+    - (* Acheck *)
+      destruct is_strict_suffix.
+      + (* Check passes *)
+        specialize (IHfuel acts gm0 inp dir0).
+        destruct compute_tree as [treecont|]; simpl; try discriminate.
+        intro H. injection H as <-. intros gm1 gm2 idx dir. simpl.
+        intro Hrescont. specialize (IHfuel treecont eq_refl gm1 gm2 idx dir Hrescont).
+        exact IHfuel.
+      + (* Check fails *)
+        intro H. injection H as <-. discriminate.
+    
+    - (* Aclose *)
+      specialize (IHfuel acts (GroupMap.close (idx inp) gid gm0) inp dir0).
+      destruct compute_tree as [treecont|]; simpl; try discriminate.
+      specialize (IHfuel treecont eq_refl).
+      intro H. injection H as <-.
+      intros gm1 gm2 idx dir. simpl.
+      specialize (IHfuel (GroupMap.close idx gid gm1) gm2 idx dir).
+      intro Hrescont. specialize (IHfuel Hrescont).
+      admit. (* Should be rather easy if we have the right lemma(s) about GroupMap.close *)
+  Admitted.
+
+  Corollary reg_tree_no_outside_groups:
+    forall reg gm0 inp dir0 fuel t,
+      compute_tree [Areg reg] inp gm0 dir0 fuel = Some t ->
+      forall gm1 gm2 idx dir,
+        Tree.tree_res t gm1 idx dir = Some gm2 ->
+        forall gid, ~In gid (def_groups reg) -> GroupMap.find gid gm2 = GroupMap.find gid gm1.
+  Proof.
+    intros.
+    apply actions_tree_no_outside_groups with (acts := [Areg reg]) (inp := inp) (dir := dir) (fuel := fuel) (t := t) (idx := idx) (gm0 := gm0) (dir0 := dir0); auto.
+    simpl. rewrite app_nil_r. assumption.
+  Qed.
 End EquivLemmas.
