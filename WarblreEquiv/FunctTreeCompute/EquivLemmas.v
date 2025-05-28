@@ -320,9 +320,10 @@ Section EquivLemmas.
     intros n wr1 lr1 wr2 lr2 forbgroups Hequiv1 Hequiv2 Hdisj.
     unfold List.Disjoint. intros gid Hin1.
     rewrite in_app_iff. intro Habs. destruct Habs as [Habs | Habs].
-    - admit.
-    - admit.
-  Admitted.
+    - apply equiv_def_groups' in Hequiv1, Hequiv2. rewrite Hequiv1, in_seq in Hin1.
+      apply in_forb_implies_in_def in Habs. rewrite Hequiv2, in_seq in Habs. lia.
+    - unfold List.Disjoint, not in Hdisj. apply Hdisj with (x := gid); auto. simpl. rewrite in_app_iff. now left.
+  Qed.
 
   Lemma disj_forbidden_seq_bwd:
     forall n wr1 lr1 wr2 lr2 forbgroups,
@@ -330,7 +331,13 @@ Section EquivLemmas.
       equiv_regex' wr2 lr2 (num_groups lr1 + n) ->
       List.Disjoint (def_groups (Sequence lr1 lr2)) forbgroups ->
       List.Disjoint (def_groups lr2) (forbidden_groups lr1 ++ forbgroups).
-  Admitted.
+  Proof.
+    intros n wr1 lr1 wr2 lr2 forbgroups Hequiv1 Hequiv2 Hdisj gid Hin2 Habs.
+    rewrite in_app_iff in Habs. destruct Habs as [Habs | Habs].
+    - apply equiv_def_groups' in Hequiv1, Hequiv2. rewrite Hequiv2, in_seq in Hin2.
+      apply in_forb_implies_in_def in Habs. rewrite Hequiv1, in_seq in Habs. lia.
+    - unfold List.Disjoint, not in Hdisj. apply Hdisj with (x := gid); auto. simpl. rewrite in_app_iff. now right.
+  Qed.
 
   Lemma disj_forbidden_child:
     forall child parent, ChildRegex child parent ->
@@ -342,14 +349,40 @@ Section EquivLemmas.
     apply Hdisj. eauto using child_groups_incl_parent.
   Qed.
 
-  (* Lemma used when opening a group *)
+  (* Lemmas used when opening a group *)
+  Lemma group_map_open_find_other:
+    forall gm idx gid gid',
+      gid <> gid' ->
+      GroupMap.find gid' (GroupMap.open idx gid gm) = GroupMap.find gid' gm.
+  Proof.
+    intros gm idx gid gid' Hneq.
+    unfold GroupMap.open.
+    destruct (GroupMap.find gid' gm) as [r|] eqn:Hfindgm.
+    - apply GroupMap.MapS.find_2 in Hfindgm. now apply GroupMap.MapS.find_1, GroupMap.MapS.add_2.
+    - unfold GroupMap.find.
+      destruct GroupMap.MapS.find as [r|] eqn:Hfindgmadd; try reflexivity.
+      apply GroupMap.MapS.find_2, GroupMap.MapS.add_3, GroupMap.MapS.find_1 in Hfindgmadd. 2: assumption.
+      unfold GroupMap.find in Hfindgm. congruence.
+  Qed.
+
   Lemma noforb_open_group:
     forall n wr lr gm idx forbgroups,
       no_forbidden_groups gm (forbidden_groups (Regex.Group (S n) lr) ++ forbgroups) ->
       List.Disjoint (def_groups (Regex.Group (S n) lr)) forbgroups ->
       equiv_regex' wr lr (S n) ->
       no_forbidden_groups (GroupMap.open idx (S n) gm) (forbidden_groups lr ++ forbgroups).
-  Admitted.
+  Proof.
+    intros n wr lr gm idx forbgroups Hnoforb Hdef_forbid_disj Hequiv.
+    unfold no_forbidden_groups. intros gid Hin. rewrite in_app_iff in Hin. destruct Hin as [Hin | Hin].
+    - apply in_forb_implies_in_def in Hin. apply equiv_def_groups' in Hequiv. rewrite Hequiv, in_seq in Hin.
+      assert (Hgid_not_Sn: gid <> S n) by lia. rewrite group_map_open_find_other. 2: congruence.
+      unfold no_forbidden_groups in Hnoforb. apply Hnoforb. simpl. rewrite in_app_iff. right. left. rewrite Hequiv. now rewrite in_seq.
+    - assert (Hgid_not_Sn: gid <> S n). {
+        unfold List.Disjoint, not in Hdef_forbid_disj. intros ->. apply Hdef_forbid_disj with (x := S n); auto. simpl. now left.
+      }
+      rewrite group_map_open_find_other. 2: congruence.
+      unfold no_forbidden_groups in Hnoforb. apply Hnoforb. rewrite in_app_iff. now right. 
+  Qed.
 
   (* Lemma used when closing a group *)
   Lemma group_map_close_find_other:
@@ -361,9 +394,15 @@ Section EquivLemmas.
     unfold GroupMap.close.
     destruct (GroupMap.find gid gm); simpl. 2: reflexivity.
     destruct r as [startIdx endIdxOpt].
-    unfold GroupMap.find.
-    admit.
-  Admitted.
+    destruct (GroupMap.find gid' gm) as [r|] eqn:Hfindgm.
+    - apply GroupMap.MapS.find_2 in Hfindgm. destruct Nat.leb.
+      + apply GroupMap.MapS.find_1, GroupMap.MapS.add_2; assumption.
+      + apply GroupMap.MapS.find_1, GroupMap.MapS.add_2; assumption.
+    - destruct (GroupMap.find gid' (if Nat.leb _ _ then _ else _)) as [r|] eqn:Hfindgmadd; try reflexivity.
+      destruct Nat.leb.
+      + apply GroupMap.MapS.find_2, GroupMap.MapS.add_3, GroupMap.MapS.find_1 in Hfindgmadd. 2: assumption. unfold GroupMap.find in Hfindgm. congruence.
+      + apply GroupMap.MapS.find_2, GroupMap.MapS.add_3, GroupMap.MapS.find_1 in Hfindgmadd. 2: assumption. unfold GroupMap.find in Hfindgm. congruence.
+  Qed.
 
   Lemma noforb_close_group:
     forall n lr idx gm' forbgroups,
@@ -387,7 +426,14 @@ Section EquivLemmas.
       tree_res tlk gm (idx inp) forward = Some gmafterlk ->
       List.Disjoint (def_groups (Lookaround LookAhead lr)) forbgroups ->
       no_forbidden_groups gmafterlk forbgroups.
-  Admitted.
+  Proof.
+    intros lr gm gmafterlk forbgroups tlk inp fuel Hnoforb Heqtlk Heqgmafterlk Hdef_forbid_disj.
+    unfold no_forbidden_groups. intros gid Hinforb.
+    destruct (in_dec Nat.eq_dec gid (def_groups lr)) as [Hinlr | Hnotinlr].
+    - exfalso. unfold List.Disjoint, not in Hdef_forbid_disj. simpl in Hdef_forbid_disj. eauto.
+    - rewrite (reg_tree_no_outside_groups _ _ _ _ _ _ Heqtlk _ _ _ _ Heqgmafterlk) by assumption.
+      unfold no_forbidden_groups in Hnoforb. apply Hnoforb. apply in_or_app. now right.
+  Qed.
 
 
 
