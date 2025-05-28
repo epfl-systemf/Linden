@@ -40,6 +40,21 @@ Lemma batch_update_outindices {T F} `{Result.AssertionError F}:
 Proof.
 Admitted.
 
+Lemma batch_update_1 {A: Type} {F} `{Result.AssertionError F}:
+  forall (x: A) (l: list A) idxs (lupd: list A) i,
+    List.Update.Nat.Batch.update x l idxs = Success lupd ->
+    In i idxs ->
+    forall default, nth i lupd default = x.
+Proof.
+Admitted.
+
+Lemma batch_update_2 {A: Type} {F} `{Result.AssertionError F}:
+  forall (x: A) (l: list A) idxs (lupd: list A) i,
+    List.Update.Nat.Batch.update x l idxs = Success lupd ->
+    ~In i idxs ->
+    forall default, nth i lupd default = nth i l default.
+Admitted.
+
 
 (* Generalization of Warblre.props.StrictlyNullable.capture_reset_preserve_validity to arbitrary parenthesis indexes and counts.
    Any successful capture reset preserves validity of MatchStates.*)

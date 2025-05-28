@@ -1,5 +1,6 @@
 From Linden Require Import Regex GroupMapMS LindenParameters Groups Tree Chars Semantics
-MSInput EquivDef Utils RegexpTranslation FunctionalSemantics LWEquivTreeLemmas.
+  MSInput EquivDef Utils RegexpTranslation FunctionalSemantics LWEquivTreeLemmas WarblreLemmas
+  GroupMapLemmas Tactics.
 From Warblre Require Import Parameters List Notation Result Typeclasses Base Errors.
 From Coq Require Import List ZArith Lia.
 Import ListNotations.
@@ -349,22 +350,7 @@ Section EquivLemmas.
     apply Hdisj. eauto using child_groups_incl_parent.
   Qed.
 
-  (* Lemmas used when opening a group *)
-  Lemma group_map_open_find_other:
-    forall gm idx gid gid',
-      gid <> gid' ->
-      GroupMap.find gid' (GroupMap.open idx gid gm) = GroupMap.find gid' gm.
-  Proof.
-    intros gm idx gid gid' Hneq.
-    unfold GroupMap.open.
-    destruct (GroupMap.find gid' gm) as [r|] eqn:Hfindgm.
-    - apply GroupMap.MapS.find_2 in Hfindgm. now apply GroupMap.MapS.find_1, GroupMap.MapS.add_2.
-    - unfold GroupMap.find.
-      destruct GroupMap.MapS.find as [r|] eqn:Hfindgmadd; try reflexivity.
-      apply GroupMap.MapS.find_2, GroupMap.MapS.add_3, GroupMap.MapS.find_1 in Hfindgmadd. 2: assumption.
-      unfold GroupMap.find in Hfindgm. congruence.
-  Qed.
-
+  (* Lemma used when opening a group *)
   Lemma noforb_open_group:
     forall n wr lr gm idx forbgroups,
       no_forbidden_groups gm (forbidden_groups (Regex.Group (S n) lr) ++ forbgroups) ->
@@ -385,25 +371,6 @@ Section EquivLemmas.
   Qed.
 
   (* Lemma used when closing a group *)
-  Lemma group_map_close_find_other:
-    forall gm idx gid gid',
-      gid <> gid' ->
-      GroupMap.find gid' (GroupMap.close idx gid gm) = GroupMap.find gid' gm.
-  Proof.
-    intros gm idx gid gid' Hneq.
-    unfold GroupMap.close.
-    destruct (GroupMap.find gid gm); simpl. 2: reflexivity.
-    destruct r as [startIdx endIdxOpt].
-    destruct (GroupMap.find gid' gm) as [r|] eqn:Hfindgm.
-    - apply GroupMap.MapS.find_2 in Hfindgm. destruct Nat.leb.
-      + apply GroupMap.MapS.find_1, GroupMap.MapS.add_2; assumption.
-      + apply GroupMap.MapS.find_1, GroupMap.MapS.add_2; assumption.
-    - destruct (GroupMap.find gid' (if Nat.leb _ _ then _ else _)) as [r|] eqn:Hfindgmadd; try reflexivity.
-      destruct Nat.leb.
-      + apply GroupMap.MapS.find_2, GroupMap.MapS.add_3, GroupMap.MapS.find_1 in Hfindgmadd. 2: assumption. unfold GroupMap.find in Hfindgm. congruence.
-      + apply GroupMap.MapS.find_2, GroupMap.MapS.add_3, GroupMap.MapS.find_1 in Hfindgmadd. 2: assumption. unfold GroupMap.find in Hfindgm. congruence.
-  Qed.
-
   Lemma noforb_close_group:
     forall n lr idx gm' forbgroups,
       no_forbidden_groups gm' forbgroups ->
@@ -468,6 +435,8 @@ Section EquivLemmas.
       no_forbidden_groups gm (forbidden_groups (Lookaround LookAhead lr) ++ forbgroups) ->
       group_map_equiv_open_groups gmafterlk gl.
   Proof.
+    intros gm gl gmafterlk lr inp fuel tlk forbgroups Hgmgl Heqtlk Heqgmafterlk Hnoforb.
+    unfold group_map_equiv_open_groups.
   Admitted.
 
   (* Equivalence of a group map gm with a MatchState ms is preserved by resetting the same groups on both sides. *)
@@ -482,7 +451,23 @@ Section EquivLemmas.
       (Hequiv: equiv_groupmap_ms gm ms),
       equiv_groupmap_ms gmreset msreset.
   Proof.
-  Admitted.
+    intros.
+    unfold equiv_groupmap_ms. intro gid_prec.
+    destruct (in_dec Nat.eq_dec gid_prec (List.Range.Nat.Bounds.range (parenIndex + 1 - 1) (parenIndex + parenCount + 1 - 1))) as [Hreset | Hnotreset].
+    - (* In reset groups *)
+      assert (Hreset': In (S gid_prec) gidl). {
+        setoid_rewrite range_seq in Hreset. apply in_seq in Hreset. rewrite Heqgidl. apply in_seq. lia.
+      }
+      rewrite Heqgmreset. rewrite Heqmsreset. simpl.
+      rewrite gm_reset_find by assumption. rewrite (batch_update_1 _ _ _ _ _ Hresetsucc) by assumption. constructor.
+    - (* Not in reset groups *)
+      assert (Hnotreset': ~In (S gid_prec) gidl). {
+        setoid_rewrite range_seq in Hnotreset. rewrite in_seq in Hnotreset. rewrite Heqgidl. rewrite in_seq. lia.
+      }
+      rewrite Heqgmreset. rewrite Heqmsreset. simpl.
+      rewrite gm_reset_find_other by assumption. rewrite (batch_update_2 _ _ _ _ _ Hresetsucc) by assumption.
+      apply Hequiv.
+  Qed.
 
   (* Resetting a list of groups that is disjoint from the list of open groups preserves equivalence to the list of open groups. *)
   Lemma equiv_open_groups_reset:
@@ -492,7 +477,13 @@ Section EquivLemmas.
       (Heqreset: gmreset = GroupMap.reset gidl gm),
       group_map_equiv_open_groups gmreset gl.
   Proof.
-  Admitted.
+    intros. unfold group_map_equiv_open_groups.
+    intros gid idx. destruct (in_dec Nat.eq_dec gid gidl) as [Hreset | Hnotreset].
+    - subst gmreset. rewrite gm_reset_find by assumption.
+      split; try discriminate.
+      intro Habs. unfold open_groups_disjoint, not in Hgldisj. exfalso. eauto.
+    - subst gmreset. rewrite gm_reset_find_other by assumption. apply Hequiv.
+  Qed.
 
   Lemma equiv_gm_ms_open_group:
     forall n lr idx gm ms forbgroups,
@@ -500,13 +491,40 @@ Section EquivLemmas.
       no_forbidden_groups gm (forbidden_groups (Regex.Group (S n) lr) ++ forbgroups) ->
       equiv_groupmap_ms (GroupMap.open idx (S n) gm) ms.
   Proof.
-  Admitted.
+    intros n lr idx gm ms forbgroups Hequiv Hnoforb.
+    unfold equiv_groupmap_ms. intro gid_prec.
+    destruct (Nat.eq_dec gid_prec n) as [Hopengrp | Hnotopengrp].
+    - (* gid is the newly open group *)
+      unfold no_forbidden_groups in Hnoforb. unfold equiv_groupmap_ms in Hequiv.
+      subst gid_prec. specialize (Hequiv n). specialize (Hnoforb (S n)).
+      specialize_prove Hnoforb. { simpl. now left. }
+      rewrite group_map_open_find. rewrite Hnoforb in Hequiv. inversion Hequiv. constructor.
+    - assert (Hnotopengrp': S gid_prec <> S n) by lia. rewrite group_map_open_find_other by congruence. apply Hequiv.
+  Qed.
 
   Lemma equiv_gm_gl_open_group:
     forall n lr idx gm gl forbgroups,
       group_map_equiv_open_groups gm gl ->
       no_forbidden_groups gm (forbidden_groups (Regex.Group (S n) lr) ++ forbgroups) ->
       group_map_equiv_open_groups (GroupMap.open idx (S n) gm) ((S n, idx)::gl).
+  Proof.
+    intros n lr idx gm gl forbgroups Hgmgl Hnoforb.
+    unfold group_map_equiv_open_groups. intros gid' idx'.
+    destruct (Nat.eq_dec gid' (S n)) as [Hopengrp | Hnotopengrp].
+    - (* gid' is the newly open group *)
+      subst gid'. rewrite group_map_open_find by assumption. split.
+      + intro H. injection H as <-. now left.
+      + (* Non-trivial: due to Hgmgl and Hnoforb, gl does not contain anything related to group S n *)
+        intro Hin. destruct Hin as [Hin | Hin].
+        * injection Hin as <-. reflexivity.
+        * exfalso. admit.
+    - (* gid' is not the newly open group *)
+      rewrite group_map_open_find_other by congruence. unfold group_map_equiv_open_groups in Hgmgl. rewrite (Hgmgl gid' idx').
+      split.
+      + intro Hin. now right.
+      + intros [Hin | Hin].
+        * injection Hin as H1 H2. congruence.
+        * assumption.
   Admitted.
 
   (* Lemma for closing a group *)
