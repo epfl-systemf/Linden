@@ -562,6 +562,11 @@ Section EquivLemmas.
       group_map_equiv_open_groups gm' ((S n, startidx)::gl) ->
       open_groups_disjoint gl (def_groups (Regex.Group (S n) lr)) ->
       group_map_equiv_open_groups (GroupMap.close endidx (S n) gm') gl.
+  Proof.
+    intros n startidx endidx gm' gl lr Hequiv Hgldisj.
+    unfold group_map_equiv_open_groups. intros gid idx.
+    destruct (Nat.eq_dec gid (S n)) as [Hclosedgrp | Hnotclosedgrp].
+    - subst gid.
   Admitted.
 
   Lemma ms_matches_inp_close_group:
