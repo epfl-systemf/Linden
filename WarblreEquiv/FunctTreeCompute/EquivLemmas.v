@@ -566,16 +566,28 @@ Section EquivLemmas.
     intros n startidx endidx gm' gl lr Hequiv Hgldisj.
     unfold group_map_equiv_open_groups. intros gid idx.
     destruct (Nat.eq_dec gid (S n)) as [Hclosedgrp | Hnotclosedgrp].
-    - subst gid.
-  Admitted.
+    - subst gid. split; intro Habs.
+      + pose proof group_map_close_find_notopen gm' endidx (S n) as Hnotopen.
+        exfalso. apply Hnotopen. rewrite Habs. constructor.
+      + exfalso. simpl in Hgldisj. unfold open_groups_disjoint in Hgldisj. specialize (Hgldisj (S n) idx Habs).
+        apply Hgldisj. now left.
+    - rewrite group_map_close_find_other by congruence. unfold group_map_equiv_open_groups in Hequiv. rewrite Hequiv.
+      split.
+      + intro H. destruct H as [Habs | H]; auto. injection Habs as <-. contradiction.
+      + intro H. now right.
+  Qed.
 
   Lemma ms_matches_inp_close_group:
     forall ms ms' cap' inp inp' str0,
+      ms_matches_inp ms inp ->
       ms_matches_inp ms' inp' ->
       input_compat inp str0 ->
       input_compat inp' str0 ->
       ms_matches_inp (match_state (MatchState.input ms) (MatchState.endIndex ms') cap') inp'.
-  Admitted.
-
+  Proof.
+    intros ms ms' cap' inp inp' str0 Hmsinp Hms'inp' Hinpcompat Hinp'compat.
+    rewrite inp_compat_ms_same_inp with (str0 := str0) (inp1 := inp) (inp2 := inp') (ms2 := ms') by assumption.
+    apply ms_matches_inp_capchg with (cap := MatchState.captures ms'). now destruct ms'.
+  Qed.
 
 End EquivLemmas.
