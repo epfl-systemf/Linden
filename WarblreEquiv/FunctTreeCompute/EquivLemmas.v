@@ -167,6 +167,13 @@ Section EquivLemmas.
 
   (** ** Lemmas for validity wrt checks *)
 
+  (* We always have validity wrt no checks at all *)
+  Lemma ms_valid_wrt_checks_nil:
+    forall ms dir, ms_valid_wrt_checks ms nil dir.
+  Proof.
+    intros ms dir. unfold ms_valid_wrt_checks. intros inpcheck [].
+  Qed.
+
   (* Validity wrt checks in a list of actions `acts` implies validity wrt checks in the tail of `acts`. *)
   Lemma ms_valid_wrt_checks_tail:
     forall act acts ms dir,
@@ -265,9 +272,20 @@ Section EquivLemmas.
     - unfold open_groups_disjoint, not in Hgldisj. intro Habs. eapply Hgldisj; eauto. now right.
   Qed.
 
+  Lemma open_groups_disjoint_nil_l:
+    forall gidl, open_groups_disjoint nil gidl.
+  Proof.
+    intro gidl. unfold open_groups_disjoint.
+    intros _ _ [].
+  Qed.
+
 
 
   (** * Lemmas about absence of forbidden groups *)
+
+  Lemma noforb_empty:
+    forall forbgroups, no_forbidden_groups GroupMap.empty forbgroups.
+  Admitted.
 
   Lemma in_forb_implies_in_def:
     forall gid r, In gid (forbidden_groups r) -> In gid (def_groups r).

@@ -1,0 +1,117 @@
+From Linden Require Import Equiv EquivDef LindenParameters RegexpTranslation
+  Chars Tree Semantics FunctionalSemantics Groups GroupMapMS Regex
+  EquivLemmas Utils MSInput Tactics.
+From Warblre Require Import Patterns RegExpRecord Parameters Semantics
+  Result Base Notation Match.
+From Coq Require Import List Lia PeanoNat ZArith.
+Import Match.
+Import Notation.
+Import ListNotations.
+Import Patterns.
+Import Result.
+Import Result.Notations.
+
+Local Open Scope result_flow.
+
+Section EquivMain.
+  Context `{characterClass: Character.class}.
+
+  Section InitState.
+    Definition init_match_state (str0: string) (idx: nat) (rer: RegExpRecord): MatchState :=
+      let cap := List.repeat undefined (RegExpRecord.capturingGroupsCount rer) in
+      match_state str0 (Z.of_nat idx) cap.
+    
+    Lemma init_ms_equiv_empty:
+      forall str0 idx rer, equiv_groupmap_ms GroupMap.empty (init_match_state str0 idx rer).
+    Admitted.
+
+    Lemma empty_gm_equiv_empty_gl:
+      group_map_equiv_open_groups GroupMap.empty nil.
+    Admitted.
+
+    Lemma init_input_compat:
+      forall str0, input_compat (init_input str0) str0.
+    Admitted.
+
+    Lemma init_ms_matches_inp:
+      forall str0 rer,
+        ms_matches_inp (init_match_state str0 0 rer) (init_input str0).
+    Admitted.
+  End InitState.
+
+
+  Definition computeRer (wroot: Regex): RegExpRecord :=
+    {|
+      RegExpRecord.ignoreCase := false;
+      RegExpRecord.multiline := false;
+      RegExpRecord.dotAll := true;
+      RegExpRecord.unicode := tt;
+      RegExpRecord.capturingGroupsCount := StaticSemantics.countLeftCapturingParensWithin wroot nil
+    |}.
+  
+  Theorem equiv_matcher_idmcont:
+    forall wroot lroot rer m,
+      equiv_regex wroot lroot ->
+      EarlyErrors.Pass_Regex wroot nil ->
+      rer = computeRer wroot ->
+      Semantics.compileSubPattern wroot nil rer forward = Success m ->
+      forall str0,
+        equiv_cont (fun ms => m ms id_mcont) nil (forbidden_groups lroot) [Areg lroot] forward str0 rer.
+  Proof.
+    intros wroot lroot rer m Hequiv HearlyErrors Heqrer Hcompsucc str0.
+    pose proof equiv rer lroot wroot as Hequivm.
+    unfold equiv_matcher in Hequivm.
+    replace (forbidden_groups lroot) with (forbidden_groups lroot ++ []) by apply app_nil_r.
+    unfold computeRer in Heqrer. subst rer. simpl in *.
+    eapply Hequivm; eauto.
+    - constructor.
+    - apply Hequiv.
+    - apply id_equiv.
+    - apply open_groups_disjoint_nil_l.
+    - apply List.Disjoint_nil_r.
+  Qed.
+
+  Corollary equiv_main:
+    forall wroot lroot rer m,
+      equiv_regex wroot lroot ->
+      EarlyErrors.Pass_Regex wroot nil ->
+      rer = computeRer wroot ->
+      Semantics.compilePattern wroot rer = Success m ->
+      forall str0 res,
+        m str0 0 = Success res ->
+        exists t: tree,
+          is_tree [Areg lroot] (init_input str0) GroupMap.empty forward t /\
+          equiv_groupmap_ms_opt (first_branch t) res.
+  Proof.
+    intros wroot lroot rer m Hequiv HearlyErrors Heqrer Hcompsucc str0 res Heqres.
+    pose proof equiv_matcher_idmcont wroot lroot rer as Hequivm.
+    unfold Semantics.compilePattern in Hcompsucc.
+    destruct Semantics.compileSubPattern as [msp|]; simpl in *; try discriminate.
+    injection Hcompsucc as <-.
+    replace (0 <=? length str0) with true in Heqres.
+    2: { symmetry. apply Nat.leb_le. lia. }
+    simpl in *.
+    specialize (Hequivm msp Hequiv HearlyErrors Heqrer eq_refl str0).
+    unfold equiv_cont in Hequivm.
+    set (fuel := 1 + actions_fuel [Areg lroot] (init_input str0) forward).
+    set (ms0 := init_match_state str0 0 rer). change (match_state _ _ _) with ms0 in Heqres.
+    change (fun y : MatchState => _) with id_mcont in Heqres.
+    specialize (Hequivm GroupMap.empty ms0 (init_input str0) res fuel).
+    pose proof functional_terminates [Areg lroot] (init_input str0) GroupMap.empty forward fuel as Hcomputetreesucc.
+    specialize_prove Hcomputetreesucc by lia.
+    destruct compute_tree as [t|] eqn:Hcomputetree; try congruence.
+    specialize (Hequivm t).
+    specialize_prove Hequivm by apply init_input_compat.
+    specialize_prove Hequivm by apply init_ms_equiv_empty.
+    specialize_prove Hequivm by apply empty_gm_equiv_empty_gl.
+    specialize_prove Hequivm by apply init_ms_matches_inp.
+    specialize_prove Hequivm. { apply initialState_validity. lia. }
+    specialize_prove Hequivm. { apply ms_valid_wrt_checks_Areg, ms_valid_wrt_checks_nil. }
+    specialize_prove Hequivm by apply noforb_empty.
+    specialize (Hequivm Heqres eq_refl).
+    exists t. split.
+    - admit.
+    - exact Hequivm.
+  Admitted.
+
+End EquivMain.
