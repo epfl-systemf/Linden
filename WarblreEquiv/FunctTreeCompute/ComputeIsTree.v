@@ -33,6 +33,12 @@ Section ComputeIsTree.
       inp_valid_checks inp (Acheck strcheck :: acts)%list dir.
   Admitted.
 
+  Lemma inp_valid_checks_nil:
+    forall inp dir, inp_valid_checks inp nil dir.
+  Proof.
+    intros inp dir strcheck [].
+  Qed.
+
   Lemma lk_succeeds_group_map:
     forall lk treelk gm idx,
       lk_succeeds lk treelk = true ->
@@ -202,3 +208,5 @@ Section ComputeIsTree.
       intros H Hvalidchecks. injection H as <-.
       apply tree_close. apply IHfuel; auto. now apply inp_valid_checks_tail in Hvalidchecks.
   Admitted.
+
+End ComputeIsTree.
