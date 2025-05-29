@@ -188,13 +188,25 @@ Section EquivLemmas.
           intro H. injection H as <-. simpl. discriminate.
 
       + (* Group *)
-        admit.
+        destruct compute_tree as [treecont|] eqn:Hcomputecont; try discriminate.
+        intro H. injection H as <-. simpl.
+        intros gm1 gm2 idx dir Heqgm2 gid' Hnotin.
+        rewrite (IHfuel _ _ _ _ _ Hcomputecont _ _ _ _ Heqgm2).
+        2: { simpl. rewrite in_app_iff in *. simpl. tauto. }
+        assert (gid <> gid') by tauto.
+        now apply group_map_open_find_other.
       
       + (* Anchor *)
-        admit.
+        destruct anchor_satisfied.
+        * destruct compute_tree as [treecont|] eqn:Hcomputecont; try discriminate.
+          intro H. injection H as <-. simpl. eauto using IHfuel.
+        * intro H. injection H as <-. discriminate.
 
       + (* Backreference *)
-        admit.
+        destruct read_backref as [[br_str nextinp]|].
+        * destruct compute_tree as [tcont|] eqn:Hcomputecont; try discriminate.
+          intro H. injection H as <-. simpl. eauto using IHfuel.
+        * intro H. injection H as <-. discriminate.
     
     - (* Acheck *)
       destruct is_strict_suffix.
@@ -215,8 +227,11 @@ Section EquivLemmas.
       intros gm1 gm2 idx dir. simpl.
       specialize (IHfuel (GroupMap.close idx gid gm1) gm2 idx dir).
       intro Hrescont. specialize (IHfuel Hrescont).
-      admit. (* Should be rather easy if we have the right lemma(s) about GroupMap.close *)
-  Admitted.
+      intros gid' Hnotin. rewrite IHfuel by tauto.
+      Search GroupMap.find GroupMap.close.
+      assert (gid' <> gid) by (symmetry; tauto).
+      now apply group_map_close_find_other.
+  Qed.
 
   Corollary reg_tree_no_outside_groups:
     forall reg gm0 inp dir0 fuel t,
