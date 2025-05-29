@@ -318,23 +318,24 @@ Inductive action_rep : action -> code -> label -> label -> Prop :=
     (CLOSE: get_pc c pc = Some (SetRegClose gid)),
     action_rep (Aclose gid) c pc (S pc).
 
-(* continuation_rep cont c pc1 pc2 means that the bytecode for cont is located in c between labels pc1 and pc2 *)
+(* continuation_rep cont c pc n means that the bytecode for cont is located in c at labels pc *)
 (* inside the representation of the continuation, there might be extra jump instructions *)
 (* the nat is a measure of how many there are *)
-Inductive actions_rep : actions -> code -> label -> label -> nat -> Prop :=
+(* this representation has to end on an accept instruction, at the end of the bytecode *)
+Inductive actions_rep : actions -> code -> label -> nat -> Prop :=
 | empty_bc:
   (* when the continuation is empty, it means we have nothing more to do and found a match *)
   (* in the bytecode, this means an accept *)
   forall c pc
     (ACCEPT: get_pc c pc = Some Accept),
-    actions_rep [] c pc pc 0
+    actions_rep [] c pc 0
 | cons_bc:
-  forall a cont c pcstart pcmid pcend n
+  forall a cont c pcstart pcmid n
     (ACTION: action_rep a c pcstart pcmid)
-    (CONT: actions_rep cont c pcmid pcend n),
-    actions_rep (a::cont) c pcstart pcend n
+    (CONT: actions_rep cont c pcmid n),
+    actions_rep (a::cont) c pcstart n
 | jump_bc:
-  forall cont c pcstart pcend n pc
-    (CONT: actions_rep cont c pcstart pcend n)
+  forall cont c pcstart n pc
+    (CONT: actions_rep cont c pcstart n)
     (JMP: get_pc c pc = Some (Jmp pcstart)),
-    actions_rep cont c pc pcend (n+1).
+    actions_rep cont c pc (n+1).

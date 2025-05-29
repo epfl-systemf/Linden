@@ -163,12 +163,12 @@ Qed.
 
 
 Lemma actions_rep_start:
-  forall act code pc pcend n i,
-    actions_rep act code pc pcend n ->
+  forall act code pc n i,
+    actions_rep act code pc n ->
     get_pc code pc = Some i ->
     start_rep i.
 Proof.
-  intros act code pc pcend n i H. induction H; intros GET. 
+  intros act code pc n i H. induction H; intros GET. 
   - rewrite ACCEPT in GET. inversion GET. constructor.
   - apply action_rep_start in ACTION as [EQ | [instr [GETSTART START]]].
     + subst. apply IHactions_rep. auto.
@@ -189,17 +189,25 @@ Qed.
 
 (* (* same for actions *) *)
 Lemma actions_rep_unicity:
-  forall a1 a2 code pc pcend t inp b n,
-    actions_rep a1 code pc pcend n ->
-    actions_rep a2 code pc pcend n ->
+  forall a1 a2 code pc t inp b n,
+    actions_rep a1 code pc n ->
+    actions_rep a2 code pc n ->
     bool_tree a1 inp b t ->
     bool_tree a2 inp b t.
 Proof.
-  intros a1 a2 code pc pcend t inp b n H H0 H1.
+  intros a1 a2 code pc t inp b n H H0 H1.
 Admitted.
 (* also I ave to prove that it's going to be the same end? *)
 
 
+
+Lemma actions_rep_same_n:
+  forall code pc n1 act1 n2 act2
+    (AREP1: actions_rep act1 code pc n1)
+    (AREP2: actions_rep act2 code pc n2),
+    n1 = n2.
+Proof.
+Admitted.
 
 (* rephrasing the lemma below so that induction handles pairs better *)
 Lemma tt_same_interm:
@@ -220,9 +228,8 @@ Proof.
       try solve[eapply actions_rep_start in CONT; eauto; inversion CONT].
     simpl.
     (* actions_rep can only finish in the same place: at the end of the code *)
-    (* I could remove the pcend from the actions_rep definition *)
-    assert (pc_end = pc_end0) by admit.
     (* this one is unclear. How do we prevent jumps to ourselves? *)
+    (* maybe I need to have the property that all Jumps jump to a strictly higher index *)
     assert (n = n2) by admit.
     subst. split; auto. eapply actions_rep_unicity in CONT; eauto.
     eapply bool_tree_determ; eauto.
@@ -306,10 +313,10 @@ Proof.
   eapply pikeinv; auto.
   - econstructor.
     + constructor.
-    + apply tt_eq with (pc_end:=length c) (actions:=[Areg r]); auto.
+    + apply tt_eq with (actions:=[Areg r]); auto.
       2: { pike_subset. }
       eapply cons_bc; constructor.
-      * apply nfa_rep_extend; auto.
+      * apply nfa_rep_extend; eauto.
       * replace (length c) with (length c + 0) by auto.
         rewrite get_prefix. auto.
   - constructor.
