@@ -163,6 +163,24 @@ Section EquivLemmas.
     simpl. rewrite app_nil_r. assumption.
   Qed.
 
+  Lemma Areg_Aclose_disappear:
+    forall reg gid P,
+      (Areg reg = Aclose gid \/ P) <-> P.
+  Proof.
+    intros reg gid P.
+    assert (Areg reg = Aclose gid <-> False). { split; [discriminate|intros []]. }
+    rewrite H. tauto.
+  Qed.
+
+  Lemma Acheck_Aclose_disappear:
+    forall strcheck gid P,
+      (Acheck strcheck = Aclose gid \/ P) <-> P.
+  Proof.
+    intros strcheck gid P.
+    assert (Acheck strcheck = Aclose gid <-> False). { split; [discriminate|intros []]. }
+    rewrite H. tauto.
+  Qed.
+
   Lemma actions_tree_no_open_groups:
     forall acts gm0 inp dir0 fuel t,
       compute_tree acts inp gm0 dir0 fuel = Some t ->
@@ -170,7 +188,8 @@ Section EquivLemmas.
         Tree.tree_res t gm1 idx dir = Some gm2 ->
         forall gid,
           is_open_range (GroupMap.find gid gm2) ->
-          is_open_range (GroupMap.find gid gm1).
+          is_open_range (GroupMap.find gid gm1) /\
+          ~In (Aclose gid) acts.
   Proof.
     intros acts gm0 inp dir0 fuel. revert acts gm0 inp dir0.
     induction fuel as [|fuel IHfuel]; try discriminate.
@@ -182,7 +201,8 @@ Section EquivLemmas.
       intros gm1 gm2 _ _ H. injection H as <-. auto.
     
     - (* Epsilon *)
-      simpl. apply IHfuel.
+      simpl. intros gm0 inp dir0 t Hcomputesucc gm1 gm2 idx dir Heqgm2 gid Hopen2.
+      rewrite Areg_Aclose_disappear. eauto using IHfuel.
 
     - (* Character *)
       simpl. intros gm0 inp dir0 t.
@@ -191,6 +211,7 @@ Section EquivLemmas.
         destruct compute_tree as [treecont|] eqn:Htreecont; try discriminate.
         intro H. injection H as <-. simpl.
         intros gm1 gm2 idx dir Hres gid Hopen2.
+        rewrite Areg_Aclose_disappear.
         eapply IHfuel; eauto.
       + (* Read fails *)
         intro H. injection H as <-. discriminate.
@@ -204,12 +225,19 @@ Section EquivLemmas.
       destruct (tree_res t1 gm1 idx dir) as [res1|] eqn:Hres1; simpl.
       + (* First branch succeeds *)
         intro H. injection H as <-. intros gid Hopenres.
-        eauto using IHfuel.
+        pose proof IHfuel _ _ _ _ _ Hcompute1 _ _ _ _ Hres1 _ Hopenres.
+        simpl in H. rewrite Areg_Aclose_disappear in *. auto.
       + (* First branch fails *)
-        intros Hres2 gid Hopen2. eauto using IHfuel.
+        intros Hres2 gid Hopen2.
+        pose proof IHfuel _ _ _ _ _ Hcompute2 _ _ _ _ Hres2 _ Hopen2.
+        simpl in H. rewrite Areg_Aclose_disappear in *. auto.
     
     - (* Sequence *)
-      simpl. intros gm0 inp dir0 t. apply IHfuel.
+      simpl. intros gm0 inp dir0 t Hcomputesucc gm1 gm2 idx dir Heqgm2 gid Hopen2.
+      pose proof IHfuel _ _ _ _ _ Hcomputesucc _ _ _ _ Heqgm2 _ Hopen2.
+      destruct dir0; simpl in H.
+      + do 2 rewrite Areg_Aclose_disappear in H. rewrite Areg_Aclose_disappear. auto.
+      + do 2 rewrite Areg_Aclose_disappear in H. rewrite Areg_Aclose_disappear. auto.
 
     - (* Quantified *)
       intros gm0 inp dir0 t. simpl.
@@ -217,18 +245,49 @@ Section EquivLemmas.
       admit.
 
     - (* Lookaround *)
-      admit.
+      intros gm0 inp dir0 t. simpl.
+      destruct compute_tree as [treelk|] eqn:Hcomputelk; try discriminate.
+      destruct lk_succeeds.
+      + (* Lookaround succeeds *)
+        destruct lk_group_map as [gmlk|] eqn:Hgmlk.
+        * (* Only valid case *)
+          destruct (compute_tree acts inp gmlk dir0 fuel) as [treecont|] eqn:Htreecont; try discriminate.
+          intro H. injection H as <-. intros gm1 gm2 idx dir.
+          simpl.
+          destruct positivity.
+          -- destruct tree_res as [gmafterlk|] eqn:Hgmafterlk; try discriminate.
+             intros Heqgm2 gid Hopen2.
+             rewrite Areg_Aclose_disappear.
+             pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ Heqgm2 _ Hopen2 as [].
+             pose proof IHfuel _ _ _ _ _ Hcomputelk _ _ _ _ Hgmafterlk _ H as []. auto.
+          -- destruct tree_res as [gmafterlk|] eqn:Hgmafterlk; try discriminate.
+             intros Heqgm2 gid Hopen2.
+             rewrite Areg_Aclose_disappear.
+             eauto using IHfuel.
+        * (* Does not happen, but does not matter *)
+          intro H. injection H as <-. simpl. discriminate.
+      + (* Lookaround fails *)
+        intro H. injection H as <-. simpl. discriminate.
 
     - (* Group *)
-      admit.
+      intros gm0 inp dir0 t. simpl.
+      destruct compute_tree as [treecont|] eqn:Htreecont; try discriminate.
+      intro H. injection H as <-.
+      intros gm1 gm2 idx dir Heqgm2 gid0 Hopen2.
+      simpl in Heqgm2.
+      pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ Heqgm2 _ Hopen2 as [].
+      simpl in H0.
+      rewrite Areg_Aclose_disappear in *.
+      admit. (* Becomes solvable *)
 
     - (* Anchor *)
+      intros gm0 inp dir0 t. simpl.
+      admit. (* Should not be difficult *)
+    
+    - (* Backreference; should not be difficult *)
       admit.
     
-    - (* Backreference *)
-      admit.
-    
-    - (* Check *)
+    - (* Check; should not be difficult *)
       admit.
 
     - (* Close *)
