@@ -28,6 +28,7 @@ Section LWEquivTreeLemmas.
       n |
       n c |
         n |
+        n |
         esc cd n Hequivesc |
         esc cd n Hequivesc |
         cc cd n Hequivcc |
@@ -89,6 +90,7 @@ Section LWEquivTreeLemmas.
       n |
       n c |
         n |
+        n |
         esc cd n Hequivesc |
         esc cd n Hequivesc |
         cc cd n Hequivcc |
@@ -98,6 +100,8 @@ Section LWEquivTreeLemmas.
       name n wr lr Hequiv IH |
       n wr lr wlk llk Hequiv IH Hequivlk |
       n wr lanchor Hanchequiv].
+    - intros parenCount ctx Hcount.
+      simpl in *. subst parenCount. reflexivity.
     - intros parenCount ctx Hcount.
       simpl in *. subst parenCount. reflexivity.
     - intros parenCount ctx Hcount.

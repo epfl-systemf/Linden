@@ -103,15 +103,6 @@ Section LWEquivTMatcherLemmas.
     destruct H; destruct H0; tauto.
   Defined.
 
-  Lemma groupmap_reset_inindices:
-    forall (gm gmreset: GroupMap.t) (gidl: group_set),
-    gmreset = GroupMap.reset gidl gm ->
-    forall gid: group_id, List.In gid gidl -> GroupMap.find gid gmreset = None.
-  Admitted.
-
-  Lemma groupmap_reset_outindices: True.
-  Admitted.
-
   (* Equivalence of a group map and a MatchState is preserved when performing the same
   capture reset on both sides. *)
   Lemma equiv_gm_ms_reset {F} `{Result.AssertionError F}:

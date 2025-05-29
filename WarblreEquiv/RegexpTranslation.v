@@ -1,6 +1,6 @@
 From Warblre Require Import Patterns Result Errors Coercions Notation Base.
 From Warblre Require Characters.
-From Linden Require Import Regex LindenParameters Chars.
+From Linden Require Import Regex LindenParameters Chars Groups.
 Import Notation.
 Import Result.
 Import Result.Notations.
@@ -122,6 +122,8 @@ Section RegexpTranslation.
   | Equiv_empty: forall n: nat, equiv_regex' Patterns.Empty Epsilon n
   | Equiv_char: forall (n: nat) (c: Parameters.Character), equiv_regex' (Patterns.Char c) (Character (Chars.CdSingle c)) n
   | Equiv_dot: forall n: nat, equiv_regex' Patterns.Dot (Character Chars.CdDot) n
+  | Equiv_backref: forall (n: nat) (gid: positive_integer),
+      equiv_regex' (Patterns.AtomEsc (Patterns.DecimalEsc gid)) (Backreference (positive_to_nat gid)) n
   | Equiv_atom_CharacterClassEscape:
     forall (esc: Patterns.CharacterClassEscape) (cd: char_descr) (n: nat),
       equiv_CharacterClassEscape esc cd ->

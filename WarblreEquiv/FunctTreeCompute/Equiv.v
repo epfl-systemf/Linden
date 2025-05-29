@@ -342,6 +342,7 @@ Section Equiv.
         n |
         n c |
         n |
+        n |
         esc cd n Hequivesc |
         esc cd n Hequivesc |
         cc cd n Hequivcc |
@@ -372,6 +373,9 @@ Section Equiv.
       intros ctx Hroot Heqn m dir Hcompsucc.
       injection Hcompsucc as <-.
       apply charSetMatcher_noninv_equiv; auto. rewrite Hdotall. apply equiv_cd_dot.
+
+    - (* Backreference *)
+      admit.
     
     - (* AtomEsc (ACharacterClassEsc esc); idem *)
       intros ctx Hroot Heqn m dir Hcompsucc.
