@@ -346,6 +346,17 @@ Section EquivLemmas.
     - simpl in H0. constructor. simpl. assumption.
   Qed.
 
+  (* Progress check success case *)
+  Lemma progresscheck_success_ssuffix:
+    forall ms ms' inp inp' str0 tl dir,
+      ms_valid_wrt_checks ms' (Acheck inp :: tl) dir ->
+      (MatchState.endIndex ms' =? MatchState.endIndex ms)%Z = false ->
+      ms_matches_inp ms' inp' -> input_compat inp' str0 ->
+      ms_matches_inp ms inp -> input_compat inp str0 ->
+      is_strict_suffix inp' inp dir = true.
+  Admitted.
+
+
 
 
   (** ** Lemmas related to inclusion or disjunction of group IDs. *)

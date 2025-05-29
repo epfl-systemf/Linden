@@ -96,7 +96,7 @@ Section Equiv.
           intros Hres'succ.
           destruct fueltree' as [|fueltree']; simpl; try discriminate.
           (* Follows from Hms'checks and other hypotheses linking ms', inp', inp and str0 *)
-          replace (is_strict_suffix inp' inp dir) with true by admit.
+          replace (is_strict_suffix inp' inp dir) with true. 2: { symmetry; eapply progresscheck_success_ssuffix; eauto. }
           destruct compute_tree as [treecont|] eqn:Htreecontsucc; simpl; try discriminate.
           intro H. injection H as <-.
           simpl. eapply IHfuel; eauto.
