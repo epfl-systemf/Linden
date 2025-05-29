@@ -163,6 +163,77 @@ Section EquivLemmas.
     simpl. rewrite app_nil_r. assumption.
   Qed.
 
+  Lemma actions_tree_no_open_groups:
+    forall acts gm0 inp dir0 fuel t,
+      compute_tree acts inp gm0 dir0 fuel = Some t ->
+      forall gm1 gm2 idx dir,
+        Tree.tree_res t gm1 idx dir = Some gm2 ->
+        forall gid,
+          is_open_range (GroupMap.find gid gm2) ->
+          is_open_range (GroupMap.find gid gm1).
+  Proof.
+    intros acts gm0 inp dir0 fuel. revert acts gm0 inp dir0.
+    induction fuel as [|fuel IHfuel]; try discriminate.
+
+    intro acts. destruct acts as [|[reg | strcheck | gid]].
+    2: destruct reg as [ | cd | r1 r2 | r1 r2 | greedy min delta r | lk r | gid r | a | gid].
+    - (* No action *)
+      simpl. intros _ _ _ t H. injection H as <-. simpl.
+      intros gm1 gm2 _ _ H. injection H as <-. auto.
+    
+    - (* Epsilon *)
+      simpl. apply IHfuel.
+
+    - (* Character *)
+      simpl. intros gm0 inp dir0 t.
+      destruct read_char as [[c nextinp]|].
+      + (* Read succeeds *)
+        destruct compute_tree as [treecont|] eqn:Htreecont; try discriminate.
+        intro H. injection H as <-. simpl.
+        intros gm1 gm2 idx dir Hres gid Hopen2.
+        eapply IHfuel; eauto.
+      + (* Read fails *)
+        intro H. injection H as <-. discriminate.
+    
+    - (* Disjunction *)
+      simpl. intros gm0 inp dir0 t.
+      destruct compute_tree as [t1|] eqn:Hcompute1; try discriminate.
+      destruct (compute_tree (Areg r2 :: acts) inp gm0 dir0 fuel) as [t2|] eqn:Hcompute2; try discriminate.
+      intro H. injection H as <-.
+      intros gm1 gm2 idx dir. simpl.
+      destruct (tree_res t1 gm1 idx dir) as [res1|] eqn:Hres1; simpl.
+      + (* First branch succeeds *)
+        intro H. injection H as <-. intros gid Hopenres.
+        eauto using IHfuel.
+      + (* First branch fails *)
+        intros Hres2 gid Hopen2. eauto using IHfuel.
+    
+    - (* Sequence *)
+      simpl. intros gm0 inp dir0 t. apply IHfuel.
+
+    - (* Quantified *)
+      intros gm0 inp dir0 t. simpl.
+      (* Annoying but should be okay *)
+      admit.
+
+    - (* Lookaround *)
+      admit.
+
+    - (* Group *)
+      admit.
+
+    - (* Anchor *)
+      admit.
+    
+    - (* Backreference *)
+      admit.
+    
+    - (* Check *)
+      admit.
+
+    - (* Close *)
+      admit.
+  Admitted.
 
 
   (** ** Lemmas for validity wrt checks *)
