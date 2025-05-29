@@ -39,12 +39,11 @@ Section EquivDef.
   performs the actions described in act in the direction dir when: *)
   Definition equiv_cont (mc: MatcherContinuation) (gl: open_groups) (forbgroups: list group_id) (act: actions) (dir: Direction) (str0: string) (rer: RegExpRecord): Prop :=
     forall (gm: group_map) (ms: MatchState) (inp: input) (res: option MatchState) (fuel: nat) (t: tree),
-      (* for all corresponding tuples of a valid MatchState ms, an input inp, a group map gm 
+      (* for all corresponding tuples of a MatchState ms, an input inp, a group map gm 
       and a list of open groups gl that use the input string str0, *)
       input_compat inp str0 ->
       equiv_groupmap_ms gm ms -> group_map_equiv_open_groups gm gl ->
       ms_matches_inp ms inp ->
-      MatchState.Valid (MatchState.input ms) rer ms ->
       (* such that ms is valid with respect to the checks in act *)
       ms_valid_wrt_checks ms act dir ->
       (* and gm does not define any of the groups in the forbidden groups, *)

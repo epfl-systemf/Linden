@@ -52,13 +52,12 @@ Section EquivMain.
   Theorem equiv_matcher_idmcont:
     forall wroot lroot rer m,
       equiv_regex wroot lroot ->
-      EarlyErrors.Pass_Regex wroot nil ->
       rer = computeRer wroot ->
       Semantics.compileSubPattern wroot nil rer forward = Success m ->
       forall str0,
         equiv_cont (fun ms => m ms id_mcont) nil (forbidden_groups lroot) [Areg lroot] forward str0 rer.
   Proof.
-    intros wroot lroot rer m Hequiv HearlyErrors Heqrer Hcompsucc str0.
+    intros wroot lroot rer m Hequiv Heqrer Hcompsucc str0.
     pose proof equiv rer lroot wroot as Hequivm.
     unfold equiv_matcher in Hequivm.
     replace (forbidden_groups lroot) with (forbidden_groups lroot ++ []) by apply app_nil_r.
@@ -74,7 +73,6 @@ Section EquivMain.
   Corollary equiv_main:
     forall wroot lroot rer m,
       equiv_regex wroot lroot ->
-      EarlyErrors.Pass_Regex wroot nil ->
       rer = computeRer wroot ->
       Semantics.compilePattern wroot rer = Success m ->
       forall str0 res,
@@ -83,7 +81,7 @@ Section EquivMain.
           is_tree [Areg lroot] (init_input str0) GroupMap.empty forward t /\
           equiv_groupmap_ms_opt (first_branch t) res.
   Proof.
-    intros wroot lroot rer m Hequiv HearlyErrors Heqrer Hcompsucc str0 res Heqres.
+    intros wroot lroot rer m Hequiv Heqrer Hcompsucc str0 res Heqres.
     pose proof equiv_matcher_idmcont wroot lroot rer as Hequivm.
     unfold Semantics.compilePattern in Hcompsucc.
     destruct Semantics.compileSubPattern as [msp|]; simpl in *; try discriminate.
@@ -91,7 +89,7 @@ Section EquivMain.
     replace (0 <=? length str0) with true in Heqres.
     2: { symmetry. apply Nat.leb_le. lia. }
     simpl in *.
-    specialize (Hequivm msp Hequiv HearlyErrors Heqrer eq_refl str0).
+    specialize (Hequivm msp Hequiv Heqrer eq_refl str0).
     unfold equiv_cont in Hequivm.
     set (fuel := 1 + actions_fuel [Areg lroot] (init_input str0) forward).
     set (ms0 := init_match_state str0 0 rer). change (match_state _ _ _) with ms0 in Heqres.
@@ -105,7 +103,6 @@ Section EquivMain.
     specialize_prove Hequivm by apply init_ms_equiv_empty.
     specialize_prove Hequivm by apply empty_gm_equiv_empty_gl.
     specialize_prove Hequivm by apply init_ms_matches_inp.
-    specialize_prove Hequivm. { apply initialState_validity. lia. }
     specialize_prove Hequivm. { apply ms_valid_wrt_checks_Areg, ms_valid_wrt_checks_nil. }
     specialize_prove Hequivm by apply noforb_empty.
     specialize (Hequivm Heqres eq_refl).
