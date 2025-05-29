@@ -121,6 +121,63 @@ Qed.
 
 (** * Representation Unicity lemmas  *)
 
+(* A representation cannot start with Reset or BeginLoop *)
+Inductive start_rep: bytecode -> Prop :=
+| start_accept: start_rep Accept
+| start_cons: forall cd, start_rep (Consume cd)
+| start_jmp: forall lbl, start_rep (Jmp lbl)
+| start_fork: forall l1 l2, start_rep (Fork l1 l2)
+| start_open: forall gid, start_rep (SetRegOpen gid)
+| start_close: forall gid, start_rep (SetRegClose gid)
+| start_end: forall lbl, start_rep (EndLoop lbl)
+| start_kill: start_rep KillThread.
+
+Lemma nfa_rep_start:
+  forall r code pc pcend,
+    nfa_rep r code pc pcend ->
+    pc = pcend \/
+      (exists i, get_pc code pc = Some i /\ start_rep i).
+Proof.
+  intros r code pc pcend H. induction H;
+    try solve[left; simpl; auto];
+    try solve[right; eexists; split; eauto; constructor].
+  - destruct IHnfa_rep1 as [SAME1 | [i [START1 REP1]]]; subst.
+    2: { right. eexists. split; eauto. }
+    destruct IHnfa_rep2 as [SAME2 | [i [START2 REP2]]]; subst.
+    + left. auto.
+    + right. eexists. split; eauto.
+  - right. destruct greedy; inversion FORK; eexists; split; eauto; constructor.
+Qed.
+
+Lemma action_rep_start:
+  forall a code pc pcend,
+    action_rep a code pc pcend ->
+    pc = pcend \/
+      (exists i, get_pc code pc = Some i /\ start_rep i).
+Proof.
+  intros a code pc pcend H. destruct a.
+  - inversion H. subst. apply nfa_rep_start in NFA. auto.
+  - inversion H. subst. right. exists (EndLoop pcend). split; auto. constructor.
+  - inversion H. subst. right. exists (SetRegClose g). split; auto. constructor.
+Qed.
+
+
+Lemma actions_rep_start:
+  forall act code pc pcend n i,
+    actions_rep act code pc pcend n ->
+    get_pc code pc = Some i ->
+    start_rep i.
+Proof.
+  intros act code pc pcend n i H. induction H; intros GET. 
+  - rewrite ACCEPT in GET. inversion GET. constructor.
+  - apply action_rep_start in ACTION as [EQ | [instr [GETSTART START]]].
+    + subst. apply IHactions_rep. auto.
+    + rewrite GETSTART in GET. inversion GET. subst. auto.
+  - rewrite JMP in GET. inversion GET. constructor.
+Qed.
+
+    
+
 (* even though nfa_rep can hold at the same place for two regexes, they should have the same tree *)
 (* Lemma nfa_rep_unicity: *)
 (*   forall r1 r2 code pc pcend t inp b, *)
@@ -131,16 +188,74 @@ Qed.
 (* Admitted. *)
 
 (* (* same for actions *) *)
-(* Lemma actions_rep_unicity: *)
-(*   forall a1 a2 code pc pcend t inp b n, *)
-(*     actions_rep a1 code pc pcend n -> *)
-(*     actions_rep a2 code pc pcend n -> *)
-(*     bool_tree a1 inp b t -> *)
-(*     bool_tree a2 inp b t. *)
-(* Proof. *)
-(*   intros a1 a2 code pc pcend t inp b n H H0 H1. *)
-(* Admitted. *)
+Lemma actions_rep_unicity:
+  forall a1 a2 code pc pcend t inp b n,
+    actions_rep a1 code pc pcend n ->
+    actions_rep a2 code pc pcend n ->
+    bool_tree a1 inp b t ->
+    bool_tree a2 inp b t.
+Proof.
+  intros a1 a2 code pc pcend t inp b n H H0 H1.
+Admitted.
+(* also I ave to prove that it's going to be the same end? *)
 
+
+
+(* rephrasing the lemma below so that induction handles pairs better *)
+Lemma tt_same_interm:
+  forall code inp treegm1 treegm2 thread1 thread2 n1 n2
+    (TT1: tree_thread code inp treegm1 thread1 n1)
+    (TT2: tree_thread code inp treegm2 thread2 n2)
+    (SAMEPC: fst (fst thread1) = fst (fst thread2))
+    (SAMEB: snd thread1 = snd thread2)
+    (SAMEGM1: snd (fst thread1) = snd treegm1)
+    (SAMEGM2: snd (fst thread2) = snd treegm2),
+    fst treegm1 = fst treegm2 /\ n1 = n2.
+Proof.
+  intros code inp treegm1 treegm2 thread1 thread2 n1 n2 TT1.
+  generalize dependent n2. generalize dependent thread2. generalize dependent treegm2.
+  induction TT1; intros; subst.
+  - inversion TT2; subst;
+      simpl in SAMEB; simpl in SAMEPC; simpl in SAMEGM1; simpl in SAMEGM2; subst;
+      try solve[eapply actions_rep_start in CONT; eauto; inversion CONT].
+    simpl.
+    (* actions_rep can only finish in the same place: at the end of the code *)
+    (* I could remove the pcend from the actions_rep definition *)
+    assert (pc_end = pc_end0) by admit.
+    (* this one is unclear. How do we prevent jumps to ourselves? *)
+    assert (n = n2) by admit.
+    subst. split; auto. eapply actions_rep_unicity in CONT; eauto.
+    eapply bool_tree_determ; eauto.
+  - inversion TT2; subst;
+      simpl in SAMEB; simpl in SAMEPC; simpl in SAMEGM1; simpl in SAMEGM2; subst;
+      try solve[eapply actions_rep_start in CONT; eauto; inversion CONT].
+    2: { rewrite BEGIN in RESET. inversion RESET. }
+    rewrite RESET in RESET0. inversion RESET0. subst.
+    specialize (IHTT1 _ _ _ TT (eq_refl _) (eq_refl _) (eq_refl _) (eq_refl _)).
+    simpl in IHTT1. destruct IHTT1. subst. simpl. auto.
+  - inversion TT2; subst;
+      simpl in SAMEB; simpl in SAMEPC; simpl in SAMEGM1; simpl in SAMEGM2; subst;
+      try solve[eapply actions_rep_start in CONT; eauto; inversion CONT].
+    { rewrite BEGIN in RESET. inversion RESET. }
+    specialize (IHTT1 _ _ _ TT (eq_refl _) (eq_refl _) (eq_refl _) (eq_refl _)).
+    simpl in IHTT1. destruct IHTT1. subst. simpl. auto.
+Admitted.
+
+
+
+Lemma tt_same:
+  forall code inp t1 t2 gm1 gm2 pc b n1 n2
+    (TT1: tree_thread code inp (t1,gm1) (pc,gm1,b) n1)
+    (TT2: tree_thread code inp (t2,gm2) (pc,gm2,b) n2),
+    t1 = t2 /\ n1 = n2.
+Proof.
+  intros code inp t1 t2 gm1 gm2 pc b n1 n2 TT1 TT2.
+  eapply tt_same_interm in TT1; eauto. simpl in TT1. destruct TT1.
+  split; auto.
+Qed.
+
+(* One idea: I could remove the pcend argument from the actions_rep predicate. *)
+(* Since we know that it ends in an accept, and we know that the accept is always at the end *)
 
 Lemma tt_same_measure:
   forall code inp t gm pc b n1 n2
@@ -148,7 +263,10 @@ Lemma tt_same_measure:
     (TT2: tree_thread code inp (t,gm) (pc,gm,b) n2),
     n1 = n2.
 Proof.
-Admitted.
+  intros code inp t gm pc b n1 n2 TT1 TT2.
+  eapply tt_same in TT1; eauto. destruct TT1. auto.
+Qed.
+
 
 (* would this be easier if we made the tree explicit in the relation? *)
 (* note that nfa_rep has no unicity prop: we could represent both epsilon and epsilon:epsilon *)
@@ -166,7 +284,9 @@ Lemma tt_same_tree:
     (TT2: tree_thread code inp (t2,gm2) (pc,gm2,b) n2),
     t1 = t2.
 Proof.
-Admitted.
+  intros code inp t1 gm1 t2 gm2 n1 n2 pc b TT1 TT2.
+  eapply tt_same in TT1; eauto. destruct TT1. auto.
+Qed.
 
 
 (** * Invariant Initialization  *)
