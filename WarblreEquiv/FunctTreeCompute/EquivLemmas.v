@@ -75,8 +75,10 @@ Section EquivLemmas.
         intros gm1 gm2 idx dir Hres gid Hnotin.
         do 2 rewrite in_app_iff in Hnotin.
         unfold seqop in Hres. destruct (tree_res t1 gm1 idx dir) as [gmres1|] eqn:Hres1; simpl in *.
-        * admit.
-        * admit.
+        * (* First branch succeeds *)
+          injection Hres as <-.
+          apply (IHfuel _ _ _ _ _ Heqt1 _ _ _ _ Hres1). simpl. rewrite in_app_iff. tauto.
+        * eapply IHfuel; eauto. simpl. rewrite in_app_iff. tauto.
 
       + (* Sequence *)
         destruct dir0.
@@ -106,16 +108,60 @@ Section EquivLemmas.
              ++ (* Iteration succeeds *)
                 intro H. injection H as <-.
                 specialize (IHiter gmiter idx dir Hiterres). simpl in IHiter.
-                intros. admit.
+                intros. rewrite IHiter. 2: { do 2 rewrite in_app_iff. rewrite in_app_iff in H. tauto. }
+                rewrite in_app_iff in H. assert (~In gid (def_groups r)) by tauto. now apply gm_reset_find_other.
              ++ (* Iteration fails *)
                 intro Hskipres. specialize (IHskip gm2 idx dir Hskipres).
                 intros. apply IHskip. rewrite in_app_iff in H. tauto.
           -- (* Lazy *)
-             admit.
+             destruct (tree_res tskip _ idx dir) as [gmskip|] eqn:Hskipres; simpl.
+             ++ (* Iteration succeeds *)
+                intro H. injection H as <-.
+                specialize (IHskip gmskip idx dir Hskipres).
+                intros gid H. apply IHskip. rewrite in_app_iff in H. tauto.
+             ++ (* Iteration fails *)
+                intro Hiterres. specialize (IHiter _ _ _ Hiterres). simpl in IHiter.
+                intros. rewrite in_app_iff in H.
+                rewrite IHiter. 2: { do 2 rewrite in_app_iff. tauto. }
+                assert (~In gid (def_groups r)) by tauto. now apply gm_reset_find_other.
         * (* Free, infinite delta *)
-          admit.
+          simpl.
+          (* Copy-pasting from above!! *)
+          destruct (compute_tree (Areg r :: Acheck inp :: _ :: acts) inp _ dir0 fuel) as [titer|] eqn:Hiter; simpl; try discriminate.
+          destruct (compute_tree acts inp gm0 dir0 fuel) as [tskip|] eqn:Hskip; simpl; try discriminate.
+          intro H. injection H as <-.
+          intros gm1 gm2 idx dir.
+          pose proof IHfuel _ _ _ _ _ Hiter (GroupMap.reset (def_groups r) gm1) as IHiter.
+          pose proof IHfuel _ _ _ _ _ Hskip gm1 as IHskip.
+          destruct greedy; simpl.
+          -- (* Greedy *)
+             destruct (tree_res titer _ idx dir) as [gmiter|] eqn:Hiterres; simpl.
+             ++ (* Iteration succeeds *)
+                intro H. injection H as <-.
+                specialize (IHiter gmiter idx dir Hiterres). simpl in IHiter.
+                intros. rewrite IHiter. 2: { do 2 rewrite in_app_iff. rewrite in_app_iff in H. tauto. }
+                rewrite in_app_iff in H. assert (~In gid (def_groups r)) by tauto. now apply gm_reset_find_other.
+             ++ (* Iteration fails *)
+                intro Hskipres. specialize (IHskip gm2 idx dir Hskipres).
+                intros. apply IHskip. rewrite in_app_iff in H. tauto.
+          -- (* Lazy *)
+             destruct (tree_res tskip _ idx dir) as [gmskip|] eqn:Hskipres; simpl.
+             ++ (* Iteration succeeds *)
+                intro H. injection H as <-.
+                specialize (IHskip gmskip idx dir Hskipres).
+                intros gid H. apply IHskip. rewrite in_app_iff in H. tauto.
+             ++ (* Iteration fails *)
+                intro Hiterres. specialize (IHiter _ _ _ Hiterres). simpl in IHiter.
+                intros. rewrite in_app_iff in H.
+                rewrite IHiter. 2: { do 2 rewrite in_app_iff. tauto. }
+                assert (~In gid (def_groups r)) by tauto. now apply gm_reset_find_other.
         * (* Forced *)
-          admit.
+          destruct compute_tree as [titer|] eqn:Hiter; try discriminate.
+          intro H. injection H as <-.
+          simpl. intros gm1 gm2 idx dir Heqgm2 gid Hnotin. rewrite in_app_iff in Hnotin. 
+          rewrite (IHfuel _ _ _ _ _ Hiter _ _ _ _ Heqgm2).
+          2: { simpl. do 2 rewrite in_app_iff. tauto. }
+          assert (~In gid (def_groups r)) by tauto. now apply gm_reset_find_other.
         
       + (* Lookaround *)
         admit.
