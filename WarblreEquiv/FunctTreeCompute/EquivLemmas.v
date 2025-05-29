@@ -164,7 +164,28 @@ Section EquivLemmas.
           assert (~In gid (def_groups r)) by tauto. now apply gm_reset_find_other.
         
       + (* Lookaround *)
-        admit.
+        destruct compute_tree as [treelk|] eqn:Hcomputelk; try discriminate.
+        destruct lk_succeeds eqn:Hlksucc.
+        * (* Lookaround succeeds *)
+          destruct lk_group_map as [gmlk|] eqn:Heqgmlk.
+          -- destruct (compute_tree acts inp gmlk dir0 fuel) as [treecont|] eqn:Htreecont; try discriminate.
+             intro H. injection H as <-.
+             simpl. destruct positivity.
+             ++ intros gm1 gm2 idx dir. destruct tree_res as [gmafterlk|] eqn:Heqgmafterlk; try discriminate.
+                intros Heqgm2 gid Hnotin.
+                rewrite in_app_iff in Hnotin.
+                rewrite (IHfuel _ _ _ _ _ Htreecont _ _ _ _ Heqgm2) by tauto.
+                rewrite (IHfuel _ _ _ _ _ Hcomputelk _ _ _ _ Heqgmafterlk).
+                2: { simpl. rewrite app_nil_r. tauto. }
+                reflexivity.
+             ++ intros gm1 gm2 idx dir.
+                destruct tree_res eqn:Hgmafterlk; try discriminate.
+                intros Heqgm2 gid Hnotin. rewrite in_app_iff in Hnotin.
+                eapply IHfuel; eauto.
+          -- (* Does not happen, but does not matter *)
+             intro H. injection H as <-. simpl. discriminate.
+        * (* Lookaround fails *)
+          intro H. injection H as <-. simpl. discriminate.
 
       + (* Group *)
         admit.
