@@ -438,21 +438,53 @@ Section EquivLemmas.
       pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ Heqgm2 _ Hopen2 as [].
       simpl in H0.
       rewrite Areg_Aclose_disappear in *.
-      admit. (* Becomes solvable *)
+      apply Decidable.not_or in H0. destruct H0.
+      assert (gid <> gid0). { intros ->. contradiction. }
+      rewrite group_map_open_find_other in H by assumption. auto.
 
     - (* Anchor *)
       intros gm0 inp dir0 t. simpl.
-      admit. (* Should not be difficult *)
+      destruct anchor_satisfied.
+      + (* Anchor is satisfied *)
+        destruct compute_tree as [treecont|] eqn:Hcomputecont; try discriminate.
+        intro H. injection H as <-. intros gm1 gm2 idx dir Heqgm2 gid Hopen2.
+        rewrite Areg_Aclose_disappear. eauto using IHfuel.
+      + (* Anchor is not satisfied *)
+        intro H. injection H as <-. discriminate.
     
-    - (* Backreference; should not be difficult *)
-      admit.
+    - (* Backreference *)
+      intros gm0 inp dir t. simpl.
+      destruct read_backref as [[br_str nextinp]|].
+      + destruct compute_tree as [tcont|] eqn:Htcont; try discriminate.
+        intro H. injection H as <-. simpl.
+        intros gm1 gm2 idx dir0 Heqgm2 gid' Hopen2.
+        rewrite Areg_Aclose_disappear. eauto using IHfuel.
+      + intro H. injection H as <-. discriminate.
     
     - (* Check; should not be difficult *)
-      admit.
+      intros gm0 inp dir0 t. simpl.
+      destruct is_strict_suffix.
+      + (* Is strict suffix *)
+        destruct compute_tree as [treecont|] eqn:Htreecont; try discriminate.
+        intro H. injection H as <-. intros gm1 gm2 idx dir Heqgm2 gid Hopen2.
+        rewrite Acheck_Aclose_disappear. eauto using IHfuel.
+      + (* Is not strict suffix *)
+        intro H. injection H as <-. discriminate.
 
     - (* Close *)
-      admit.
-  Admitted.
+      intros gm0 inp dir0 t. simpl.
+      destruct compute_tree as [treecont|] eqn:Htreecont; try discriminate.
+      intro H. injection H as <-. simpl. intros gm1 gm2 idx dir Heqgm2 gid' Hopen2.
+      pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ Heqgm2 _ Hopen2.
+      destruct (Nat.eq_dec gid gid') as [Heq | Hnoteq].
+      + subst gid'. Search GroupMap.find GroupMap.close.
+        pose proof group_map_close_find_notopen gm1 idx gid as Hnotopen. destruct H. contradiction.
+      + rewrite group_map_close_find_other in H by assumption. destruct H. split; auto.
+        intro Habs. destruct Habs.
+        * injection H1 as H1. contradiction.
+        * contradiction.
+
+  Qed.
 
 
   (** ** Lemmas for validity wrt checks *)
