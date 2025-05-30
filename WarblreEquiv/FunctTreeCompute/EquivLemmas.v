@@ -228,7 +228,6 @@ Section EquivLemmas.
       specialize (IHfuel (GroupMap.close idx gid gm1) gm2 idx dir).
       intro Hrescont. specialize (IHfuel Hrescont).
       intros gid' Hnotin. rewrite IHfuel by tauto.
-      Search GroupMap.find GroupMap.close.
       assert (gid' <> gid) by (symmetry; tauto).
       now apply group_map_close_find_other.
   Qed.
@@ -477,7 +476,7 @@ Section EquivLemmas.
       intro H. injection H as <-. simpl. intros gm1 gm2 idx dir Heqgm2 gid' Hopen2.
       pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ Heqgm2 _ Hopen2.
       destruct (Nat.eq_dec gid gid') as [Heq | Hnoteq].
-      + subst gid'. Search GroupMap.find GroupMap.close.
+      + subst gid'.
         pose proof group_map_close_find_notopen gm1 idx gid as Hnotopen. destruct H. contradiction.
       + rewrite group_map_close_find_other in H by assumption. destruct H. split; auto.
         intro Habs. destruct Habs.
@@ -734,6 +733,21 @@ Section EquivLemmas.
     - subst gid. exfalso. unfold List.Disjoint, not in Hdef_forbid_disj. apply Hdef_forbid_disj with (x := S n); auto.
       simpl. left. reflexivity.
     - rewrite group_map_close_find_other. 2: congruence. now apply Hnoforb.
+  Qed.
+
+  Lemma noforb_reset:
+    forall gm lreg gmreset forbgroups,
+      gmreset = GroupMap.reset (def_groups lreg) gm ->
+      no_forbidden_groups gm forbgroups ->
+      no_forbidden_groups gmreset (forbidden_groups lreg ++ forbgroups).
+  Proof.
+    intros gm lreg gmreset forbgroups -> Hnoforb.
+    unfold no_forbidden_groups. intros gid Hinforb.
+    apply in_app_or in Hinforb. destruct (in_dec Nat.eq_dec gid (def_groups lreg)) as [Hinlreg | Hnotinlreg].
+    - now apply gm_reset_find.
+    - destruct Hinforb as [Hinlreg | Hinforb].
+      1: apply in_forb_implies_in_def in Hinlreg; contradiction.
+      rewrite gm_reset_find_other by assumption. now apply Hnoforb.
   Qed.
 
   (* Lemma used in lookarounds *)

@@ -130,7 +130,7 @@ Section Equiv.
             specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
             specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
             specialize_prove Hequiv by admit. (* msreset is valid with respect to the checks in act because of the assumption on ms and wrt the check with inp because msreset matches inp *)
-            specialize_prove Hequiv by admit. (* gmreset does not contain any of the forbidden groups in lreg because those have just been reset, and does not contain any of the rest of the forbidden groups by assumption on gm *)
+            specialize_prove Hequiv. { eapply noforb_reset; eauto. reflexivity. } (* gmreset does not contain any of the forbidden groups in lreg because those have just been reset, and does not contain any of the rest of the forbidden groups by assumption on gm *)
             specialize (Hequiv eq_refl Htitersucc).
             inversion Hequiv. simpl. unfold gmreset in H. rewrite <- H. simpl. constructor. assumption.
           * (* delta is infinite; copy-pasting and removing one line *)
@@ -141,7 +141,8 @@ Section Equiv.
             specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
             specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
             specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
-            do 2 specialize_prove Hequiv by admit.
+            specialize_prove Hequiv by admit.
+            specialize_prove Hequiv. { eapply noforb_reset; eauto. reflexivity. }
             specialize (Hequiv eq_refl Htitersucc).
             inversion Hequiv. simpl. unfold gmreset in H. rewrite <- H. simpl. constructor. assumption.
         + (* resloop is None *)
@@ -155,7 +156,8 @@ Section Equiv.
             specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
             specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
             specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
-            do 2 specialize_prove Hequiv by admit.
+            specialize_prove Hequiv by admit.
+            specialize_prove Hequiv. { eapply noforb_reset; eauto. reflexivity. }
             specialize (Hequiv eq_refl Htitersucc).
             inversion Hequiv. simpl. unfold gmreset in H0. rewrite <- H0. simpl. eapply Hequivcont; eauto using ms_valid_wrt_checks_tail.
           * (* delta is infinite; copy-pasting and removing one line *)
@@ -166,7 +168,8 @@ Section Equiv.
             specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
             specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
             specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
-            do 2 specialize_prove Hequiv by admit.
+            specialize_prove Hequiv by admit.
+            specialize_prove Hequiv. { eapply noforb_reset; eauto. reflexivity. }
             specialize (Hequiv eq_refl Htitersucc).
             inversion Hequiv. simpl. unfold gmreset in H0. rewrite <- H0. simpl. eapply Hequivcont; eauto using ms_valid_wrt_checks_tail.
       
@@ -224,8 +227,8 @@ Section Equiv.
     - destruct ms. eapply ms_matches_inp_capchg; eauto.
     - unfold msreset. apply ms_valid_wrt_checks_inpcap with (winp' := MatchState.input ms) (cap' := MatchState.captures ms).
       do 2 apply ms_valid_wrt_checks_Areg. apply ms_valid_wrt_checks_tail in Hmschecks. now destruct ms.
-    - admit. (* The reset group map does not contain any group in lreg because those have just been reset, and does not contain any group in forbgroups because of the assumption on gm *)
-  Admitted.
+    - eapply noforb_reset; eauto.
+  Qed.
 
   Corollary repeatMatcher_equiv:
     forall greedy parenIndex parenCount rer,
