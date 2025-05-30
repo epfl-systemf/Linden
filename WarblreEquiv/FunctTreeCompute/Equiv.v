@@ -331,22 +331,110 @@ Section Equiv.
     intros. unfold equiv_matcher.
     intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
     unfold equiv_cont. intros gm ms [next pref] res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforb; try discriminate.
+    pose proof ms_matches_inp_inbounds ms _ Hmsinp as Hmsinb.
     simpl in *. unfold Semantics.backreferenceMatcher, read_backref.
     destruct indexing as [r|] eqn:Heqr; simpl; try discriminate.
     destruct r as [[startIdx endIdx]|] eqn:Hr; simpl.
     - (* Range is defined *)
-      replace (GroupMap.find (positive_to_nat gid) gm) with (Some (GroupMap.Range (Z.to_nat startIdx) (Some (Z.to_nat endIdx)))) by admit.
+      assert (Hfind: GroupMap.find (positive_to_nat gid) gm = Some (GroupMap.Range (Z.to_nat startIdx) (Some (Z.to_nat endIdx)))) by admit.
+      rewrite Hfind.
       assert (HstartIdxnneg: (startIdx >= 0)%Z) by admit. assert (HendIdxnneg: (endIdx >= 0)%Z) by admit.
       set (rlen := (endIdx - startIdx)%Z).
+      assert (Hrlennneg: (rlen >= 0)%Z). {
+        unfold gm_valid in Hgmvalid. specialize (Hgmvalid (positive_to_nat gid)).
+        rewrite Hfind in Hgmvalid. inversion Hgmvalid. lia.
+      }
       replace (Z.to_nat endIdx - Z.to_nat startIdx) with (Z.to_nat rlen) by lia.
       destruct dir; simpl.
       + (* Forward *)
         set (endMatch := (MatchState.endIndex ms + rlen)%Z).
-        admit.
+        replace (endMatch <? 0)%Z with false by lia. simpl.
+        assert (Hoobiff: (endMatch >? Z.of_nat (length (MatchState.input ms)))%Z = true <->
+          (Z.to_nat rlen >? length next) = true) by admit.
+        simpl in Hoobiff.
+        rewrite <- Bool.eq_iff_eq_true in Hoobiff. rewrite <- Hoobiff.
+        destruct Z.gtb eqn:Hoob.
+        * (* Out of bounds *)
+          intros H1 H2. injection H1 as <-. injection H2 as <-. constructor.
+        * (* In bounds *)
+          destruct List.Exists.exist as [existsdiff|] eqn:Hexistsdiffres; simpl; try discriminate.
+          assert (Hexistsdiffiff : existsdiff = true <-> (List.firstn (Z.to_nat rlen) next ==? substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = false) by admit.
+          rewrite Bool.negb_involutive_reverse with (b := existsdiff) in Hexistsdiffiff.
+          rewrite Bool.negb_true_iff in Hexistsdiffiff.
+          destruct existsdiff.
+          -- (* Some character is different *)
+             destruct Hexistsdiffiff as [Hexistsdiffiff _]. rewrite Hexistsdiffiff by reflexivity.
+             intros H1 H2. injection H1 as <-. injection H2 as <-. constructor.
+          -- (* No character is different *)
+             replace (List.firstn _ _ ==? substr _ _ _)%wt with true. 2: {
+               symmetry. destruct EqDec.eqb; try reflexivity.
+               destruct Hexistsdiffiff. discriminate (H0 eq_refl).
+             }
+             set (ms' := match_state _ _ _). set (inp' := Input _ _).
+             assert (Hms'inp': ms_matches_inp ms' inp') by admit.
+             assert (Hinp'compat: input_compat inp' str0) by admit.
+             intro Hres.
+             destruct compute_tree as [tcont|] eqn:Htcont; try discriminate.
+             intro H. injection H as <-. simpl.
+             unfold equiv_cont in Hequivcont.
+             replace (length pref + length _) with (idx inp') by admit.
+             apply Hequivcont with (ms := ms') (fuel := fuel); auto.
+             admit.
       + (* Backward *)
-        admit.
+        replace (MatchState.endIndex ms - rlen >? Z.of_nat (length (MatchState.input ms)))%Z with false by lia.
+        rewrite Bool.orb_false_r.
+        assert (Hoobiff: (MatchState.endIndex ms - rlen <? 0)%Z = true <-> (Z.to_nat rlen >? length pref) = true) by admit.
+        rewrite <- Bool.eq_iff_eq_true in Hoobiff. simpl in Hoobiff.
+        rewrite <- Hoobiff.
+        destruct Z.ltb.
+        * (* Out of bounds *)
+          intros H1 H2. injection H1 as <-. injection H2 as <-. constructor.
+        * (* In bounds *)
+          destruct List.Exists.exist as [existsdiff|] eqn:Hexistsdiffres; simpl; try discriminate.
+          assert (Hexistsdiffiff : existsdiff = true <-> (List.rev (List.firstn (Z.to_nat rlen) pref) ==? substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = false) by admit.
+          rewrite Bool.negb_involutive_reverse with (b := existsdiff) in Hexistsdiffiff.
+          rewrite Bool.negb_true_iff in Hexistsdiffiff.
+          destruct existsdiff.
+          -- (* Some character is different *)
+             destruct Hexistsdiffiff as [Hexistsdiffiff _]. rewrite Hexistsdiffiff by reflexivity.
+             intros H1 H2. injection H1 as <-. injection H2 as <-. constructor.
+          -- (* No character is different *)
+             replace (List.rev (List.firstn _ _) ==? substr _ _ _)%wt with true. 2: {
+               symmetry. destruct EqDec.eqb; try reflexivity.
+               destruct Hexistsdiffiff. discriminate (H0 eq_refl).
+             }
+             set (ms' := match_state _ _ _). set (inp' := Input _ _).
+             assert (Hms'inp': ms_matches_inp ms' inp') by admit.
+             assert (Hinp'compat: input_compat inp' str0) by admit.
+             intro Hres.
+             destruct compute_tree as [tcont|] eqn:Htcont; try discriminate.
+             intro H. injection H as <-. simpl.
+             unfold equiv_cont in Hequivcont.
+             replace (length pref - length _) with (idx inp') by admit.
+             apply Hequivcont with (ms := ms') (fuel := fuel); auto.
+             admit.
     - (* Range is undefined *)
-      admit.
+      destruct GroupMap.find as [[startIdx [endIdx|]]|] eqn:Hfind.
+      + exfalso. admit.
+      + destruct compute_tree as [tcont|] eqn:Htcont; try discriminate.
+        intros Hres H. injection H as <-.
+        simpl.
+        replace (Tree.advance_idx_n (length pref) 0 dir) with (idx (Input next pref)). 2: {
+          unfold Tree.advance_idx_n. simpl.
+          destruct dir; lia.
+        }
+        apply Hequivcont with (ms := ms) (fuel := fuel); auto.
+        now apply ms_valid_wrt_checks_tail in Hmschecks.
+      + (* Copy-pasting *)
+        destruct compute_tree as [tcont|] eqn:Htcont; try discriminate.
+        intros Hres H. injection H as <-.
+        simpl.
+        replace (Tree.advance_idx_n (length pref) 0 dir) with (idx (Input next pref)). 2: {
+          unfold Tree.advance_idx_n. simpl.
+          destruct dir; lia.
+        }
+        apply Hequivcont with (ms := ms) (fuel := fuel); auto.
+        now apply ms_valid_wrt_checks_tail in Hmschecks.
   Admitted.
 
   (* Main equivalence theorem: *)
@@ -414,7 +502,7 @@ Section Equiv.
       intros crx Hroot Heqn m dir. simpl.
       destruct Nat.leb eqn:Hgidinbounds; try discriminate. simpl.
       intro H. injection H as <-.
-      admit.
+      auto using backref_equiv.
     
     - (* AtomEsc (ACharacterClassEsc esc); idem *)
       intros ctx Hroot Heqn m dir Hcompsucc.

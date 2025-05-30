@@ -117,6 +117,12 @@ Section Tree.
     | backward => idx-1
     end.
 
+  Definition advance_idx_n (idx: nat) (n: nat) (dir: Direction) :=
+    match dir with
+    | forward => idx + n
+    | backward => idx - n
+    end.
+
   (* returning the highest-priority result *)
   (* we also return the corresponding group map *)
   Fixpoint tree_res (t:tree) (gm:group_map) (idx:nat) (dir: Direction): option leaf :=
@@ -145,7 +151,7 @@ Section Tree.
         end
     | LKFail _ _ => None
     | AnchorPass _ t => tree_res t gm idx dir
-    | ReadBackRef _ t => tree_res t gm idx dir
+    | ReadBackRef br_str t => tree_res t gm (advance_idx_n idx (length br_str) dir) dir
     end.
 
   (* initializing on a the empty group map *)
@@ -182,7 +188,7 @@ Section Tree.
         end
     | LKFail _ _ => []
     | AnchorPass _ t => tree_leaves t gm idx dir
-    | ReadBackRef _ t => tree_leaves t gm idx dir
+    | ReadBackRef br_str t => tree_leaves t gm (advance_idx_n idx (length br_str) dir) dir
     end.
 
 
