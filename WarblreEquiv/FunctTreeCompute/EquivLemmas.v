@@ -324,7 +324,85 @@ Section EquivLemmas.
     - (* Quantified *)
       intros gm0 inp dir0 t. simpl.
       (* Annoying but should be okay *)
-      admit.
+      destruct min as [|min'].
+      1: destruct delta as [[|n']|].
+      + (* Done *)
+        intros Hcompute gm1 gm2 idx dir Heqgm2 gid Hopen2.
+        rewrite Areg_Aclose_disappear. eauto using IHfuel.
+      + (* Free, finite delta *)
+        destruct compute_tree as [titer|] eqn:Htiter; try discriminate.
+        destruct (compute_tree acts inp gm0 dir0 fuel) as [tskip|] eqn:Htskip; try discriminate.
+        intro H. injection H as <-.
+        intros gm1 gm2 idx dir. destruct greedy; simpl.
+        * (* Greedy *)
+          destruct (tree_res titer _ idx dir) as [gmiter|] eqn:Hresiter; simpl.
+          -- (* Iterating succeeds *)
+             intro H. injection H as <-. intros gid Hopeniter.
+             rewrite Areg_Aclose_disappear.
+             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Hresiter _ Hopeniter.
+             simpl in H. rewrite Areg_Aclose_disappear, Acheck_Aclose_disappear, Areg_Aclose_disappear in H.
+             destruct (in_dec Nat.eq_dec gid (def_groups r)) as [Hreset | Hnotreset].
+             ++ rewrite gm_reset_find in H by assumption. destruct H. inversion H. (* gid was reset *)
+             ++ rewrite gm_reset_find_other in H by assumption. auto.
+          -- (* Iterating fails *)
+             intros Heqgm2 gid Hopen2.
+             pose proof IHfuel _ _ _ _ _ Htskip _ _ _ _ Heqgm2 _ Hopen2.
+             rewrite Areg_Aclose_disappear. auto.
+        * (* Lazy *)
+          destruct (tree_res tskip gm1 idx dir) as [gmskip|] eqn:Hresskip; simpl.
+          -- (* Skipping succeeds *)
+             intro H. injection H as <-. intros gid Hopenskip.
+             rewrite Areg_Aclose_disappear. eauto using IHfuel.
+          -- (* Skipping fails *)
+             intros Heqgm2 gid Hopen2.
+             rewrite Areg_Aclose_disappear.
+             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Heqgm2 _ Hopen2. simpl in H.
+             rewrite Areg_Aclose_disappear, Acheck_Aclose_disappear, Areg_Aclose_disappear in H.
+             destruct (in_dec Nat.eq_dec gid (def_groups r)) as [Hreset | Hnotreset].
+             ++ rewrite gm_reset_find in H by assumption. destruct H. inversion H. (* gid was reset *)
+             ++ rewrite gm_reset_find_other in H by assumption. auto.
+      + (* Free, infinite delta: copy-pasting!! *)
+        destruct compute_tree as [titer|] eqn:Htiter; try discriminate.
+        destruct (compute_tree acts inp gm0 dir0 fuel) as [tskip|] eqn:Htskip; try discriminate.
+        intro H. injection H as <-.
+        intros gm1 gm2 idx dir. destruct greedy; simpl.
+        * (* Greedy *)
+          destruct (tree_res titer _ idx dir) as [gmiter|] eqn:Hresiter; simpl.
+          -- (* Iterating succeeds *)
+             intro H. injection H as <-. intros gid Hopeniter.
+             rewrite Areg_Aclose_disappear.
+             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Hresiter _ Hopeniter.
+             simpl in H. rewrite Areg_Aclose_disappear, Acheck_Aclose_disappear, Areg_Aclose_disappear in H.
+             destruct (in_dec Nat.eq_dec gid (def_groups r)) as [Hreset | Hnotreset].
+             ++ rewrite gm_reset_find in H by assumption. destruct H. inversion H. (* gid was reset *)
+             ++ rewrite gm_reset_find_other in H by assumption. auto.
+          -- (* Iterating fails *)
+             intros Heqgm2 gid Hopen2.
+             pose proof IHfuel _ _ _ _ _ Htskip _ _ _ _ Heqgm2 _ Hopen2.
+             rewrite Areg_Aclose_disappear. auto.
+        * (* Lazy *)
+          destruct (tree_res tskip gm1 idx dir) as [gmskip|] eqn:Hresskip; simpl.
+          -- (* Skipping succeeds *)
+             intro H. injection H as <-. intros gid Hopenskip.
+             rewrite Areg_Aclose_disappear. eauto using IHfuel.
+          -- (* Skipping fails *)
+             intros Heqgm2 gid Hopen2.
+             rewrite Areg_Aclose_disappear.
+             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Heqgm2 _ Hopen2. simpl in H.
+             rewrite Areg_Aclose_disappear, Acheck_Aclose_disappear, Areg_Aclose_disappear in H.
+             destruct (in_dec Nat.eq_dec gid (def_groups r)) as [Hreset | Hnotreset].
+             ++ rewrite gm_reset_find in H by assumption. destruct H. inversion H. (* gid was reset *)
+             ++ rewrite gm_reset_find_other in H by assumption. auto.
+      + (* Forced *)
+        destruct compute_tree as [titer|] eqn:Htiter; try discriminate.
+        intro H. injection H as <-.
+        intros gm1 gm2 idx dir Heqgm2 gid Hopen2.
+        rewrite Areg_Aclose_disappear.
+        pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Heqgm2 _ Hopen2. simpl in H.
+        do 2 rewrite Areg_Aclose_disappear in H.
+        destruct (in_dec Nat.eq_dec gid (def_groups r)) as [Hreset | Hnotreset].
+        ++ rewrite gm_reset_find in H by assumption. destruct H. inversion H. (* gid was reset *)
+        ++ rewrite gm_reset_find_other in H by assumption. auto.
 
     - (* Lookaround *)
       intros gm0 inp dir0 t. simpl.
