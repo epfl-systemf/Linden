@@ -1,5 +1,5 @@
 From Linden Require Import Semantics FunctionalSemantics Tree Groups Regex Chars.
-From Linden Require Import GroupMapMS MSInput.
+From Linden Require Import GroupMapMS MSInput GroupMapLemmas.
 From Linden Require Import LindenParameters.
 From Linden Require Import Utils.
 From Warblre Require Import Parameters Notation Base Result Match RegExpRecord.
@@ -44,8 +44,10 @@ Section EquivDef.
       input_compat inp str0 ->
       equiv_groupmap_ms gm ms -> group_map_equiv_open_groups gm gl ->
       ms_matches_inp ms inp ->
-      (* such that ms is valid with respect to the checks in act *)
+      (* such that ms is valid with respect to the checks in act, *)
       ms_valid_wrt_checks ms act dir ->
+      (* gm only contains CaptureRanges in the right direction (i.e. start <= end), *)
+      gm_valid gm ->
       (* and gm does not define any of the groups in the forbidden groups, *)
       no_forbidden_groups gm forbgroups ->
       (* if the continuation mc called on ms yields the result res, *)

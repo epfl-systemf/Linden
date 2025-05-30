@@ -162,3 +162,35 @@ Proof.
       unfold GroupMap.reset. rewrite fold_left_app. simpl. change (fold_left _ rtl gm) with (GroupMap.reset rtl gm).
       subst x. apply gm_remove_find.
 Qed.
+
+Inductive range_dir_valid: option GroupMap.range -> Prop :=
+| Range_dir_valid_None: range_dir_valid None
+| Range_dir_valid_open: forall startIdx, range_dir_valid (Some (GroupMap.Range startIdx None))
+| Range_dir_valid_closed: forall startIdx endIdx,
+    startIdx <= endIdx -> range_dir_valid (Some (GroupMap.Range startIdx (Some endIdx))).
+
+Definition gm_valid (gm: GroupMap.t): Prop :=
+  forall gid: group_id, range_dir_valid (GroupMap.find gid gm).
+
+Lemma empty_gm_valid: gm_valid GroupMap.empty.
+Admitted.
+
+Lemma gm_remove_valid:
+  forall gm gid,
+    gm_valid gm -> gm_valid (GroupMap.MapS.remove gid gm).
+Admitted.
+
+Lemma gm_open_valid:
+  forall gm gid idx,
+    gm_valid gm -> gm_valid (GroupMap.open idx gid gm).
+Admitted.
+
+Lemma gm_close_valid:
+  forall gm gid idx,
+    gm_valid gm -> gm_valid (GroupMap.close idx gid gm).
+Admitted.
+
+Lemma gm_reset_valid:
+  forall gm gidl,
+    gm_valid gm -> gm_valid (GroupMap.reset gidl gm).
+Admitted.

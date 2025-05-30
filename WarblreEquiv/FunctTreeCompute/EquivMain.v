@@ -1,6 +1,6 @@
 From Linden Require Import Equiv EquivDef LindenParameters RegexpTranslation
   Chars Tree Semantics FunctionalSemantics Groups GroupMapMS Regex
-  EquivLemmas Utils MSInput Tactics ComputeIsTree.
+  EquivLemmas Utils MSInput Tactics ComputeIsTree GroupMapLemmas.
 From Warblre Require Import Patterns RegExpRecord Parameters Semantics
   Result Base Notation Match.
 From Coq Require Import List Lia PeanoNat ZArith.
@@ -104,6 +104,7 @@ Section EquivMain.
     specialize_prove Hequivm by apply empty_gm_equiv_empty_gl.
     specialize_prove Hequivm by apply init_ms_matches_inp.
     specialize_prove Hequivm. { apply ms_valid_wrt_checks_Areg, ms_valid_wrt_checks_nil. }
+    specialize_prove Hequivm by apply empty_gm_valid.
     specialize_prove Hequivm by apply noforb_empty.
     specialize (Hequivm Heqres eq_refl).
     exists t. split.
