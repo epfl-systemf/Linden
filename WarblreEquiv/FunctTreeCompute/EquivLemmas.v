@@ -893,6 +893,21 @@ Section EquivLemmas.
   Admitted.
 
   (* Lemma for closing a group *)
+  Lemma nth_indexing:
+    forall gid_prec (cap: list (option CaptureRange)),
+      nth gid_prec cap None =
+      match List.Indexing.Nat.indexing cap gid_prec with
+      | Success x => x
+      | Error _ => None
+      end.
+  Proof.
+    intros gid_prec cap. unfold List.Indexing.Nat.indexing.
+    destruct nth_error eqn:Hnth_error; simpl.
+    - apply nth_error_nth with (d := None) in Hnth_error. congruence.
+    - rewrite nth_error_None in Hnth_error.
+      now rewrite nth_overflow.
+  Qed.
+
   Lemma equiv_gm_ms_close_group:
     forall ms ms' inp inp' gm' n gl dir (rres: Result (option CaptureRange) MatchError) r cap' str0
       (Hmsinp: ms_matches_inp ms inp)
@@ -920,6 +935,35 @@ Section EquivLemmas.
       (Hrressucc: rres = Success r)
       (Hcapupd: List.Update.Nat.One.update r (MatchState.captures ms') n = Success cap'),
       equiv_groupmap_ms (GroupMap.close (idx inp') (S n) gm') (match_state (MatchState.input ms) (MatchState.endIndex ms') cap').
+  Proof.
+    intros. unfold equiv_groupmap_ms. intro gid_prec.
+    destruct (Nat.eq_dec gid_prec n) as [Heqn | Hnoteqn].
+    - subst gid_prec. simpl.
+      rewrite nth_indexing.
+      rewrite List.Update.Nat.One.indexing_updated_same with (ls := MatchState.captures ms') (v := r); auto.
+      rewrite Heqrres in Hrressucc.
+      destruct dir; simpl in *.
+      + (* Forward *)
+        destruct (MatchState.endIndex ms <=? MatchState.endIndex ms')%Z eqn:Hle; simpl in *; try discriminate.
+        replace (GroupMap.find (S n) (GroupMap.close (idx inp') (S n) gm')) with (Some (GroupMap.Range (idx inp) (Some (idx inp')))) by admit.
+        injection Hrressucc as <-.
+        constructor.
+        replace (MatchState.endIndex ms) with (Z.of_nat (idx inp)) by admit.
+        replace (MatchState.endIndex ms') with (Z.of_nat (idx inp')) by admit.
+        constructor.
+      + (* Backward *)
+        destruct (MatchState.endIndex ms' <=? MatchState.endIndex ms)%Z eqn:Hle; simpl in *; try discriminate.
+        replace (GroupMap.find (S n) (GroupMap.close (idx inp') (S n) gm')) with (Some (GroupMap.Range (idx inp') (Some (idx inp)))) by admit.
+        injection Hrressucc as <-.
+        constructor.
+        replace (MatchState.endIndex ms) with (Z.of_nat (idx inp)) by admit.
+        replace (MatchState.endIndex ms') with (Z.of_nat (idx inp')) by admit.
+        constructor.
+    - rewrite group_map_close_find_other. 2: { symmetry. intro Habs. injection Habs as Habs. contradiction. }
+      simpl.
+      rewrite nth_indexing.
+      rewrite List.Update.Nat.One.indexing_updated_other with (i := n) (ls := MatchState.captures ms') (v := r); auto.
+      rewrite <- nth_indexing. apply Hgm'ms'.
   Admitted.
   
   Lemma equiv_open_groups_close_group:
