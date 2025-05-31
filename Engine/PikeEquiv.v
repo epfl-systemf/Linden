@@ -398,7 +398,7 @@ Proof.
         2: { pike_subset. }
         eapply cons_bc with (pcmid:=end1).
         ** constructor; auto.
-        ** replace (S n) with (n + 1) by lia. eapply jump_bc; eauto.
+        ** eapply jump_bc; eauto.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
     repeat (econstructor; eauto). pike_subset.
   - repeat invert_rep.

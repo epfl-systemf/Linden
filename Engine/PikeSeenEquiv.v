@@ -179,6 +179,7 @@ Qed.
     
 
 (* even though nfa_rep can hold at the same place for two regexes, they should have the same tree *)
+(* the issue with that lemma is that I'm not guaranteed that I will get two list of actions that coincide on the intermediate pcs *)
 (* Lemma nfa_rep_unicity: *)
 (*   forall r1 r2 code pc pcend t inp b, *)
 (*     nfa_rep r1 code pc pcend -> *)
@@ -186,6 +187,109 @@ Qed.
 (*     bool_tree [Areg r1] inp b t -> *)
 (*     bool_tree [Areg r2] inp b t. *)
 (* Admitted. *)
+
+(* one possible solution: *)
+(* I could show that if I have two actions_rep at the same pc, these list of actions are equivalent *)
+(* Equivalence of actions would be up to
+   - splitting sequences
+   - adding epsilon
+ *)
+(* Then, I could prove that two equivalent lists of actions give the same tree  *)
+(* Would that be easier? Or not? *)
+
+Lemma accept_same_n:
+  forall code pc n1 n2,
+    actions_rep [] code pc n1 ->
+    actions_rep [] code pc n2 ->
+    n1 = n2.
+Proof.
+  intros code pc n1 n2 H H0.
+  remember [] as NIL. generalize dependent n2.
+  induction H; intros.
+  - inversion H0; subst; auto.
+    rewrite JMP in ACCEPT. inversion ACCEPT.
+  - inversion HeqNIL.
+  - subst. destruct n2 as [|n2].
+    { inversion H0; subst.
+      rewrite ACCEPT in JMP. inversion JMP. }
+    inversion H0; subst. rewrite JMP in  JMP0. inversion JMP0. subst.
+    simpl. f_equal. apply IHactions_rep; auto.
+Qed.
+(* is this strong enough? *)
+(* it's only when we have the same list of actions, but we could try to match epsilon for instance *)
+
+
+Lemma accept_same_n':
+  forall code pc act n1 n2,
+    actions_rep [] code pc n1 ->
+    actions_rep act code pc n2 ->
+    n1 = n2.
+Proof.
+  intros code pc act n1 n2 H H0.
+  remember [] as NIL. generalize dependent n2. generalize dependent act.
+  induction H; intros.
+  - induction H0; auto.
+    + assert (pcstart = pcmid) by admit.
+      (* because we know that we have accept, there should be no way to end somewhere else *)
+      subst. apply IHactions_rep. auto.
+    + rewrite JMP in ACCEPT. inversion ACCEPT.
+  - inversion HeqNIL.
+  - induction H0; auto.
+    + rewrite ACCEPT in JMP. inversion JMP.
+    +                           (* one has jumped, the other represents an action *)
+      assert (pcstart0 = pcmid) by admit.
+    (* again, we know that we have a jmp at the start, so the representation cannot end somewhere else *)
+      subst. eapply IHactions_rep0; eauto.
+    + rewrite JMP0 in JMP. inversion JMP. subst. f_equal.
+      eapply IHactions_rep; eauto.
+Admitted.
+
+
+Lemma act_rep_same_n:
+  forall code pc act1 act2 n1 n2,
+    actions_rep act1 code pc n1 ->
+    actions_rep act2 code pc n2 ->
+    n1 = n2.
+Proof.
+  intros code pc act1 act2 n1 n2 H H0.
+  generalize dependent act2. generalize dependent n2.
+  induction H; intros.
+  - eapply accept_same_n'; eauto.
+    constructor; auto.
+  - admit.
+  (* should be difficult *)
+  (* while the first rep stops at pcmid, we don't know if the other one also stops at pcmid *)
+  (* so it will be hard to ever use the induction hypothesis *)
+  - induction H0.
+    + rewrite ACCEPT in JMP. inversion JMP.
+    + assert (pcstart0 = pcmid) by admit.
+      (* should be ok *)
+      subst. eapply IHactions_rep0; eauto.
+    + rewrite JMP0 in JMP. inversion JMP. subst. f_equal.
+      eapply IHactions_rep; eauto.
+Abort.
+
+
+Lemma match_unicity:
+  forall a1 a2 code pc inp b n,
+    actions_rep a1 code pc n ->
+    actions_rep a2 code pc n ->
+    bool_tree a1 inp b Match ->
+    bool_tree a2 inp b Match.
+Proof.
+  intros a1 a2 code pc inp b n H H0 H1.
+  generalize dependent a2. generalize dependent pc.
+  remember Match as tmatch.
+  induction H1; intros;
+    try solve[inversion Heqtmatch].
+  - admit.
+  - inversion H; subst.
+    + apply IHbool_tree in CONT; auto. admit. (* don't think I can conclude *)
+    + admit.
+Abort.
+
+              
+
 
 (* (* same for actions *) *)
 Lemma actions_rep_unicity:
@@ -196,11 +300,21 @@ Lemma actions_rep_unicity:
     bool_tree a2 inp b t.
 Proof.
   intros a1 a2 code pc t inp b n H H0 H1.
+  induction H.
+  - inversion H1; subst. inversion H0; subst.
+    2: { admit.                 (* we could have epsilon:[] *)
+         (* this one should be by induction on H1 *)
+    }
+
+    (* another induction *)
+  (* intros a1 a2 code pc t inp b n H H0 H1. *)
+  (* induction H1. *)
+  (* -                             (* even this one is an induction on n, or on actions_rep (H) *) *)
+  (*   (* since we can have as many jumps before the match *) *)
 Admitted.
-(* also I ave to prove that it's going to be the same end? *)
 
 
-
+(* should I prove this one at the same time as the one above? *)
 Lemma actions_rep_same_n:
   forall code pc n1 act1 n2 act2
     (AREP1: actions_rep act1 code pc n1)
@@ -227,7 +341,6 @@ Proof.
       simpl in SAMEB; simpl in SAMEPC; simpl in SAMEGM1; simpl in SAMEGM2; subst;
       try solve[eapply actions_rep_start in CONT; eauto; inversion CONT].
     simpl.
-    (* actions_rep can only finish in the same place: at the end of the code *)
     (* this one is unclear. How do we prevent jumps to ourselves? *)
     (* maybe I need to have the property that all Jumps jump to a strictly higher index *)
     assert (n = n2) by admit.
@@ -261,8 +374,6 @@ Proof.
   split; auto.
 Qed.
 
-(* One idea: I could remove the pcend argument from the actions_rep predicate. *)
-(* Since we know that it ends in an accept, and we know that the accept is always at the end *)
 
 Lemma tt_same_measure:
   forall code inp t gm pc b n1 n2
@@ -294,6 +405,7 @@ Proof.
   intros code inp t1 gm1 t2 gm2 n1 n2 pc b TT1 TT2.
   eapply tt_same in TT1; eauto. destruct TT1. auto.
 Qed.
+
 
 
 (** * Invariant Initialization  *)

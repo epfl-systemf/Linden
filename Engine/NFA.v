@@ -338,4 +338,4 @@ Inductive actions_rep : actions -> code -> label -> nat -> Prop :=
   forall cont c pcstart n pc
     (CONT: actions_rep cont c pcstart n)
     (JMP: get_pc c pc = Some (Jmp pcstart)),
-    actions_rep cont c pc (n+1).
+    actions_rep cont c pc (1+n).
