@@ -329,7 +329,6 @@ Proof.
   generalize dependent c2. generalize dependent act2.
   generalize dependent act1.
   induction REP1; intros.
-  - induction CAN1; subst.
-    + admit.
-    + 
+  (* empty actions *)
+  { 
 Admitted.    

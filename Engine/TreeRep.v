@@ -9,8 +9,10 @@ From Linden Require Import PikeEquiv PikeSubset.
 From Warblre Require Import Base.
 
 
+(** * Tree Rep Predicate  *)
 (* A predicate showing that a tree is represented at a given point in the code *)
-
+(* For a given input and boolean *)
+(* the nat is the number of jumps that may be required to compute the final tree *)
 
 Inductive tree_rep: tree -> code -> label -> input -> LoopBool -> nat -> Prop :=
 | tr_match:
@@ -70,6 +72,11 @@ Inductive tree_rep: tree -> code -> label -> input -> LoopBool -> nat -> Prop :=
     tree_rep Mismatch code pc inp CannotExit 0.
 
 
+(** * Tree Rep Determinism  *)
+(* this is essential to allow memoization *)
+(* If we end up on the same pc, we represent the same tree *)
+(* meaning that we can safely memoize it and cut the lower priority thread *)
+
 Ltac same_instr :=
   match goal with
   | [ H1 : get_pc ?code ?pc = ?i1, H2: get_pc ?code ?pc = ?i2 |- _ ] => rewrite H1 in H2; inversion H2; subst
@@ -116,8 +123,133 @@ Proof.
 Qed.
 
 
+(** * Relation to actions_rep  *)
+
 (* Actions rep to tree rep *)
+
+(* NOTE: here the induction on ACT only serves when there are jmps. In the other case, IHACT is never needed *)
 Theorem actions_tree_rep:
+  forall actions code pc n inp b t
+    (SUBSET: pike_actions actions)
+    (ACT: actions_rep actions code pc n)
+    (TREE: bool_tree actions inp b t),
+    tree_rep t code pc inp b n.
+Proof.
+  intros actions code pc n inp b t SUBSET ACT TREE.
+  generalize dependent code. generalize dependent n. generalize dependent pc.
+  induction TREE; intros.
+  (* Match *)
+  - remember [] as emp. induction ACT; inversion Heqemp.
+    + constructor. auto.
+    + eapply tr_jmp; eauto.
+  (* Progress *)
+  - remember (Acheck strcheck :: cont) as checkcont.
+    induction ACT; inversion Heqcheckcont; subst;
+      try solve[eapply tr_jmp; eauto]; clear IHACT.
+    invert_rep. eapply tr_progress; eauto.
+    eapply IHTREE; eauto. pike_subset.
+  (* progress fail *)
+  - remember (Acheck strcheck :: cont) as checkcont.
+    induction ACT; inversion Heqcheckcont; subst;
+      try solve[eapply tr_jmp; eauto]; clear IHACT.
+    invert_rep. replace n with 0 by admit.
+    eapply tr_progressfail; eauto.
+  (* close *)
+  - remember (Aclose gid :: cont) as closecont.
+    induction ACT; inversion Heqclosecont; subst;
+      try solve[eapply tr_jmp; eauto]; clear IHACT.
+    invert_rep. eapply tr_close; eauto.
+    eapply IHTREE; eauto. pike_subset.
+  (* epsilon *)
+  - remember (Areg Epsilon :: cont) as epscont.
+    induction ACT; inversion Heqepscont; subst;
+      try solve[eapply tr_jmp; eauto]; clear IHACT.
+    invert_rep. inversion NFA; subst.
+    2: { in_subset. }
+    eapply IHTREE; eauto. pike_subset.
+  (* character *)
+  - remember (Areg (Regex.Character cd) :: cont) as charcont.
+    induction ACT; inversion Heqcharcont; subst;
+      try solve[eapply tr_jmp; eauto]; clear IHACT.
+    invert_rep. inversion NFA; subst.
+    2: { in_subset. }
+    eapply tr_read; eauto.
+    eapply IHTREE; eauto. pike_subset.
+  (* read fail *)
+  - remember (Areg (Regex.Character cd) :: cont) as charcont.
+    induction ACT; inversion Heqcharcont; subst;
+      try solve[eapply tr_jmp; eauto]; clear IHACT.
+    invert_rep. inversion NFA; subst.
+    2: { in_subset. }
+    replace n with 0 by admit.
+    eapply tr_readfail; eauto.
+  (* disjunction *)
+  - remember (Areg (Disjunction r1 r2) :: cont) as disjcont.
+    induction ACT; inversion Heqdisjcont; subst;
+      try solve[eapply tr_jmp; eauto]; clear IHACT.
+    invert_rep. inversion NFA; subst.
+    2: { in_subset. }
+    replace n with (S n+n) by admit.
+    eapply tr_choice; eauto.
+    + eapply IHTREE1. pike_subset.
+      eapply cons_bc with (pcmid:=end1); try constructor; eauto.
+      eapply jump_bc; eauto.
+    + eapply IHTREE2; eauto. pike_subset.
+      repeat (econstructor; eauto).
+  (* sequence *)
+  - remember (Areg (Sequence r1 r2) :: cont) as seqcont.
+    induction ACT; inversion Heqseqcont; subst;
+      try solve[eapply tr_jmp; eauto]; clear IHACT.
+    invert_rep. inversion NFA; subst.
+    2: { in_subset. }
+    eapply IHTREE; eauto. pike_subset.
+    repeat (econstructor; eauto).
+  (* quantified, forced *)
+  - pike_subset.
+  (* quantified, done *)
+  - pike_subset.
+  (* quantified, free *)
+  - destruct plus.
+    { pike_subset. }
+    simpl in ACT.
+    remember (Areg (Quantified greedy 0 +∞ r1) :: cont) as starcont.
+    induction ACT; inversion Heqstarcont; subst;
+      try solve[eapply tr_jmp; eauto]; clear IHACT.
+    invert_rep. inversion NFA; subst.
+    2: { in_subset. }
+    destruct greedy; simpl.
+    + replace n with (n+n) by admit.
+      eapply tr_choice; eauto.
+      * eapply tr_begin; eauto.
+        eapply tr_reset; eauto.
+        eapply IHTREE1; eauto. pike_subset.
+        repeat (econstructor; eauto).
+      * eapply IHTREE2; eauto. pike_subset.
+    + replace n with (n+n) by admit.
+      eapply tr_choice; eauto.
+      * eapply IHTREE2; eauto. pike_subset.
+      * eapply tr_begin; eauto.
+        eapply tr_reset; eauto.
+        eapply IHTREE1; eauto. pike_subset.
+        repeat (econstructor; eauto).
+  (* group *)
+  - remember (Areg (Group gid r1) :: cont) as groupcont.
+    induction ACT; inversion Heqgroupcont; subst;
+      try solve[eapply tr_jmp; eauto]; clear IHACT.
+    invert_rep. inversion NFA; subst.
+    2: { in_subset. }
+    eapply tr_open; eauto.
+    eapply IHTREE; eauto. pike_subset.
+    repeat (econstructor; eauto).
+  (* anchor *)
+  - pike_subset.
+  (* anchor fail *)
+  - pike_subset.
+Admitted.
+
+    
+      (* my original attempt *)
+Theorem actions_tree_rep':
   forall actions code pc n inp b t
     (SUBSET: pike_actions actions)
     (ACT: actions_rep actions code pc n)
@@ -193,6 +325,15 @@ Proof.
     destruct min; [|pike_subset].
     inversion ACTION; subst. inversion NFA; subst.
     2: { in_subset. }
+    (* new version *)
+    remember (Areg (Quantified greedy 0 +∞ r)) as star.
+    remember (star::cont) as starcont.
+    induction TREE; subst; try solve [try inversion Hesqtar; inversion Heqstarcont].
+    
+
+
+
+    (* original version *)
     inversion TREE; subst.
     destruct plus; inversion H1.
     destruct greedy.
@@ -229,3 +370,47 @@ Proof.
   (* backref *)
   - pike_subset.
 Admitted.
+(* an issue with n:
+   in actions_rep, the n counts the number of jumps we might see, but not all
+   if you have a jump inside an areg for instance, you won't count it,
+   it's only counted if it's in-between your actions
+   I have no idea how to represent that same n in tree_rep, since the actions are absent
+ *)
+
+(* Here, the n I compute in tree_rep could also serve as a measure
+   it's the total number of jumps that will be required to execute the tree
+   so when the PikeVM does a jump, the PikeTree algorithm does not execute,
+   but the number of total jumps has just decreased
+
+   It's also a measure, but not the same.
+
+   Maybe if the theorem above is true we can replace the measure in the invariant?
+   We know we have actions rep and bool_tree, so we know we have tree_rep for a given n,
+   and we use that n as a measure?
+
+ *)
+
+
+
+(** * Correctness of compilation with regards to tree_rep  *)
+
+(* what I would like to know *)
+Theorem initialize_tree_rep:
+  forall r inp t c endl,
+    compile r 0 = (c, endl) ->
+    bool_tree [Areg r] inp CanExit t ->
+    exists n, tree_rep t c 0 inp CanExit n.
+Abort.
+
+Theorem compile_correct_tree_rep:
+  forall r c start endl inp b,
+    compile r start = (c, endl) ->
+    start = List.length prev ->
+    tree_rep t (prev ++ c) start 
+
+
+      Theorem compile_nfa_rep:
+  forall r c start endl prev,
+    compile r start = (c, endl) ->
+    start = List.length prev ->
+    nfa_rep r (prev ++ c) start endl.

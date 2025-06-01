@@ -299,18 +299,12 @@ Lemma actions_rep_unicity:
     bool_tree a1 inp b t ->
     bool_tree a2 inp b t.
 Proof.
-  intros a1 a2 code pc t inp b n H H0 H1.
-  induction H.
-  - inversion H1; subst. inversion H0; subst.
-    2: { admit.                 (* we could have epsilon:[] *)
-         (* this one should be by induction on H1 *)
-    }
-
-    (* another induction *)
-  (* intros a1 a2 code pc t inp b n H H0 H1. *)
-  (* induction H1. *)
-  (* -                             (* even this one is an induction on n, or on actions_rep (H) *) *)
-  (*   (* since we can have as many jumps before the match *) *)
+  intros a1 a2 code pc t inp b n REP1 REP2 TREE.
+  generalize dependent a2. generalize dependent t.
+  generalize dependent inp. generalize dependent b.
+  induction REP1; intros.
+  (* empty actions *)
+  { inversion TREE; subst. inversion REP2; subst.
 Admitted.
 
 
