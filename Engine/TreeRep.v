@@ -76,7 +76,7 @@ Ltac same_instr :=
   end.                                                                                                       
 
 (* Determinism of the tree representation *)
-Lemma tree_rep_determ:
+Theorem tree_rep_determ:
   forall code pc inp b t1 t2 n1 n2,
     tree_rep t1 code pc inp b n1 ->
     tree_rep t2 code pc inp b n2 ->
@@ -114,3 +114,118 @@ Proof.
     rewrite READ0 in READ. inversion READ.
   - inversion H0; subst; auto; same_instr.
 Qed.
+
+
+(* Actions rep to tree rep *)
+Theorem actions_tree_rep:
+  forall actions code pc n inp b t
+    (SUBSET: pike_actions actions)
+    (ACT: actions_rep actions code pc n)
+    (TREE: bool_tree actions inp b t),
+    tree_rep t code pc inp b n.
+Proof.
+  intros actions code pc n inp b t SUBSET ACT TREE.
+  generalize dependent t. generalize dependent inp. generalize dependent b.
+  induction ACT; intros.
+  (* empty actions *)
+  { inversion TREE; subst.
+    constructor; auto. }
+  (* jump *)
+  2: { eapply tr_jmp; eauto. }
+  destruct a.
+  (* check action *)
+  2: { inversion ACTION; subst. inversion TREE; subst.
+       - apply IHACT in TREECONT. eapply tr_progress; eauto. pike_subset.
+       - replace n with 0 by admit. eapply tr_progressfail; eauto. }
+  (* the admit above is a big issue. What's the n for a failed progress? *)
+  (* should I go below and compute the n value IF the progress had succeeded? *)
+  (* In general, is my computation of n in tree_rep the right one? *)
+  (* Am I computing the number of jumps we'll do in this computation
+     or the number of jumps in the representation? *)
+  (* what if a jump is in a loop? *)
+
+  (* close action *)
+  2: { inversion ACTION; subst. inversion TREE; subst.
+       apply IHACT in TREECONT. eapply tr_close; eauto. pike_subset. }
+
+  (* Regex action *)
+  generalize dependent b. generalize dependent inp. generalize dependent t.
+  generalize dependent pcstart. generalize dependent pcmid. generalize dependent n. generalize dependent cont.
+  induction r; intros.
+  (* epsilon *)
+  - inversion ACTION; subst. inversion NFA; subst.
+    2: { in_subset. }
+    inversion TREE; subst.
+    apply IHACT in ISTREE. auto. pike_subset.
+  (* character *)
+  - inversion ACTION; subst. inversion NFA; subst.
+    2: { in_subset. }
+    inversion TREE; subst.
+    + apply IHACT in TREECONT. eapply tr_read; eauto. pike_subset.
+    + replace n with 0 by admit. (* same issue as the progress fail *)
+      eapply tr_readfail; eauto.
+  (* disjunction *)
+  - inversion ACTION; subst. inversion NFA; subst.
+    2: { in_subset. }
+    inversion TREE; subst.
+    replace n with (S n+n) by admit. (* again, issues with n computation *)
+    eapply tr_choice; eauto.
+    + eapply IHr1 in ISTREE1; eauto.
+      * pike_subset.
+      * eapply jump_bc; eauto.
+      * intros. eapply tr_jmp; eauto.
+      * constructor; auto.
+    + eapply IHr2 in ISTREE2; eauto.
+      * pike_subset.
+      * constructor; auto.
+  (* Sequence *)
+  - inversion ACTION; subst. inversion NFA; subst.
+    2: { in_subset. }
+    inversion TREE; subst.
+    eapply IHr1 in CONT; eauto.
+    * pike_subset.
+    * econstructor; eauto. econstructor; eauto.
+    * intros. eapply IHr2 in TREE0; eauto.
+      constructor; eauto.
+    * constructor. auto.
+  (* Quantified *)
+  - destruct delta; [pike_subset|].
+    destruct min; [|pike_subset].
+    inversion ACTION; subst. inversion NFA; subst.
+    2: { in_subset. }
+    inversion TREE; subst.
+    destruct plus; inversion H1.
+    destruct greedy.
+    + simpl. replace n with (n+n) by admit.
+      eapply tr_choice; eauto.
+      2: { apply IHACT in SKIP; eauto. pike_subset. }
+      eapply tr_begin; eauto.
+      eapply tr_reset; eauto.
+      eapply IHr in ISTREE1; eauto.
+      { pike_subset. }
+      { repeat (econstructor; eauto). }
+      2: { constructor; auto. }
+      intros. inversion TREE0; subst.
+      2: { replace n with 0 by admit. eapply tr_progressfail; eauto. }
+      eapply tr_progress; eauto.
+      admit.
+      (* here I have an issue. My Induction hypothesis is about r::cont, not r*::cont *)
+    + admit.                    (* same but lazy *)
+  (* lookaround *)
+  - pike_subset.
+  (* Group *)
+  - inversion ACTION; subst. inversion NFA; subst.
+    2: { in_subset. }
+    inversion TREE; subst.
+    eapply tr_open; eauto.
+    eapply IHr in TREECONT; eauto.
+    * pike_subset.
+    * repeat (econstructor; eauto).
+    * intros. inversion TREE0; subst.
+      eapply tr_close; eauto. eapply IHACT; eauto. pike_subset.
+    * constructor; auto.
+  (* anchor *)
+  - pike_subset.
+  (* backref *)
+  - pike_subset.
+Admitted.
