@@ -102,9 +102,9 @@ Inductive tree_nd: tree -> group_map -> nat -> seentrees -> option leaf -> Prop 
     (TR: tree_nd t gm (idx+1) seen l),
     tree_nd (Read cd t) gm idx seen l
 | tr_progress:
-  forall t str gm idx l seen
+  forall t gm idx l seen
     (TR: tree_nd t gm idx seen l),
-    tree_nd (Progress str t) gm idx seen l
+    tree_nd (Progress t) gm idx seen l
 | tr_groupaction:
   forall t act gm idx l seen
     (TR: tree_nd t (GroupMap.update idx act gm) idx seen l),
@@ -308,7 +308,7 @@ Qed.
 Fixpoint size (t:tree) : nat :=
   match t with
   | Mismatch | Match | LKFail _ _ => O
-  | Read _ t1 | Progress _ t1 | GroupAction _ t1 | AnchorPass _ t1 | ReadBackRef _ t1 => 1 + size t1
+  | Read _ t1 | Progress t1 | GroupAction _ t1 | AnchorPass _ t1 | ReadBackRef _ t1 => 1 + size t1
   | Choice t1 t2 => size t1 + size t2 + 1
   | LK _ tlk t1 => 1 + size t1
   end.
@@ -397,7 +397,7 @@ Proof.
     apply SAMERES.
     apply add_parent_tree in TR.
     2: { simpl. lia. }
-    assert (PARENT: tree_nd (Progress str t) gm idx seen l1).
+    assert (PARENT: tree_nd (Progress t) gm idx seen l1).
     { apply tr_progress; auto. }
     (* case analysis: did t contribute to the result? *)
     destruct l1 as [leaf1|].

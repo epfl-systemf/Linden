@@ -356,22 +356,21 @@ Proof.
 Qed.
 
 Theorem generate_checkpass:
-  forall str tree gm idx inp code pc b n
-    (TT: tree_thread code inp (Progress str tree, gm) (pc, gm, b) n)
+  forall tree gm idx inp code pc b n
+    (TT: tree_thread code inp (Progress tree, gm) (pc, gm, b) n)
     (NOSTUTTER: stutters pc code = false),
     exists nextpc, epsilon_step (pc, gm, b) code inp idx = EpsActive [(nextpc,gm,CanExit)] /\
       tree_thread code inp (tree,gm) (nextpc,gm,CanExit) n.
 Proof.
-  intros str tree gm idx inp code pc b n TT NOSTUTTER.
+  intros tree gm idx inp code pc b n TT NOSTUTTER.
   inversion TT; subst; try no_stutter.
-  remember (Progress str tree) as TPASS.
-  generalize dependent pc_end.
+  remember (Progress tree) as TPASS.
   induction TREE; intros; subst; try inversion HeqTPASS; subst.
   - repeat invert_rep. pike_subset. simpl. exists pcmid.
     rewrite END. split; auto. econstructor; eauto.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
-    repeat (econstructor; eauto).
+    repeat (econstructor; eauto). pike_subset.
   - pike_subset.
   - destruct greedy; inversion CHOICE.
 Qed.

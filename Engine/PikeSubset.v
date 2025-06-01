@@ -63,9 +63,9 @@ Inductive pike_subtree: tree -> Prop :=
 | pike_read: forall cd t1,
     pike_subtree t1 ->
     pike_subtree (Read cd t1)
-| pike_progress: forall str t1,
+| pike_progress: forall t1,
     pike_subtree t1 ->
-    pike_subtree (Progress str t1)
+    pike_subtree (Progress t1)
 | pike_groupaction: forall ga t1,
     pike_subtree t1 ->
     pike_subtree (GroupAction ga t1).
@@ -132,7 +132,7 @@ Ltac invert_subset :=
     
   | [ H : pike_subtree (Choice _ _) |- _ ] => inversion H; clear H
   | [ H : pike_subtree (Read _ _) |- _ ] => inversion H; clear H
-  | [ H : pike_subtree (Progress _ _) |- _ ] => inversion H; clear H
+  | [ H : pike_subtree (Progress _) |- _ ] => inversion H; clear H
   | [ H : pike_subtree (GroupAction _ _) |- _ ] => inversion H; clear H
   | [ H : pike_subtree (ReadBackRef _ _) |- _ ] => inversion H; clear H
   | [ H : pike_subtree (AnchorPass _ _) |- _ ] => inversion H; clear H
