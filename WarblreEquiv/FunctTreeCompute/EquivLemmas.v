@@ -1068,6 +1068,15 @@ Section EquivLemmas.
     - intro H. apply EqDec.inversion_false in H. unfold EqDec.neqb. rewrite H. reflexivity.
   Qed.
 
+  Lemma neqb_eq {A} `{EqDec A}:
+    forall x y: A, (x !=? y)%wt = false <-> x = y.
+  Proof.
+    intros x y. split.
+    - intro H. apply (f_equal negb) in H. unfold EqDec.neqb in H. rewrite Bool.negb_involutive in H. simpl in H.
+      apply EqDec.inversion_true. auto.
+    - intro H. unfold EqDec.neqb. subst y. rewrite EqDec.reflb. reflexivity.
+  Qed.
+
   Lemma substr_len:
     forall i j inp, length (substr inp i j) <= j-i.
   Proof.
@@ -1114,7 +1123,15 @@ Section EquivLemmas.
       apply string_eqb_iff. intro i.
       decide (i < Z.to_nat rlen) as Hinb.
       + (* Apply Heqexistsdiff *)
-        admit.
+        specialize (Heqexistsdiff i (Z.of_nat i)). specialize_prove Heqexistsdiff by admit.
+        simpl in Heqexistsdiff.
+        destruct List.Indexing.Int.indexing as [rsi|] eqn:Heqrsi in Heqexistsdiff; try discriminate.
+        destruct List.Indexing.Int.indexing as [gi|] eqn:Hgi in Heqexistsdiff; try discriminate.
+        simpl in Heqexistsdiff. do 2 rewrite canonicalize_casesenst in Heqexistsdiff by assumption.
+        injection Heqexistsdiff as Hdiff.
+        replace (nth_error (firstn _ _) i) with (Some gi) by admit.
+        replace (nth_error (substr _ _ _) i) with (Some rsi) by admit.
+        rewrite neqb_eq in Hdiff. congruence.
       + replace (nth_error _ i) with (None (A := Character)).
         2: { symmetry. apply nth_error_None. rewrite firstn_length. lia. }
         replace (nth_error _ i) with (None (A := Character)).
