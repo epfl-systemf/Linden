@@ -81,6 +81,15 @@ Proof.
   rewrite nth_error_app1; auto.
 Qed.
 
+Lemma get_prev:
+  forall prev suffix pc i,
+    get_pc (prev ++ suffix) pc = Some i ->
+    pc < length prev ->
+    get_pc prev pc = Some i.
+Proof.
+  unfold get_pc. intros. rewrite nth_error_app1 in H; auto.
+Qed.
+
 Definition next_pcs (pc:label) (b:bytecode) : list label :=
   match b with
   | Consume _ | SetRegOpen _ | SetRegClose _ | ResetRegs _ | BeginLoop => [S pc]
