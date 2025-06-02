@@ -33,7 +33,7 @@ Inductive LoopBool : Type :=
     (* NEW: this only checks the boolean allows exit and not the strcheck in the tree *)
     forall inp strcheck cont treecont
       (TREECONT: bool_tree cont inp CanExit treecont),
-      bool_tree (Acheck strcheck :: cont) inp CanExit (Progress strcheck treecont)
+      bool_tree (Acheck strcheck :: cont) inp CanExit (Progress treecont)
   | tree_check_fail:
   (* pops a failing check from the action list *)
     forall inp strcheck cont,

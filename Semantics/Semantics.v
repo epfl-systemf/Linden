@@ -128,7 +128,7 @@ Section Semantics.
     forall inp gm dir strcheck cont treecont
       (PROGRESS: inp <> strcheck)
       (TREECONT: is_tree cont inp gm dir treecont),
-      is_tree (Acheck strcheck :: cont) inp gm dir (Progress strcheck treecont)
+      is_tree (Acheck strcheck :: cont) inp gm dir (Progress treecont)
   | tree_check_fail:
   (* pops a failing check from the action list *)
     forall inp gm dir strcheck cont

@@ -64,7 +64,7 @@ Section Tree.
   | Choice (t1 t2:tree)
   | Read (c:Character) (t:tree)
   | ReadBackRef (str: string) (t:tree)
-  | Progress (inp:input) (t:tree)
+  | Progress (t:tree)
   | AnchorPass (a: anchor) (t: tree)
   | GroupAction (g:groupaction) (t: tree)
   | LK (lk: lookaround) (tlk: tree) (t: tree) (* tlk is the lookaround tree. *)
@@ -92,7 +92,7 @@ Section Tree.
     match t with
     | Mismatch | Match => 0
     | Choice t1 t2 => max (max_gid_tree t1) (max_gid_tree t2)
-    | Read _ t | ReadBackRef _ t | Progress _ t | AnchorPass _ t => max_gid_tree t
+    | Read _ t | ReadBackRef _ t | Progress t | AnchorPass _ t => max_gid_tree t
     | GroupAction act t => max (max_gid_groupaction act) (max_gid_tree t)
     | LK _ tlk t => max (max_gid_tree tlk) (max_gid_tree t)
     | LKFail _ tlk => max_gid_tree tlk
@@ -132,7 +132,7 @@ Section Tree.
     | Choice t1 t2 =>
         seqop (tree_res t1 gm idx dir) (tree_res t2 gm idx dir)
     | Read c t1 => tree_res t1 gm (advance_idx idx dir) dir
-    | Progress _ t1 => tree_res t1 gm idx dir
+    | Progress t1 => tree_res t1 gm idx dir
     | GroupAction a t1 => tree_res t1 (GroupMap.update idx a gm) idx dir
     | LK lk tlk t1 =>
         match (positivity lk) with
@@ -169,7 +169,7 @@ Section Tree.
     | Choice t1 t2 =>
         tree_leaves t1 gm idx dir ++ tree_leaves t2 gm idx dir
     | Read c t1 => tree_leaves t1 gm (advance_idx idx dir) dir
-    | Progress _ t1 => tree_leaves t1 gm idx dir
+    | Progress t1 => tree_leaves t1 gm idx dir
     | GroupAction a t1 => tree_leaves t1 (GroupMap.update idx a gm) idx dir
     | LK lk tlk t1 =>
         match (positivity lk) with (* Do we want to explore all the branches of the lookahead tree that succeed? *)

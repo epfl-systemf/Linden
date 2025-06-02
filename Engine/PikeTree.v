@@ -33,7 +33,7 @@ Definition tree_bfs_step (t:tree) (gm:group_map) (idx:nat): step_result :=
   | Match => StepMatch
   | Choice t1 t2 => StepActive [(t1,gm); (t2,gm)]
   | Read c t1 => StepBlocked t1
-  | Progress _ t1 => StepActive [(t1,gm)]
+  | Progress t1 => StepActive [(t1,gm)]
   | GroupAction a t1 => StepActive [(t1, GroupMap.update idx a gm)]
   end.
 (* trees for unsupported features also return StepDead *)
