@@ -12,64 +12,64 @@ From Warblre Require Import Base.
 (** * Tree Rep Predicate  *)
 (* A predicate showing that a tree is represented at a given point in the code *)
 (* For a given input and boolean *)
-(* the nat is the number of jumps that may be required to compute the final tree *)
 
-Inductive tree_rep: tree -> code -> label -> input -> LoopBool -> nat -> Prop :=
+
+Inductive tree_rep: tree -> code -> label -> input -> LoopBool -> Prop :=
 | tr_match:
   forall code pc inp b
     (ACCEPT: get_pc code pc = Some Accept),
-    tree_rep Match code pc inp b 0
+    tree_rep Match code pc inp b
 | tr_jmp:
-  forall code pc nextpc inp b t n
+  forall code pc nextpc inp b t
     (JMP: get_pc code pc = Some (Jmp nextpc))
-    (TR: tree_rep t code nextpc inp b n),
-    tree_rep t code pc inp b (S n)
+    (TR: tree_rep t code nextpc inp b),
+    tree_rep t code pc inp b
 | tr_begin:
-  forall code pc inp b t n
+  forall code pc inp b t
     (BEGIN: get_pc code pc = Some BeginLoop)
-    (TR: tree_rep t code (S pc) inp CannotExit n),
-    tree_rep t code pc inp b n
+    (TR: tree_rep t code (S pc) inp CannotExit),
+    tree_rep t code pc inp b
 | tr_choice:
-  forall code pc pc1 pc2 inp b t1 t2 n1 n2
+  forall code pc pc1 pc2 inp b t1 t2
     (FORK: get_pc code pc = Some (Fork pc1 pc2))
-    (TR1: tree_rep t1 code pc1 inp b n1)
-    (TR2: tree_rep t2 code pc2 inp b n2),
-    tree_rep (Choice t1 t2) code pc inp b (n1 + n2)
+    (TR1: tree_rep t1 code pc1 inp b)
+    (TR2: tree_rep t2 code pc2 inp b),
+    tree_rep (Choice t1 t2) code pc inp b
 | tr_read:
-  forall code pc inp nextinp b cd c t n
+  forall code pc inp nextinp b cd c t
     (CONSUME: get_pc code pc = Some (Consume cd))
     (READ: read_char cd inp forward = Some (c, nextinp))
-    (TR: tree_rep t code (S pc) nextinp CanExit n),
-    tree_rep (Read c t) code pc inp b n
+    (TR: tree_rep t code (S pc) nextinp CanExit),
+    tree_rep (Read c t) code pc inp b
 | tr_progress:
-  forall code pc nextpc inp t n
+  forall code pc nextpc inp t
     (ENDLOOP: get_pc code pc = Some (EndLoop nextpc))
-    (TR: tree_rep t code nextpc inp CanExit n),
-    tree_rep (Progress t) code pc inp CanExit n
+    (TR: tree_rep t code nextpc inp CanExit),
+    tree_rep (Progress t) code pc inp CanExit
 | tr_open:
-  forall code pc gid inp b t n
+  forall code pc gid inp b t
     (OPEN: get_pc code pc = Some (SetRegOpen gid))
-    (TR: tree_rep t code (S pc) inp b n),
-    tree_rep (GroupAction (Open gid) t) code pc inp b n
+    (TR: tree_rep t code (S pc) inp b),
+    tree_rep (GroupAction (Open gid) t) code pc inp b
 | tr_close:
-  forall code pc gid inp b t n
+  forall code pc gid inp b t
     (CLOSE: get_pc code pc = Some (SetRegClose gid))
-    (TR: tree_rep t code (S pc) inp b n),
-    tree_rep (GroupAction (Close gid) t) code pc inp b n
+    (TR: tree_rep t code (S pc) inp b),
+    tree_rep (GroupAction (Close gid) t) code pc inp b
 | tr_reset:
-  forall code pc gidl inp b t n
+  forall code pc gidl inp b t
     (RESET: get_pc code pc = Some (ResetRegs gidl))
-    (TR: tree_rep t code (S pc) inp b n),
-    tree_rep (GroupAction (Reset gidl) t) code pc inp b n
+    (TR: tree_rep t code (S pc) inp b),
+    tree_rep (GroupAction (Reset gidl) t) code pc inp b
 | tr_readfail:
   forall code pc inp b cd
     (CONSUME: get_pc code pc = Some (Consume cd))
     (READ: read_char cd inp forward = None),
-    tree_rep Mismatch code pc inp b 0
+    tree_rep Mismatch code pc inp b
 | tr_progressfail:
   forall code pc nextpc inp
     (ENDLOOP: get_pc code pc = Some (EndLoop nextpc)),
-    tree_rep Mismatch code pc inp CannotExit 0.
+    tree_rep Mismatch code pc inp CannotExit.
 
 
 (** * Tree Rep Determinism  *)
@@ -84,38 +84,38 @@ Ltac same_instr :=
 
 (* Determinism of the tree representation *)
 Theorem tree_rep_determ:
-  forall code pc inp b t1 t2 n1 n2,
-    tree_rep t1 code pc inp b n1 ->
-    tree_rep t2 code pc inp b n2 ->
-    t1 = t2 /\ n1 = n2.
+  forall code pc inp b t1 t2,
+    tree_rep t1 code pc inp b ->
+    tree_rep t2 code pc inp b ->
+    t1 = t2.
 Proof.
-  intros code pc inp b t1 t2 n1 n2 H H0.
-  generalize dependent t2. generalize dependent n2.
+  intros code pc inp b t1 t2 H H0.
+  generalize dependent t2.
   induction H; intros.
   - inversion H0; subst; auto; same_instr.
   - inversion H0; subst; auto; same_instr.
-    specialize (IHtree_rep _ _ TR) as [EQT EQN].
+    specialize (IHtree_rep _ TR) as EQT.
     subst. split; auto.
   - inversion H0; subst; auto; same_instr.
   - inversion H1; subst; auto; same_instr.
-    specialize (IHtree_rep1 _ _ TR1) as [EQT1 EQN1].
-    specialize (IHtree_rep2 _ _ TR2) as [EQT2 EQN2].
+    specialize (IHtree_rep1 _ TR1) as EQT1.
+    specialize (IHtree_rep2 _ TR2) as EQT2.
     subst. split; auto.
   - inversion H0; subst; auto; same_instr;
       rewrite READ0 in READ; inversion READ; subst.
-    specialize (IHtree_rep _ _ TR) as [EQT EQN].
+    specialize (IHtree_rep _ TR) as EQT.
     subst. split; auto.
   - inversion H0; subst; auto; same_instr.
-    specialize (IHtree_rep _ _ TR) as [EQT EQN].
+    specialize (IHtree_rep _ TR) as EQT.
     subst. split; auto.
   - inversion H0; subst; auto; same_instr.
-    specialize (IHtree_rep _ _ TR) as [EQT EQN].
+    specialize (IHtree_rep _ TR) as EQT.
     subst. split; auto.
   - inversion H0; subst; auto; same_instr.
-    specialize (IHtree_rep _ _ TR) as [EQT EQN].
+    specialize (IHtree_rep _ TR) as EQT.
     subst. split; auto.
   - inversion H0; subst; auto; same_instr.
-    specialize (IHtree_rep _ _ TR) as [EQT EQN].
+    specialize (IHtree_rep _ TR) as EQT.
     subst. split; auto.
   - inversion H0; subst; auto; same_instr.
     rewrite READ0 in READ. inversion READ.
@@ -133,7 +133,7 @@ Theorem actions_tree_rep:
     (SUBSET: pike_actions actions)
     (ACT: actions_rep actions code pc n)
     (TREE: bool_tree actions inp b t),
-    tree_rep t code pc inp b n.
+    tree_rep t code pc inp b.
 Proof.
   intros actions code pc n inp b t SUBSET ACT TREE.
   generalize dependent code. generalize dependent n. generalize dependent pc.
@@ -152,7 +152,7 @@ Proof.
   - remember (Acheck strcheck :: cont) as checkcont.
     induction ACT; inversion Heqcheckcont; subst;
       try solve[eapply tr_jmp; eauto]; clear IHACT.
-    invert_rep. replace n with 0 by admit.
+    invert_rep.
     eapply tr_progressfail; eauto.
   (* close *)
   - remember (Aclose gid :: cont) as closecont.
@@ -181,7 +181,6 @@ Proof.
       try solve[eapply tr_jmp; eauto]; clear IHACT.
     invert_rep. inversion NFA; subst.
     2: { in_subset. }
-    replace n with 0 by admit.
     eapply tr_readfail; eauto.
   (* disjunction *)
   - remember (Areg (Disjunction r1 r2) :: cont) as disjcont.
@@ -189,7 +188,6 @@ Proof.
       try solve[eapply tr_jmp; eauto]; clear IHACT.
     invert_rep. inversion NFA; subst.
     2: { in_subset. }
-    replace n with (S n+n) by admit.
     eapply tr_choice; eauto.
     + eapply IHTREE1. pike_subset.
       eapply cons_bc with (pcmid:=end1); try constructor; eauto.
@@ -218,15 +216,13 @@ Proof.
     invert_rep. inversion NFA; subst.
     2: { in_subset. }
     destruct greedy; simpl.
-    + replace n with (n+n) by admit.
-      eapply tr_choice; eauto.
+    + eapply tr_choice; eauto.
       * eapply tr_begin; eauto.
         eapply tr_reset; eauto.
         eapply IHTREE1; eauto. pike_subset.
         repeat (econstructor; eauto).
       * eapply IHTREE2; eauto. pike_subset.
-    + replace n with (n+n) by admit.
-      eapply tr_choice; eauto.
+    + eapply tr_choice; eauto.
       * eapply IHTREE2; eauto. pike_subset.
       * eapply tr_begin; eauto.
         eapply tr_reset; eauto.
@@ -245,10 +241,12 @@ Proof.
   - pike_subset.
   (* anchor fail *)
   - pike_subset.
-Admitted.
+Qed.
+
 
     
-      (* my original attempt *)
+(* my original attempt *)
+(*
 Theorem actions_tree_rep':
   forall actions code pc n inp b t
     (SUBSET: pike_actions actions)
@@ -328,12 +326,6 @@ Proof.
     (* new version *)
     remember (Areg (Quantified greedy 0 +∞ r)) as star.
     remember (star::cont) as starcont.
-    induction TREE; subst; try solve [try inversion Hesqtar; inversion Heqstarcont].
-    
-
-
-
-    (* original version *)
     inversion TREE; subst.
     destruct plus; inversion H1.
     destruct greedy.
@@ -370,7 +362,8 @@ Proof.
   (* backref *)
   - pike_subset.
 Admitted.
-(* an issue with n:
+*)
+(* an issue with n, if I add a measure in tree_rep
    in actions_rep, the n counts the number of jumps we might see, but not all
    if you have a jump inside an areg for instance, you won't count it,
    it's only counted if it's in-between your actions
@@ -395,22 +388,29 @@ Admitted.
 (** * Correctness of compilation with regards to tree_rep  *)
 
 (* what I would like to know *)
-Theorem initialize_tree_rep:
-  forall r inp t c endl,
-    compile r 0 = (c, endl) ->
-    bool_tree [Areg r] inp CanExit t ->
-    exists n, tree_rep t c 0 inp CanExit n.
-Abort.
-
-Theorem compile_correct_tree_rep:
-  forall r c start endl inp b,
-    compile r start = (c, endl) ->
-    start = List.length prev ->
-    tree_rep t (prev ++ c) start 
+(* if I wanted to replace actions_rep in the PikeVM invariant entirely *)
+(* I would need this to initialize the invariant *)
+(* Theorem initialize_tree_rep: *)
+(*   forall r inp t c endl, *)
+(*     compile r 0 = (c, endl) -> *)
+(*     bool_tree [Areg r] inp CanExit t -> *)
+(*     tree_rep t c 0 inp CanExit. *)
+(* Abort. *)
 
 
-      Theorem compile_nfa_rep:
-  forall r c start endl prev,
-    compile r start = (c, endl) ->
-    start = List.length prev ->
-    nfa_rep r (prev ++ c) start endl.
+(** * Unicity of Memoized trees  *)
+
+Lemma actions_rep_unicity:
+  forall a1 a2 code pc t1 t2 inp b n1 n2,
+    pike_actions a1 ->
+    pike_actions a2 ->
+    actions_rep a1 code pc n1 ->
+    actions_rep a2 code pc n2 ->
+    bool_tree a1 inp b t1 ->
+    bool_tree a2 inp b t2 ->
+    t1 = t2.
+Proof.
+  intros. eapply actions_tree_rep in H1; eauto.
+  eapply actions_tree_rep in H2; eauto.
+  eapply tree_rep_determ; eauto.
+Qed.

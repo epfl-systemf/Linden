@@ -8,12 +8,13 @@ From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeTreeSeen PikeVMSeen.
 From Linden Require Import PikeEquiv PikeSubset.
+From Linden Require Import TreeRep.
 From Warblre Require Import Base.
 
 (** * Simulation Invariant  *)
 
 (* This is not, strictly speaking, an inclusion, which explains the second case of this disjunction *)
-(* Sometimes, we add seen pcs on the VM side that do not corrspond yet to any seen tree on the tree side *)
+(* Sometimes, we add seen pcs on the VM side that do not correspond yet to any seen tree on the tree side *)
 (* this happens during stuttering steps: such pcs are always stuttering, equivalent to the current active tree, *)
 (* and for a measure that's bigger than the current one *)
 Definition seen_inclusion (c:code) (inp:input) (treeseen:seentrees) (threadseen:seenpcs) (current:option (tree*group_map)) (n:nat): Prop :=
@@ -176,26 +177,6 @@ Proof.
   - rewrite JMP in GET. inversion GET. constructor.
 Qed.
 
-    
-
-(* even though nfa_rep can hold at the same place for two regexes, they should have the same tree *)
-(* the issue with that lemma is that I'm not guaranteed that I will get two list of actions that coincide on the intermediate pcs *)
-(* Lemma nfa_rep_unicity: *)
-(*   forall r1 r2 code pc pcend t inp b, *)
-(*     nfa_rep r1 code pc pcend -> *)
-(*     nfa_rep r2 code pc pcend -> *)
-(*     bool_tree [Areg r1] inp b t -> *)
-(*     bool_tree [Areg r2] inp b t. *)
-(* Admitted. *)
-
-(* one possible solution: *)
-(* I could show that if I have two actions_rep at the same pc, these list of actions are equivalent *)
-(* Equivalence of actions would be up to
-   - splitting sequences
-   - adding epsilon
- *)
-(* Then, I could prove that two equivalent lists of actions give the same tree  *)
-(* Would that be easier? Or not? *)
 
 Lemma accept_same_n:
   forall code pc n1 n2,
@@ -270,44 +251,6 @@ Proof.
 Abort.
 
 
-Lemma match_unicity:
-  forall a1 a2 code pc inp b n,
-    actions_rep a1 code pc n ->
-    actions_rep a2 code pc n ->
-    bool_tree a1 inp b Match ->
-    bool_tree a2 inp b Match.
-Proof.
-  intros a1 a2 code pc inp b n H H0 H1.
-  generalize dependent a2. generalize dependent pc.
-  remember Match as tmatch.
-  induction H1; intros;
-    try solve[inversion Heqtmatch].
-  - admit.
-  - inversion H; subst.
-    + apply IHbool_tree in CONT; auto. admit. (* don't think I can conclude *)
-    + admit.
-Abort.
-
-              
-
-
-(* (* same for actions *) *)
-Lemma actions_rep_unicity:
-  forall a1 a2 code pc t inp b n,
-    actions_rep a1 code pc n ->
-    actions_rep a2 code pc n ->
-    bool_tree a1 inp b t ->
-    bool_tree a2 inp b t.
-Proof.
-  intros a1 a2 code pc t inp b n REP1 REP2 TREE.
-  generalize dependent a2. generalize dependent t.
-  generalize dependent inp. generalize dependent b.
-  induction REP1; intros.
-  (* empty actions *)
-  { inversion TREE; subst. inversion REP2; subst.
-Admitted.
-
-
 (* should I prove this one at the same time as the one above? *)
 Lemma actions_rep_same_n:
   forall code pc n1 act1 n2 act2
@@ -326,7 +269,7 @@ Lemma tt_same_interm:
     (SAMEB: snd thread1 = snd thread2)
     (SAMEGM1: snd (fst thread1) = snd treegm1)
     (SAMEGM2: snd (fst thread2) = snd treegm2),
-    fst treegm1 = fst treegm2 /\ n1 = n2.
+    fst treegm1 = fst treegm2.
 Proof.
   intros code inp treegm1 treegm2 thread1 thread2 n1 n2 TT1.
   generalize dependent n2. generalize dependent thread2. generalize dependent treegm2.
@@ -334,12 +277,7 @@ Proof.
   - inversion TT2; subst;
       simpl in SAMEB; simpl in SAMEPC; simpl in SAMEGM1; simpl in SAMEGM2; subst;
       try solve[eapply actions_rep_start in CONT; eauto; inversion CONT].
-    simpl.
-    (* this one is unclear. How do we prevent jumps to ourselves? *)
-    (* maybe I need to have the property that all Jumps jump to a strictly higher index *)
-    assert (n = n2) by admit.
-    subst. split; auto. eapply actions_rep_unicity in CONT; eauto.
-    eapply bool_tree_determ; eauto.
+    simpl. subst. symmetry. eapply actions_rep_unicity in CONT; eauto.
   - inversion TT2; subst;
       simpl in SAMEB; simpl in SAMEPC; simpl in SAMEGM1; simpl in SAMEGM2; subst;
       try solve[eapply actions_rep_start in CONT; eauto; inversion CONT].
@@ -353,19 +291,6 @@ Proof.
     { rewrite BEGIN in RESET. inversion RESET. }
     specialize (IHTT1 _ _ _ TT (eq_refl _) (eq_refl _) (eq_refl _) (eq_refl _)).
     simpl in IHTT1. destruct IHTT1. subst. simpl. auto.
-Admitted.
-
-
-
-Lemma tt_same:
-  forall code inp t1 t2 gm1 gm2 pc b n1 n2
-    (TT1: tree_thread code inp (t1,gm1) (pc,gm1,b) n1)
-    (TT2: tree_thread code inp (t2,gm2) (pc,gm2,b) n2),
-    t1 = t2 /\ n1 = n2.
-Proof.
-  intros code inp t1 t2 gm1 gm2 pc b n1 n2 TT1 TT2.
-  eapply tt_same_interm in TT1; eauto. simpl in TT1. destruct TT1.
-  split; auto.
 Qed.
 
 
@@ -375,21 +300,8 @@ Lemma tt_same_measure:
     (TT2: tree_thread code inp (t,gm) (pc,gm,b) n2),
     n1 = n2.
 Proof.
-  intros code inp t gm pc b n1 n2 TT1 TT2.
-  eapply tt_same in TT1; eauto. destruct TT1. auto.
-Qed.
+Admitted.
 
-
-(* would this be easier if we made the tree explicit in the relation? *)
-(* note that nfa_rep has no unicity prop: we could represent both epsilon and epsilon:epsilon *)
-(* same goes for actions_rep *)
-(* but in these cases, even from different actions, the trees are still the same *)
-(* could we compute a tree from a pc and an input? compute_tree pc inp *)
-(* then show tt code inp (t,gm) (pc,_,_) -> t = compute_tree pc inp *)
-(* Another idea is that even though multiple actions could correspond to the same pc *)
-(* when they are compiled each pc corresponds to a precise set of actions? *)
-(* no, it depends on the input for stars *)
-(* But I should be able to use th generate lemmas if my intermediate theorem uses a tree derivation to build another *)
 Lemma tt_same_tree:
   forall code inp t1 gm1 t2 gm2 n1 n2 pc b
     (TT1: tree_thread code inp (t1,gm1) (pc,gm1,b) n1)
@@ -397,7 +309,7 @@ Lemma tt_same_tree:
     t1 = t2.
 Proof.
   intros code inp t1 gm1 t2 gm2 n1 n2 pc b TT1 TT2.
-  eapply tt_same in TT1; eauto. destruct TT1. auto.
+  eapply tt_same_interm in TT1; eauto. simpl in TT1. auto.
 Qed.
 
 
@@ -485,8 +397,7 @@ Proof.
         simpl in SEEN. eapply skip_inclusion; eauto.
     - simpl in EQ. inversion EQ. subst. simpl in GEQ.
       assert (m = n).
-      { eapply tt_same_measure; eauto. }
-      subst. exfalso. eapply PeanoNat.Nat.lt_irrefl; eauto.
+      { eapply tt_same_measure; eauto. } lia.
   }
   destruct treeactive as [|[t gm] treeactive].
   {
