@@ -1,11 +1,13 @@
 From Linden Require Import Regex GroupMapMS LindenParameters Groups Tree Chars Semantics
   MSInput EquivDef Utils RegexpTranslation FunctionalSemantics LWEquivTreeLemmas WarblreLemmas
   GroupMapLemmas Tactics.
-From Warblre Require Import Parameters List Notation Result Typeclasses Base Errors.
-From Coq Require Import List ZArith Lia.
+From Warblre Require Import Parameters List Notation Result Typeclasses Base Errors RegExpRecord.
+From Coq Require Import List ZArith Lia DecidableClass.
 Import ListNotations.
 Import Notation.
 Import Result.Notations.
+
+Local Open Scope result_flow.
 
 Section EquivLemmas.
   Context `{characterClass: Character.class}.
@@ -550,7 +552,7 @@ Section EquivLemmas.
 
 
 
-  (** ** Lemmas related to inclusion or disjunction of group IDs. *)
+  (** ** Lemmas related to inclusion or disjunction of group IDs *)
 
   (** * Inductive definition that relates a regex to its parent regex. *)
   Inductive ChildRegex: regex -> regex -> Prop :=
@@ -780,6 +782,31 @@ Section EquivLemmas.
     intros. unfold equiv_groupmap_ms in *. simpl in *. exact H.
   Qed.
 
+  (* Linking indexing success and GroupMap.find result *)
+  Lemma equiv_gm_ms_indexing_find_nonneg:
+    forall gm ms (gid: positive) startIdx endIdx,
+      equiv_groupmap_ms gm ms ->
+      Base.indexing (MatchState.captures ms) gid = Success (Some (capture_range startIdx endIdx)) ->
+      GroupMap.find (positive_to_nat gid) gm = Some (GroupMap.Range (Z.to_nat startIdx) (Some (Z.to_nat endIdx))) /\
+      (startIdx >= 0)%Z /\ (endIdx >= 0)%Z.
+  Proof.
+    intros gm ms gid startIdx endIdx Hequiv Hindexing.
+    unfold equiv_groupmap_ms in Hequiv.
+    unfold Base.indexing in Hindexing. simpl in Hindexing. unfold positive_to_non_neg in Hindexing.
+    set (gid_prec := Pos.to_nat gid - 1) in Hindexing. specialize (Hequiv gid_prec).
+    replace (S gid_prec) with (Pos.to_nat gid) in Hequiv by lia. unfold positive_to_nat.
+    unfold List.Indexing.Nat.indexing in Hindexing.
+    unfold Result.Conversions.from_option in Hindexing.
+    assert (Hindexing': nth_error (MatchState.captures ms) gid_prec = Some (Some (capture_range startIdx endIdx))). {
+      destruct nth_error as [x|]; try discriminate. now injection Hindexing as ->.
+    }
+    apply nth_error_nth with (d := None) in Hindexing'.
+    rewrite Hindexing' in Hequiv. inversion Hequiv. inversion H1.
+    do 2 rewrite Nat2Z.id. split; [|split].
+    1: reflexivity.
+    all: lia.
+  Qed.
+
   (* Lemma used in lookarounds *)
   Lemma equiv_gmafterlk_msafterlk:
     forall rlk str0 endInd msafterlk gmafterlk,
@@ -999,4 +1026,101 @@ Section EquivLemmas.
     apply ms_matches_inp_capchg with (cap := MatchState.captures ms'). now destruct ms'.
   Qed.
 
+
+  (** ** For backreferences *)
+
+  Lemma endMatch_oob_forward:
+    forall ms next pref rlen endMatch,
+      endMatch = (MatchState.endIndex ms + rlen)%Z ->
+      ms_matches_inp ms (Input next pref) ->
+      (rlen >= 0)%Z ->
+      ((endMatch >? Z.of_nat (length (MatchState.input ms)))%Z = true <->
+        Z.to_nat rlen >? length next = true).
+  Proof.
+    intros ms next pref rlen endMatch -> Hmsinp Hrlennneg.
+    inversion Hmsinp as [str0 end_ind cap next' pref' Hlenpref Heqstr0 Heqms Heqnext']. subst next' pref' str0. simpl.
+    rewrite app_length, rev_length, Z.gtb_gt.
+    change (match Z.to_nat rlen with | 0 => _ | S m' => _ end) with (S (length next) <=? Z.to_nat rlen).
+    rewrite Nat.leb_le. lia.
+  Qed.
+
+  (* Main lemma, quite difficult *)
+  (* Helper lemmas *)
+  Lemma string_diff_iff:
+    forall s t: string,
+      (s ==? t)%wt = false <->
+      exists i: nat, nth_error s i <> nth_error t i.
+  Proof.
+  Admitted.
+
+  Lemma string_eqb_iff:
+    forall s t: string,
+      (s ==? t)%wt = true <->
+      forall i: nat, nth_error s i = nth_error t i.
+  Admitted.
+
+  Lemma neqb_neq {A} `{EqDec A}: forall (x y: A),
+      (x !=? y)%wt = true <-> x <> y.
+  Proof.
+    intros x y. split.
+    - intro H. unfold EqDec.neqb in H.
+      apply (f_equal negb) in H. rewrite Bool.negb_involutive in H. simpl in H. apply EqDec.inversion_false. auto.
+    - intro H. apply EqDec.inversion_false in H. unfold EqDec.neqb. rewrite H. reflexivity.
+  Qed.
+
+  Lemma substr_len:
+    forall i j inp, length (substr inp i j) <= j-i.
+  Proof.
+    intros i j inp. unfold substr.
+    rewrite firstn_length. lia.
+  Qed.
+
+  Lemma exists_diff_iff:
+    forall ms next pref startIdx endIdx endMatch rlen existsdiff rer,
+      RegExpRecord.ignoreCase rer = false ->
+      (rlen >= 0)%Z ->
+      endMatch = (MatchState.endIndex ms + rlen)%Z ->
+      ms_matches_inp ms (Input next pref) ->
+      rlen = (endIdx - startIdx)%Z ->
+      (startIdx >= 0)%Z -> (endIdx >= 0)%Z ->
+      List.Exists.exist (List.Range.Int.Bounds.range 0 rlen)
+        (fun i =>
+          let! rsi =<< List.Indexing.Int.indexing (MatchState.input ms) (startIdx + i) in
+          let! gi =<< List.Indexing.Int.indexing (MatchState.input ms) (Z.min (MatchState.endIndex ms) endMatch + i) in
+          Coercions.wrap_bool Errors.MatchError.type (Character.canonicalize rer rsi !=? Character.canonicalize rer gi)%wt) = Success existsdiff ->
+      existsdiff = true <-> (List.firstn (Z.to_nat rlen) next ==? substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = false.
+  Proof.
+    intros ms next pref startIdx endIdx endMatch rlen existsdiff rer Hcasesenst Hrlennneg HeqendMatch Hmsinp Heqrlen HstartIdxnneg HendIdxnneg Heqexistsdiff.
+    destruct existsdiff.
+    - (* There exists some different character *)
+      apply List.Exists.true_to_prop in Heqexistsdiff.
+      unfold List.Exists.Exist in Heqexistsdiff. destruct Heqexistsdiff as [i [i' [Hindexing Hdiff]]].
+      Search List.Range.Int.Bounds.range.
+      assert (Heqi': i' = Z.of_nat i) by admit. subst i'.
+      replace (Z.min _ endMatch) with (MatchState.endIndex ms) in Hdiff by lia.
+      destruct List.Indexing.Int.indexing as [rsi|] eqn:Heqrsi in Hdiff; try discriminate.
+      destruct List.Indexing.Int.indexing as [gi|] eqn:Hgi in Hdiff; try discriminate.
+      simpl in Hdiff. do 2 rewrite canonicalize_casesenst in Hdiff by assumption.
+      split; try reflexivity; intros _.
+      apply string_diff_iff. exists i.
+      replace (nth_error (firstn _ _) i) with (Some gi) by admit.
+      replace (nth_error (substr _ _ _) i) with (Some rsi) by admit.
+      injection Hdiff as Hdiff. intro H. injection H as H.
+      symmetry in H. apply neqb_neq in Hdiff. contradiction.
+    - (* All characters are equal *)
+      split; try discriminate.
+      apply List.Exists.false_to_prop in Heqexistsdiff.
+      intro H. exfalso. revert H. setoid_rewrite Bool.not_false_iff_true.
+      apply string_eqb_iff. intro i.
+      decide (i < Z.to_nat rlen) as Hinb.
+      + (* Apply Heqexistsdiff *)
+        admit.
+      + replace (nth_error _ i) with (None (A := Character)).
+        2: { symmetry. apply nth_error_None. rewrite firstn_length. lia. }
+        replace (nth_error _ i) with (None (A := Character)).
+        2: { symmetry. apply nth_error_None. transitivity (Z.to_nat endIdx - Z.to_nat startIdx). 2: lia.
+          apply substr_len. }
+        reflexivity.
+  Admitted.
+    
 End EquivLemmas.

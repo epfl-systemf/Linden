@@ -336,9 +336,8 @@ Section Equiv.
     destruct indexing as [r|] eqn:Heqr; simpl; try discriminate.
     destruct r as [[startIdx endIdx]|] eqn:Hr; simpl.
     - (* Range is defined *)
-      assert (Hfind: GroupMap.find (positive_to_nat gid) gm = Some (GroupMap.Range (Z.to_nat startIdx) (Some (Z.to_nat endIdx)))) by admit.
+      pose proof equiv_gm_ms_indexing_find_nonneg gm ms gid startIdx endIdx Hgmms Heqr as [Hfind [HstartIdxnneg HendIdxnneg]].
       rewrite Hfind.
-      assert (HstartIdxnneg: (startIdx >= 0)%Z) by admit. assert (HendIdxnneg: (endIdx >= 0)%Z) by admit.
       set (rlen := (endIdx - startIdx)%Z).
       assert (Hrlennneg: (rlen >= 0)%Z). {
         unfold gm_valid in Hgmvalid. specialize (Hgmvalid (positive_to_nat gid)).
@@ -350,7 +349,7 @@ Section Equiv.
         set (endMatch := (MatchState.endIndex ms + rlen)%Z).
         replace (endMatch <? 0)%Z with false by lia. simpl.
         assert (Hoobiff: (endMatch >? Z.of_nat (length (MatchState.input ms)))%Z = true <->
-          (Z.to_nat rlen >? length next) = true) by admit.
+          (Z.to_nat rlen >? length next) = true) by eauto using endMatch_oob_forward.
         simpl in Hoobiff.
         rewrite <- Bool.eq_iff_eq_true in Hoobiff. rewrite <- Hoobiff.
         destruct Z.gtb eqn:Hoob.
@@ -358,7 +357,7 @@ Section Equiv.
           intros H1 H2. injection H1 as <-. injection H2 as <-. constructor.
         * (* In bounds *)
           destruct List.Exists.exist as [existsdiff|] eqn:Hexistsdiffres; simpl; try discriminate.
-          assert (Hexistsdiffiff : existsdiff = true <-> (List.firstn (Z.to_nat rlen) next ==? substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = false) by admit.
+          assert (Hexistsdiffiff : existsdiff = true <-> (List.firstn (Z.to_nat rlen) next ==? substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = false) by eauto using exists_diff_iff.
           rewrite Bool.negb_involutive_reverse with (b := existsdiff) in Hexistsdiffiff.
           rewrite Bool.negb_true_iff in Hexistsdiffiff.
           destruct existsdiff.
