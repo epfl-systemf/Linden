@@ -590,7 +590,7 @@ Section FunctionalSemantics.
         | Acheck strcheck :: cont =>
             if (is_strict_suffix inp strcheck dir) then
               match (compute_tree cont inp gm dir fuel) with
-              | Some treecont => Some (Progress strcheck treecont)
+              | Some treecont => Some (Progress treecont)
               | None => None
               end
             else Some Mismatch            
