@@ -1344,24 +1344,27 @@ Section EquivLemmas.
   Qed.
 
   Lemma msinp_backref_fwd:
-    forall ms next pref rlen endMatch ms' inp',
+    forall ms next pref rlen endMatch ms' inp' str0,
       ms_matches_inp ms (Input next pref) ->
+      input_compat (Input next pref) str0 ->
       ms' = match_state (MatchState.input ms) endMatch (MatchState.captures ms) ->
       inp' = Input (List.skipn (Z.to_nat rlen) next) (List.rev (List.firstn (Z.to_nat rlen) next) ++ pref)%list ->
       endMatch = (MatchState.endIndex ms + rlen)%Z ->
       (rlen >= 0)%Z ->
       (endMatch >? Z.of_nat (length (MatchState.input ms)))%Z = false ->
-      ms_matches_inp ms' inp'.
+      ms_matches_inp ms' inp' /\ input_compat inp' str0.
   Proof.
-    intros ms next pref rlen endMatch ms' inp' Hmsinp -> -> -> Hrlennneg Hinb.
+    intros ms next pref rlen endMatch ms' inp' str0 Hmsinp Hinpcompat -> -> -> Hrlennneg Hinb.
     pose proof ms_matches_inp_inbounds _ _ Hmsinp as Horiginb.
     set (endInd' := Z.to_nat (MatchState.endIndex ms + rlen)).
     replace (MatchState.endIndex ms + rlen)%Z with (Z.of_nat endInd') by lia.
-    inversion Hmsinp as [str0 endIndOrig cap next' pref' Hlenpref Heqstr0 Heqms]. subst next' pref' ms. simpl in *.
-    constructor.
+    inversion Hmsinp as [str0' endIndOrig cap next' pref' Hlenpref Heqstr0 Heqms]. inversion Hinpcompat as [next'' pref'' str0'' Heqstr0bis Heqnext'' Heqpref''].
+    subst next' next'' pref' pref'' ms str0''. simpl in *.
+    split; constructor.
     - rewrite app_length, rev_length, firstn_length_le; try lia.
       apply (f_equal (length (A := Character))) in Heqstr0. rewrite app_length, rev_length in Heqstr0. lia.
-    - rewrite rev_app_distr. rewrite <- app_assoc. rewrite rev_involutive, firstn_skipn. assumption.
+    - rewrite rev_app_distr. rewrite <- app_assoc. rewrite rev_involutive, firstn_skipn. auto.
+    - rewrite rev_app_distr. rewrite <- app_assoc. rewrite rev_involutive, firstn_skipn. auto.
   Qed.
 
 End EquivLemmas.

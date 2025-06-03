@@ -371,7 +371,7 @@ Section Equiv.
              }
              set (ms' := match_state _ _ _). set (inp' := Input _ _).
              assert (Hms'inp': ms_matches_inp ms' inp'). { eapply msinp_backref_fwd; eauto. all: reflexivity. }
-             assert (Hinp'compat: input_compat inp' str0) by admit.
+             assert (Hinp'compat: input_compat inp' str0). { eapply msinp_backref_fwd with (next := next) (pref := pref); eauto. reflexivity. }
              intro Hres.
              destruct compute_tree as [tcont|] eqn:Htcont; try discriminate.
              intro H. injection H as <-. simpl.
