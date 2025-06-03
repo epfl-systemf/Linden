@@ -370,7 +370,7 @@ Section Equiv.
                destruct Hexistsdiffiff. discriminate (H0 eq_refl).
              }
              set (ms' := match_state _ _ _). set (inp' := Input _ _).
-             assert (Hms'inp': ms_matches_inp ms' inp') by admit.
+             assert (Hms'inp': ms_matches_inp ms' inp'). { eapply msinp_backref_fwd; eauto. all: reflexivity. }
              assert (Hinp'compat: input_compat inp' str0) by admit.
              intro Hres.
              destruct compute_tree as [tcont|] eqn:Htcont; try discriminate.

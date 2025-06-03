@@ -1196,7 +1196,6 @@ Section EquivLemmas.
     apply indexing_success_nth in Hindexing.
     replace (Z.to_nat (startIdx + Z.of_nat i)) with (Z.to_nat startIdx + i) in Hindexing by lia.
     assert (Hinb: Z.to_nat startIdx + i < length s). { apply nth_error_Some. rewrite Hindexing. discriminate. }
-    Search nth_error.
     decide (Z.to_nat startIdx + n < length s).
     - (* firstn is actually truncating stuff *)
       rewrite <- nth_error_app1 with (l' := skipn n (skipn (Z.to_nat startIdx) s)).
@@ -1285,6 +1284,7 @@ Section EquivLemmas.
     eauto using indexing_firstn_skipn.
   Qed.
 
+  (* The lemma *)
   Lemma exists_diff_iff:
     forall ms next pref startIdx endIdx endMatch rlen existsdiff rer,
       RegExpRecord.ignoreCase rer = false ->
@@ -1342,5 +1342,26 @@ Section EquivLemmas.
           apply substr_len. }
         reflexivity.
   Qed.
-    
+
+  Lemma msinp_backref_fwd:
+    forall ms next pref rlen endMatch ms' inp',
+      ms_matches_inp ms (Input next pref) ->
+      ms' = match_state (MatchState.input ms) endMatch (MatchState.captures ms) ->
+      inp' = Input (List.skipn (Z.to_nat rlen) next) (List.rev (List.firstn (Z.to_nat rlen) next) ++ pref)%list ->
+      endMatch = (MatchState.endIndex ms + rlen)%Z ->
+      (rlen >= 0)%Z ->
+      (endMatch >? Z.of_nat (length (MatchState.input ms)))%Z = false ->
+      ms_matches_inp ms' inp'.
+  Proof.
+    intros ms next pref rlen endMatch ms' inp' Hmsinp -> -> -> Hrlennneg Hinb.
+    pose proof ms_matches_inp_inbounds _ _ Hmsinp as Horiginb.
+    set (endInd' := Z.to_nat (MatchState.endIndex ms + rlen)).
+    replace (MatchState.endIndex ms + rlen)%Z with (Z.of_nat endInd') by lia.
+    inversion Hmsinp as [str0 endIndOrig cap next' pref' Hlenpref Heqstr0 Heqms]. subst next' pref' ms. simpl in *.
+    constructor.
+    - rewrite app_length, rev_length, firstn_length_le; try lia.
+      apply (f_equal (length (A := Character))) in Heqstr0. rewrite app_length, rev_length in Heqstr0. lia.
+    - rewrite rev_app_distr. rewrite <- app_assoc. rewrite rev_involutive, firstn_skipn. assumption.
+  Qed.
+
 End EquivLemmas.
