@@ -16,9 +16,9 @@ From Warblre Require Import Base.
 (* the nat is a measure of stuttering steps in the continuation *)
 Inductive tree_thread (code:code) (inp:input) : (tree * group_map) -> thread -> nat -> Prop :=
 | tt_eq:
-  forall tree gm pc b pc_end actions n
+  forall tree gm pc b actions n
     (TREE: bool_tree actions inp b tree)
-    (CONT: actions_rep actions code pc pc_end n)
+    (CONT: actions_rep actions code pc n)
     (SUBSET: pike_actions actions),
     tree_thread code inp (tree, gm) (pc, gm, b) n
 | tt_reset:
@@ -45,7 +45,7 @@ Proof.
   unfold compilation in COMPILE. destruct (compile r 0) as [c fresh] eqn:COMP.
   apply compile_nfa_rep with (prev := []) in COMP as REP; auto. simpl in REP.
   apply fresh_correct in COMP. simpl in COMP. subst.
-  subst. eapply tt_eq with (pc_end := length c); eauto.
+  subst. eapply tt_eq; eauto.
   2: { repeat (constructor; auto). }
   apply cons_bc with (pcmid := length c).
   - constructor. apply nfa_rep_extend. auto.
@@ -107,7 +107,7 @@ Proof.
   apply fresh_correct in COMP. simpl in COMP. subst.
   eapply pikeinv; econstructor.
   { constructor. }
-  apply tt_eq with (pc_end:=length c) (actions:=[Areg r]); auto.
+  apply tt_eq with (actions:=[Areg r]); auto.
   2: { constructor; constructor; auto. }
   apply cons_bc with (pcmid:=length c).
   - constructor. apply nfa_rep_extend. auto. 
@@ -175,10 +175,10 @@ Ltac stutter :=
 
 Ltac invert_rep :=
    match goal with
-   | [ H : actions_rep (Areg _ :: _) _ _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
-   | [ H : actions_rep (Aclose _ :: _) _ _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
-   | [ H : actions_rep (Acheck _ :: _) _ _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
-   | [ H : actions_rep [] _ _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : actions_rep (Areg _ :: _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : actions_rep (Aclose _ :: _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : actions_rep (Acheck _ :: _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : actions_rep [] _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
    | [ H : action_rep (Areg _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
    | [ H : action_rep (Aclose _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
    | [ H : action_rep (Acheck _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
@@ -210,15 +210,14 @@ Proof.
   unfold tree_bfs_step in TREESTEP. destruct tree; inversion TREESTEP. subst. clear TREESTEP.
   inversion TT; subst; try no_stutter.
   remember Match as TMATCH.
-  generalize dependent pc_end.
   (* here we have to proceed by induction because there are many ways to get a Match tree *)
   (* it could be epsilon, it could be epsilon followed by epsilon etc *)
   induction TREE; intros; subst; try inversion HeqTMATCH.
   - simpl. repeat invert_rep.
     rewrite ACCEPT. auto.
-  - repeat invert_rep. pike_subset. eapply IHTREE; eauto.
+  - repeat invert_rep. pike_subset.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
-    repeat (econstructor; eauto).
+    repeat (econstructor; eauto). pike_subset.
   - repeat invert_rep.
   - destruct greedy; inversion CHOICE.
  Qed.
@@ -237,7 +236,6 @@ Proof.
   unfold tree_bfs_step in TREESTEP. destruct tree; inversion TREESTEP. subst. clear TREESTEP.
   inversion TT; subst; try no_stutter.
   remember (Read c nexttree) as TREAD.
-  generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTREAD; subst.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
   - assert (CHECK: check_read cd inp forward = CanRead /\ advance_input inp forward = Some nextinp) by (apply can_read_correct; eauto).
@@ -249,7 +247,7 @@ Proof.
       2: { pike_subset. }
       replace (pc + 1) with (S pc) by lia. eauto.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
-    repeat (econstructor; eauto).
+    repeat (econstructor; eauto). pike_subset.
   - repeat invert_rep. 
   - destruct greedy; inversion CHOICE.
 Qed.
@@ -265,11 +263,10 @@ Proof.
   intros gid tree gm idx inp code pc b n TT NOSTUTTER.
   inversion TT; subst; try invert_rep.
   remember (GroupAction (Open gid) tree) as TOPEN.
-  generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTOPEN; subst.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
-    repeat (econstructor; eauto).
+    repeat (econstructor; eauto). pike_subset.
   - repeat invert_rep.
   - destruct greedy; inversion CHOICE.
   - repeat invert_rep. simpl. rewrite OPEN. split; auto.
@@ -291,13 +288,12 @@ Proof.
   intros gid tree gm idx inp code pc b n TT NOSTUTTER.
   inversion TT; subst; try no_stutter.
   remember (GroupAction (Close gid) tree) as TCLOSE.
-  generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTCLOSE; subst.
   - repeat invert_rep. simpl. rewrite CLOSE. pike_subset.
     econstructor; eauto. replace (pc + 1) with (S pc) by lia. eauto.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
-    repeat (econstructor; eauto).
+    repeat (econstructor; eauto). pike_subset.
   - repeat invert_rep.
   - destruct greedy; inversion CHOICE.
 Qed.
@@ -342,14 +338,13 @@ Proof.
   intros gm idx inp code pc b n TT NOSTUTTER.
   inversion TT; subst; try no_stutter.
   remember (Mismatch) as TMIS.
-  generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTMIS; subst.
   - repeat invert_rep. simpl. rewrite END. auto.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
   - assert (CHECK: check_read cd inp forward = CannotRead) by (apply cannot_read_correct; auto).
     repeat invert_rep. simpl. rewrite CONSUME. rewrite CHECK. auto.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
-    repeat (econstructor; eauto).
+    repeat (econstructor; eauto). pike_subset.
   - pike_subset.
   - destruct greedy; inversion CHOICE.
   - pike_subset.
@@ -389,7 +384,6 @@ Proof.
   unfold tree_bfs_step in TREESTEP. inversion TREESTEP. subst. clear TREESTEP.
   inversion TT; subst; try no_stutter.
   remember (Choice tree1 tree2) as TCHOICE.
-  generalize dependent pc_end.
   induction TREE; intros; subst; try inversion HeqTCHOICE; subst.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
   - repeat invert_rep. exists [(S pc,gm,b);(S end1,gm,b)]. exists [S n; n]. split.
@@ -397,16 +391,16 @@ Proof.
     + unfold epsilon_step. rewrite FORK. auto.
     + constructor.
       * constructor. constructor.
-        apply tt_eq with (pc_end:=pc_end) (actions:=Areg r2::cont); auto.
+        apply tt_eq with (actions:=Areg r2::cont); auto.
         2: { pike_subset. }
         repeat (econstructor; eauto).
-      * apply tt_eq with (pc_end:=pc_end) (actions:=Areg r1::cont); auto.
+      * apply tt_eq with (actions:=Areg r1::cont); auto.
         2: { pike_subset. }
         eapply cons_bc with (pcmid:=end1).
         ** constructor; auto.
-        ** replace (S n) with (n + 1) by lia. eapply jump_bc; eauto.
+        ** eapply jump_bc; eauto.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
-    repeat (econstructor; eauto).
+    repeat (econstructor; eauto). pike_subset.
   - repeat invert_rep.
   - (* when the choice comes from a star *)
     repeat invert_rep. destruct greedy; inversion CHOICE; subst; destruct plus; inversion H1.
@@ -414,11 +408,11 @@ Proof.
       simpl. rewrite FORK. exists [(S pc, gm, b); (S end1, gm, b)]. exists [S n; n]. split; auto.
       econstructor.
       * econstructor. constructor.
-        apply tt_eq with (pc_end:=pc_end) (actions:=cont); auto. pike_subset.
+        apply tt_eq with (actions:=cont); auto. pike_subset.
       * apply tt_begin; auto.
         replace (S (S pc)) with (S pc +1) in RESET by lia.
         apply tt_reset; auto.
-        apply tt_eq with (pc_end:=pc_end) (actions:=Areg r1 :: Acheck(inp)::Areg(Quantified true 0 +∞ r1)::cont); auto.
+        apply tt_eq with (actions:=Areg r1 :: Acheck(inp)::Areg(Quantified true 0 +∞ r1)::cont); auto.
         2: { pike_subset. }
         apply cons_bc with (pcmid:=end1).
         { constructor. replace (S pc+1+1) with (S (S (S pc))) by lia. auto. }
@@ -430,13 +424,13 @@ Proof.
       * constructor. constructor. apply tt_begin; auto.
         replace (S (S pc)) with (S pc + 1) in RESET by lia.
         apply tt_reset; auto.
-        apply tt_eq with (pc_end:=pc_end) (actions:=Areg r1 :: Acheck(inp)::Areg(Quantified false 0 +∞ r1)::cont); auto.
+        apply tt_eq with (actions:=Areg r1 :: Acheck(inp)::Areg(Quantified false 0 +∞ r1)::cont); auto.
         2: { pike_subset. }
         apply cons_bc with (pcmid:=end1).
         { constructor. replace (S pc+1+1) with (S (S (S pc))) by lia. auto. }
         repeat (econstructor; eauto).
         replace (S (S pc)) with (S pc + 1) by lia. auto.
-      * apply tt_eq with (pc_end:=pc_end) (actions:=cont); auto. pike_subset.
+      * apply tt_eq with (actions:=cont); auto. pike_subset.
 Qed.
 
 
@@ -500,74 +494,74 @@ Proof.
   2: { exists (pc + 1). exists CannotExit. exists n0. split; try split; auto.
        simpl. rewrite BEGIN. auto. }
   (* at a jmp instruction *)
-  generalize dependent pc_end. generalize dependent pc. generalize dependent n.
+  generalize dependent pc. generalize dependent n.
   induction TREE; intros.
   - invert_rep. stutter.
     exists pcstart. exists b. exists n0. split; try split; try lia.
     + simpl. rewrite JMP. auto.
-    + apply tt_eq with (pc_end:=pc_end) (actions:=[]); try constructor; auto.
+    + apply tt_eq with (actions:=[]); try constructor; auto.
   - invert_rep.
     { invert_rep. stutter. }
     exists pcstart. exists CanExit. exists n0. split; try split; try lia.
     + simpl. rewrite JMP. auto.
-    + apply tt_eq with (pc_end:=pc_end) (actions:=Acheck strcheck::cont); try constructor; auto; pike_subset.
+    + apply tt_eq with (actions:=Acheck strcheck::cont); try constructor; auto; pike_subset.
   - invert_rep.
     { invert_rep. stutter. }
     exists pcstart. exists CannotExit. exists n0. split; try split; try lia.
     + simpl. rewrite JMP. auto.
-    + apply tt_eq with (pc_end:=pc_end) (actions:=Acheck strcheck::cont); try constructor; auto; pike_subset.
+    + apply tt_eq with (actions:=Acheck strcheck::cont); try constructor; auto; pike_subset.
   - invert_rep.
     { invert_rep. stutter. }
     exists pcstart. exists b. exists n0. split; try split; try lia.
     + simpl. rewrite JMP. auto.
-    + apply tt_eq with (pc_end:=pc_end) (actions:=Aclose gid::cont); try constructor; auto; pike_subset.
+    + apply tt_eq with (actions:=Aclose gid::cont); try constructor; auto; pike_subset.
   - invert_rep.
     + invert_rep. invert_rep; try in_subset.
       eapply IHTREE; eauto. pike_subset.
     + exists pcstart. exists b. exists n0. split; try split; try lia.
       * simpl. rewrite JMP. auto.
-      * apply tt_eq with (pc_end:=pc_end) (actions:=Areg Epsilon :: cont); try constructor; auto; pike_subset.
+      * apply tt_eq with (actions:=Areg Epsilon :: cont); try constructor; auto; pike_subset.
   - invert_rep.
     { invert_rep. invert_rep; try in_subset; try stutter. }
     exists pcstart. exists b. exists n0. split; try split; try lia.
     + simpl. rewrite JMP. auto.
-    + apply tt_eq with (pc_end:=pc_end) (actions:=Areg (Regex.Character cd) :: cont); try constructor; auto; pike_subset.
+    + apply tt_eq with (actions:=Areg (Regex.Character cd) :: cont); try constructor; auto; pike_subset.
       eapply tree_char; eauto.
   - invert_rep.
     { invert_rep. invert_rep; try in_subset; try stutter. }
     exists pcstart. exists b. exists n0. split; try split; try lia.
     + simpl. rewrite JMP. auto.
-    + apply tt_eq with (pc_end:=pc_end) (actions:=Areg (Regex.Character cd) :: cont); try constructor; auto; pike_subset.
+    + apply tt_eq with (actions:=Areg (Regex.Character cd) :: cont); try constructor; auto; pike_subset.
   - invert_rep.
     { invert_rep. invert_rep; try in_subset; try stutter. }
     exists pcstart. exists b. exists n0. split; try split; try lia.
     * simpl. rewrite JMP. auto.
-    * apply tt_eq with (pc_end:=pc_end) (actions:=Areg (Disjunction r1 r2) :: cont); try constructor; auto; pike_subset.
+    * apply tt_eq with (actions:=Areg (Disjunction r1 r2) :: cont); try constructor; auto; pike_subset.
   - invert_rep.
     + invert_rep. invert_rep; try in_subset.
       eapply IHTREE; eauto. pike_subset.
       repeat (econstructor; eauto).
     + exists pcstart. exists b. exists n0. split; try split; try lia.
       * simpl. rewrite JMP. auto.
-      * apply tt_eq with (pc_end:=pc_end) (actions:=Areg (Sequence r1 r2) :: cont); try constructor; auto; pike_subset.
+      * apply tt_eq with (actions:=Areg (Sequence r1 r2) :: cont); try constructor; auto; pike_subset.
   - invert_rep.
     { invert_rep. invert_rep; try in_subset; try stutter. }
     exists pcstart. exists b. exists n0. split; try split; try lia.
     * simpl. rewrite JMP. auto.
-    * apply tt_eq with (pc_end:=pc_end) (actions:=Areg (Quantified greedy (S min) plus r1) :: cont); try constructor; auto; pike_subset.
+    * apply tt_eq with (actions:=Areg (Quantified greedy (S min) plus r1) :: cont); try constructor; auto; pike_subset.
   - pike_subset.
   - invert_rep.
     { invert_rep. invert_rep; try in_subset. destruct greedy; stutter. }
     exists pcstart. exists b. exists n0. split; try split; try lia.
     + simpl. rewrite JMP. auto.
     + pike_subset. destruct plus; inversion H3. simpl in CONT0.
-      apply tt_eq with (pc_end:=pc_end) (actions:=Areg (Quantified greedy 0 (NoI.N 1 + +∞)%NoI r1) :: cont); try constructor; auto; pike_subset.
+      apply tt_eq with (actions:=Areg (Quantified greedy 0 (NoI.N 1 + +∞)%NoI r1) :: cont); try constructor; auto; pike_subset.
       eapply tree_quant_free; eauto.
   - invert_rep.
     { invert_rep. invert_rep; try in_subset; try stutter. }
     exists pcstart. exists b. exists n0. split; try split; try lia.
     * simpl. rewrite JMP. auto.
-    * apply tt_eq with (pc_end:=pc_end) (actions:=Areg (Group gid r1):: cont); try constructor; auto; pike_subset.
+    * apply tt_eq with (actions:=Areg (Group gid r1):: cont); try constructor; auto; pike_subset.
   - pike_subset.
   - pike_subset.
 Qed.

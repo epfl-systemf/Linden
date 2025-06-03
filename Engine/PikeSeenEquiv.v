@@ -8,15 +8,17 @@ From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeTreeSeen PikeVMSeen.
 From Linden Require Import PikeEquiv PikeSubset.
+From Linden Require Import TreeRep.
 From Warblre Require Import Base.
 
 (** * Simulation Invariant  *)
 
 (* This is not, strictly speaking, an inclusion, which explains the second case of this disjunction *)
-(* Sometimes, we add seen pcs on the VM side that do not corrspond yet to any seen tree on the tree side *)
+(* Sometimes, we add seen pcs on the VM side that do not correspond yet to any seen tree on the tree side *)
 (* this happens during stuttering steps: such pcs are always stuttering, equivalent to the current active tree, *)
-(* and for a measure that's bigger than the current one *)
-Definition seen_inclusion (c:code) (inp:input) (treeseen:seentrees) (threadseen:seenpcs) (current:option (tree*group_map)) (n:nat): Prop :=
+(* but these pcs are not equal to the current pc : they're smaller *)
+(* the relation is then indexed by the current pc *)
+Definition seen_inclusion (c:code) (inp:input) (treeseen:seentrees) (threadseen:seenpcs) (current:option (tree*group_map)) (currentpc:label): Prop :=
   forall pc b
     (SEEN: inseenpc threadseen pc b = true),
   (exists t gm n,
@@ -24,9 +26,14 @@ Definition seen_inclusion (c:code) (inp:input) (treeseen:seentrees) (threadseen:
         tree_thread c inp (t, gm) (pc, gm, b) n)
   \/
     (stutters pc c = true /\
-       exists m t gm, m > n /\ current = Some (t,gm) /\
+       exists m t gm, pc < currentpc /\ current = Some (t,gm) /\
               tree_thread c inp (t,gm) (pc,gm,b) m).
 
+Definition head_pc (threadactive:list thread) : label :=
+  match threadactive with
+  | [] => 0
+  | (pc,_,_)::_ => pc
+  end.
 
 Inductive pike_inv (code:code): pike_tree_seen_state -> pike_vm_seen_state -> nat -> Prop :=
 | pikeinv:
@@ -39,7 +46,7 @@ Inductive pike_inv (code:code): pike_tree_seen_state -> pike_vm_seen_state -> na
     (ENDVM: advance_input inp forward = None -> threadblocked = [])
     (ENDTREE: advance_input inp forward = None -> treeblocked = [])
     (* any pc in threadseen must correspond to a tree in treeseen *)
-    (SEEN: seen_inclusion code inp treeseen threadseen (hd_error treeactive) n)
+    (SEEN: seen_inclusion code inp treeseen threadseen (hd_error treeactive) (head_pc threadactive))
     (* the measure is simply the measure of the top priority thread *)
     (MEASURE: n = hd 0 (measureactive++measureblocked)),
     pike_inv code (PTSS idx treeactive best treeblocked treeseen) (PVSS inp idx threadactive best threadblocked threadseen) n
@@ -48,7 +55,8 @@ Inductive pike_inv (code:code): pike_tree_seen_state -> pike_vm_seen_state -> na
     pike_inv code (PTSS_final best) (PVSS_final best) 0.
 
 
-(** * Seen Lemmas *)
+
+(** * Representation Unicity lemmas  *)
 
 (* tree-thread equivalence can only happen for a single gm *)
 Lemma tt_same_gm:
@@ -58,21 +66,122 @@ Proof.
   intros t gm1 pc gm2 b code inp n H. inversion H; auto.
 Qed.
 
-Lemma initial_inclusion:
-  forall c inp current n,
-    seen_inclusion c inp initial_seentrees initial_seenpcs current n.
+
+(* A representation cannot start with Reset or BeginLoop *)
+Inductive start_rep: bytecode -> Prop :=
+| start_accept: start_rep Accept
+| start_cons: forall cd, start_rep (Consume cd)
+| start_jmp: forall lbl, start_rep (Jmp lbl)
+| start_fork: forall l1 l2, start_rep (Fork l1 l2)
+| start_open: forall gid, start_rep (SetRegOpen gid)
+| start_close: forall gid, start_rep (SetRegClose gid)
+| start_end: forall lbl, start_rep (EndLoop lbl)
+| start_kill: start_rep KillThread.
+
+Lemma nfa_rep_start:
+  forall r code pc pcend,
+    nfa_rep r code pc pcend ->
+    pc = pcend \/
+      (exists i, get_pc code pc = Some i /\ start_rep i).
 Proof.
-  intros c inp current n. unfold seen_inclusion. intros pc b SEEN.
+  intros r code pc pcend H. induction H;
+    try solve[left; simpl; auto];
+    try solve[right; eexists; split; eauto; constructor].
+  - destruct IHnfa_rep1 as [SAME1 | [i [START1 REP1]]]; subst.
+    2: { right. eexists. split; eauto. }
+    destruct IHnfa_rep2 as [SAME2 | [i [START2 REP2]]]; subst.
+    + left. auto.
+    + right. eexists. split; eauto.
+  - right. destruct greedy; inversion FORK; eexists; split; eauto; constructor.
+Qed.
+
+Lemma action_rep_start:
+  forall a code pc pcend,
+    action_rep a code pc pcend ->
+    pc = pcend \/
+      (exists i, get_pc code pc = Some i /\ start_rep i).
+Proof.
+  intros a code pc pcend H. destruct a.
+  - inversion H. subst. apply nfa_rep_start in NFA. auto.
+  - inversion H. subst. right. exists (EndLoop pcend). split; auto. constructor.
+  - inversion H. subst. right. exists (SetRegClose g). split; auto. constructor.
+Qed.
+
+Lemma actions_rep_start:
+  forall act code pc n i,
+    actions_rep act code pc n ->
+    get_pc code pc = Some i ->
+    start_rep i.
+Proof.
+  intros act code pc n i H. induction H; intros GET. 
+  - rewrite ACCEPT in GET. inversion GET. constructor.
+  - apply action_rep_start in ACTION as [EQ | [instr [GETSTART START]]].
+    + subst. apply IHactions_rep. auto.
+    + rewrite GETSTART in GET. inversion GET. subst. auto.
+  - rewrite JMP in GET. inversion GET. constructor.
+Qed.
+
+(* rephrasing the lemma below so that induction handles pairs better *)
+Lemma tt_same_interm:
+  forall code inp treegm1 treegm2 thread1 thread2 n1 n2
+    (TT1: tree_thread code inp treegm1 thread1 n1)
+    (TT2: tree_thread code inp treegm2 thread2 n2)
+    (SAMEPC: fst (fst thread1) = fst (fst thread2))
+    (SAMEB: snd thread1 = snd thread2)
+    (SAMEGM1: snd (fst thread1) = snd treegm1)
+    (SAMEGM2: snd (fst thread2) = snd treegm2),
+    fst treegm1 = fst treegm2.
+Proof.
+  intros code inp treegm1 treegm2 thread1 thread2 n1 n2 TT1.
+  generalize dependent n2. generalize dependent thread2. generalize dependent treegm2.
+  induction TT1; intros; subst.
+  - inversion TT2; subst;
+      simpl in SAMEB; simpl in SAMEPC; simpl in SAMEGM1; simpl in SAMEGM2; subst;
+      try solve[eapply actions_rep_start in CONT; eauto; inversion CONT].
+    simpl. subst. symmetry. eapply actions_rep_unicity in CONT; eauto.
+  - inversion TT2; subst;
+      simpl in SAMEB; simpl in SAMEPC; simpl in SAMEGM1; simpl in SAMEGM2; subst;
+      try solve[eapply actions_rep_start in CONT; eauto; inversion CONT].
+    2: { rewrite BEGIN in RESET. inversion RESET. }
+    rewrite RESET in RESET0. inversion RESET0. subst.
+    specialize (IHTT1 _ _ _ TT (eq_refl _) (eq_refl _) (eq_refl _) (eq_refl _)).
+    simpl in IHTT1. destruct IHTT1. subst. simpl. auto.
+  - inversion TT2; subst;
+      simpl in SAMEB; simpl in SAMEPC; simpl in SAMEGM1; simpl in SAMEGM2; subst;
+      try solve[eapply actions_rep_start in CONT; eauto; inversion CONT].
+    { rewrite BEGIN in RESET. inversion RESET. }
+    specialize (IHTT1 _ _ _ TT (eq_refl _) (eq_refl _) (eq_refl _) (eq_refl _)).
+    simpl in IHTT1. destruct IHTT1. subst. simpl. auto.
+Qed.
+
+Lemma tt_same_tree:
+  forall code inp t1 gm1 t2 gm2 n1 n2 pc b
+    (TT1: tree_thread code inp (t1,gm1) (pc,gm1,b) n1)
+    (TT2: tree_thread code inp (t2,gm2) (pc,gm2,b) n2),
+    t1 = t2.
+Proof.
+  intros code inp t1 gm1 t2 gm2 n1 n2 pc b TT1 TT2.
+  eapply tt_same_interm in TT1; eauto. simpl in TT1. auto.
+Qed.
+
+(** * Seen Lemmas *)
+
+
+Lemma initial_inclusion:
+  forall c inp current currentpc,
+    seen_inclusion c inp initial_seentrees initial_seenpcs current currentpc.
+Proof.
+  intros c inp current currentpc. unfold seen_inclusion. intros pc b SEEN.
   rewrite initial_nothing_pc in SEEN. inversion SEEN.
 Qed.
 
 Lemma add_inclusion:
-  forall treeseen threadseen c inp t pc gm b n nextcurrent nextn
-    (INCL: seen_inclusion c inp treeseen threadseen (Some (t,gm)) n)
+  forall treeseen threadseen c inp t pc gm b n nextcurrent nextpc
+    (INCL: seen_inclusion c inp treeseen threadseen (Some (t,gm)) pc)
     (TT: tree_thread c inp (t,gm) (pc,gm,b) n),
-    seen_inclusion c inp (add_seentrees treeseen t) (add_thread threadseen (pc, gm, b)) nextcurrent nextn.
+    seen_inclusion c inp (add_seentrees treeseen t) (add_thread threadseen (pc, gm, b)) nextcurrent nextpc.
 Proof.
-  intros treeseen threadseen c inp t pc gm b n nextcurrent nextn INCL TT.
+  intros treeseen threadseen c inp t pc gm b n nextcurrent nextpc INCL TT.
   unfold seen_inclusion in *.
   intros pc0 b0 SEEN. apply inpc_add in SEEN. destruct SEEN as [EQ|SEEN].
   - inversion EQ. subst. left. exists t. exists gm. exists n. split; auto. apply in_add. left. auto.
@@ -80,17 +189,17 @@ Proof.
     destruct INCL as [[ts [gms [ns [SEENs TTs]]]] | [ST [ms [ts [gms [GEQ [EQ TTS]]]]]]].
     + left. exists ts. exists gms. exists ns. split; auto. apply in_add. right; auto.
     + left. exists ts. exists gms. exists ms. split; auto.
-      apply in_add. left; auto. inversion EQ. auto. 
+      apply in_add. left; auto. inversion EQ. auto.
 Qed.
 
 Lemma skip_inclusion:
-  forall code inp treeseen threadseen tree gm n
-    (INCL: seen_inclusion code inp treeseen threadseen (Some (tree, gm)) n)
+  forall code inp treeseen threadseen tree gm currentpc
+    (INCL: seen_inclusion code inp treeseen threadseen (Some (tree, gm)) currentpc)
     (SEEN: inseen treeseen tree = true),
-  forall current m,
-    seen_inclusion code inp treeseen threadseen current m.
+  forall current nextpc,
+    seen_inclusion code inp treeseen threadseen current nextpc.
 Proof.
-  intros code inp treeseen threadseen tree gm n INCL SEEN current m.
+  intros code inp treeseen threadseen tree gm currentpc INCL SEEN current nextpc.
   unfold seen_inclusion in *.
   intros pc b SEENPC.
   specialize (INCL pc b SEENPC).
@@ -100,73 +209,165 @@ Proof.
 Qed.
 
 Lemma stutter_inclusion:
-  forall code inp treeseen threadseen t gm m pc b
-    (INCL: seen_inclusion code inp treeseen threadseen (Some (t, gm)) (S m))
+  forall code inp treeseen threadseen t gm n pc b nextpc
+    (GT: pc < nextpc )
+    (INCL: seen_inclusion code inp treeseen threadseen (Some (t, gm)) pc)
     (STUTTERS: stutters pc code = true)
-    (TT: tree_thread code inp (t,gm) (pc,gm,b) (S m)),
-    seen_inclusion code inp treeseen (add_seenpcs threadseen pc b) (Some (t,gm)) m.
+    (TT: tree_thread code inp (t,gm) (pc,gm,b) n),
+    seen_inclusion code inp treeseen (add_seenpcs threadseen pc b) (Some (t,gm)) nextpc.
 Proof.
-  intros code inp treeseen threadseen t gm m pc b INCL STUTTERS TT.
+  intros code inp treeseen threadseen t gm n pc b nextpc GT INCL STUTTERS TT.
   unfold seen_inclusion in *.
   intros pc0 b0 SEEN.
   apply inpc_add in SEEN. destruct SEEN as [EQ | SEEN].
   { inversion EQ. subst. right. split; auto.
-    exists (S m). exists t. exists gm. split; auto. }
+    exists n. exists t. exists gm. split; auto. }
   specialize (INCL pc0 b0 SEEN).
   destruct INCL as [[ts [gms [ns [SEENs TTs]]]] | [ST [ms [ts [gms [GEQ [EQ TTS]]]]]]].
   - left. exists ts. exists gms. exists ns. split; auto.
   - right. split; auto. exists ms. exists ts. exists gms. split; auto. lia.
 Qed.
 
+(** * Code Stuttering Well-formedness *)
+(* to show that a stuttering step cannot lead the PikeVM to immediately memoize something that was not memoized by the PikeTree, we need to show that stutteing instructions always point to a greater pc *)
 
-(** * Representation Unicity lemmas  *)
+Definition stutter_wf (code:code) : Prop :=
+  forall pc gm b nextpc nextgm nextb inp idx,
+    stutters pc code = true ->
+    epsilon_step (pc,gm,b) code inp idx = EpsActive[(nextpc,nextgm,nextb)] ->
+    pc < nextpc.
 
-(* even though nfa_rep can hold at the same place for two regexes, they should have the same tree *)
-(* Lemma nfa_rep_unicity: *)
-(*   forall r1 r2 code pc pcend t inp b, *)
-(*     nfa_rep r1 code pc pcend -> *)
-(*     nfa_rep r2 code pc pcend -> *)
-(*     bool_tree [Areg r1] inp b t -> *)
-(*     bool_tree [Areg r2] inp b t. *)
-(* Admitted. *)
-
-(* (* same for actions *) *)
-(* Lemma actions_rep_unicity: *)
-(*   forall a1 a2 code pc pcend t inp b n, *)
-(*     actions_rep a1 code pc pcend n -> *)
-(*     actions_rep a2 code pc pcend n -> *)
-(*     bool_tree a1 inp b t -> *)
-(*     bool_tree a2 inp b t. *)
-(* Proof. *)
-(*   intros a1 a2 code pc pcend t inp b n H H0 H1. *)
-(* Admitted. *)
-
-
-Lemma tt_same_measure:
-  forall code inp t gm pc b n1 n2
-    (TT1: tree_thread code inp (t,gm) (pc,gm,b) n1)
-    (TT2: tree_thread code inp (t,gm) (pc,gm,b) n2),
-    n1 = n2.
+Lemma nth_nil:
+  forall (A:Type) i, @nth_error A [] i = None.
 Proof.
-Admitted.
+  intros A i. destruct i; simpl; auto.
+Qed.
 
-(* would this be easier if we made the tree explicit in the relation? *)
-(* note that nfa_rep has no unicity prop: we could represent both epsilon and epsilon:epsilon *)
-(* same goes for actions_rep *)
-(* but in these cases, even from different actions, the trees are still the same *)
-(* could we compute a tree from a pc and an input? compute_tree pc inp *)
-(* then show tt code inp (t,gm) (pc,_,_) -> t = compute_tree pc inp *)
-(* Another idea is that even though multiple actions could correspond to the same pc *)
-(* when they are compiled each pc corresponds to a precise set of actions? *)
-(* no, it depends on the input for stars *)
-(* But I should be able to use th generate lemmas if my intermediate theorem uses a tree derivation to build another *)
-Lemma tt_same_tree:
-  forall code inp t1 gm1 t2 gm2 n1 n2 pc b
-    (TT1: tree_thread code inp (t1,gm1) (pc,gm1,b) n1)
-    (TT2: tree_thread code inp (t2,gm2) (pc,gm2,b) n2),
-    t1 = t2.
+Lemma nfa_rep_incr:
+  forall r code start endl,
+    nfa_rep r code start endl ->
+    start <= endl.
 Proof.
-Admitted.
+  intros r code start endl H. induction H; try lia.
+Qed.
+
+(* every jump in the code jumps to a strictly bigger label *)
+(* this will help prevent loops of stuttering steps in the PikeVM *)
+Lemma compile_jumps:
+  forall r code start endl pc next,
+    nfa_rep r code start endl ->
+    pc >= start ->
+    pc < endl ->
+    get_pc code pc = Some (Jmp next) ->
+    pc < next.
+Proof.
+  intros r code start endl pc next REP GE LT GET.
+  generalize dependent pc. induction REP; intros.
+  - lia.
+  - assert (pc = lbl) by lia. subst.
+    rewrite CONSUME in GET. inversion GET.
+  - apply nfa_rep_incr in REP1 as INCR1.
+    apply nfa_rep_incr in REP2 as INCR2.
+    assert (pc = start \/ pc >= S start) as [ST|H] by lia.
+    (* Fork *)
+    { subst. rewrite FORK in GET. inversion GET. }
+    assert (pc < end1 \/ pc >= end1) as [R1|H1] by lia.
+    (* in r1 *)
+    { apply IHREP1; auto. }
+    assert (pc = end1 \/ pc >= S end1) as [J|H2] by lia.
+    (* the jmp *)
+    { subst. rewrite JMP in GET. inversion GET. lia. }
+    (* in r2 *)
+    apply IHREP2; auto.
+  - apply nfa_rep_incr in REP1 as INCR1.
+    apply nfa_rep_incr in REP2 as INCR2.
+    assert (pc < end1 \/ pc >= end1) as [H1|H2] by lia.
+    (* in r1 *)
+    { apply IHREP1; auto. }
+    (* in r2 *)
+    apply IHREP2; auto.
+  - apply nfa_rep_incr in REP as INC.
+    assert (pc = start \/ pc >= S start) as [FOR|H] by lia.
+    (* fork *)
+    { subst. rewrite FORK in GET. destruct greedy; inversion GET. }
+    assert (pc = S start \/ pc >= S (S start)) as [BEG|H1] by lia.
+    (* Begin *)
+    { subst. rewrite BEGIN in GET. inversion GET. }
+    assert (pc = S (S start) \/ pc >= S (S (S start))) as [RES|H2] by lia.
+    (* Reset *)
+    { subst. rewrite RESET in GET. inversion GET. }
+    assert (pc < end1 \/ pc = end1) as [R1|H3] by lia.
+    (* in r1 *)
+    { apply IHREP; auto. }
+    (* endloop *)
+    subst. rewrite END in GET. inversion GET.
+  - apply nfa_rep_incr in REP as INC.
+    assert (pc = start \/ pc >= S start) as [ST|H] by lia.
+    (* open *)
+    { subst. rewrite OPEN in GET. inversion GET. }
+    assert (pc = end1 \/ pc < end1) as [END|H1] by lia.
+    (* close *)
+    { subst. rewrite CLOSE in GET. inversion GET. }
+    (* in r1 *)
+    apply IHREP; auto.
+  - assert (pc = lbl) by lia. subst.
+    rewrite KILL in GET. inversion GET.
+Qed.
+
+
+(* every compiled code is well-formed *)
+Lemma compile_stutter_wf:
+  forall r code fresh,
+    compile r 0 = (code, fresh) ->
+    stutter_wf code.
+Proof.
+  intros r code fresh H.
+  eapply compile_nfa_rep with (prev:=[]) in H as REP; simpl; auto.
+  simpl in REP. apply fresh_correct in H. simpl in H. subst.
+  unfold stutter_wf. unfold stutters. unfold get_pc.
+  intros pc gm b nextpc nextgm nextb inp idx H H0.
+  destruct (nth_error code pc) eqn:NTH.
+  2: { inversion H. }
+  destruct b0; inversion H; simpl in H0; unfold get_pc in H0; rewrite NTH in H0;
+    inversion H0; subst; try lia.
+  eapply compile_jumps; eauto; try lia.
+  apply nth_error_Some. rewrite NTH. intros HI. inversion HI.
+Qed.
+
+Theorem compilation_stutter_wf:
+  forall r code,
+    compilation r = code ->
+    stutter_wf code.
+Proof.
+  unfold compilation. intros r code H.
+  destruct (compile r 0) as [r_code fresh] eqn:COMP. subst.
+  apply compile_stutter_wf in COMP.
+  unfold stutter_wf, stutters, get_pc.
+  intros pc gm b nextpc nextgm nextb inp idx H H0.
+  destruct (nth_error (r_code ++ [Accept]) pc) eqn:NTH.
+  2: { inversion H. }
+  assert (HL: pc < length (r_code ++ [Accept])).
+  { eapply nth_error_Some. rewrite NTH. intros HI. inversion HI. }
+  rewrite app_length in HL. simpl in HL.
+  assert (pc = length (r_code) \/ pc < length (r_code)) as [ACC|H1] by lia.
+  (* accept *)
+  { subst. assert (get_pc (r_code ++ [Accept]) (length r_code) = get_pc [Accept] 0).
+    - apply get_first.
+    - unfold get_pc in H1. simpl in H1. rewrite H1 in NTH. inversion NTH. subst.
+      inversion H. }
+  (* inside the code *)
+  assert (get_pc r_code pc = Some b0).
+  { rewrite nth_error_app1 in NTH; auto. }
+  unfold stutter_wf in COMP.
+  assert (epsilon_step (pc,gm,b) r_code inp idx = EpsActive [(nextpc,nextgm,nextb)]).
+  { simpl in H0. unfold get_pc in H0. rewrite NTH in H0.
+    simpl. rewrite H2.
+    destruct b0; auto. }
+  eapply COMP; eauto.
+  unfold stutters. rewrite H2. destruct b0; auto.
+Qed.
+
+  
 
 
 (** * Invariant Initialization  *)
@@ -186,10 +387,10 @@ Proof.
   eapply pikeinv; auto.
   - econstructor.
     + constructor.
-    + apply tt_eq with (pc_end:=length c) (actions:=[Areg r]); auto.
+    + apply tt_eq with (actions:=[Areg r]); auto.
       2: { pike_subset. }
       eapply cons_bc; constructor.
-      * apply nfa_rep_extend; auto.
+      * apply nfa_rep_extend; eauto.
       * replace (length c) with (length c + 0) by auto.
         rewrite get_prefix. auto.
   - constructor.
@@ -213,6 +414,7 @@ Definition skip_state (pvs:pike_vm_seen_state) : bool :=
 
 Theorem invariant_preservation:
   forall code pts1 pvs1 n pvs2
+    (STWF: stutter_wf code)
     (INV: pike_inv code pts1 pvs1 n)
     (VMSTEP: pike_vm_seen_step code pvs1 pvs2),
     (* either we make a step on both sides, preserving invariant *)
@@ -229,7 +431,7 @@ Theorem invariant_preservation:
             m < n
       ).
 Proof.
-  intros code pts1 pvs1 n pvs2 INV VMSTEP.
+  intros code pts1 pvs1 n pvs2 STWF INV VMSTEP.
   inversion INV; subst.
   (* Final states make no step *)
   2: { inversion VMSTEP. }
@@ -250,10 +452,7 @@ Proof.
       + apply ptss_skip; auto.
       + eapply pikeinv; eauto.
         simpl in SEEN. eapply skip_inclusion; eauto.
-    - simpl in EQ. inversion EQ. subst. simpl in GEQ.
-      assert (m = n).
-      { eapply tt_same_measure; eauto. }
-      subst. exfalso. eapply PeanoNat.Nat.lt_irrefl; eauto.
+    - simpl in GEQ. lia.
   }
   destruct treeactive as [|[t gm] treeactive].
   {
@@ -288,7 +487,8 @@ Proof.
     { eapply pikevm_deterministic; eauto. eapply pvss_active; eauto. }
     split; subst; simpl; auto. eapply pikeinv with (measureactive:=m::measurelist); simpl; eauto.
     - constructor; eauto.
-    - simpl in SEEN. apply stutter_inclusion; auto.
+    - (* Here we use that the code is stutter-well-formed *)
+      simpl in SEEN. eapply stutter_inclusion; eauto.
   }
   destruct (tree_bfs_step t gm idx) eqn:TREESTEP.
   (* active *)

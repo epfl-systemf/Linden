@@ -370,3 +370,35 @@ Proof.
     + eapply IHISTREE1. pike_subset.
   - eapply IHISTREE. pike_subset.
 Qed.
+
+(** * Determinism  *)
+(* I can't use determinism of is_tree since I've only proved one direction of equivalence *)
+
+  Theorem bool_tree_determ:
+    forall actions i b t1 t2,
+      bool_tree actions i b t1 ->
+      bool_tree actions i b t2 ->
+      t1 = t2.
+  Proof.
+    intros actions i b t1 t2 H H0.
+    generalize dependent t2.
+    induction H; intros;
+      try solve[inversion H0; subst; auto; f_equal; apply IHbool_tree; auto].
+    - inversion H0; subst; auto; rewrite READ0 in READ; inversion READ.
+      subst. f_equal. apply IHbool_tree. auto.
+    - inversion H0; subst; auto; rewrite READ0 in READ; inversion READ.
+    - inversion H1; subst. apply IHbool_tree1 in ISTREE1. apply IHbool_tree2 in ISTREE2.
+      subst. auto.
+    - inversion H0; subst; auto.
+      destruct plus; inversion H3.
+    - inversion H1; subst; auto.
+      { destruct plus; inversion H4. }
+      assert (plus0 = plus).
+      { destruct plus0; destruct plus; inversion H4; auto. }
+      subst. f_equal.
+      + f_equal. apply IHbool_tree1; auto.
+      + apply IHbool_tree2; auto.
+    - inversion H0; subst; rewrite ANCHOR0 in ANCHOR; inversion ANCHOR.
+      f_equal. apply IHbool_tree. auto.
+    - inversion H0; subst; rewrite ANCHOR0 in ANCHOR; inversion ANCHOR. auto.
+  Qed.
