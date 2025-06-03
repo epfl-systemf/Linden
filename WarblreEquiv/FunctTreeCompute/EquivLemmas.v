@@ -2,7 +2,7 @@ From Linden Require Import Regex GroupMapMS LindenParameters Groups Tree Chars S
   MSInput EquivDef Utils RegexpTranslation FunctionalSemantics LWEquivTreeLemmas WarblreLemmas
   GroupMapLemmas Tactics.
 From Warblre Require Import Parameters List Notation Result Typeclasses Base Errors RegExpRecord.
-From Coq Require Import List ZArith Lia DecidableClass.
+From Coq Require Import List ZArith Lia DecidableClass ClassicalFacts.
 Import ListNotations.
 Import Notation.
 Import Result.Notations.
@@ -617,9 +617,16 @@ Section EquivLemmas.
 
   (** * Lemmas about absence of forbidden groups *)
 
+  Lemma gm_find_empty:
+    forall gid, GroupMap.find gid GroupMap.empty = None.
+  Admitted.
+
   Lemma noforb_empty:
     forall forbgroups, no_forbidden_groups GroupMap.empty forbgroups.
-  Admitted.
+  Proof.
+    intro forbgroups. unfold no_forbidden_groups.
+    intros gid Hin. apply gm_find_empty.
+  Qed.
 
   Lemma in_forb_implies_in_def:
     forall gid r, In gid (forbidden_groups r) -> In gid (def_groups r).
@@ -1046,28 +1053,40 @@ Section EquivLemmas.
 
   (* Main lemma, quite difficult *)
   (* Helper lemmas *)
+  Lemma string_eqb_iff:
+    forall s t: string,
+      (s ==? t)%wt = true <->
+      forall i: nat, nth_error s i = nth_error t i.
+  Proof.
+    intros. split; intro H.
+    - rewrite EqDec.inversion_true in H. subst t. reflexivity.
+    - replace t with s. 1: apply EqDec.reflb.
+      apply nth_error_ext. auto.
+  Qed.
+
+  Axiom EM: excluded_middle.
+
+  Lemma notforalln_existsnnot:
+    forall P: nat -> Prop,
+      ~(forall n, P n) -> (exists n, ~P n).
+  Proof.
+    intros. destruct (EM (exists n: nat, ~P n)) as [Hexists | Hnotexists]; auto.
+    exfalso. apply H. intro n. destruct (EM (P n)) as [HPn | HnPn]; auto.
+    exfalso. apply Hnotexists. exists n. auto.
+  Qed.
+
   Lemma string_diff_iff:
     forall s t: string,
       (s ==? t)%wt = false <->
       exists i: nat, nth_error s i <> nth_error t i.
   Proof.
     intros s t. split.
-    - intro Hneq. apply EqDec.inversion_false in Hneq.
-      decide (length s = length t) as Hlen.
-      + admit.
-      + decide (length s < length t) as Hlenlt.
-        * exists (length s). admit.
-        * exists (length t). admit.
+    - intro Hneq.
+      apply notforalln_existsnnot. intro Habs. rewrite <- string_eqb_iff in Habs. congruence.
     - intro Hexistsdiff. apply Bool.not_true_iff_false. intro Habs.
       rewrite EqDec.inversion_true in Habs. subst t.
       destruct Hexistsdiff as [i Hexistsdiff]. contradiction.
-  Admitted.
-
-  Lemma string_eqb_iff:
-    forall s t: string,
-      (s ==? t)%wt = true <->
-      forall i: nat, nth_error s i = nth_error t i.
-  Admitted.
+  Qed.
 
   Lemma neqb_neq {A} `{EqDec A}: forall (x y: A),
       (x !=? y)%wt = true <-> x <> y.
@@ -1157,19 +1176,51 @@ Section EquivLemmas.
   Qed.
 
   (* Non-trivial *)
+  Lemma indexing_firstn_skipn {A: Type}:
+    forall (s: list A) startIdx n i x,
+      (startIdx >= 0)%Z ->
+      i < n ->
+      List.Indexing.Int.indexing s (startIdx + Z.of_nat i) = Success x ->
+      nth_error (firstn n (skipn (Z.to_nat startIdx) s)) i = Some x.
+  Proof.
+  Admitted.
 
   Lemma ms_indexing_next_nth:
     forall ms next pref i x,
       ms_matches_inp ms (Input next pref) ->
       List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms + Z.of_nat i) = Success x ->
       nth_error next i = Some x.
-  Admitted.
+  Proof.
+    intros ms next pref i x Hmsinp Hindexing.
+    inversion Hmsinp as [str0 end_ind cap next' pref' Hlenpref Heqstr0]. subst ms next' pref'.
+    simpl in *.
+    replace next with (skipn (length (rev pref)) str0).
+    2: { apply (f_equal (skipn (length (rev pref)))) in Heqstr0. rewrite <- Heqstr0. rewrite skipn_app, skipn_all, Nat.sub_diag. reflexivity. }
+    replace (skipn _ str0) with (firstn (length (skipn (length (rev pref)) str0)) (skipn (length (rev pref)) str0)).
+    2: apply firstn_all.
+    replace (length (rev pref)) with (Z.to_nat (Z.of_nat (length (rev pref)))) at 2 by lia.
+    apply indexing_firstn_skipn.
+    - lia.
+    - replace (length (skipn (length (rev pref)) str0)) with (length next).
+      2: { rewrite <- Heqstr0. rewrite skipn_app, skipn_all, Nat.sub_diag. reflexivity. }
+      apply List.Indexing.Int.success_bounds in Hindexing. rewrite <- Heqstr0 in Hindexing.
+      rewrite app_length, rev_length in Hindexing. lia.
+    - rewrite rev_length, Hlenpref. auto.
+  Qed.
 
   Lemma nth_error_firstn {A}:
     forall (l: list A) n i, i < n -> nth_error (firstn n l) i = nth_error l i.
-  Admitted.
+  Proof.
+    intros l n i Hlt.
+    decide (n < length l).
+    - rewrite <- firstn_skipn with (n := n) (A := A) (l := l) at 2.
+      rewrite nth_error_app1. 1: reflexivity.
+      rewrite firstn_length_le by lia. auto.
+    - assert (H': n >= length l) by lia.
+      rewrite firstn_all2; auto.
+  Qed.
 
-  Lemma backref_get_next':
+  Lemma backref_get_next:
     forall ms next pref rlen i gi,
       ms_matches_inp ms (Input next pref) ->
       i < Z.to_nat rlen ->
@@ -1181,27 +1232,8 @@ Section EquivLemmas.
     eauto using ms_indexing_next_nth.
   Qed.
 
-  Corollary backref_get_next:
-    forall ms next pref rlen i gi,
-      ms_matches_inp ms (Input next pref) ->
-      List.Indexing.Nat.indexing (List.Range.Int.Bounds.range 0 rlen) i = Success (Z.of_nat i) ->
-      List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms + Z.of_nat i) = Success gi ->
-      nth_error (firstn (Z.to_nat rlen) next) i = Some gi.
-  Proof.
-    intros ms next pref rlen i gi Hmsinp Hinb Hindexing.
-  Admitted.
-
   (* Even more non-trivial *)
-  Lemma indexing_firstn_skipn {A: Type}:
-    forall (s: list A) startIdx n i x,
-      (startIdx >= 0)%Z ->
-      i < n ->
-      List.Indexing.Int.indexing s (startIdx + Z.of_nat i) = Success x ->
-      nth_error (firstn n (skipn (Z.to_nat startIdx) s)) i = Some x.
-  Proof.
-  Admitted.
-
-  Lemma backref_get_ref':
+  Lemma backref_get_ref:
     forall ms next pref startIdx endIdx rlen i rsi,
       rlen = (endIdx - startIdx)%Z -> (rlen >= 0)%Z ->
       (startIdx >= 0)%Z -> (endIdx >= 0)%Z ->
@@ -1215,17 +1247,6 @@ Section EquivLemmas.
     unfold input_str. rewrite <- ms_matches_inp_invinp with (ms := ms) by assumption.
     eauto using indexing_firstn_skipn.
   Qed.
-
-  Lemma backref_get_ref:
-    forall ms next pref startIdx endIdx rlen i rsi,
-      rlen = (endIdx - startIdx)%Z -> (rlen >= 0)%Z ->
-      (startIdx >= 0)%Z -> (endIdx >= 0)%Z ->
-      ms_matches_inp ms (Input next pref) ->
-      List.Indexing.Nat.indexing (List.Range.Int.Bounds.range 0 rlen) i = Success (Z.of_nat i) ->
-      List.Indexing.Int.indexing (MatchState.input ms) (startIdx + Z.of_nat i) = Success rsi ->
-      nth_error (substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx)) i = Some rsi.
-  Proof.
-  Admitted.
 
   Lemma exists_diff_iff:
     forall ms next pref startIdx endIdx endMatch rlen existsdiff rer,
@@ -1247,8 +1268,9 @@ Section EquivLemmas.
     - (* There exists some different character *)
       apply List.Exists.true_to_prop in Heqexistsdiff.
       unfold List.Exists.Exist in Heqexistsdiff. destruct Heqexistsdiff as [i [i' [Hindexing Hdiff]]].
-      Search List.Range.Int.Bounds.range.
       assert (Heqi': i' = Z.of_nat i) by eauto using indexing_range_success. subst i'.
+      pose proof List.Indexing.Nat.success_bounds _ _ _ Hindexing as Hinb.
+      rewrite List.Range.Int.Bounds.length in Hinb. replace (rlen - 0)%Z with rlen in Hinb by lia.
       replace (Z.min _ endMatch) with (MatchState.endIndex ms) in Hdiff by lia.
       destruct List.Indexing.Int.indexing as [rsi|] eqn:Heqrsi in Hdiff; try discriminate.
       destruct List.Indexing.Int.indexing as [gi|] eqn:Hgi in Hdiff; try discriminate.
@@ -1266,15 +1288,15 @@ Section EquivLemmas.
       apply string_eqb_iff. intro i.
       decide (i < Z.to_nat rlen) as Hinb.
       + (* Apply Heqexistsdiff *)
-        specialize (Heqexistsdiff i (Z.of_nat i)). specialize_prove Heqexistsdiff by auto using indexing_range_inb_success.
+        specialize (Heqexistsdiff i (Z.of_nat i)). specialize_prove Heqexistsdiff by auto using indexing_range_inb_success'.
         simpl in Heqexistsdiff.
         replace (Z.min _ endMatch) with (MatchState.endIndex ms) in Heqexistsdiff by lia.
         destruct List.Indexing.Int.indexing as [rsi|] eqn:Heqrsi in Heqexistsdiff; try discriminate.
         destruct List.Indexing.Int.indexing as [gi|] eqn:Hgi in Heqexistsdiff; try discriminate.
         simpl in Heqexistsdiff. do 2 rewrite canonicalize_casesenst in Heqexistsdiff by assumption.
         injection Heqexistsdiff as Hdiff.
-        replace (nth_error (firstn _ _) i) with (Some gi) by (symmetry; eauto using backref_get_next').
-        replace (nth_error (substr _ _ _) i) with (Some rsi) by (symmetry; eauto using backref_get_ref').
+        replace (nth_error (firstn _ _) i) with (Some gi) by (symmetry; eauto using backref_get_next).
+        replace (nth_error (substr _ _ _) i) with (Some rsi) by (symmetry; eauto using backref_get_ref).
         rewrite neqb_eq in Hdiff. congruence.
       + replace (nth_error _ i) with (None (A := Character)).
         2: { symmetry. apply nth_error_None. rewrite firstn_length. lia. }
