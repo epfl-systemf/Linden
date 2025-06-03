@@ -1367,4 +1367,16 @@ Section EquivLemmas.
     - rewrite rev_app_distr. rewrite <- app_assoc. rewrite rev_involutive, firstn_skipn. auto.
   Qed.
 
+  Lemma backref_inp'_idx_fwd:
+    forall next pref inp' rlen startIdx endIdx,
+      rlen = (endIdx - startIdx)%Z -> (rlen >= 0)%Z ->
+      List.firstn (Z.to_nat rlen) next = substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx) ->
+      inp' = Input (List.skipn (Z.to_nat rlen) next) (List.rev (List.firstn (Z.to_nat rlen) next) ++ pref)%list ->
+      length pref + length (substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx)) = idx inp'.
+  Proof.
+    intros next pref inp' rlen startIdx endIdx -> Hrlennneg Hfirstn_next_substr ->.
+    rewrite <- Hfirstn_next_substr.
+    simpl. rewrite app_length, rev_length. lia. 
+  Qed.
+
 End EquivLemmas.

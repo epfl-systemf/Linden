@@ -365,10 +365,12 @@ Section Equiv.
              destruct Hexistsdiffiff as [Hexistsdiffiff _]. rewrite Hexistsdiffiff by reflexivity.
              intros H1 H2. injection H1 as <-. injection H2 as <-. constructor.
           -- (* No character is different *)
-             replace (List.firstn _ _ ==? substr _ _ _)%wt with true. 2: {
+             assert (Hfirstn_next_substr: (List.firstn (Z.to_nat rlen) next ==?
+     substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = true). {
                symmetry. destruct EqDec.eqb; try reflexivity.
                destruct Hexistsdiffiff. discriminate (H0 eq_refl).
              }
+             rewrite Hfirstn_next_substr. rewrite EqDec.inversion_true in Hfirstn_next_substr.
              set (ms' := match_state _ _ _). set (inp' := Input _ _).
              assert (Hms'inp': ms_matches_inp ms' inp'). { eapply msinp_backref_fwd; eauto. all: reflexivity. }
              assert (Hinp'compat: input_compat inp' str0). { eapply msinp_backref_fwd with (next := next) (pref := pref); eauto. reflexivity. }
@@ -376,7 +378,7 @@ Section Equiv.
              destruct compute_tree as [tcont|] eqn:Htcont; try discriminate.
              intro H. injection H as <-. simpl.
              unfold equiv_cont in Hequivcont.
-             replace (length pref + length _) with (idx inp') by admit.
+             replace (length pref + length _) with (idx inp'). 2: { symmetry; eapply backref_inp'_idx_fwd; eauto. }
              apply Hequivcont with (ms := ms') (fuel := fuel); auto.
              admit.
       + (* Backward *)
