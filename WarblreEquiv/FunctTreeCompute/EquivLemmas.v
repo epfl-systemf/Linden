@@ -1051,6 +1051,16 @@ Section EquivLemmas.
       (s ==? t)%wt = false <->
       exists i: nat, nth_error s i <> nth_error t i.
   Proof.
+    intros s t. split.
+    - intro Hneq. apply EqDec.inversion_false in Hneq.
+      decide (length s = length t) as Hlen.
+      + admit.
+      + decide (length s < length t) as Hlenlt.
+        * exists (length s). admit.
+        * exists (length t). admit.
+    - intro Hexistsdiff. apply Bool.not_true_iff_false. intro Habs.
+      rewrite EqDec.inversion_true in Habs. subst t.
+      destruct Hexistsdiff as [i Hexistsdiff]. contradiction.
   Admitted.
 
   Lemma string_eqb_iff:
@@ -1147,26 +1157,65 @@ Section EquivLemmas.
   Qed.
 
   (* Non-trivial *)
-  Lemma backref_get_next:
-    forall ms next pref rlen i gi,
+
+  Lemma ms_indexing_next_nth:
+    forall ms next pref i x,
       ms_matches_inp ms (Input next pref) ->
-      List.Indexing.Nat.indexing (List.Range.Int.Bounds.range 0 rlen) i = Success (Z.of_nat i) ->
-      List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms + Z.of_nat i) = Success gi ->
-      nth_error (firstn (Z.to_nat rlen) next) i = Some gi.
-  Proof.
+      List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms + Z.of_nat i) = Success x ->
+      nth_error next i = Some x.
   Admitted.
 
-  Corollary backref_get_next':
+  Lemma nth_error_firstn {A}:
+    forall (l: list A) n i, i < n -> nth_error (firstn n l) i = nth_error l i.
+  Admitted.
+
+  Lemma backref_get_next':
     forall ms next pref rlen i gi,
       ms_matches_inp ms (Input next pref) ->
       i < Z.to_nat rlen ->
       List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms + Z.of_nat i) = Success gi ->
       nth_error (firstn (Z.to_nat rlen) next) i = Some gi.
   Proof.
-    intros. apply indexing_range_inb_success in H0. eauto using backref_get_next.
+    intros ms next pref rlen i gi Hmsinp Hinb Hindexing.
+    replace (nth_error _ i) with (nth_error next i) by (symmetry; eauto using nth_error_firstn). (* because i < Z.to_nat rlen *)
+    eauto using ms_indexing_next_nth.
   Qed.
 
-  (* Non-trivial *)
+  Corollary backref_get_next:
+    forall ms next pref rlen i gi,
+      ms_matches_inp ms (Input next pref) ->
+      List.Indexing.Nat.indexing (List.Range.Int.Bounds.range 0 rlen) i = Success (Z.of_nat i) ->
+      List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms + Z.of_nat i) = Success gi ->
+      nth_error (firstn (Z.to_nat rlen) next) i = Some gi.
+  Proof.
+    intros ms next pref rlen i gi Hmsinp Hinb Hindexing.
+  Admitted.
+
+  (* Even more non-trivial *)
+  Lemma indexing_firstn_skipn {A: Type}:
+    forall (s: list A) startIdx n i x,
+      (startIdx >= 0)%Z ->
+      i < n ->
+      List.Indexing.Int.indexing s (startIdx + Z.of_nat i) = Success x ->
+      nth_error (firstn n (skipn (Z.to_nat startIdx) s)) i = Some x.
+  Proof.
+  Admitted.
+
+  Lemma backref_get_ref':
+    forall ms next pref startIdx endIdx rlen i rsi,
+      rlen = (endIdx - startIdx)%Z -> (rlen >= 0)%Z ->
+      (startIdx >= 0)%Z -> (endIdx >= 0)%Z ->
+      ms_matches_inp ms (Input next pref) ->
+      i < Z.to_nat rlen ->
+      List.Indexing.Int.indexing (MatchState.input ms) (startIdx + Z.of_nat i) = Success rsi ->
+      nth_error (substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx)) i = Some rsi.
+  Proof.
+    intros ms next pref startIdx endIdx rlen i rsi Heqrlen Hrlennneg HstartIdxnneg HendIdxnneg Hmsinp Hinb Hindexing.
+    unfold substr. replace (Z.to_nat endIdx - Z.to_nat startIdx) with (Z.to_nat rlen) by lia.
+    unfold input_str. rewrite <- ms_matches_inp_invinp with (ms := ms) by assumption.
+    eauto using indexing_firstn_skipn.
+  Qed.
+
   Lemma backref_get_ref:
     forall ms next pref startIdx endIdx rlen i rsi,
       rlen = (endIdx - startIdx)%Z -> (rlen >= 0)%Z ->
@@ -1177,18 +1226,6 @@ Section EquivLemmas.
       nth_error (substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx)) i = Some rsi.
   Proof.
   Admitted.
-
-  Corollary backref_get_ref':
-    forall ms next pref startIdx endIdx rlen i rsi,
-      rlen = (endIdx - startIdx)%Z -> (rlen >= 0)%Z ->
-      (startIdx >= 0)%Z -> (endIdx >= 0)%Z ->
-      ms_matches_inp ms (Input next pref) ->
-      i < Z.to_nat rlen ->
-      List.Indexing.Int.indexing (MatchState.input ms) (startIdx + Z.of_nat i) = Success rsi ->
-      nth_error (substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx)) i = Some rsi.
-  Proof.
-    intros. apply indexing_range_inb_success in H4. eauto using backref_get_ref.
-  Qed.
 
   Lemma exists_diff_iff:
     forall ms next pref startIdx endIdx endMatch rlen existsdiff rer,
