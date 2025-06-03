@@ -366,7 +366,7 @@ Section Equiv.
              intros H1 H2. injection H1 as <-. injection H2 as <-. constructor.
           -- (* No character is different *)
              assert (Hfirstn_next_substr: (List.firstn (Z.to_nat rlen) next ==?
-     substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = true). {
+               substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = true). {
                symmetry. destruct EqDec.eqb; try reflexivity.
                destruct Hexistsdiffiff. discriminate (H0 eq_refl).
              }
@@ -384,7 +384,7 @@ Section Equiv.
       + (* Backward *)
         replace (MatchState.endIndex ms - rlen >? Z.of_nat (length (MatchState.input ms)))%Z with false by lia.
         rewrite Bool.orb_false_r.
-        assert (Hoobiff: (MatchState.endIndex ms - rlen <? 0)%Z = true <-> (Z.to_nat rlen >? length pref) = true) by admit.
+        assert (Hoobiff: (MatchState.endIndex ms - rlen <? 0)%Z = true <-> (Z.to_nat rlen >? length pref) = true) by eauto using beginMatch_oob_backward.
         rewrite <- Bool.eq_iff_eq_true in Hoobiff. simpl in Hoobiff.
         rewrite <- Hoobiff.
         destruct Z.ltb.
@@ -392,7 +392,7 @@ Section Equiv.
           intros H1 H2. injection H1 as <-. injection H2 as <-. constructor.
         * (* In bounds *)
           destruct List.Exists.exist as [existsdiff|] eqn:Hexistsdiffres; simpl; try discriminate.
-          assert (Hexistsdiffiff : existsdiff = true <-> (List.rev (List.firstn (Z.to_nat rlen) pref) ==? substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = false) by admit.
+          assert (Hexistsdiffiff : existsdiff = true <-> (List.rev (List.firstn (Z.to_nat rlen) pref) ==? substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = false) by eauto using exists_diff_iff_bwd.
           rewrite Bool.negb_involutive_reverse with (b := existsdiff) in Hexistsdiffiff.
           rewrite Bool.negb_true_iff in Hexistsdiffiff.
           destruct existsdiff.
@@ -400,10 +400,12 @@ Section Equiv.
              destruct Hexistsdiffiff as [Hexistsdiffiff _]. rewrite Hexistsdiffiff by reflexivity.
              intros H1 H2. injection H1 as <-. injection H2 as <-. constructor.
           -- (* No character is different *)
-             replace (List.rev (List.firstn _ _) ==? substr _ _ _)%wt with true. 2: {
+             assert (Hfirstn_pref_substr: (List.rev (List.firstn (Z.to_nat rlen) pref) ==?
+               substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = true). {
                symmetry. destruct EqDec.eqb; try reflexivity.
                destruct Hexistsdiffiff. discriminate (H0 eq_refl).
              }
+             rewrite Hfirstn_pref_substr. rewrite EqDec.inversion_true in Hfirstn_pref_substr.
              set (ms' := match_state _ _ _). set (inp' := Input _ _).
              assert (Hms'inp': ms_matches_inp ms' inp') by admit.
              assert (Hinp'compat: input_compat inp' str0) by admit.
