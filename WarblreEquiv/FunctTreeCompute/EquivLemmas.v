@@ -1175,6 +1175,14 @@ Section EquivLemmas.
     specialize_prove H by lia. rewrite H. f_equal.
   Qed.
 
+  Lemma indexing_success_nth {A: Type}:
+    forall (l: list A) i x, List.Indexing.Nat.indexing l i = Success x -> nth_error l i = Some x.
+  Proof.
+    intros l i x. unfold List.Indexing.Nat.indexing, Result.Conversions.from_option.
+    destruct (nth_error l i); try discriminate.
+    intro H. injection H as ->. reflexivity.
+  Qed.
+
   (* Non-trivial *)
   Lemma indexing_firstn_skipn {A: Type}:
     forall (s: list A) startIdx n i x,
@@ -1183,8 +1191,37 @@ Section EquivLemmas.
       List.Indexing.Int.indexing s (startIdx + Z.of_nat i) = Success x ->
       nth_error (firstn n (skipn (Z.to_nat startIdx) s)) i = Some x.
   Proof.
-  Admitted.
+    intros s startIdx n i x HstartIdxnneg Hinn Hindexing.
+    rewrite List.Indexing.Int.to_nat in Hindexing by lia.
+    apply indexing_success_nth in Hindexing.
+    replace (Z.to_nat (startIdx + Z.of_nat i)) with (Z.to_nat startIdx + i) in Hindexing by lia.
+    assert (Hinb: Z.to_nat startIdx + i < length s). { apply nth_error_Some. rewrite Hindexing. discriminate. }
+    Search nth_error.
+    decide (Z.to_nat startIdx + n < length s).
+    - (* firstn is actually truncating stuff *)
+      rewrite <- nth_error_app1 with (l' := skipn n (skipn (Z.to_nat startIdx) s)).
+      2: { rewrite firstn_length_le; auto. rewrite skipn_length. lia. }
+      rewrite firstn_skipn.
+      (* The rest of the proof of this case is the same as in the 2nd case *)
+      replace i with ((Z.to_nat startIdx + i) - Z.to_nat startIdx) by lia.
+      replace (Z.to_nat startIdx) with (length (firstn (Z.to_nat startIdx) s)) at 3.
+      2: { apply firstn_length_le. lia. }
+      rewrite <- nth_error_app2.
+      2: { rewrite firstn_length_le by lia. lia. }
+      rewrite firstn_skipn. auto.
+    - (* firstn leaves the skipn unchanged *)
+      rewrite firstn_all2.
+      2: { rewrite skipn_length. lia. }
+      (* Copy-pasting... *)
+      replace i with ((Z.to_nat startIdx + i) - Z.to_nat startIdx) by lia.
+      replace (Z.to_nat startIdx) with (length (firstn (Z.to_nat startIdx) s)) at 3.
+      2: { apply firstn_length_le. lia. }
+      rewrite <- nth_error_app2.
+      2: { rewrite firstn_length_le by lia. lia. }
+      rewrite firstn_skipn. auto.
+  Qed.
 
+  (* This lemma actually follows from the above lemma in a somewhat convoluted way *)
   Lemma ms_indexing_next_nth:
     forall ms next pref i x,
       ms_matches_inp ms (Input next pref) ->
