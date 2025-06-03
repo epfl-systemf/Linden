@@ -1084,19 +1084,67 @@ Section EquivLemmas.
     rewrite firstn_length. lia.
   Qed.
 
+  Lemma indexing_nat_to_int {A}:
+    forall (l: list A) (i: nat),
+      List.Indexing.Nat.indexing l i = List.Indexing.Int.indexing l (Z.of_nat i).
+  Proof.
+    intros l i. unfold List.Indexing.Int.indexing, List.lift_to_Z.
+    destruct i; simpl.
+    - reflexivity.
+    - now rewrite SuccNat2Pos.id_succ.
+  Qed.
+
   Lemma indexing_range_success:
     forall (i: nat) (i': Z) (n: Z),
       List.Indexing.Nat.indexing (List.Range.Int.Bounds.range 0 n) i = Success i' ->
       i' = Z.of_nat i.
   Proof.
-  Admitted.
+    intros i i' n H.
+    rewrite indexing_nat_to_int in H.
+    apply List.Range.Int.Bounds.indexing in H. lia.
+  Qed.
 
-  Lemma indexing_range_inb_success:
+  Lemma indexing_range_length_inb_success:
+    forall (i: nat) (base: Z) (len: nat),
+      i < len ->
+      List.Indexing.Nat.indexing (List.Range.Int.Length.range base len) i = Success (base + Z.of_nat i)%Z.
+  Proof.
+    intros i base len Hlt.
+    pose proof List.Range.Int.Length.length len base as Hlen.
+    pose proof List.Range.Int.Length.indexing (Z.of_nat i) base len as Hindexing.
+    replace (List.Indexing.Nat.indexing _ i) with (List.Indexing.Int.indexing (List.Range.Int.Length.range base len) (Z.of_nat i)).
+    2: {
+      unfold List.Indexing.Int.indexing, List.lift_to_Z.
+      destruct i.
+      - simpl. reflexivity.
+      - simpl. now rewrite SuccNat2Pos.id_succ.
+    }
+    pose proof List.Indexing.Int.success_bounds0 (List.Range.Int.Length.range base len) (Z.of_nat i) as [_ Hsuccess_bounds0].
+    rewrite Hlen in Hsuccess_bounds0. specialize_prove Hsuccess_bounds0 by lia.
+    destruct Hsuccess_bounds0 as [v Hsuccess_bounds0].
+    rewrite Hsuccess_bounds0.
+    specialize (Hindexing v Hsuccess_bounds0). congruence.
+  Qed.
+
+  Corollary indexing_range_inb_success:
+    forall (i: nat) (low up: Z),
+      i < Z.to_nat (up - low)%Z ->
+      List.Indexing.Nat.indexing (List.Range.Int.Bounds.range low up) i = Success (low + Z.of_nat i)%Z.
+  Proof.
+    intros i low up Hlt.
+    unfold List.Range.Int.Bounds.range.
+    apply indexing_range_length_inb_success. auto.
+  Qed.
+
+  Corollary indexing_range_inb_success':
     forall (i: nat) (n: Z),
       i < Z.to_nat n ->
       List.Indexing.Nat.indexing (List.Range.Int.Bounds.range 0 n) i = Success (Z.of_nat i).
   Proof.
-  Admitted.
+    intros i n Hlt.
+    pose proof indexing_range_inb_success i 0 n.
+    specialize_prove H by lia. rewrite H. f_equal.
+  Qed.
 
   (* Non-trivial *)
   Lemma backref_get_next:
