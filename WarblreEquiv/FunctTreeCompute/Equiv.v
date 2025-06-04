@@ -181,8 +181,64 @@ Section Equiv.
       
       - destruct (mc ms) as [resskip|] eqn:Hresskipsucc; simpl; try discriminate.
         (* Probably similar to greedy case *)
-        admit.
-  Admitted.
+        specialize (Hequivcont resskip fueltree).
+        destruct resskip as [resskipms|]; simpl.
+        + (* resskip is not None *)
+          intro H. injection H as <-.
+          destruct delta as [[|delta']|]; simpl in *; try discriminate.
+          * (* delta is finite *)
+            destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            intro H. injection H as <-.
+            replace (delta' - 0) with delta' in * by lia.
+            specialize (Hequivcont tskip Hinpcompat Hgmms Hgmgl Hmsinp).
+            specialize_prove Hequivcont. { apply ms_valid_wrt_checks_tail in Hmschecks. auto. }
+            specialize (Hequivcont Hgmvalid Hnoforbidden eq_refl eq_refl).
+            inversion Hequivcont. simpl. rewrite <- H. simpl. constructor. assumption.
+          * (* delta is infinite; copy-pasting and removing one line *)
+            destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            intro H. injection H as <-.
+            specialize (Hequivcont tskip Hinpcompat Hgmms Hgmgl Hmsinp).
+            specialize_prove Hequivcont. { apply ms_valid_wrt_checks_tail in Hmschecks. auto. }
+            specialize (Hequivcont Hgmvalid Hnoforbidden eq_refl eq_refl).
+            inversion Hequivcont. simpl. rewrite <- H. simpl. constructor. assumption.
+        + (* resloop is None *)
+          intro Hcontsucc. destruct delta as [[|delta']|]; simpl in *; try discriminate.
+          * (* delta is finite *)
+            destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            intro H. injection H as <-.
+            replace (delta' - 0) with delta' in * by lia.
+            specialize (Hequivcont tskip Hinpcompat Hgmms Hgmgl Hmsinp).
+            specialize_prove Hequivcont. { apply ms_valid_wrt_checks_tail in Hmschecks. auto. }
+            specialize (Hequivcont Hgmvalid Hnoforbidden eq_refl eq_refl).
+            inversion Hequivcont. simpl. rewrite <- H0. simpl.
+            specialize (Hequiv res fueltree titer Hinpcompat).
+            specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
+            specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
+            specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
+            specialize_prove Hequiv. { eapply msreset_valid_checks; eauto. reflexivity. }
+            specialize_prove Hequiv by now apply gm_reset_valid.
+            specialize_prove Hequiv. { eapply noforb_reset; eauto. reflexivity. }
+            specialize (Hequiv Hcontsucc Htitersucc). auto.
+          * (* delta is infinite; copy-pasting and removing one line *)
+            destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            intro H. injection H as <-.
+            specialize (Hequivcont tskip Hinpcompat Hgmms Hgmgl Hmsinp).
+            specialize_prove Hequivcont. { apply ms_valid_wrt_checks_tail in Hmschecks. auto. }
+            specialize (Hequivcont Hgmvalid Hnoforbidden eq_refl eq_refl).
+            inversion Hequivcont. simpl. rewrite <- H0. simpl.
+            specialize (Hequiv res fueltree titer Hinpcompat).
+            specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
+            specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
+            specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
+            specialize_prove Hequiv. { eapply msreset_valid_checks; eauto. reflexivity. }
+            specialize_prove Hequiv by now apply gm_reset_valid.
+            specialize_prove Hequiv. { eapply noforb_reset; eauto. reflexivity. }
+            specialize (Hequiv Hcontsucc Htitersucc). auto.
+  Qed.
 
   (* General case; the proof below mostly deals with the case max > 0 and applies the two above lemmas otherwise *)
   Lemma repeatMatcher'_equiv:
@@ -246,7 +302,11 @@ Section Equiv.
         (fun ms mc => Semantics.repeatMatcher m min (NoI.N min + delta)%NoI greedy ms mc parenIndex parenCount)
         (Regex.Quantified greedy min delta lreg) rer dir.
   Proof.
-  Admitted.
+    intros greedy parenIndex parenCount rer m lreg dir Hequiv Hgroupsvalid min delta.
+    unfold Semantics.repeatMatcher, equiv_matcher.
+    intros. unfold equiv_cont. intros.
+    eapply repeatMatcher'_equiv; eauto.
+  Qed.
 
 
   (* Linking CharSet.exist_canonicalized and CharSet.contains *)
