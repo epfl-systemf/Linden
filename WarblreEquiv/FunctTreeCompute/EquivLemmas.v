@@ -549,7 +549,34 @@ Section EquivLemmas.
       is_strict_suffix inp' inp dir = true.
   Admitted.
 
-
+  (* Validity wrt checks right before iterating a quantifier *)
+  Lemma msreset_valid_checks:
+    forall ms inp cap' msreset lreg qreg qreg' act dir,
+      ms_matches_inp ms inp ->
+      msreset = match_state (MatchState.input ms) (MatchState.endIndex ms) cap' ->
+      ms_valid_wrt_checks ms (Areg qreg :: act)%list dir ->
+      ms_valid_wrt_checks msreset (Areg lreg :: Acheck inp :: Areg qreg' :: act)%list dir.
+  Proof.
+    intros ms inp cap' msreset lreg qreg qreg' act dir
+      Hmsinp -> Hvalidchecks.
+    intros inpcheck Hin. destruct dir.
+    - destruct Hin as [Habs | Hin]. 1: discriminate.
+      destruct Hin as [Heqinp | [Habs | Hinact]]. 2: discriminate.
+      + (* The input itself *)
+        injection Heqinp as <-.
+        inversion Hmsinp. constructor. simpl. lia.
+      + (* In the tail *)
+        apply ms_valid_wrt_checks_tail in Hvalidchecks. specialize (Hvalidchecks inpcheck Hinact).
+        inversion Hvalidchecks. constructor. simpl. lia.
+    - destruct Hin as [Habs | Hin]. 1: discriminate.
+      destruct Hin as [Heqinp | [Habs | Hinact]]. 2: discriminate.
+      + (* The input itself *)
+        injection Heqinp as <-.
+        inversion Hmsinp. constructor. simpl. lia.
+      + (* In the tail *)
+        apply ms_valid_wrt_checks_tail in Hvalidchecks. specialize (Hvalidchecks inpcheck Hinact).
+        inversion Hvalidchecks. constructor. simpl. lia.
+  Qed.
 
 
   (** ** Lemmas related to inclusion or disjunction of group IDs *)
