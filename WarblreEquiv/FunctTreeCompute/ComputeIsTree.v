@@ -14,24 +14,40 @@ Section ComputeIsTree.
   Lemma inp_valid_checks_tail:
     forall inp act acts dir,
       inp_valid_checks inp (act :: acts)%list dir -> inp_valid_checks inp acts dir.
-  Admitted.
+  Proof.
+    intros inp act acts dir H strcheck Hin.
+    apply H. right. auto.
+  Qed.
 
   Lemma inp_valid_checks_Areg:
     forall inp reg acts dir,
       inp_valid_checks inp acts dir -> inp_valid_checks inp (Areg reg :: acts)%list dir.
-  Admitted.
+  Proof.
+    intros inp reg acts dir H strcheck Hin.
+    destruct Hin as [Habs | Hin]; try discriminate.
+    auto.
+  Qed.
 
   Lemma inp_valid_checks_Aclose:
     forall inp gid acts dir,
       inp_valid_checks inp acts dir -> inp_valid_checks inp (Aclose gid :: acts)%list dir.
-  Admitted.
+  Proof.
+    intros inp gid acts dir H strcheck Hin.
+    destruct Hin as [Habs | Hin]; try discriminate.
+    auto.
+  Qed.
 
   Lemma inp_valid_checks_Acheck:
     forall inp strcheck acts dir,
       inp_valid_checks inp acts dir ->
       inp_valid_check inp strcheck dir ->
       inp_valid_checks inp (Acheck strcheck :: acts)%list dir.
-  Admitted.
+  Proof.
+    intros inp strcheck acts dir Hacts Hcheck strcheck' Hin.
+    destruct Hin as [Heq | Hin].
+    - injection Heq as <-. auto.
+    - auto.
+  Qed.
 
   Lemma inp_valid_checks_nil:
     forall inp dir, inp_valid_checks inp nil dir.
