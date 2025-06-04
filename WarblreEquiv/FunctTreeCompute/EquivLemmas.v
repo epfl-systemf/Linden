@@ -979,10 +979,15 @@ Section EquivLemmas.
     - (* gid' is the newly open group *)
       subst gid'. rewrite group_map_open_find by assumption. split.
       + intro H. injection H as <-. now left.
-      + (* Non-trivial: due to Hgmgl and Hnoforb, gl does not contain anything related to group S n *)
+      + (* Due to Hgmgl and Hnoforb, gl does not contain anything related to group S n *)
         intro Hin. destruct Hin as [Hin | Hin].
         * injection Hin as <-. reflexivity.
-        * exfalso. admit.
+        * exfalso. apply Hgmgl in Hin. specialize (Hnoforb (S n)).
+          rewrite in_app_iff in Hnoforb.
+          specialize_prove Hnoforb. {
+            left. simpl. left. reflexivity. 
+          }
+          congruence.
     - (* gid' is not the newly open group *)
       rewrite group_map_open_find_other by congruence. unfold group_map_equiv_open_groups in Hgmgl. rewrite (Hgmgl gid' idx').
       split.
@@ -990,7 +995,7 @@ Section EquivLemmas.
       + intros [Hin | Hin].
         * injection Hin as H1 H2. congruence.
         * assumption.
-  Admitted.
+  Qed.
 
   (* Lemma for closing a group *)
   Lemma nth_indexing:
