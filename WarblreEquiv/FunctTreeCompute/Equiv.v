@@ -144,7 +144,7 @@ Section Equiv.
             specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
             specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
             specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
-            specialize_prove Hequiv by admit.
+            specialize_prove Hequiv. { eapply msreset_valid_checks; eauto. reflexivity. }
             specialize_prove Hequiv by now apply gm_reset_valid.
             specialize_prove Hequiv. { eapply noforb_reset; eauto. reflexivity. }
             specialize (Hequiv eq_refl Htitersucc).
@@ -160,7 +160,7 @@ Section Equiv.
             specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
             specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
             specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
-            specialize_prove Hequiv by admit.
+            specialize_prove Hequiv. { eapply msreset_valid_checks; eauto. reflexivity. }
             specialize_prove Hequiv by now apply gm_reset_valid.
             specialize_prove Hequiv. { eapply noforb_reset; eauto. reflexivity. }
             specialize (Hequiv eq_refl Htitersucc).
@@ -173,7 +173,7 @@ Section Equiv.
             specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
             specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
             specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
-            specialize_prove Hequiv by admit.
+            specialize_prove Hequiv. { eapply msreset_valid_checks; eauto. reflexivity. }
             specialize_prove Hequiv by now apply gm_reset_valid.
             specialize_prove Hequiv. { eapply noforb_reset; eauto. reflexivity. }
             specialize (Hequiv eq_refl Htitersucc).
