@@ -814,6 +814,30 @@ Section EquivLemmas.
     all: lia.
   Qed.
 
+  (* If indexing yields None, then finding cannot yield Some with two defined ends *)
+  Lemma equiv_gm_ms_indexing_none:
+    forall gm ms (gid: positive) startIdx endIdx,
+      equiv_groupmap_ms gm ms ->
+      Base.indexing (MatchState.captures ms) gid = Success None ->
+      GroupMap.find (positive_to_nat gid) gm = Some (GroupMap.Range startIdx (Some endIdx)) ->
+      False.
+  Proof.
+    intros gm ms gid startIdx endIdx Hequiv Hindexing Hfind.
+    unfold equiv_groupmap_ms in Hequiv.
+    unfold Base.indexing in Hindexing. simpl in Hindexing. unfold positive_to_non_neg in Hindexing.
+    set (gid_prec := Pos.to_nat gid - 1) in Hindexing. specialize (Hequiv gid_prec).
+    replace (S gid_prec) with (Pos.to_nat gid) in Hequiv by lia. unfold positive_to_nat.
+    unfold List.Indexing.Nat.indexing in Hindexing.
+    unfold Result.Conversions.from_option in Hindexing.
+    assert (Hindexing': nth_error (MatchState.captures ms) gid_prec = Some None). {
+      destruct nth_error as [x|]; try discriminate. now injection Hindexing as ->.
+    }
+    apply nth_error_nth with (d := None) in Hindexing'.
+    rewrite Hindexing' in Hequiv. inversion Hequiv.
+    - unfold positive_to_nat in Hfind. congruence.
+    - unfold positive_to_nat in Hfind. rewrite Hfind in H0. injection H0 as H0. discriminate.
+  Qed.
+
   (* Lemma used in lookarounds *)
   Lemma equiv_gmafterlk_msafterlk:
     forall rlk str0 endInd msafterlk gmafterlk,

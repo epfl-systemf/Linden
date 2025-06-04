@@ -433,7 +433,7 @@ Section Equiv.
              admit.
     - (* Range is undefined *)
       destruct GroupMap.find as [[startIdx [endIdx|]]|] eqn:Hfind.
-      + exfalso. admit.
+      + exfalso. eapply equiv_gm_ms_indexing_none; eauto.
       + destruct compute_tree as [tcont|] eqn:Htcont; try discriminate.
         intros Hres H. injection H as <-.
         simpl.
