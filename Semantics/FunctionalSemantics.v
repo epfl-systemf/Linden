@@ -510,6 +510,9 @@ Section FunctionalSemantics.
       inpn = advance_input_n inp n dir ->
       advance_input inpn dir = Some inpn_adv ->
       advance_input_n inp (S n) dir = inpn_adv.
+  Proof.
+    intros [next pref] n [] inpn inpn_adv Heqinpn Hadv; simpl in *.
+    
   Admitted.
 
   Lemma advance_input_n_succ_fail:

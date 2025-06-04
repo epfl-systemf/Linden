@@ -129,7 +129,9 @@ Section Equiv.
             specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
             specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
             specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
-            specialize_prove Hequiv by admit. (* msreset is valid with respect to the checks in act because of the assumption on ms and wrt the check with inp because msreset matches inp *)
+            specialize_prove Hequiv by admit.
+            (* msreset is valid with respect to the checks in act because of the
+            assumption on ms and wrt the check with inp because msreset matches inp *)
             specialize_prove Hequiv by now apply gm_reset_valid.
             specialize_prove Hequiv. { eapply noforb_reset; eauto. reflexivity. } (* gmreset does not contain any of the forbidden groups in lreg because those have just been reset, and does not contain any of the rest of the forbidden groups by assumption on gm *)
             specialize (Hequiv eq_refl Htitersucc).
@@ -294,7 +296,11 @@ Section Equiv.
         unfold equiv_cont in Hequivcont.
         rewrite advance_idx_advance_input with (inp' := inp') by assumption.
         eapply Hequivcont with (ms := match_state (MatchState.input ms) nextend (MatchState.captures ms)); eauto.
-        3: admit.
+        3: {
+          apply ms_valid_wrt_checks_tail in Hmschecks. destruct dir; simpl in *; constructor; unfold nextend.
+          - specialize (Hmschecks inpcheck H). inversion Hmschecks. simpl. lia.
+          - specialize (Hmschecks inpcheck H). inversion Hmschecks. simpl. lia.
+        }
         (* 3: advancing the end index does not make validity wrt checks false *)
         1: eauto using advance_input_compat.
         eapply ms_matches_inp_adv; eauto. unfold MSInput.advance_ms. now destruct dir.
@@ -303,7 +309,52 @@ Section Equiv.
         destruct fuel as [|fuel]; simpl; try discriminate.
         rewrite (proj1 (read_char_fail' rer ms chr inp inp' dir _ _ nextend Hequiv Hcasesenst Hmsinp eq_refl Hgetchr Hexist Hadv)).
         intro H. injection H as <-. simpl. constructor.
-  Admitted.
+  Qed.
+
+  (* TODO Factorize with non inverted case? *)
+  Lemma charSetMatcher_inv_equiv:
+    forall charset cd,
+      equiv_cd_charset cd charset ->
+      forall rer dir,
+        RegExpRecord.ignoreCase rer = false ->
+        equiv_matcher (Semantics.characterSetMatcher rer charset true dir) (Regex.Character (CdInv cd)) rer dir.
+  Proof.
+    intros charset cd Hequiv rer dir Hcasesenst.
+    unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
+    unfold equiv_cont. intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden.
+    unfold Semantics.characterSetMatcher.
+    set (nextend := if (dir ==? forward)%wt then _ else _).
+    destruct ((nextend <? 0)%Z || _)%bool eqn:Hoob; simpl.
+    + (* Out of bounds *)
+      intro Hres. injection Hres as <-. destruct fuel as [|fuel]; try discriminate. simpl.
+      erewrite read_oob_fail_bool by eauto.
+      intro Heqt. injection Heqt as <-. simpl. constructor.
+    + (* In bounds *)
+      pose proof next_inbounds_nextinp ms inp dir nextend Hmsinp eq_refl Hoob as [inp' Hadv].
+      destruct List.Indexing.Int.indexing as [chr|] eqn:Hgetchr; simpl; try discriminate.
+      destruct CharSet.CharSetExt.exist_canonicalized eqn:Hexist; simpl.
+      * (* Read succeeds *)
+        intro Hcontsucc. injection Hcontsucc as <-.
+        destruct fuel as [|fuel]; simpl; try discriminate.
+        rewrite (proj2 (read_char_success' ms inp chr _ _ rer dir inp' nextend Hequiv Hcasesenst Hmsinp eq_refl Hgetchr Hexist Hadv)).
+        intro H. injection H as <-. simpl. constructor.
+      * (* Read fails *)
+        intro Hcontsucc. destruct fuel as [|fuel]; simpl; try discriminate.
+        rewrite (proj2 (read_char_fail' rer ms chr inp inp' dir _ _ nextend Hequiv Hcasesenst Hmsinp eq_refl Hgetchr Hexist Hadv)).
+        destruct compute_tree as [tcont|] eqn:Htcont; simpl; try discriminate.
+        intro H. injection H as <-. simpl.
+        unfold equiv_cont in Hequivcont.
+        rewrite advance_idx_advance_input with (inp' := inp') by assumption.
+        eapply Hequivcont with (ms := match_state (MatchState.input ms) nextend (MatchState.captures ms)); eauto.
+        3: {
+          apply ms_valid_wrt_checks_tail in Hmschecks. destruct dir; simpl in *; constructor; unfold nextend.
+          - specialize (Hmschecks inpcheck H). inversion Hmschecks. simpl. lia.
+          - specialize (Hmschecks inpcheck H). inversion Hmschecks. simpl. lia.
+        }
+        (* 3: advancing the end index does not make validity wrt checks false *)
+        1: eauto using advance_input_compat.
+        eapply ms_matches_inp_adv; eauto. unfold MSInput.advance_ms. now destruct dir.
+  Qed.
 
   Lemma characterClassEscape_equiv:
     forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
@@ -316,7 +367,57 @@ Section Equiv.
       forall m dir,
         Semantics.compileSubPattern wreg ctx rer dir = Success m ->
         equiv_matcher m lreg rer dir.
-  Admitted.
+  Proof.
+    intros rer lroot wroot root_equiv Hcasesenst esc wreg lreg ctx -> Hroot Hequiv m dir Hcompilesucc.
+    inversion Hequiv.
+    - subst esc0 lreg. pose proof equiv_cd_CharacterClassEscape esc cd rer Hcasesenst H0 as [a [HcompileCharSet Hequivcdcs]].
+      unfold Semantics.compileSubPattern, Semantics.compileToCharSet, Coercions.ClassAtom_to_range, Coercions.ClassEscape_to_ClassAtom, Coercions.CharacterClassEscape_to_ClassEscape in Hcompilesucc.
+      setoid_rewrite HcompileCharSet in Hcompilesucc. simpl in Hcompilesucc.
+      injection Hcompilesucc as <-. apply charSetMatcher_noninv_equiv; auto. rewrite CharSetExt.union_empty. auto.
+    - inversion H1; congruence.
+    - inversion H; congruence.
+  Qed.
+
+  Lemma characterEscape_equiv:
+    forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
+      (root_equiv: equiv_regex wroot lroot),
+      RegExpRecord.ignoreCase rer = false ->
+    forall esc cd ctx,
+      Root wroot (AtomEsc (ACharacterEsc esc), ctx) ->
+      equiv_CharacterEscape esc cd ->
+      forall m dir,
+        Semantics.compileSubPattern (AtomEsc (ACharacterEsc esc)) ctx rer dir = Success m ->
+        equiv_matcher m (Regex.Character cd) rer dir.
+  Proof.
+    intros rer lroot wroot Hequivroot Hcasesenst esc cd ctx Hroot Hequiv m dir.
+    inversion Hequiv as [controlesc cd0 Hequiv'' Heqesc Heqcd0 | l cd0 Hequiv'' Heqesc Heqcd0 | Heqesc Heqcd | d1 d2 Heqesc Heqcd].
+    - inversion Hequiv'' as [Heqcontrolesc Heqcd | Heqcontrolesc Heqcd | Heqcontrolesc Heqcd | Heqcontrolesc Heqcd | Heqcontrolesc Heqcd]; simpl; intro H; injection H as <-;
+      eapply charSetMatcher_noninv_equiv; eauto; unfold nat_to_nni; rewrite Character.numeric_pseudo_bij; apply equiv_cd_single.
+    - inversion Hequiv'' as [l0 i Heqi Heql0 Heqcd].
+      simpl. rewrite <- Heqi. intro H. injection H as <-.
+      eapply charSetMatcher_noninv_equiv; eauto. apply equiv_cd_single.
+    - simpl; intro H; injection H as <-; eapply charSetMatcher_noninv_equiv; eauto; unfold nat_to_nni; rewrite Character.numeric_pseudo_bij; apply equiv_cd_single.
+    - simpl. intro H. injection H as <-. eapply charSetMatcher_noninv_equiv; eauto. apply equiv_cd_single.
+  Qed.
+
+  Lemma characterClass_equiv:
+    forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
+      (root_equiv: equiv_regex wroot lroot),
+      RegExpRecord.ignoreCase rer = false ->
+      forall cc cd ctx,
+        Root wroot (CharacterClass cc, ctx) ->
+        equiv_CharClass cc cd ->
+        forall m dir,
+          Semantics.compileSubPattern (CharacterClass cc) ctx rer dir = Success m ->
+          equiv_matcher m (Regex.Character cd) rer dir.
+  Proof.
+    intros rer lroot wroot root_equiv Hcasesenst cc cd ctx Hroot Hequiv' m dir.
+    inversion Hequiv' as [crs cd0 Hequiv'' Heqcc' Heqcd0 | crs cd0 Hequiv'' Heqcc' Heqcd0]; simpl.
+    - pose proof equiv_cd_ClassRanges crs cd rer Hcasesenst Hequiv'' as [a [Heqa Hequiva]]. setoid_rewrite Heqa. simpl.
+      intro H. injection H as <-. eapply charSetMatcher_noninv_equiv; eauto.
+    - subst cd. pose proof equiv_cd_ClassRanges crs cd0 rer Hcasesenst Hequiv'' as [a [Heqa Hequiva]]. setoid_rewrite Heqa. simpl.
+      intro H. injection H as <-. eapply charSetMatcher_inv_equiv; eauto.
+  Qed.
 
 
   (* Lemma for backreferences *)
@@ -543,10 +644,12 @@ Section Equiv.
       eapply characterClassEscape_equiv; eauto. constructor. assumption.
     
     - (* AtomEsc (ACharacterEsc esc); idem *)
-      admit.
+      intros ctx Hroot Heqn m dir Hcompsucc.
+      eapply characterEscape_equiv; eauto.
     
     - (* CharacterClass; idem *)
-      admit.
+      intros ctx Hroot Heqn m dir Hcompsucc.
+      eapply characterClass_equiv; eauto.
 
     - (* Disjunction *)
       intros ctx Hroot Heqn m dir.
