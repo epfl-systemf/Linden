@@ -649,7 +649,6 @@ Section EquivLemmas.
     forall gid, GroupMap.find gid GroupMap.empty = None.
   Proof.
     intro gid.
-    Search GroupMap.MapS.empty.
     destruct GroupMap.find eqn:Hfind; try reflexivity.
     exfalso. apply GroupMap.MapS.find_2 in Hfind.
     exact (GroupMap.MapS.empty_1 Hfind).
@@ -898,7 +897,7 @@ Section EquivLemmas.
     - intro Hfind.
       apply (actions_tree_no_open_groups _ _ _ _ _ _ Heqtlk _ _ _ _ Heqgmafterlk) in Hfind.
       destruct Hfind as [Hfind _]. apply Hgmgl. auto.
-    - intro Hin. Check reg_tree_no_outside_groups.
+    - intro Hin.
       rewrite (reg_tree_no_outside_groups _ _ _ _ _ _ Heqtlk _ _ _ _ Heqgmafterlk).
       + apply Hgmgl. auto.
       + intro Habs. specialize (Hnoforb gid). apply Hgmgl in Hin. rewrite in_app_iff in Hnoforb.
