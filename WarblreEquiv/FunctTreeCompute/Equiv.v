@@ -910,7 +910,11 @@ Section Equiv.
           unfold ms_valid_wrt_checks. intros inpcheck H. destruct H; [discriminate|inversion H].
         }
         specialize (IH Hgmvalid).
-        specialize_prove IH by admit. (* Follows from Hnoforbidden *)
+        specialize_prove IH. {
+          rewrite List.app_nil_r. unfold GroupMapMS.no_forbidden_groups.
+          intros gid Hin. apply Hnoforbidden. apply List.in_or_app. left. simpl.
+          apply in_forb_implies_in_def. auto.
+        }
         specialize (IH eq_refl Htlk).
         unfold lk_succeeds. simpl. unfold Tree.first_branch, lk_group_map. simpl.
         destruct rlk as [rlk|]; simpl.

@@ -646,7 +646,13 @@ Section EquivLemmas.
 
   Lemma gm_find_empty:
     forall gid, GroupMap.find gid GroupMap.empty = None.
-  Admitted.
+  Proof.
+    intro gid.
+    Search GroupMap.MapS.empty.
+    destruct GroupMap.find eqn:Hfind; try reflexivity.
+    exfalso. apply GroupMap.MapS.find_2 in Hfind.
+    exact (GroupMap.MapS.empty_1 Hfind).
+  Qed.
 
   Lemma noforb_empty:
     forall forbgroups, no_forbidden_groups GroupMap.empty forbgroups.
