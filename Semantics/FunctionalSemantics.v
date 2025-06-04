@@ -57,6 +57,16 @@ Section FunctionalSemantics.
         end
     end.
 
+  (** * Lemmas about strict_suffix and is_strict_suffix *)
+
+  Lemma ss_neq:
+    forall inp1 inp2 dir,
+      strict_suffix inp1 inp2 dir -> inp1 <> inp2.
+  Proof.
+    intros inp1 inp2 dir Hss.
+    induction Hss; admit.
+  Admitted.
+
   Lemma ss_next':
     forall inp1 inp2 inp3 dir,
       strict_suffix inp1 inp2 dir ->

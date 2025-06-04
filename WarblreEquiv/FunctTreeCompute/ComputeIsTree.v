@@ -49,6 +49,14 @@ Section ComputeIsTree.
     - auto.
   Qed.
 
+  Corollary inp_valid_checks_self:
+    forall inp acts dir,
+      inp_valid_checks inp acts dir ->
+      inp_valid_checks inp (Acheck inp :: acts)%list dir.
+  Proof.
+    intros. apply inp_valid_checks_Acheck; auto. constructor. reflexivity.
+  Qed.
+
   Lemma inp_valid_checks_nil:
     forall inp dir, inp_valid_checks inp nil dir.
   Proof.
@@ -139,7 +147,7 @@ Section ComputeIsTree.
         * reflexivity.
         * apply IHfuel.
           -- simpl in Hiter. replace (n' - 0) with n' in Hiter by lia. auto.
-          -- (* Adding a check to self *) admit.
+          -- apply inp_valid_checks_Areg, inp_valid_checks_self, inp_valid_checks_Areg. now apply inp_valid_checks_tail in Hvalidchecks.
         * apply IHfuel; auto. eauto using inp_valid_checks_tail.
         * reflexivity.
       + (* Free, infinite delta *)
@@ -151,7 +159,7 @@ Section ComputeIsTree.
         * reflexivity.
         * apply IHfuel.
           -- simpl in Hiter. auto.
-          -- (* Adding a check to self *) admit.
+          -- apply inp_valid_checks_Areg, inp_valid_checks_self, inp_valid_checks_Areg. now apply inp_valid_checks_tail in Hvalidchecks.
         * apply IHfuel; auto. eauto using inp_valid_checks_tail.
         * reflexivity.
       + (* Forced *)
@@ -170,13 +178,13 @@ Section ComputeIsTree.
         destruct (compute_tree acts inp gmlk dir fuel) as [treecont|] eqn:Hcomputecont; try discriminate.
         intros H Hvalidchecks. injection H as <-.
         apply tree_lk with (gmlk := gmlk); auto.
-        * apply IHfuel; auto. (* Valid wrt no checks *) admit.
+        * apply IHfuel; auto. apply inp_valid_checks_Areg, inp_valid_checks_nil.
         * now apply lk_succeeds_result.
         * apply IHfuel; auto. now apply inp_valid_checks_tail in Hvalidchecks.
       + (* Lookaround fails *)
         intros H Hvalidchecks. injection H as <-.
         apply tree_lk_fail; auto.
-        * apply IHfuel; auto. (* Valid wrt no checks *) admit.
+        * apply IHfuel; auto. apply inp_valid_checks_Areg, inp_valid_checks_nil.
         * intro Habs. apply lk_succeeds_result in Habs. congruence.
 
     - (* Group *)
@@ -212,7 +220,7 @@ Section ComputeIsTree.
         destruct compute_tree as [treecont|] eqn:Htreecont; try discriminate.
         intros H Hvalidchecks. injection H as <-.
         apply tree_check; auto.
-        * (* follows from Hssuffix *) admit.
+        * (* follows from Hssuffix *) apply is_strict_suffix_correct in Hssuffix. eauto using ss_neq.
         * apply IHfuel; auto. now apply inp_valid_checks_tail in Hvalidchecks.
       + (* Is not strict suffix *)
         intros H Hvalidchecks. injection H as <-.
