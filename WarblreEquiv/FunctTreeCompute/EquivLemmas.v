@@ -1013,6 +1013,13 @@ Section EquivLemmas.
       now rewrite nth_overflow.
   Qed.
 
+  Lemma gm_find_add:
+    forall gid r gm,
+      GroupMap.find gid (GroupMap.MapS.add gid r gm) = Some r.
+  Proof.
+    intros gid r gm. apply GroupMap.MapS.find_1, GroupMap.MapS.add_1. reflexivity.
+  Qed.
+
   Lemma equiv_gm_ms_close_group:
     forall ms ms' inp inp' gm' n gl dir (rres: Result (option CaptureRange) MatchError) r cap' str0
       (Hmsinp: ms_matches_inp ms inp)
@@ -1050,26 +1057,64 @@ Section EquivLemmas.
       destruct dir; simpl in *.
       + (* Forward *)
         destruct (MatchState.endIndex ms <=? MatchState.endIndex ms')%Z eqn:Hle; simpl in *; try discriminate.
-        replace (GroupMap.find (S n) (GroupMap.close (idx inp') (S n) gm')) with (Some (GroupMap.Range (idx inp) (Some (idx inp')))) by admit.
+        replace (GroupMap.find (S n) (GroupMap.close (idx inp') (S n) gm')) with (Some (GroupMap.Range (idx inp) (Some (idx inp')))).
+        2: {
+          symmetry. specialize (Hgm'gl' (S n) (idx inp)).
+          destruct Hgm'gl' as [_ Hgm'gl'].
+          specialize (Hgm'gl' (or_introl eq_refl)).
+          unfold GroupMap.close. rewrite Hgm'gl'.
+          replace (idx inp <=? idx inp') with true.
+          2: {
+            symmetry. apply Nat.leb_le.
+            unfold idx.
+            inversion Hmsinp. inversion Hms'inp'. inversion Hinpcompat. inversion Hinp'compat.
+            subst ms ms'. simpl in *. lia.
+          }
+          apply gm_find_add.
+        }
         injection Hrressucc as <-.
         constructor.
-        replace (MatchState.endIndex ms) with (Z.of_nat (idx inp)) by admit.
-        replace (MatchState.endIndex ms') with (Z.of_nat (idx inp')) by admit.
+        replace (MatchState.endIndex ms) with (Z.of_nat (idx inp)). 2: {
+          inversion Hmsinp. simpl. f_equal. auto.
+        }
+        replace (MatchState.endIndex ms') with (Z.of_nat (idx inp')). 2: {
+          inversion Hms'inp'. simpl. f_equal. auto.
+        }
         constructor.
       + (* Backward *)
         destruct (MatchState.endIndex ms' <=? MatchState.endIndex ms)%Z eqn:Hle; simpl in *; try discriminate.
-        replace (GroupMap.find (S n) (GroupMap.close (idx inp') (S n) gm')) with (Some (GroupMap.Range (idx inp') (Some (idx inp)))) by admit.
+        replace (GroupMap.find (S n) (GroupMap.close (idx inp') (S n) gm')) with (Some (GroupMap.Range (idx inp') (Some (idx inp)))).
+        2: {
+          symmetry. specialize (Hgm'gl' (S n) (idx inp)).
+          destruct Hgm'gl' as [_ Hgm'gl'].
+          specialize (Hgm'gl' (or_introl eq_refl)).
+          unfold GroupMap.close. rewrite Hgm'gl'.
+          decide (idx inp = idx inp').
+          - rewrite <- H. rewrite Nat.leb_refl. apply gm_find_add.
+          - replace (idx inp <=? idx inp') with false.
+            2: {
+              symmetry. apply Nat.leb_nle.
+              unfold idx in *.
+              inversion Hmsinp. inversion Hms'inp'. inversion Hinpcompat. inversion Hinp'compat. subst inp inp'.
+              subst ms ms'. simpl in *. intro Habs. lia.
+            }
+            apply gm_find_add.
+        }
         injection Hrressucc as <-.
         constructor.
-        replace (MatchState.endIndex ms) with (Z.of_nat (idx inp)) by admit.
-        replace (MatchState.endIndex ms') with (Z.of_nat (idx inp')) by admit.
+        replace (MatchState.endIndex ms) with (Z.of_nat (idx inp)). 2: {
+          inversion Hmsinp. simpl. f_equal. auto.
+        }
+        replace (MatchState.endIndex ms') with (Z.of_nat (idx inp')). 2: {
+          inversion Hms'inp'. simpl. f_equal. auto.
+        }
         constructor.
     - rewrite group_map_close_find_other. 2: { symmetry. intro Habs. injection Habs as Habs. contradiction. }
       simpl.
       rewrite nth_indexing.
       rewrite List.Update.Nat.One.indexing_updated_other with (i := n) (ls := MatchState.captures ms') (v := r); auto.
       rewrite <- nth_indexing. apply Hgm'ms'.
-  Admitted.
+  Qed.
   
   Lemma equiv_open_groups_close_group:
     forall n startidx endidx gm' gl lr,
@@ -1502,11 +1547,7 @@ Section EquivLemmas.
         replace (nth_error (rev (firstn _ _)) i) with (Some gi). 2: { symmetry; eapply backref_get_pref; eauto. lia. }
         replace (nth_error (substr _ _ _) i) with (Some rsi) by (symmetry; eauto using backref_get_ref).
         rewrite neqb_eq in Hdiff. congruence.
-      + replace (nth_error _ i) with (None (A := Character)).
-        2: { symmetry. apply nth_error_None. rewrite rev_length, firstn_length. lia. }
-        replace (nth_error _ i) with (None (A := Character)).
-        2: { symmetry. apply nth_error_None. transitivity (Z.to_nat endIdx - Z.to_nat startIdx). 2: lia.
-          apply substr_len. }
+    Search GroupMap.MapS.empty.
         reflexivity.
   Qed.
 
