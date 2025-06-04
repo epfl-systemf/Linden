@@ -269,11 +269,11 @@ Section EquivLemmas.
       compute_tree acts inp gm0 dir0 fuel = Some t ->
       forall gm1 gm2 idx dir,
         Tree.tree_res t gm1 idx dir = Some gm2 ->
-        forall gid,
-          is_open_range (GroupMap.find gid gm2) ->
-          is_open_range (GroupMap.find gid gm1) /\
+        forall gid idx,
+          GroupMap.find gid gm2 = Some (GroupMap.Range idx None) ->
+          GroupMap.find gid gm1 = Some (GroupMap.Range idx None) /\
           ~In (Aclose gid) acts.
-  Proof.
+  Proof. (* Some variable names do not make sense because this lemma was strengthened wrt a previous version of the lemma *)
     intros acts gm0 inp dir0 fuel. revert acts gm0 inp dir0.
     induction fuel as [|fuel IHfuel]; try discriminate.
 
@@ -307,17 +307,17 @@ Section EquivLemmas.
       intros gm1 gm2 idx dir. simpl.
       destruct (tree_res t1 gm1 idx dir) as [res1|] eqn:Hres1; simpl.
       + (* First branch succeeds *)
-        intro H. injection H as <-. intros gid Hopenres.
-        pose proof IHfuel _ _ _ _ _ Hcompute1 _ _ _ _ Hres1 _ Hopenres.
+        intro H. injection H as <-. intros gid idx' Hopenres.
+        pose proof IHfuel _ _ _ _ _ Hcompute1 _ _ _ _ Hres1 _ _ Hopenres.
         simpl in H. rewrite Areg_Aclose_disappear in *. auto.
       + (* First branch fails *)
-        intros Hres2 gid Hopen2.
-        pose proof IHfuel _ _ _ _ _ Hcompute2 _ _ _ _ Hres2 _ Hopen2.
+        intros Hres2 gid idx' Hopen2.
+        pose proof IHfuel _ _ _ _ _ Hcompute2 _ _ _ _ Hres2 _ _ Hopen2.
         simpl in H. rewrite Areg_Aclose_disappear in *. auto.
     
     - (* Sequence *)
-      simpl. intros gm0 inp dir0 t Hcomputesucc gm1 gm2 idx dir Heqgm2 gid Hopen2.
-      pose proof IHfuel _ _ _ _ _ Hcomputesucc _ _ _ _ Heqgm2 _ Hopen2.
+      simpl. intros gm0 inp dir0 t Hcomputesucc gm1 gm2 idx dir Heqgm2 gid idx' Hopen2.
+      pose proof IHfuel _ _ _ _ _ Hcomputesucc _ _ _ _ Heqgm2 _ _ Hopen2.
       destruct dir0; simpl in H.
       + do 2 rewrite Areg_Aclose_disappear in H. rewrite Areg_Aclose_disappear. auto.
       + do 2 rewrite Areg_Aclose_disappear in H. rewrite Areg_Aclose_disappear. auto.
@@ -328,7 +328,7 @@ Section EquivLemmas.
       destruct min as [|min'].
       1: destruct delta as [[|n']|].
       + (* Done *)
-        intros Hcompute gm1 gm2 idx dir Heqgm2 gid Hopen2.
+        intros Hcompute gm1 gm2 idx dir Heqgm2 gid idx' Hopen2.
         rewrite Areg_Aclose_disappear. eauto using IHfuel.
       + (* Free, finite delta *)
         destruct compute_tree as [titer|] eqn:Htiter; try discriminate.
@@ -338,16 +338,16 @@ Section EquivLemmas.
         * (* Greedy *)
           destruct (tree_res titer _ idx dir) as [gmiter|] eqn:Hresiter; simpl.
           -- (* Iterating succeeds *)
-             intro H. injection H as <-. intros gid Hopeniter.
+             intro H. injection H as <-. intros gid idx' Hopeniter.
              rewrite Areg_Aclose_disappear.
-             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Hresiter _ Hopeniter.
+             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Hresiter _ _ Hopeniter.
              simpl in H. rewrite Areg_Aclose_disappear, Acheck_Aclose_disappear, Areg_Aclose_disappear in H.
              destruct (in_dec Nat.eq_dec gid (def_groups r)) as [Hreset | Hnotreset].
              ++ rewrite gm_reset_find in H by assumption. destruct H. inversion H. (* gid was reset *)
              ++ rewrite gm_reset_find_other in H by assumption. auto.
           -- (* Iterating fails *)
-             intros Heqgm2 gid Hopen2.
-             pose proof IHfuel _ _ _ _ _ Htskip _ _ _ _ Heqgm2 _ Hopen2.
+             intros Heqgm2 gid idx' Hopen2.
+             pose proof IHfuel _ _ _ _ _ Htskip _ _ _ _ Heqgm2 _ _ Hopen2.
              rewrite Areg_Aclose_disappear. auto.
         * (* Lazy *)
           destruct (tree_res tskip gm1 idx dir) as [gmskip|] eqn:Hresskip; simpl.
@@ -355,9 +355,9 @@ Section EquivLemmas.
              intro H. injection H as <-. intros gid Hopenskip.
              rewrite Areg_Aclose_disappear. eauto using IHfuel.
           -- (* Skipping fails *)
-             intros Heqgm2 gid Hopen2.
+             intros Heqgm2 gid idx' Hopen2.
              rewrite Areg_Aclose_disappear.
-             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Heqgm2 _ Hopen2. simpl in H.
+             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Heqgm2 _ _ Hopen2. simpl in H.
              rewrite Areg_Aclose_disappear, Acheck_Aclose_disappear, Areg_Aclose_disappear in H.
              destruct (in_dec Nat.eq_dec gid (def_groups r)) as [Hreset | Hnotreset].
              ++ rewrite gm_reset_find in H by assumption. destruct H. inversion H. (* gid was reset *)
@@ -370,26 +370,26 @@ Section EquivLemmas.
         * (* Greedy *)
           destruct (tree_res titer _ idx dir) as [gmiter|] eqn:Hresiter; simpl.
           -- (* Iterating succeeds *)
-             intro H. injection H as <-. intros gid Hopeniter.
+             intro H. injection H as <-. intros gid idx' Hopeniter.
              rewrite Areg_Aclose_disappear.
-             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Hresiter _ Hopeniter.
+             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Hresiter _ _ Hopeniter.
              simpl in H. rewrite Areg_Aclose_disappear, Acheck_Aclose_disappear, Areg_Aclose_disappear in H.
              destruct (in_dec Nat.eq_dec gid (def_groups r)) as [Hreset | Hnotreset].
              ++ rewrite gm_reset_find in H by assumption. destruct H. inversion H. (* gid was reset *)
              ++ rewrite gm_reset_find_other in H by assumption. auto.
           -- (* Iterating fails *)
-             intros Heqgm2 gid Hopen2.
-             pose proof IHfuel _ _ _ _ _ Htskip _ _ _ _ Heqgm2 _ Hopen2.
+             intros Heqgm2 gid idx' Hopen2.
+             pose proof IHfuel _ _ _ _ _ Htskip _ _ _ _ Heqgm2 _ _ Hopen2.
              rewrite Areg_Aclose_disappear. auto.
         * (* Lazy *)
           destruct (tree_res tskip gm1 idx dir) as [gmskip|] eqn:Hresskip; simpl.
           -- (* Skipping succeeds *)
-             intro H. injection H as <-. intros gid Hopenskip.
+             intro H. injection H as <-. intros gid idx' Hopenskip.
              rewrite Areg_Aclose_disappear. eauto using IHfuel.
           -- (* Skipping fails *)
-             intros Heqgm2 gid Hopen2.
+             intros Heqgm2 gid idx' Hopen2.
              rewrite Areg_Aclose_disappear.
-             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Heqgm2 _ Hopen2. simpl in H.
+             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Heqgm2 _ _ Hopen2. simpl in H.
              rewrite Areg_Aclose_disappear, Acheck_Aclose_disappear, Areg_Aclose_disappear in H.
              destruct (in_dec Nat.eq_dec gid (def_groups r)) as [Hreset | Hnotreset].
              ++ rewrite gm_reset_find in H by assumption. destruct H. inversion H. (* gid was reset *)
@@ -397,9 +397,9 @@ Section EquivLemmas.
       + (* Forced *)
         destruct compute_tree as [titer|] eqn:Htiter; try discriminate.
         intro H. injection H as <-.
-        intros gm1 gm2 idx dir Heqgm2 gid Hopen2.
+        intros gm1 gm2 idx dir Heqgm2 gid idx' Hopen2.
         rewrite Areg_Aclose_disappear.
-        pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Heqgm2 _ Hopen2. simpl in H.
+        pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Heqgm2 _ _ Hopen2. simpl in H.
         do 2 rewrite Areg_Aclose_disappear in H.
         destruct (in_dec Nat.eq_dec gid (def_groups r)) as [Hreset | Hnotreset].
         ++ rewrite gm_reset_find in H by assumption. destruct H. inversion H. (* gid was reset *)
@@ -417,10 +417,10 @@ Section EquivLemmas.
           simpl.
           destruct positivity.
           -- destruct tree_res as [gmafterlk|] eqn:Hgmafterlk; try discriminate.
-             intros Heqgm2 gid Hopen2.
+             intros Heqgm2 gid idx' Hopen2.
              rewrite Areg_Aclose_disappear.
-             pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ Heqgm2 _ Hopen2 as [].
-             pose proof IHfuel _ _ _ _ _ Hcomputelk _ _ _ _ Hgmafterlk _ H as []. auto.
+             pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ Heqgm2 _ _ Hopen2 as [].
+             pose proof IHfuel _ _ _ _ _ Hcomputelk _ _ _ _ Hgmafterlk _ _ H as []. auto.
           -- destruct tree_res as [gmafterlk|] eqn:Hgmafterlk; try discriminate.
              intros Heqgm2 gid Hopen2.
              rewrite Areg_Aclose_disappear.
@@ -434,9 +434,9 @@ Section EquivLemmas.
       intros gm0 inp dir0 t. simpl.
       destruct compute_tree as [treecont|] eqn:Htreecont; try discriminate.
       intro H. injection H as <-.
-      intros gm1 gm2 idx dir Heqgm2 gid0 Hopen2.
+      intros gm1 gm2 idx dir Heqgm2 gid0 idx' Hopen2.
       simpl in Heqgm2.
-      pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ Heqgm2 _ Hopen2 as [].
+      pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ Heqgm2 _ _ Hopen2 as [].
       simpl in H0.
       rewrite Areg_Aclose_disappear in *.
       apply Decidable.not_or in H0. destruct H0.
@@ -475,11 +475,12 @@ Section EquivLemmas.
     - (* Close *)
       intros gm0 inp dir0 t. simpl.
       destruct compute_tree as [treecont|] eqn:Htreecont; try discriminate.
-      intro H. injection H as <-. simpl. intros gm1 gm2 idx dir Heqgm2 gid' Hopen2.
-      pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ Heqgm2 _ Hopen2.
+      intro H. injection H as <-. simpl. intros gm1 gm2 idx dir Heqgm2 gid' idx' Hopen2.
+      pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ Heqgm2 _ _ Hopen2.
       destruct (Nat.eq_dec gid gid') as [Heq | Hnoteq].
       + subst gid'.
-        pose proof group_map_close_find_notopen gm1 idx gid as Hnotopen. destruct H. contradiction.
+        pose proof group_map_close_find_notopen gm1 idx gid as Hnotopen. destruct H. exfalso. apply Hnotopen.
+        rewrite H. constructor.
       + rewrite group_map_close_find_other in H by assumption. destruct H. split; auto.
         intro Habs. destruct Habs.
         * injection H1 as H1. contradiction.
@@ -892,8 +893,17 @@ Section EquivLemmas.
       group_map_equiv_open_groups gmafterlk gl.
   Proof.
     intros gm gl gmafterlk lr inp fuel tlk forbgroups Hgmgl Heqtlk Heqgmafterlk Hnoforb.
-    unfold group_map_equiv_open_groups.
-  Admitted.
+    unfold group_map_equiv_open_groups. intros gid idx.
+    split.
+    - intro Hfind.
+      apply (actions_tree_no_open_groups _ _ _ _ _ _ Heqtlk _ _ _ _ Heqgmafterlk) in Hfind.
+      destruct Hfind as [Hfind _]. apply Hgmgl. auto.
+    - intro Hin. Check reg_tree_no_outside_groups.
+      rewrite (reg_tree_no_outside_groups _ _ _ _ _ _ Heqtlk _ _ _ _ Heqgmafterlk).
+      + apply Hgmgl. auto.
+      + intro Habs. specialize (Hnoforb gid). apply Hgmgl in Hin. rewrite in_app_iff in Hnoforb.
+        simpl in Hnoforb. specialize (Hnoforb (or_introl Habs)). congruence.
+  Qed.
 
   (* Equivalence of a group map gm with a MatchState ms is preserved by resetting the same groups on both sides. *)
   Lemma equiv_gm_ms_reset {F} `{Result.AssertionError F}:
