@@ -63,6 +63,18 @@ Section ComputeIsTree.
     intros inp dir strcheck [].
   Qed.
 
+  Lemma inp_valid_check_notssuffix_eq:
+    forall inp inpcheck acts dir,
+      is_strict_suffix inp inpcheck dir = false ->
+      inp_valid_checks inp (Acheck inpcheck :: acts) dir ->
+      inp = inpcheck.
+  Proof.
+    intros inp inpcheck acts dir Hnotss Hvalidchecks.
+    apply is_strict_suffix_inv_false in Hnotss.
+    specialize (Hvalidchecks inpcheck (or_introl eq_refl)).
+    destruct Hvalidchecks; auto. contradiction.
+  Qed.
+
   Lemma lk_succeeds_group_map:
     forall lk treelk gm idx,
       lk_succeeds lk treelk = true ->
@@ -224,7 +236,8 @@ Section ComputeIsTree.
         * apply IHfuel; auto. now apply inp_valid_checks_tail in Hvalidchecks.
       + (* Is not strict suffix *)
         intros H Hvalidchecks. injection H as <-.
-        apply tree_check_fail. (* Now follows from Hvalidchecks and Hssuffix! *) admit.
+        apply tree_check_fail. (* Now follows from Hvalidchecks and Hssuffix! *)
+        eauto using inp_valid_check_notssuffix_eq.
 
 
     - (* Close *)

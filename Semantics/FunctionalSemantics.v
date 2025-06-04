@@ -158,6 +158,16 @@ Section FunctionalSemantics.
       + now apply strict_suffix_backward_complete.
   Qed.
 
+  Corollary is_strict_suffix_inv_false:
+    forall inp1 inp2 dir,
+      is_strict_suffix inp1 inp2 dir = false <-> ~strict_suffix inp1 inp2 dir.
+  Proof.
+    intros inp1 inp2 dir. split; intro.
+    - intro Habs. apply is_strict_suffix_correct in Habs. congruence.
+    - destruct is_strict_suffix eqn:His_ss; try reflexivity.
+      apply is_strict_suffix_correct in His_ss. contradiction.
+  Qed.
+
   Theorem strict_suffix_current:
     forall inp1 inp2 dir,
       strict_suffix inp1 inp2 dir ->
