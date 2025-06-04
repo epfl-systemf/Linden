@@ -8,7 +8,7 @@ Import Result.Notations.
 Import Notation.
 Import NodeProps.Zipper.
 Import Match.
-From Coq Require Import ZArith PeanoNat Lia.
+From Coq Require Import ZArith PeanoNat Lia RelationClasses.
 
 Local Open Scope result_flow.
 
@@ -380,7 +380,15 @@ Section Equiv.
              unfold equiv_cont in Hequivcont.
              replace (length pref + length _) with (idx inp'). 2: { symmetry; eapply backref_inp'_idx_fwd; eauto. }
              apply Hequivcont with (ms := ms') (fuel := fuel); auto.
-             admit.
+             (* Remains to prove that the new MatchState remains valid with respect to the checks in act *)
+             apply ms_valid_wrt_checks_tail in Hmschecks.
+             unfold ms_valid_wrt_checks. intros inpcheck Hcheckin.
+             specialize (Hmschecks inpcheck Hcheckin). inversion Hmschecks as [ms0 inpcheck0 Hendge |]. subst ms0 inpcheck0.
+             constructor.
+             assert (MatchState.endIndex ms' >= MatchState.endIndex ms)%Z. {
+               unfold ms', endMatch. simpl. lia. 
+             }
+             lia.
       + (* Backward *)
         replace (MatchState.endIndex ms - rlen >? Z.of_nat (length (MatchState.input ms)))%Z with false by lia.
         rewrite Bool.orb_false_r.
@@ -430,7 +438,15 @@ Section Equiv.
              inversion Hmsinp. subst next0 pref0 ms. simpl in *.
              lia. }
              apply Hequivcont with (ms := ms') (fuel := fuel); auto.
-             admit.
+             (* Remains to prove that the new MatchState remains valid with respect to the checks in act *)
+             apply ms_valid_wrt_checks_tail in Hmschecks.
+             unfold ms_valid_wrt_checks. intros inpcheck Hcheckin.
+             specialize (Hmschecks inpcheck Hcheckin). inversion Hmschecks as [|ms0 inpcheck0 Hendge]. subst ms0 inpcheck0.
+             constructor.
+             assert (MatchState.endIndex ms' <= MatchState.endIndex ms)%Z. {
+               unfold ms'. simpl. lia. 
+             }
+             lia.
     - (* Range is undefined *)
       destruct GroupMap.find as [[startIdx [endIdx|]]|] eqn:Hfind.
       + exfalso. eapply equiv_gm_ms_indexing_none; eauto.
@@ -453,7 +469,7 @@ Section Equiv.
         }
         apply Hequivcont with (ms := ms) (fuel := fuel); auto.
         now apply ms_valid_wrt_checks_tail in Hmschecks.
-  Admitted.
+  Qed.
 
   (* Main equivalence theorem: *)
   Theorem equiv:
