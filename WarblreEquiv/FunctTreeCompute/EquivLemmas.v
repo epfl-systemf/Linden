@@ -1547,7 +1547,11 @@ Section EquivLemmas.
         replace (nth_error (rev (firstn _ _)) i) with (Some gi). 2: { symmetry; eapply backref_get_pref; eauto. lia. }
         replace (nth_error (substr _ _ _) i) with (Some rsi) by (symmetry; eauto using backref_get_ref).
         rewrite neqb_eq in Hdiff. congruence.
-    Search GroupMap.MapS.empty.
+      + replace (nth_error _ i) with (None (A := Character)).
+        2: { symmetry. apply nth_error_None. rewrite rev_length, firstn_length. lia. }
+        replace (nth_error _ i) with (None (A := Character)).
+        2: { symmetry. apply nth_error_None. transitivity (Z.to_nat endIdx - Z.to_nat startIdx). 2: lia.
+          apply substr_len. }
         reflexivity.
   Qed.
 
