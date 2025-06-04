@@ -1282,6 +1282,27 @@ Section EquivLemmas.
     eauto using ms_indexing_next_nth.
   Qed.
 
+  Lemma backref_get_pref:
+    forall ms next pref rlen i gi,
+      ms_matches_inp ms (Input next pref) ->
+      i < Z.to_nat rlen ->
+      (MatchState.endIndex ms - rlen >= 0)%Z ->
+      List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms - rlen + Z.of_nat i) = Success gi ->
+      nth_error (rev (firstn (Z.to_nat rlen) pref)) i = Some gi.
+  Proof.
+    intros ms next pref rlen i gi Hmsinp Hiinb Hstartinb Hindexing.
+    inversion Hmsinp as [str0 end_ind cap next' pref' Hlenpref Heqstr0]. subst ms next' pref'.
+    simpl in *.
+    replace (rev _) with (firstn (Z.to_nat rlen) (skipn (end_ind - Z.to_nat rlen) str0)).
+    2: { apply (f_equal (skipn (end_ind - Z.to_nat rlen))) in Heqstr0. rewrite <- Heqstr0.
+    rewrite skipn_app, rev_length. replace (end_ind - _ - length pref) with 0 by lia. simpl.
+    rewrite firstn_app, skipn_length, rev_length. replace (Z.to_nat rlen - _) with 0 by lia.
+    simpl. rewrite app_nil_r. rewrite skipn_rev. replace (length pref - _) with (Z.to_nat rlen) by lia.
+    rewrite firstn_all2. 2: { rewrite rev_length. apply firstn_le_length. } reflexivity. }
+    replace (end_ind - Z.to_nat rlen) with (Z.to_nat (Z.of_nat end_ind - rlen)) by lia.
+    apply indexing_firstn_skipn; auto.
+  Qed.
+
   Lemma backref_get_ref:
     forall ms next pref startIdx endIdx rlen i rsi,
       rlen = (endIdx - startIdx)%Z -> (rlen >= 0)%Z ->
@@ -1362,6 +1383,7 @@ Section EquivLemmas.
       RegExpRecord.ignoreCase rer = false ->
       (rlen >= 0)%Z ->
       beginMatch = (MatchState.endIndex ms - rlen)%Z ->
+      (beginMatch >= 0)%Z ->
       ms_matches_inp ms (Input next pref) ->
       rlen = (endIdx - startIdx)%Z ->
       (startIdx >= 0)%Z -> (endIdx >= 0)%Z ->
@@ -1372,7 +1394,9 @@ Section EquivLemmas.
           Coercions.wrap_bool Errors.MatchError.type (Character.canonicalize rer rsi !=? Character.canonicalize rer gi)%wt) = Success existsdiff ->
       existsdiff = true <-> (List.rev (List.firstn (Z.to_nat rlen) pref) ==? substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = false.
   Proof.
-    intros ms next pref startIdx endIdx beginMatch rlen existsdiff rer Hcasesenst Hrlennneg HeqendMatch Hmsinp Heqrlen HstartIdxnneg HendIdxnneg Heqexistsdiff.
+    intros ms next pref startIdx endIdx beginMatch rlen existsdiff rer
+      Hcasesenst Hrlennneg HeqbeginMatch HbeginMatchinb Hmsinp Heqrlen
+      HstartIdxnneg HendIdxnneg Heqexistsdiff.
     destruct existsdiff.
     - (* There exists some different character *)
       apply List.Exists.true_to_prop in Heqexistsdiff.
@@ -1386,7 +1410,7 @@ Section EquivLemmas.
       simpl in Hdiff. do 2 rewrite canonicalize_casesenst in Hdiff by assumption.
       split; try reflexivity; intros _.
       apply string_diff_iff. exists i.
-      replace (nth_error (rev (firstn _ _)) i) with (Some gi) by (symmetry; admit; eauto using backref_get_next).
+      replace (nth_error (rev (firstn _ _)) i) with (Some gi). 2: { symmetry; eapply backref_get_pref; eauto. lia. }
       replace (nth_error (substr _ _ _) i) with (Some rsi) by (symmetry; eauto using backref_get_ref).
       injection Hdiff as Hdiff. intro H. injection H as H.
       symmetry in H. apply neqb_neq in Hdiff. contradiction.
@@ -1404,7 +1428,7 @@ Section EquivLemmas.
         destruct List.Indexing.Int.indexing as [gi|] eqn:Hgi in Heqexistsdiff; try discriminate.
         simpl in Heqexistsdiff. do 2 rewrite canonicalize_casesenst in Heqexistsdiff by assumption.
         injection Heqexistsdiff as Hdiff.
-        replace (nth_error (rev (firstn _ _)) i) with (Some gi) by (symmetry; admit; eauto using backref_get_next).
+        replace (nth_error (rev (firstn _ _)) i) with (Some gi). 2: { symmetry; eapply backref_get_pref; eauto. lia. }
         replace (nth_error (substr _ _ _) i) with (Some rsi) by (symmetry; eauto using backref_get_ref).
         rewrite neqb_eq in Hdiff. congruence.
       + replace (nth_error _ i) with (None (A := Character)).
@@ -1413,7 +1437,7 @@ Section EquivLemmas.
         2: { symmetry. apply nth_error_None. transitivity (Z.to_nat endIdx - Z.to_nat startIdx). 2: lia.
           apply substr_len. }
         reflexivity.
-  Admitted.
+  Qed.
 
   Lemma msinp_backref_fwd:
     forall ms next pref rlen endMatch ms' inp' str0,
@@ -1439,6 +1463,29 @@ Section EquivLemmas.
     - rewrite rev_app_distr. rewrite <- app_assoc. rewrite rev_involutive, firstn_skipn. auto.
   Qed.
 
+  Lemma msinp_backref_bwd:
+    forall ms next pref rlen beginMatch ms' inp' str0,
+      ms_matches_inp ms (Input next pref) ->
+      input_compat (Input next pref) str0 ->
+      ms' = match_state (MatchState.input ms) beginMatch (MatchState.captures ms) ->
+      inp' = Input (rev (firstn (Z.to_nat rlen) pref) ++ next)%list (skipn (Z.to_nat rlen) pref) ->
+      beginMatch = (MatchState.endIndex ms - rlen)%Z ->
+      (rlen >= 0)%Z ->
+      (beginMatch >= 0)%Z ->
+      ms_matches_inp ms' inp' /\ input_compat inp' str0.
+  Proof.
+    intros ms next pref rlen beginMatch ms' inp' str0 Hmsinp Hinpcompat -> -> -> Hrlennneg Hinb.
+    pose proof ms_matches_inp_inbounds _ _ Hmsinp as Horiginb.
+    set (endInd' := Z.to_nat (MatchState.endIndex ms - rlen)).
+    replace (MatchState.endIndex ms - rlen)%Z with (Z.of_nat endInd') by lia.
+    inversion Hmsinp as [str0' endIndOrig cap next' pref' Hlenpref Heqstr0 Heqms]. inversion Hinpcompat as [next'' pref'' str0'' Heqstr0bis Heqnext'' Heqpref''].
+    subst next' next'' pref' pref'' ms str0''. simpl in *.
+    split; constructor.
+    - rewrite skipn_length. lia.
+    - rewrite app_assoc. rewrite <- rev_app_distr. rewrite firstn_skipn. auto.
+    - rewrite app_assoc. rewrite <- rev_app_distr. rewrite firstn_skipn. auto.
+  Qed.
+
   Lemma backref_inp'_idx_fwd:
     forall next pref inp' rlen startIdx endIdx,
       rlen = (endIdx - startIdx)%Z -> (rlen >= 0)%Z ->
@@ -1449,6 +1496,18 @@ Section EquivLemmas.
     intros next pref inp' rlen startIdx endIdx -> Hrlennneg Hfirstn_next_substr ->.
     rewrite <- Hfirstn_next_substr.
     simpl. rewrite app_length, rev_length. lia. 
+  Qed.
+
+  Lemma backref_inp'_idx_bwd:
+    forall next pref inp' rlen startIdx endIdx,
+      rlen = (endIdx - startIdx)%Z -> (rlen >= 0)%Z -> (rlen <= Z.of_nat (length pref))%Z ->
+      List.rev (List.firstn (Z.to_nat rlen) pref) = substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx) ->
+      inp' = Input (List.rev (List.firstn (Z.to_nat rlen) pref) ++ next)%list (List.skipn (Z.to_nat rlen) pref) ->
+      length pref - length (substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx)) = idx inp'.
+  Proof.
+    intros next pref inp' rlen startIdx endIdx -> Hrlennneg Hrlenle Hfirstn_pref_substr ->.
+    rewrite <- Hfirstn_pref_substr.
+    simpl. rewrite rev_length, skipn_length, firstn_length_le; lia.
   Qed.
 
 End EquivLemmas.

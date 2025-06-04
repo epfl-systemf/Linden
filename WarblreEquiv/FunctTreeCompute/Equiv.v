@@ -392,7 +392,19 @@ Section Equiv.
           intros H1 H2. injection H1 as <-. injection H2 as <-. constructor.
         * (* In bounds *)
           destruct List.Exists.exist as [existsdiff|] eqn:Hexistsdiffres; simpl; try discriminate.
-          assert (Hexistsdiffiff : existsdiff = true <-> (List.rev (List.firstn (Z.to_nat rlen) pref) ==? substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = false) by eauto using exists_diff_iff_bwd.
+          assert (HbeginMatchinb: (MatchState.endIndex ms - rlen >= 0)%Z). {
+            (* The fact that List.Exists.exist succeeds means that indexing the first character succeeds *)
+            unfold List.Range.Int.Bounds.range in Hexistsdiffres. replace (rlen - 0)%Z with rlen in Hexistsdiffres by lia.
+            destruct (Z.to_nat rlen) eqn:Hrlennat.
+            1: { replace rlen with 0%Z by lia. lia. }
+            simpl in Hexistsdiffres.
+            destruct List.Indexing.Int.indexing in Hexistsdiffres; simpl in *; try discriminate.
+            replace (Z.min _ _ + 0)%Z with (MatchState.endIndex ms - rlen)%Z in Hexistsdiffres by lia.
+            destruct List.Indexing.Int.indexing as [gi|] eqn:Hindexingfirst in Hexistsdiffres; simpl in *; try discriminate.
+            apply List.Indexing.Int.success_bounds in Hindexingfirst. lia.
+          }
+          assert (Hexistsdiffiff : existsdiff = true <-> (List.rev (List.firstn (Z.to_nat rlen) pref) ==? substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = false) by
+            eauto using exists_diff_iff_bwd.
           rewrite Bool.negb_involutive_reverse with (b := existsdiff) in Hexistsdiffiff.
           rewrite Bool.negb_true_iff in Hexistsdiffiff.
           destruct existsdiff.
@@ -407,13 +419,16 @@ Section Equiv.
              }
              rewrite Hfirstn_pref_substr. rewrite EqDec.inversion_true in Hfirstn_pref_substr.
              set (ms' := match_state _ _ _). set (inp' := Input _ _).
-             assert (Hms'inp': ms_matches_inp ms' inp') by admit.
-             assert (Hinp'compat: input_compat inp' str0) by admit.
+             assert (Hms'inp': ms_matches_inp ms' inp'). { eapply msinp_backref_bwd with (next := next) (pref := pref) (rlen := rlen); eauto. reflexivity. }
+             assert (Hinp'compat: input_compat inp' str0). { eapply msinp_backref_bwd with (next := next) (pref := pref) (rlen := rlen); eauto. }
              intro Hres.
              destruct compute_tree as [tcont|] eqn:Htcont; try discriminate.
              intro H. injection H as <-. simpl.
              unfold equiv_cont in Hequivcont.
-             replace (length pref - length _) with (idx inp') by admit.
+             replace (length pref - length _) with (idx inp').
+             2: { symmetry. eapply backref_inp'_idx_bwd; eauto.
+             inversion Hmsinp. subst next0 pref0 ms. simpl in *.
+             lia. }
              apply Hequivcont with (ms := ms') (fuel := fuel); auto.
              admit.
     - (* Range is undefined *)
