@@ -188,6 +188,10 @@ Inductive range_dir_valid: option GroupMap.range -> Prop :=
 Definition gm_valid (gm: GroupMap.t): Prop :=
   forall gid: group_id, range_dir_valid (GroupMap.find gid gm).
 
+Inductive gm_opt_valid : option GroupMap.t -> Prop :=
+| Gm_None_valid: gm_opt_valid None
+| Gm_Some_valid: forall gm, gm_valid gm -> gm_opt_valid (Some gm).
+
 Lemma empty_gm_valid: gm_valid GroupMap.empty.
 Proof.
   intro gid. rewrite gm_find_empty. constructor.

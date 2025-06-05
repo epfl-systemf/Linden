@@ -1610,4 +1610,33 @@ Section EquivLemmas.
     simpl. rewrite rev_length, skipn_length, firstn_length_le; lia.
   Qed.
 
+
+  (* tree_res preserves validity of group maps *)
+  Lemma tree_res_gm_valid:
+    forall t gm idx dir,
+      gm_valid gm -> gm_opt_valid (tree_res t gm idx dir).
+  Proof.
+    intro t. induction t as [ | | t1 IH1 t2 IH2 | | | | | act t IH | lk tlk IHlk tcont IHcont |].
+    - constructor.
+    - intros gm idx dir Hvalid. constructor. auto.
+    - intros gm idx dir Hvalid. simpl.
+      specialize (IH1 gm idx dir Hvalid). specialize (IH2 gm idx dir Hvalid).
+      destruct (tree_res t1 gm idx dir); auto.
+    - intros gm idx dir Hvalid. simpl. auto.
+    - intros gm idx dir Hvalid. simpl. auto.
+    - intros gm idx dir Hvalid. simpl. auto.
+    - intros gm idx dir Hvalid. simpl. auto.
+    - intros gm idx dir Hvalid. destruct act as [gid | gid | gl]; simpl.
+      + apply IH. apply gm_open_valid. auto.
+      + apply IH. apply gm_close_valid. auto.
+      + apply IH. apply gm_reset_valid. auto.
+    - intros gm idx dir Hvalid. simpl.
+      destruct positivity.
+      + specialize (IHlk gm idx (lk_dir lk) Hvalid). destruct (tree_res tlk gm idx _).
+        * apply IHcont. inversion IHlk. auto.
+        * constructor.
+      + destruct tree_res; [constructor|auto].
+    - constructor.
+  Qed.
+
 End EquivLemmas.

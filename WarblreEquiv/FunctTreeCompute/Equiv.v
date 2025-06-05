@@ -933,7 +933,7 @@ Section Equiv.
           specialize_prove Hequivcont by eauto using equiv_open_groups_lk. (* Follows from Hgmgl, Heqgmafterlk, Htlk and Hnoforbidden; see paper reasoning (non-trivial, but should not depend on compileSubPattern) *)
           specialize_prove Hequivcont. { unfold msafterlk. apply ms_matches_inp_capchg with (cap := MatchState.captures ms). now destruct ms. }
           specialize_prove Hequivcont. { unfold msafterlk. apply ms_valid_wrt_checks_inpcap with (winp' := MatchState.input ms) (cap' := MatchState.captures ms). apply ms_valid_wrt_checks_tail in Hmschecks. now destruct ms. }
-          specialize_prove Hequivcont by admit. (* tree_res preserves validity of group maps *)
+          specialize_prove Hequivcont. { pose proof tree_res_gm_valid tlk gm (idx inp) forward Hgmvalid. rewrite <- Heqgmafterlk in H. inversion H. auto. } (* tree_res preserves validity of group maps *)
           specialize_prove Hequivcont by eauto using noforb_lk. (* Follows from Hnoforbidden, Heqgmafterlk and Htlk; non-trivial but should not depend on compileSubPattern *)
           intro Hcontsucc. specialize (Hequivcont Hcontsucc eq_refl).
           intro H. injection H as <-.
