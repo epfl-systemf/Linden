@@ -57,7 +57,99 @@ Section FunctionalSemantics.
         end
     end.
 
+
   (** * Lemmas about strict_suffix and is_strict_suffix *)
+  Definition opposite_dir (dir: Direction): Direction :=
+    match dir with forward => backward | backward => forward end.
+  
+  Lemma advance_input_fwd_idx:
+    forall inp nextinp,
+      advance_input inp forward = Some nextinp <->
+        idx nextinp = S (idx inp) /\
+        exists str0,
+          input_compat inp str0 /\ input_compat nextinp str0.
+  Proof.
+    intros [next pref] nextinp. simpl. split.
+    {
+      intro Hadv. destruct next as [|h next']; try discriminate.
+      injection Hadv as <-. simpl. split.
+      - reflexivity.
+      - exists (List.rev pref ++ h :: next'). split; constructor.
+        + reflexivity.
+        + simpl. rewrite <- List.app_assoc. simpl. reflexivity.
+    }
+    {
+      destruct nextinp as [next' pref']. simpl.
+      intros [Hlenpref [str0 [Hinpcompat Hnextcompat]]].
+      inversion Hinpcompat. subst next0 pref0 str1.
+      inversion Hnextcompat. subst next0 pref0 str1.
+      (* Intuitively obvious... *)
+      admit.
+    }
+  Admitted.
+
+  Lemma advance_input_bwd_idx:
+    forall inp nextinp,
+      advance_input inp backward = Some nextinp <->
+        idx inp = S (idx nextinp) /\
+        exists str0,
+          input_compat inp str0 /\ input_compat nextinp str0.
+  Proof.
+    intros [next pref] nextinp. simpl. split.
+    {
+      intro Hadv. simpl in *.
+      destruct pref as [|h pref']; try discriminate.
+      injection Hadv as <-. simpl. split.
+      - reflexivity.
+      - exists (List.rev pref' ++ h :: next). split; constructor.
+        + simpl. rewrite <- List.app_assoc. simpl. reflexivity.
+        + reflexivity.
+    }
+    {
+      destruct nextinp as [next' pref']. simpl.
+      intros [Hlenpref [str0 [Hinpcompat Hnextcompat]]].
+      inversion Hinpcompat. subst next0 pref0 str1.
+      inversion Hnextcompat. subst next0 pref0 str1.
+      (* Intuitively obvious... *)
+      admit.
+    }
+  Admitted.
+
+
+  Theorem ss_idx_fwd:
+    forall inp1 inp2,
+      strict_suffix inp1 inp2 forward <->
+        idx inp1 > idx inp2 /\
+        exists str0,
+          input_compat inp1 str0 /\ input_compat inp2 str0.
+  Proof.
+    intros inp1 inp2. split.
+    - (* Easy direction *)
+      intro Hss. remember forward as dir. induction Hss; subst dir.
+      + apply advance_input_fwd_idx in H. destruct H as [Hidx [str0 [Hinpcompat Hnextinpcompat]]]. split. 1: lia.
+        exists str0. auto.
+      + specialize (IHHss eq_refl).
+        apply advance_input_fwd_idx in H. destruct H as [Hidx [str0 [Hinp2compat Hinp1compat]]]. destruct IHHss as [Hidx23 [str0' [Hinp2compat' Hinp3compat]]].
+        split. 1: lia.
+        exists str0. split; auto.
+        inversion Hinp2compat. inversion Hinp2compat'. rewrite <- H0 in H3. injection H3 as -> ->.
+        rewrite H2 in H. subst str0'. auto.
+    - (* Hard direction *)
+      remember (idx inp1 - idx inp2) as delta.
+      revert inp1 inp2 Heqdelta. induction delta as [|delta IH].
+      + lia.
+      + 
+  Admitted.
+
+  Theorem ss_idx_bwd:
+    forall inp1 inp2,
+      strict_suffix inp1 inp2 backward <->
+        idx inp1 < idx inp2 /\
+        exists str0,
+          input_compat inp1 str0 /\ input_compat inp2 str0.
+  Proof.
+
+  Admitted.
 
   Lemma ss_next':
     forall inp1 inp2 inp3 dir,

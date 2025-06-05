@@ -92,11 +92,6 @@ Section MSInput.
       apply (f_equal (@rev Character)) in H. rewrite rev_involutive in H. congruence.
   Qed.
 
-
-  (* Definition of when an input is compatible with (i.e. represents) a given input string str0. *)
-  Inductive input_compat: input -> string -> Prop :=
-  | Input_compat: forall next pref str0, List.rev pref ++ next = str0 -> input_compat (Input next pref) str0.
-
   (* The initial input of a string is compatible with the string. *)
   Lemma init_input_compat:
     forall str, input_compat (init_input str) str.

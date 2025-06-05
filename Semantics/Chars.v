@@ -51,6 +51,11 @@ Section Chars.
     Input str [].
 
 
+  (* Definition of when an input is compatible with (i.e. represents) a given input string str0. *)
+  Inductive input_compat: input -> string -> Prop :=
+  | Input_compat: forall next pref str0, List.rev pref ++ next = str0 -> input_compat (Input next pref) str0.
+
+
   (* Deciding whether a character is a word character, to check for word boundaries and for character classes \w and \W *)
   Definition word_char c := inb c Character.ascii_word_characters.
 
