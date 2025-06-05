@@ -59,14 +59,6 @@ Section FunctionalSemantics.
 
   (** * Lemmas about strict_suffix and is_strict_suffix *)
 
-  Lemma ss_neq:
-    forall inp1 inp2 dir,
-      strict_suffix inp1 inp2 dir -> inp1 <> inp2.
-  Proof.
-    intros inp1 inp2 dir Hss.
-    induction Hss; admit.
-  Admitted.
-
   Lemma ss_next':
     forall inp1 inp2 inp3 dir,
       strict_suffix inp1 inp2 dir ->
@@ -206,6 +198,24 @@ Section FunctionalSemantics.
     intros [next1 pref1] [next2 pref2] [|] H; simpl in H.
     - destruct next2; inversion H. simpl. auto.
     - destruct pref2; inversion H. simpl. auto.
+  Qed.
+
+  Lemma ss_length_lt:
+    forall inp1 inp2 dir,
+      strict_suffix inp1 inp2 dir -> length (current_str inp1 dir) < length (current_str inp2 dir).
+  Proof.
+    intros inp1 inp2 dir Hss.
+    induction Hss as [inp nextinp dir H | inp1 inp2 inp3 dir Hadv Hss IH].
+    - pose proof advance_current_plus_one nextinp inp dir H. lia.
+    - pose proof advance_current_plus_one inp1 inp2 dir Hadv. lia.
+  Qed.
+
+  Lemma ss_neq:
+    forall inp1 inp2 dir,
+      strict_suffix inp1 inp2 dir -> inp1 <> inp2.
+  Proof.
+    intros inp1 inp2 dir Hss Habs. subst inp2.
+    pose proof ss_length_lt inp1 inp1 dir Hss. lia.
   Qed.
 
   Theorem read_char_suffix:

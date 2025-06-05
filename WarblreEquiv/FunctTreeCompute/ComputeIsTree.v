@@ -130,7 +130,7 @@ Section ComputeIsTree.
         apply tree_char with (nextinp := nextinp); auto.
         apply IHfuel; auto.
         apply inp_valid_checks_tail in Hvalidchecks.
-        admit. (* Advancing the input does not affect validity wrt checks *)
+        admit. (* Advancing the input does not affect validity wrt checks; use read_char_suffix *)
       + intros H Hvalidchecks. injection H as <-.
         apply tree_char_fail. auto.
     
