@@ -645,15 +645,6 @@ Section EquivLemmas.
 
   (** * Lemmas about absence of forbidden groups *)
 
-  Lemma gm_find_empty:
-    forall gid, GroupMap.find gid GroupMap.empty = None.
-  Proof.
-    intro gid.
-    destruct GroupMap.find eqn:Hfind; try reflexivity.
-    exfalso. apply GroupMap.MapS.find_2 in Hfind.
-    exact (GroupMap.MapS.empty_1 Hfind).
-  Qed.
-
   Lemma noforb_empty:
     forall forbgroups, no_forbidden_groups GroupMap.empty forbgroups.
   Proof.
@@ -1011,13 +1002,6 @@ Section EquivLemmas.
     - apply nth_error_nth with (d := None) in Hnth_error. congruence.
     - rewrite nth_error_None in Hnth_error.
       now rewrite nth_overflow.
-  Qed.
-
-  Lemma gm_find_add:
-    forall gid r gm,
-      GroupMap.find gid (GroupMap.MapS.add gid r gm) = Some r.
-  Proof.
-    intros gid r gm. apply GroupMap.MapS.find_1, GroupMap.MapS.add_1. reflexivity.
   Qed.
 
   Lemma equiv_gm_ms_close_group:
