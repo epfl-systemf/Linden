@@ -75,6 +75,21 @@ Section ComputeIsTree.
     destruct Hvalidchecks; auto. contradiction.
   Qed.
 
+  Lemma inp_valid_checks_read_char:
+    forall inp acts dir cd nextinp c,
+      read_char cd inp dir = Some (c, nextinp) ->
+      inp_valid_checks inp acts dir ->
+      inp_valid_checks nextinp acts dir.
+  Proof.
+    intros inp acts dir cd nextinp c Hreadchar Hvalidchecks.
+    unfold inp_valid_checks. intros strcheck Hin.
+    unfold inp_valid_check. right.
+    apply read_char_suffix in Hreadchar.
+    specialize (Hvalidchecks strcheck Hin). destruct Hvalidchecks as [Heq | Hss].
+    - subst inp. auto.
+    - eauto using strict_suffix_trans.
+  Qed.
+
   Lemma lk_succeeds_group_map:
     forall lk treelk gm idx,
       lk_succeeds lk treelk = true ->
@@ -130,7 +145,7 @@ Section ComputeIsTree.
         apply tree_char with (nextinp := nextinp); auto.
         apply IHfuel; auto.
         apply inp_valid_checks_tail in Hvalidchecks.
-        admit. (* Advancing the input does not affect validity wrt checks; use read_char_suffix *)
+        eauto using inp_valid_checks_read_char. (* Advancing the input does not affect validity wrt checks; use read_char_suffix *)
       + intros H Hvalidchecks. injection H as <-.
         apply tree_char_fail. auto.
     
