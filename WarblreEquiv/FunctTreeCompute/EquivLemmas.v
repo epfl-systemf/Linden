@@ -989,21 +989,6 @@ Section EquivLemmas.
   Qed.
 
   (* Lemma for closing a group *)
-  Lemma nth_indexing:
-    forall gid_prec (cap: list (option CaptureRange)),
-      nth gid_prec cap None =
-      match List.Indexing.Nat.indexing cap gid_prec with
-      | Success x => x
-      | Error _ => None
-      end.
-  Proof.
-    intros gid_prec cap. unfold List.Indexing.Nat.indexing.
-    destruct nth_error eqn:Hnth_error; simpl.
-    - apply nth_error_nth with (d := None) in Hnth_error. congruence.
-    - rewrite nth_error_None in Hnth_error.
-      now rewrite nth_overflow.
-  Qed.
-
   Lemma equiv_gm_ms_close_group:
     forall ms ms' inp inp' gm' n gl dir (rres: Result (option CaptureRange) MatchError) r cap' str0
       (Hmsinp: ms_matches_inp ms inp)
