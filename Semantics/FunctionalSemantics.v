@@ -564,9 +564,44 @@ Section FunctionalSemantics.
       advance_input inpn dir = Some inpn_adv ->
       advance_input_n inp (S n) dir = inpn_adv.
   Proof.
-    intros [next pref] n [] inpn inpn_adv Heqinpn Hadv; simpl in *.
-    
-  Admitted.
+    intros [next pref] n [] inpn inpn_adv Heqinpn Hadv.
+    - unfold advance_input_n in *. subst inpn. unfold advance_input in Hadv.
+      destruct (skipn n next) as [|h next'] eqn:Hskipn; try discriminate.
+      injection Hadv as <-.
+      pose proof firstn_skipn n next. rewrite Hskipn in H. rewrite <- H.
+      pose proof skipn_length n next. rewrite Hskipn in H0.
+      assert (Hlen: length (firstn n next) = n). {
+        simpl in *.
+        assert (length next > n) by lia.
+        apply firstn_length_le. lia.
+      }
+      f_equal.
+      + rewrite skipn_app. rewrite skipn_all2 by lia.
+        replace (S n - length _) with 1 by lia. reflexivity.
+      + rewrite app_comm_cons. f_equal. do 2 rewrite firstn_app.
+        rewrite firstn_all2 by lia. replace (S n - length _) with 1 by lia. simpl.
+        replace (n - length _) with 0 by lia. simpl.
+        rewrite <- Hlen at 2. rewrite firstn_all. rewrite rev_app_distr. simpl.
+        rewrite app_nil_r. reflexivity.
+    - unfold advance_input_n in *. subst inpn. unfold advance_input in Hadv.
+      destruct (skipn n pref) as [|h pref'] eqn:Hskipn; try discriminate.
+      injection Hadv as <-.
+      pose proof firstn_skipn n pref. rewrite Hskipn in H. rewrite <- H.
+      pose proof skipn_length n pref. rewrite Hskipn in H0.
+      assert (Hlen: length (firstn n pref) = n). {
+        simpl in *.
+        assert (length pref > n) by lia.
+        apply firstn_length_le. lia.
+      }
+      f_equal.
+      + rewrite app_comm_cons. f_equal. do 2 rewrite firstn_app.
+        rewrite firstn_all2 by lia. replace (S n - length _) with 1 by lia. simpl.
+        replace (n - length _) with 0 by lia. simpl.
+        rewrite <- Hlen at 2. rewrite firstn_all. rewrite rev_app_distr. simpl.
+        rewrite app_nil_r. reflexivity.
+      + rewrite skipn_app. rewrite skipn_all2 by lia.
+        replace (S n - length _) with 1 by lia. reflexivity.
+  Qed.
 
   Lemma advance_input_n_succ_fail:
     forall inp n dir inpn,
@@ -579,7 +614,20 @@ Section FunctionalSemantics.
     forall inp n dir inp',
       inp' = advance_input_n inp n dir ->
       inp' = inp \/ strict_suffix inp' inp dir.
-  Admitted.
+  Proof.
+    intros inp n dir. induction n.
+    - intro inp'. rewrite advance_input_n_0. auto.
+    - intro inp'. set (inpn := advance_input_n inp n dir).
+      specialize (IHn inpn eq_refl).
+      destruct (advance_input inpn dir) as [inpn_adv | ] eqn:Hinpnadv.
+      + rewrite advance_input_n_succ_success with (inpn := inpn) (inpn_adv := inpn_adv); auto.
+        intros ->. destruct IHn as [IHn | IHn].
+        * (* Impossible *)
+          rewrite <- IHn. right. apply ss_advance. auto.
+        * right. apply ss_advance in Hinpnadv. eauto using strict_suffix_trans.
+      + rewrite advance_input_n_succ_fail with (inpn := inpn); auto. intros ->.
+        auto.
+  Qed.
 
   Lemma backref_suffix:
     forall gm gid inp dir br_str nextinp,
