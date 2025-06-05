@@ -1,6 +1,7 @@
 From Linden Require Import EquivDef RegexpTranslation Regex LindenParameters
   Semantics FunctionalSemantics LWEquivTreeLemmas CharDescrCharSet Tactics
-  NumericLemmas MSInput Chars Groups EquivLemmas Utils CharSet GroupMapLemmas.
+  NumericLemmas MSInput Chars Groups EquivLemmas Utils CharSet GroupMapLemmas
+  LKFactorization.
 From Warblre Require Import Parameters Semantics RegExpRecord Patterns
   Node Result Notation Typeclasses List Base Node Match.
 Import Patterns.
@@ -949,7 +950,64 @@ Section Equiv.
           intro H. injection H as <-.
           simpl. constructor.
       
-      + admit.
+      + (* Negative lookahead *)
+        subst wlk llk.
+        destruct Semantics.compileSubPattern as [msub|] eqn:Hcompsuccsub; simpl; try discriminate.
+        specialize (IH (NegativeLookahead_inner :: ctx)%list).
+        specialize_prove IH by eauto using Down.same_root_down0, Down_NegativeLookahead_inner.
+        specialize_prove IH. { simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia. }
+        specialize (IH msub forward Hcompsuccsub).
+        intro H. injection H as <-.
+        unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
+        unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden; simpl; try discriminate.
+        unfold equiv_matcher in IH. specialize (IH str0 id_mcont gl nil nil).
+        specialize_prove IH by now apply id_equiv. specialize (IH Hgldisj). specialize_prove IH by apply List.Disjoint_nil_r.
+        unfold equiv_cont in IH. specialize (IH gm ms inp).
+        destruct msub as [rlk|] eqn:Hrlk; simpl; try discriminate.
+        destruct compute_tree as [tlk|] eqn:Htlk; simpl; try discriminate.
+        specialize (IH rlk fuel tlk Hinpcompat Hgmms Hgmgl Hmsinp).
+        specialize_prove IH. {
+          unfold ms_valid_wrt_checks. intros inpcheck H. destruct H; [discriminate|inversion H].
+        }
+        specialize (IH Hgmvalid).
+        specialize_prove IH. {
+          rewrite List.app_nil_r. unfold GroupMapMS.no_forbidden_groups.
+          intros gid Hin. apply Hnoforbidden. apply List.in_or_app. left. simpl.
+          apply in_forb_implies_in_def. auto.
+        }
+        specialize (IH eq_refl Htlk).
+        unfold lk_succeeds. simpl. unfold Tree.first_branch, lk_group_map. simpl.
+        destruct rlk as [rlk|]; simpl.
+        * (* Lookaround succeeds *)
+          inversion IH as [|gmafterlk rlk' Hequivafterlk Heqgmafterlk Heqrlk']. subst rlk'.
+          intro H. injection H as <-.
+          replace (Tree.tree_res tlk _ 0 forward is not (Some _)) with false.
+          2: {
+            symmetry. destruct (Tree.tree_res tlk _ 0 forward) eqn:Hreslk; try reflexivity.
+            symmetry in Heqgmafterlk. apply Tree.res_group_map_indep with (gm2 := gm) (idx2 := idx inp) (dir2 := forward) in Hreslk. congruence.
+          }
+          intro H. injection H as <-.
+          simpl. constructor.
+        * (* Lookaround fails *)
+          inversion IH as [Htreeresnone|].
+          replace (Tree.tree_res tlk _ 0 forward is not (Some _)) with true.
+          2: {
+            symmetry. destruct (Tree.tree_res tlk GroupMap.empty 0 forward) eqn:Hreslk; try reflexivity.
+            symmetry in Htreeresnone. apply Tree.res_group_map_indep with (gm2 := GroupMap.empty) (idx2 := 0) (dir2 := forward) in Htreeresnone. congruence.
+          }
+          unfold equiv_cont in Hequivcont. specialize (Hequivcont gm ms inp res fuel).
+          destruct (compute_tree act inp gm dir fuel) as [treecont|] eqn:Heqtreecont; simpl; try discriminate.
+          specialize (Hequivcont treecont Hinpcompat).
+          specialize_prove Hequivcont by eauto using equiv_gmafterlk_msafterlk. (* Only depends on captures, follows from Hequivafterlk *)
+          specialize_prove Hequivcont by eauto using equiv_open_groups_lk. (* Follows from Hgmgl, Heqgmafterlk, Htlk and Hnoforbidden; see paper reasoning (non-trivial, but should not depend on compileSubPattern) *)
+          specialize (Hequivcont Hmsinp).
+          specialize_prove Hequivcont. { apply ms_valid_wrt_checks_tail in Hmschecks. auto. }
+          specialize (Hequivcont Hgmvalid).
+          specialize_prove Hequivcont. { unfold GroupMapMS.no_forbidden_groups. intros gid Hin. apply Hnoforbidden. apply List.in_or_app. now right. }
+          intro Hres. specialize (Hequivcont Hres eq_refl).
+          intro H. injection H as <-.
+          simpl. rewrite <- Htreeresnone. assumption.
+      
       + admit.
       + admit.
 
