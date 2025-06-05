@@ -158,7 +158,26 @@ Section MSInput.
       input_compat inp str0 -> input_compat inp' str0 ->
       inp = inp'.
   Proof.
-  Admitted.
+    intros [str endInd cap] [str' endInd' cap'] [next pref] [next' pref'] str0 Hsameend Hmsinp Hms'inp' Hinpcompat Hinp'compat.
+    inversion Hmsinp. inversion Hms'inp'. subst cap0 s next0 pref0 cap1 s0 next1 pref1.
+    rename end_ind0 into end_ind'.
+    inversion Hinpcompat. subst next0 pref0 str1. inversion Hinp'compat. subst next0 pref0 str1.
+    rewrite H4 in H5. rewrite H6 in H12. subst str str'.
+    simpl in Hsameend. apply Z.eqb_eq in Hsameend. subst endInd'.
+    assert (end_ind' = end_ind) by lia. rewrite H in H8. clear H.
+    f_equal.
+    - apply (f_equal (skipn end_ind)) in H4, H6. rewrite skipn_app in H4, H6.
+      subst end_ind. rewrite rev_length in H4, H6.
+      replace (length pref - length pref') with 0 in H6 by lia. rewrite Nat.sub_diag in H4.
+      rewrite <- H8 in H6 at 1. rewrite <- rev_length in H6 at 1. rewrite <- rev_length in H4 at 1.
+      rewrite skipn_all in H4, H6. simpl in H4, H6. congruence.
+    - apply (f_equal (firstn end_ind)) in H4, H6. rewrite firstn_app in H4, H6.
+      subst end_ind. rewrite rev_length in H4, H6.
+      rewrite H8 in H6. rewrite Nat.sub_diag in H4, H6. rewrite <- H8 in H6 at 1.
+      rewrite <- rev_length in H4 at 1, H6 at 1. rewrite firstn_all in H4, H6.
+      simpl in H4, H6. rewrite app_nil_r in H4, H6.
+      apply (f_equal (rev (A := Character))) in H4, H6. rewrite rev_involutive in H4, H6. congruence. 
+  Qed.
 
   Lemma strict_suffix_irreflexive_bool:
     forall inp dir, is_strict_suffix inp inp dir = false.
