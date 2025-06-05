@@ -257,7 +257,10 @@ Section FunctionalSemantics.
       advance_input inp2 dir = None ->
       False.
   Proof.
-  Admitted.
+    intros inp1 inp2 dir Hss. induction Hss.
+    - intro. congruence.
+    - auto.
+  Qed.
 
   Lemma advance_suffix:
     forall inp inpnext inpsuf dir,
