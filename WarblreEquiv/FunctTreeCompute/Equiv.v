@@ -954,6 +954,88 @@ Section Equiv.
       + admit.
 
     - (* Anchor *)
-      admit.
+      intros ctx Hroot Heqn m dir. inversion Hanchequiv as [Heqwr Heqlanchor | Heqwr Heqlanchor | Heqwr Heqlanchor | Heqwr Heqlanchor].
+      
+      + (* Input start *)
+        simpl. intro H. injection H as <-.
+        unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
+        unfold equiv_cont. intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforb.
+        destruct fuel as [|fuel]; simpl; try discriminate.
+        destruct (MatchState.endIndex ms =? 0)%Z eqn:Hatbegin; simpl.
+        * rewrite Z.eqb_eq in Hatbegin. unfold equiv_cont in Hequivcont. specialize (Hequivcont gm ms inp res fuel).
+          unfold anchor_satisfied.
+          pose proof begin_input_pref_empty _ _ Hatbegin Hmsinp as Hprefnil. destruct Hprefnil as [next ->].
+          destruct compute_tree as [treecont|]; try discriminate.
+          specialize (Hequivcont treecont Hinpcompat Hgmms Hgmgl Hmsinp).
+          specialize_prove Hequivcont. { apply ms_valid_wrt_checks_tail in Hmschecks. auto. }
+          specialize (Hequivcont Hgmvalid Hnoforb).
+          intro Hres. specialize (Hequivcont Hres eq_refl). intro H. injection H as <-.
+          simpl in *. auto.
+        * rewrite Hnomultiline. simpl. intro H. injection H as <-.
+          unfold anchor_satisfied.
+          rewrite Z.eqb_neq in Hatbegin.
+          pose proof begin_input_pref_nonempty _ _ Hatbegin Hmsinp as Hprefnotnil. destruct Hprefnotnil as [next [x [pref ->]]].
+          intro H. injection H as <-. simpl. constructor.
+      
+      + (* Input end *)
+        simpl. intro H. injection H as <-.
+        unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
+        unfold equiv_cont. intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforb.
+        destruct fuel as [|fuel]; simpl; try discriminate.
+        destruct (MatchState.endIndex ms =? _)%Z eqn:Hatend; simpl.
+        * rewrite Z.eqb_eq in Hatend. intro Hres.
+          unfold equiv_cont in Hequivcont. specialize (Hequivcont gm ms inp res fuel).
+          unfold anchor_satisfied.
+          pose proof end_input_next_empty _ _ Hatend Hmsinp as Hnextnil. destruct Hnextnil as [pref ->].
+          destruct compute_tree as [treecont|]; try discriminate.
+          intro H. injection H as <-. simpl. apply Hequivcont; auto. apply ms_valid_wrt_checks_tail in Hmschecks. auto.
+        * rewrite Z.eqb_neq in Hatend. rewrite Hnomultiline. simpl.
+          intro H. injection H as <-.
+          unfold anchor_satisfied.
+          pose proof end_input_next_nonempty _ _ Hatend Hmsinp as Hnextnotnil. destruct Hnextnotnil as [pref [x [next ->]]].
+          intro H. injection H as <-. simpl. constructor.
+        
+      + (* Word boundary *)
+        simpl. intro H. injection H as <-.
+        unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
+        unfold equiv_cont. intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforb.
+        destruct fuel as [|fuel]; simpl; try discriminate.
+        destruct Semantics.isWordChar as [a|] eqn:Hwca; simpl in *. 2: discriminate.
+        destruct (Semantics.isWordChar rer (_ ms) (MatchState.endIndex ms)) as [b|] eqn:Hwcb; simpl in *. 2: discriminate.
+        rewrite ifthenelse_xorb. pose proof is_boundary_xorb _ _ _ _ _ Hcasesenst Hmsinp Hwca Hwcb as Hisboundary.
+        destruct xorb.
+        * (* We are on a boundary *)
+          intro Hres.
+          unfold anchor_satisfied.
+          destruct inp as [next pref]. setoid_rewrite <- Hisboundary.
+          unfold equiv_cont in Hequivcont. specialize (Hequivcont gm ms (Input next pref) res fuel).
+          destruct compute_tree as [treecont|]; try discriminate.
+          intro H. injection H as <-. simpl. apply Hequivcont; auto. apply ms_valid_wrt_checks_tail in Hmschecks. auto.
+        * (* We are not *)
+          intro Hres. injection Hres as <-.
+          unfold anchor_satisfied. destruct inp as [next pref]; unfold LindenParameters in *; simpl in *.
+          setoid_rewrite <- Hisboundary. intro H. injection H as <-. simpl. constructor.
+        
+      + (* Non word boundary *)
+        simpl. intro H. injection H as <-.
+        unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
+        unfold equiv_cont. intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforb.
+        destruct fuel as [|fuel]; simpl; try discriminate.
+        destruct Semantics.isWordChar as [a|] eqn:Hwca; simpl in *. 2: discriminate.
+        destruct (Semantics.isWordChar rer (_ ms) (MatchState.endIndex ms)) as [b|] eqn:Hwcb; simpl in *. 2: discriminate.
+        rewrite ifthenelse_negb_xorb. pose proof is_boundary_xorb _ _ _ _ _ Hcasesenst Hmsinp Hwca Hwcb as Hisboundary.
+        destruct xorb.
+        * (* We are on a boundary *)
+          simpl. intro Hres. injection Hres as <-.
+          unfold anchor_satisfied. destruct inp as [next pref].
+          setoid_rewrite <- Hisboundary. simpl. intro H. injection H as <-. constructor.
+        * (* We are not *)
+          simpl. intro Hres.
+          unfold anchor_satisfied.
+          destruct inp as [next pref]. setoid_rewrite <- Hisboundary. simpl.
+          unfold equiv_cont in Hequivcont. specialize (Hequivcont gm ms (Input next pref) res fuel).
+          destruct compute_tree as [treecont|]; try discriminate.
+          intro H. injection H as <-. simpl. apply Hequivcont; auto. apply ms_valid_wrt_checks_tail in Hmschecks. auto.
+
   Admitted.
 End Equiv.
