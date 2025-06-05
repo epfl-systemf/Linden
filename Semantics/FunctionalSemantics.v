@@ -285,12 +285,32 @@ Section FunctionalSemantics.
         end
     end.
 
+  Lemma advance_same_worst:
+    forall nextinp inp d,
+      advance_input inp d = Some nextinp ->
+      (forall dir, worst_input nextinp dir = worst_input inp dir).
+  Proof.
+    intros nextinp inp d H.
+    destruct inp as [next pref]. destruct d; simpl in H.
+    + destruct next; try discriminate. injection H as <-. intros []; simpl.
+      * rewrite <- app_assoc. simpl. reflexivity.
+      * rewrite <- app_assoc. simpl. reflexivity.
+    + destruct pref; try discriminate. injection H as <-. intros []; simpl.
+      * rewrite <- app_assoc. simpl. reflexivity.
+      * rewrite <- app_assoc. simpl. reflexivity.
+  Qed.
+
   Lemma suffix_same_worst:
     forall inp1 inp2 d,
       strict_suffix inp1 inp2 d ->
       (forall dir, worst_input inp1 dir = worst_input inp2 dir).
+  (* suffixes have the same total string *)
   Proof.
-  Admitted.                       (* suffixes have the same total string *)
+    intros inp1 inp2 d Hss. induction Hss.
+    - apply advance_same_worst with (d := dir). auto.
+    - pose proof advance_same_worst _ _ _ H. intro dir'.
+      rewrite H0. apply IHHss.
+  Qed.
 
   Lemma worst_input_suffix:
     forall inp worst dir,
