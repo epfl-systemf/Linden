@@ -181,7 +181,10 @@ Section MSInput.
 
   Lemma strict_suffix_irreflexive_bool:
     forall inp dir, is_strict_suffix inp inp dir = false.
-  Admitted.
+  Proof.
+    intros inp dir. apply is_strict_suffix_inv_false.
+    intro Habs. apply ss_neq in Habs. contradiction.
+  Qed.
 
   (* Whether a MatchState matches an input does not depend on its captures. *)
   Lemma ms_matches_inp_capchg:
