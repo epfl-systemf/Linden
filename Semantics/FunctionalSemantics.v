@@ -558,6 +558,18 @@ Section FunctionalSemantics.
     intros [next pref] dir. simpl. now destruct dir.
   Qed.
 
+  (* May be used to simplify the lemma right after this one *)
+  Lemma skipn_cons_length {A}:
+    forall n (l: list A) x q,
+      skipn n l = x :: q ->
+      length l > n.
+  Proof.
+    intros n l x q Hskipn.
+    pose proof firstn_skipn n l. rewrite Hskipn in H.
+    pose proof skipn_length n l. rewrite Hskipn in H0.
+    simpl in H0. lia.
+  Qed.
+
   Lemma advance_input_n_succ_success:
     forall inp n dir inpn inpn_adv,
       inpn = advance_input_n inp n dir ->
@@ -603,12 +615,36 @@ Section FunctionalSemantics.
         replace (S n - length _) with 1 by lia. reflexivity.
   Qed.
 
+  Lemma skipn_nil_length {A}:
+    forall n (l: list A),
+      skipn n l = [] -> length l <= n.
+  Proof.
+    intros n l Hskipn.
+    pose proof firstn_skipn n l. rewrite Hskipn in H.
+    apply (f_equal (length (A := A))) in H. rewrite app_length in H.
+    simpl in H. rewrite <- plus_n_O in H. rewrite <- H. apply firstn_le_length.
+  Qed.
+
   Lemma advance_input_n_succ_fail:
     forall inp n dir inpn,
       inpn = advance_input_n inp n dir ->
       advance_input inpn dir = None ->
       advance_input_n inp (S n) dir = inpn.
-  Admitted.
+  Proof.
+    intros [next pref] n [] inpn Heqinpn Hadv.
+    - unfold advance_input_n in *. subst inpn. unfold advance_input in Hadv.
+      destruct (skipn n next) eqn:Hskipn; try discriminate.
+      f_equal.
+      + apply skipn_nil_length in Hskipn. apply skipn_all2. lia.
+      + apply skipn_nil_length in Hskipn. rewrite firstn_all2 by lia.
+        rewrite firstn_all2 by lia. reflexivity.
+    - unfold advance_input_n in *. subst inpn. unfold advance_input in Hadv.
+      destruct (skipn n pref) eqn:Hskipn; try discriminate.
+      f_equal.
+      + apply skipn_nil_length in Hskipn. rewrite firstn_all2 by lia.
+        rewrite firstn_all2 by lia. reflexivity.
+      + apply skipn_nil_length in Hskipn. apply skipn_all2. lia.
+  Qed.
 
   Lemma advance_input_n_suffix:
     forall inp n dir inp',
@@ -622,7 +658,7 @@ Section FunctionalSemantics.
       destruct (advance_input inpn dir) as [inpn_adv | ] eqn:Hinpnadv.
       + rewrite advance_input_n_succ_success with (inpn := inpn) (inpn_adv := inpn_adv); auto.
         intros ->. destruct IHn as [IHn | IHn].
-        * (* Impossible *)
+        * (* Impossible, but does not matter *)
           rewrite <- IHn. right. apply ss_advance. auto.
         * right. apply ss_advance in Hinpnadv. eauto using strict_suffix_trans.
       + rewrite advance_input_n_succ_fail with (inpn := inpn); auto. intros ->.
