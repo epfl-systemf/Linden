@@ -785,14 +785,14 @@ Section EquivLemmas.
 
   (* Lemma used in lookarounds *)
   Lemma noforb_lk:
-    forall lr gm gmafterlk forbgroups tlk inp fuel,
-      no_forbidden_groups gm (forbidden_groups (Lookaround LookAhead lr) ++ forbgroups) ->
-      compute_tree [Areg lr] inp gm forward fuel = Some tlk ->
-      tree_res tlk gm (idx inp) forward = Some gmafterlk ->
+    forall lr gm gmafterlk forbgroups tlk inp fuel dir,
+      no_forbidden_groups gm (forbidden_groups (Lookaround (LKFactorization.to_lookaround dir true) lr) ++ forbgroups) ->
+      compute_tree [Areg lr] inp gm dir fuel = Some tlk ->
+      tree_res tlk gm (idx inp) dir = Some gmafterlk ->
       List.Disjoint (def_groups (Lookaround LookAhead lr)) forbgroups ->
       no_forbidden_groups gmafterlk forbgroups.
   Proof.
-    intros lr gm gmafterlk forbgroups tlk inp fuel Hnoforb Heqtlk Heqgmafterlk Hdef_forbid_disj.
+    intros lr gm gmafterlk forbgroups tlk inp fuel dir Hnoforb Heqtlk Heqgmafterlk Hdef_forbid_disj.
     unfold no_forbidden_groups. intros gid Hinforb.
     destruct (in_dec Nat.eq_dec gid (def_groups lr)) as [Hinlr | Hnotinlr].
     - exfalso. unfold List.Disjoint, not in Hdef_forbid_disj. simpl in Hdef_forbid_disj. eauto.
@@ -875,14 +875,14 @@ Section EquivLemmas.
 
   (* Lemma used in lookarounds as well *)
   Lemma equiv_open_groups_lk:
-    forall gm gl gmafterlk lr inp fuel tlk forbgroups,
+    forall gm gl gmafterlk lr inp fuel tlk forbgroups dir,
       group_map_equiv_open_groups gm gl ->
-      compute_tree [Areg lr] inp gm forward fuel = Some tlk ->
-      tree_res tlk gm (idx inp) forward = Some gmafterlk ->
+      compute_tree [Areg lr] inp gm dir fuel = Some tlk ->
+      tree_res tlk gm (idx inp) dir = Some gmafterlk ->
       no_forbidden_groups gm (forbidden_groups (Lookaround LookAhead lr) ++ forbgroups) ->
       group_map_equiv_open_groups gmafterlk gl.
   Proof.
-    intros gm gl gmafterlk lr inp fuel tlk forbgroups Hgmgl Heqtlk Heqgmafterlk Hnoforb.
+    intros gm gl gmafterlk lr inp fuel tlk forbgroups dir Hgmgl Heqtlk Heqgmafterlk Hnoforb.
     unfold group_map_equiv_open_groups. intros gid idx.
     split.
     - intro Hfind.

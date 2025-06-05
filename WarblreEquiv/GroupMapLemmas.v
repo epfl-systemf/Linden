@@ -197,16 +197,6 @@ Proof.
   intro gid. rewrite gm_find_empty. constructor.
 Qed.
 
-Lemma gm_remove_valid:
-  forall gm gid,
-    gm_valid gm -> gm_valid (GroupMap.MapS.remove gid gm).
-Proof.
-  intros gm gid Hvalid gid'.
-  decide (gid = gid').
-  - admit.
-  - admit.
-Admitted.
-
 Lemma gm_open_valid:
   forall gm gid idx,
     gm_valid gm -> gm_valid (GroupMap.open idx gid gm).
