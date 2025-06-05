@@ -26,20 +26,6 @@ Proof.
     apply IHl.
 Qed.
 
-Lemma batch_update_inindices {T F} `{Result.AssertionError F}:
-  forall (l l': list T) (x: T) (indices: list nat),
-    List.List.Update.Nat.Batch.update x l indices = Success l' ->
-    forall i: nat, In i indices -> List.nth_error l' i = Some x.
-Proof.
-Admitted.
-
-Lemma batch_update_outindices {T F} `{Result.AssertionError F}:
-  forall (l l': list T) (x: T) (indices: list nat),
-    List.List.Update.Nat.Batch.update x l indices = Success l' ->
-    forall i: nat, ~In i indices -> List.nth_error l' i = List.nth_error l i.
-Proof.
-Admitted.
-
 Lemma batch_update_1 {A: Type} {F} `{Result.AssertionError F}:
   forall (x: A) (l: list A) idxs (lupd: list A) i,
     List.Update.Nat.Batch.update x l idxs = Success lupd ->
