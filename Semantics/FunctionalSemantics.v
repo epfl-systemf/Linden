@@ -464,7 +464,26 @@ Section FunctionalSemantics.
       worst_input inp dir = worst ->
       worst = inp \/ strict_suffix inp worst dir.
   Proof.
-  Admitted.
+    intros [next pref] [worstnext worstpref] []; simpl.
+    - (* Forward *)
+      intro H. injection H as <- <-.
+      destruct pref as [|x pref'].
+      + left. reflexivity.
+      + right. apply ss_fwd_diff.
+        exists (rev (x :: pref')). split; [|split].
+        * simpl. now destruct rev.
+        * reflexivity.
+        * rewrite rev_involutive, app_nil_r. reflexivity.
+    - (* Backward *)
+      intro H. injection H as <- <-.
+      destruct next as [|x next'].
+      + left. reflexivity.
+      + right. apply ss_bwd_diff.
+        exists (x :: next'). split; [|split].
+        * easy.
+        * rewrite app_nil_r. reflexivity.
+        * reflexivity.
+  Qed.
 
 
   (** * Computing the measure  *)
