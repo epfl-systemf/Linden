@@ -162,6 +162,7 @@ Section RegexpTranslation.
 
     Parameter unknown_regex: regex.
     Parameter unknown_char_descr: char_descr.
+    Parameter unknown_char: Parameters.Character.
 
     Definition characterClassEsc_to_linden (esc: Patterns.CharacterClassEscape): char_descr :=
       match esc with
@@ -175,28 +176,31 @@ Section RegexpTranslation.
       | Patterns.UnicodePropNeg _ => unknown_char_descr (* Unsupported *)
       end.
 
-    Definition controlEsc_to_linden (esc: Patterns.ControlEscape): char_descr :=
+    Definition controlEsc_singleCharacter (esc: Patterns.ControlEscape): Parameters.Character :=
       match esc with
-      | Patterns.esc_f => CdSingle Characters.FORM_FEED
-      | Patterns.esc_n => CdSingle Characters.LINE_FEED
-      | Patterns.esc_r => CdSingle Characters.CARRIAGE_RETURN
-      | Patterns.esc_t => CdSingle Characters.CHARACTER_TABULATION
-      | Patterns.esc_v => CdSingle Characters.LINE_TABULATION
+      | Patterns.esc_f => Characters.FORM_FEED
+      | Patterns.esc_n => Characters.LINE_FEED
+      | Patterns.esc_r => Characters.CARRIAGE_RETURN
+      | Patterns.esc_t => Characters.CHARACTER_TABULATION
+      | Patterns.esc_v => Characters.LINE_TABULATION
       end.
 
-    Definition asciiEsc_to_linden (l: AsciiLetter): char_descr :=
+    Definition asciiEsc_singleCharacter (l: AsciiLetter): Parameters.Character :=
       let n := NonNegInt.modulo (AsciiLetter.numeric_value l) 32 in
-      CdSingle (Character.from_numeric_value n).
+      Character.from_numeric_value n.
+    
+    Definition characterEscape_singleCharacter (esc: Patterns.CharacterEscape): Parameters.Character :=
+      match esc with
+      | Patterns.ControlEsc esc => controlEsc_singleCharacter esc
+      | Patterns.AsciiControlEsc l => asciiEsc_singleCharacter l
+      | Patterns.esc_Zero => Character.from_numeric_value 0
+      | Patterns.HexEscape d1 d2 => Character.from_numeric_value (HexDigit.to_integer_2 d1 d2)
+      | Patterns.UnicodeEsc _ => unknown_char (* Unsupported *)
+      | Patterns.IdentityEsc _ => unknown_char (* Unsupported *)
+      end.
 
     Definition characterEscape_to_linden (esc: Patterns.CharacterEscape): char_descr :=
-      match esc with
-      | Patterns.ControlEsc esc => controlEsc_to_linden esc
-      | Patterns.AsciiControlEsc l => asciiEsc_to_linden l
-      | Patterns.esc_Zero => CdSingle (Character.from_numeric_value 0)
-      | Patterns.HexEscape d1 d2 => CdSingle (Character.from_numeric_value (HexDigit.to_integer_2 d1 d2))
-      | Patterns.UnicodeEsc _ => unknown_char_descr (* Unsupported *)
-      | Patterns.IdentityEsc _ => unknown_char_descr (* Unsupported *)
-      end.
+      CdSingle (characterEscape_singleCharacter esc).
 
     Definition atomesc_to_linden (ae: Patterns.AtomEscape): regex :=
       match ae with
@@ -213,18 +217,37 @@ Section RegexpTranslation.
       | Patterns.CCharacterClassEsc esc => characterClassEsc_to_linden esc
       | Patterns.CCharacterEsc esc => characterEscape_to_linden esc
       end.
+
+    Definition classEscape_singleCharacter (esc: Patterns.ClassEscape): option Parameters.Character :=
+      match esc with
+      | Patterns.esc_b => Some Characters.BACKSPACE
+      | Patterns.esc_Dash => Some Characters.HYPHEN_MINUS
+      | Patterns.CCharacterClassEsc esc => None
+      | Patterns.CCharacterEsc esc => Some (characterEscape_singleCharacter esc)
+      end.
     
     Definition classAtom_to_linden (ca: Patterns.ClassAtom): char_descr :=
       match ca with
       | Patterns.SourceCharacter c => CdSingle c
       | Patterns.ClassEsc esc => classEscape_to_linden esc
       end.
+
+    Definition classAtom_singleCharacter (ca: Patterns.ClassAtom): option Parameters.Character :=
+      match ca with
+      | Patterns.SourceCharacter c => Some c
+      | Patterns.ClassEsc esc => classEscape_singleCharacter esc
+      end.
     
+    (* TODO Wrap into option *)
     Fixpoint classRanges_to_linden (cr: Patterns.ClassRanges): char_descr :=
       match cr with
       | Patterns.EmptyCR => CdEmpty
       | Patterns.ClassAtomCR ca t => CdUnion (classAtom_to_linden ca) (classRanges_to_linden t)
-      | Patterns.RangeCR l h t => unknown_char_descr (* TODO: CdUnion (CdRange (classAtom_to_linden l) (classAtom_to_linden h)) (classRanges_to_linden t) *)
+      | Patterns.RangeCR l h t => 
+          match classAtom_singleCharacter l, classAtom_singleCharacter h with
+          | Some cl, Some ch => CdUnion (CdRange cl ch) (classRanges_to_linden t)
+          | _, _ => unknown_char_descr
+          end
       end.
     
     Definition charclass_to_linden (cc: Patterns.CharClass): char_descr :=
