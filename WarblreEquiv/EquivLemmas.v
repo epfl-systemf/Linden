@@ -1,6 +1,6 @@
 From Linden Require Import Regex GroupMapMS LindenParameters Groups Tree Chars Semantics
   MSInput EquivDef Utils RegexpTranslation FunctionalSemantics WarblreLemmas
-  GroupMapLemmas Tactics CharDescrCharSet CharSet.
+  GroupMapLemmas Tactics CharDescrCharSet CharSet LKFactorization.
 From Warblre Require Import Parameters List Notation Result Typeclasses Base Errors RegExpRecord StaticSemantics Semantics Base.
 From Coq Require Import List ZArith Lia DecidableClass ClassicalFacts.
 Import ListNotations.
