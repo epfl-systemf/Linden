@@ -351,7 +351,29 @@ Section FunctionalSemantics.
       exists nextinp2, advance_input inp2 dir = Some nextinp2 /\
                     strict_suffix nextinp1 nextinp2 dir.
   Proof.
-  Admitted.
+    intros [next1 pref1] [next2 pref2] dir [next1next next1pref] Hss Hadv.
+    destruct dir.
+    - (* Forward *)
+      apply ss_fwd_diff in Hss. destruct Hss as [diff [Hdiffcons [Hnext12 Hpref12]]].
+      destruct diff as [|x diff']; try easy. clear Hdiffcons.
+      exists (Input (diff' ++ next1) (x :: pref2)). split.
+      + rewrite Hnext12, <- app_comm_cons. simpl. reflexivity.
+      + apply ss_fwd_diff. simpl in Hadv. destruct next1 as [|h next1']; try discriminate.
+        injection Hadv as <- <-. exists (diff' ++ [h]). split; [|split].
+        * now destruct diff'.
+        * rewrite <- app_assoc. reflexivity.
+        * rewrite Hpref12, rev_app_distr. simpl. rewrite <- app_assoc. reflexivity.
+    - (* Backward *)
+      apply ss_bwd_diff in Hss. destruct Hss as [diff [Hdiffcons [Hnext12 Hpref12]]].
+      apply exists_last in Hdiffcons. destruct Hdiffcons as [diff' [a Heqdiff]]. subst diff.
+      exists (Input (a :: next2) (rev diff' ++ pref1)). split.
+      + rewrite Hpref12, rev_app_distr. simpl. reflexivity.
+      + apply ss_bwd_diff. simpl in Hadv. destruct pref1 as [|h pref1']; try discriminate.
+        injection Hadv as <- <-. exists (h :: diff'). split; [|split].
+        * easy.
+        * rewrite Hnext12, <- app_comm_cons, <- app_assoc. reflexivity.
+        * simpl. rewrite <- app_assoc. reflexivity.
+  Qed.
 
   Lemma strict_no_advance:
     forall inp1 inp2 dir,
