@@ -579,10 +579,45 @@ Section EquivLemmas.
         rewrite firstn_app, skipn_length, rev_length, Nat.sub_diag. simpl. rewrite app_nil_r.
         rewrite firstn_all2. 1: reflexivity.
         rewrite skipn_length, rev_length. reflexivity.
-      + admit.
+      + apply (f_equal (firstn (length pref'))) in H2, H3. rewrite firstn_app, rev_length in H2, H3.
+        rewrite <- rev_length in H2 at 1. rewrite firstn_all, Nat.sub_diag in H2. simpl in H2. rewrite app_nil_r in H2.
+        rewrite <- H2 in H3. apply (f_equal (rev (A := Character))) in H3. rewrite rev_app_distr, rev_involutive in H3.
+        rewrite <- H3 at 1. f_equal.
+        rewrite firstn_all2. 2: { rewrite rev_length. lia. } apply rev_involutive.
     - (* Backward *)
-      admit.
-  Admitted.
+      destruct inp' as [next' pref']. destruct inp as [next pref].
+      apply ss_bwd_diff.
+      inversion Hinp'compat. subst str1 next0 pref0.
+      inversion Hinpcompat. subst str1 next0 pref0.
+      inversion Hms'inp'. subst next0 pref0 ms'.
+      inversion Hmsinp. subst next0 pref0 ms. simpl in *.
+      unfold ms_valid_wrt_checks in Hvalidchecks. specialize (Hvalidchecks (Input next pref) (or_introl eq_refl)).
+      inversion Hvalidchecks. subst ms inp. simpl in *.
+      rewrite H2 in H5. subst s. rewrite H3 in H7. subst s0. rewrite H6 in H.
+      apply Z.eqb_neq in HendIdxneq.
+      assert (end_ind < end_ind0) by lia.
+      clear Hinpcompat Hinp'compat Hvalidchecks Hmsinp Hms'inp' cap cap0 HendIdxneq H tl. subst end_ind end_ind0.
+      exists (firstn (length pref - length pref') next'). split; [|split].
+      + intro Habs.
+        assert (next' = []). {
+          destruct next'; try reflexivity.
+          apply (f_equal (length (A := Character))) in Habs. rewrite firstn_length in Habs. simpl in Habs. lia.
+        }
+        subst next'. rewrite app_nil_r in H2. rewrite <- H2 in H3.
+        apply (f_equal (length (A := Character))) in H3. rewrite app_length, rev_length, rev_length in H3. lia.
+      + apply (f_equal (skipn (length pref'))) in H2, H3. rewrite skipn_app, rev_length in H2, H3.
+        rewrite <- rev_length in H2 at 1. rewrite skipn_all, Nat.sub_diag in H2. simpl in H2.
+        rewrite <- H2 in H3. replace (length pref' - length pref) with 0 in H3 by lia. simpl in H3.
+        rewrite <- H3 at 1. f_equal.
+        rewrite <- H3. rewrite firstn_app, skipn_length, rev_length, Nat.sub_diag. simpl. rewrite app_nil_r.
+        rewrite firstn_all2. 1: reflexivity.
+        rewrite skipn_length, rev_length. reflexivity.
+      + apply (f_equal (firstn (length pref))) in H2, H3. rewrite firstn_app, rev_length in H2, H3.
+        rewrite <- rev_length in H3 at 1. rewrite firstn_all, Nat.sub_diag in H3. simpl in H3. rewrite app_nil_r in H3.
+        rewrite <- H3 in H2. apply (f_equal (rev (A := Character))) in H2. rewrite rev_app_distr, rev_involutive in H2.
+        rewrite <- H2 at 1. f_equal.
+        rewrite firstn_all2. 2: { rewrite rev_length. lia. } apply rev_involutive.
+  Qed.
 
   (* Validity wrt checks right before iterating a quantifier *)
   Lemma msreset_valid_checks:
