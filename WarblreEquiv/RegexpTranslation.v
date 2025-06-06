@@ -155,4 +155,137 @@ Section RegexpTranslation.
 
   (* Equivalence of root regexes. *)
   Definition equiv_regex (wreg: Patterns.Regex) (lreg: regex) := equiv_regex' wreg lreg 0.
+
+
+  (* Translation function from Warblre to Linden. *)
+  Section WarblreToLinden.
+
+    Parameter unknown_regex: regex.
+    Parameter unknown_char_descr: char_descr.
+
+    Definition characterClassEsc_to_linden (esc: Patterns.CharacterClassEscape): char_descr :=
+      match esc with
+      | Patterns.esc_d => CdDigits
+      | Patterns.esc_D => CdInv CdDigits
+      | Patterns.esc_s => CdWhitespace
+      | Patterns.esc_S => CdInv CdWhitespace
+      | Patterns.esc_w => CdWordChar
+      | Patterns.esc_W => CdInv CdWordChar
+      | Patterns.UnicodeProp _ => unknown_char_descr (* Unsupported *)
+      | Patterns.UnicodePropNeg _ => unknown_char_descr (* Unsupported *)
+      end.
+
+    Definition controlEsc_to_linden (esc: Patterns.ControlEscape): char_descr :=
+      match esc with
+      | Patterns.esc_f => CdSingle Characters.FORM_FEED
+      | Patterns.esc_n => CdSingle Characters.LINE_FEED
+      | Patterns.esc_r => CdSingle Characters.CARRIAGE_RETURN
+      | Patterns.esc_t => CdSingle Characters.CHARACTER_TABULATION
+      | Patterns.esc_v => CdSingle Characters.LINE_TABULATION
+      end.
+
+    Definition asciiEsc_to_linden (l: AsciiLetter): char_descr :=
+      let n := NonNegInt.modulo (AsciiLetter.numeric_value l) 32 in
+      CdSingle (Character.from_numeric_value n).
+
+    Definition characterEscape_to_linden (esc: Patterns.CharacterEscape): char_descr :=
+      match esc with
+      | Patterns.ControlEsc esc => controlEsc_to_linden esc
+      | Patterns.AsciiControlEsc l => asciiEsc_to_linden l
+      | Patterns.esc_Zero => CdSingle (Character.from_numeric_value 0)
+      | Patterns.HexEscape d1 d2 => CdSingle (Character.from_numeric_value (HexDigit.to_integer_2 d1 d2))
+      | Patterns.UnicodeEsc _ => unknown_char_descr (* Unsupported *)
+      | Patterns.IdentityEsc _ => unknown_char_descr (* Unsupported *)
+      end.
+
+    Definition atomesc_to_linden (ae: Patterns.AtomEscape): regex :=
+      match ae with
+      | Patterns.DecimalEsc gid => Backreference (positive_to_nat gid)
+      | Patterns.ACharacterClassEsc esc => unknown_regex
+      | Patterns.ACharacterEsc esc => Character (characterEscape_to_linden esc)
+      | Patterns.GroupEsc gn => unknown_regex (* TODO *)
+      end.
+
+    Definition classEscape_to_linden (esc: Patterns.ClassEscape): char_descr :=
+      match esc with
+      | Patterns.esc_b => CdSingle Characters.BACKSPACE
+      | Patterns.esc_Dash => CdSingle Characters.HYPHEN_MINUS
+      | Patterns.CCharacterClassEsc esc => characterClassEsc_to_linden esc
+      | Patterns.CCharacterEsc esc => characterEscape_to_linden esc
+      end.
+    
+    Definition classAtom_to_linden (ca: Patterns.ClassAtom): char_descr :=
+      match ca with
+      | Patterns.SourceCharacter c => CdSingle c
+      | Patterns.ClassEsc esc => classEscape_to_linden esc
+      end.
+    
+    Fixpoint classRanges_to_linden (cr: Patterns.ClassRanges): char_descr :=
+      match cr with
+      | Patterns.EmptyCR => CdEmpty
+      | Patterns.ClassAtomCR ca t => CdUnion (classAtom_to_linden ca) (classRanges_to_linden t)
+      | Patterns.RangeCR l h t => unknown_char_descr (* TODO: CdUnion (CdRange (classAtom_to_linden l) (classAtom_to_linden h)) (classRanges_to_linden t) *)
+      end.
+    
+    Definition charclass_to_linden (cc: Patterns.CharClass): char_descr :=
+      match cc with
+      | Patterns.NoninvertedCC crs => classRanges_to_linden crs
+      | Patterns.InvertedCC crs => CdInv (classRanges_to_linden crs)
+      end.
+
+    Definition wquantpref_to_linden (qp: Patterns.QuantifierPrefix): bool -> regex -> regex :=
+      match qp with
+      | Patterns.Star => (fun greedy => Quantified greedy 0 +∞)
+      | Patterns.Plus => (fun greedy => Quantified greedy 1 +∞)
+      | Patterns.Question => (fun greedy => Quantified greedy 0 (NoI.N 1))
+      | Patterns.RepExact n => (fun greedy => Quantified greedy n (NoI.N 0))
+      | Patterns.RepPartialRange n => (fun greedy => Quantified greedy n +∞)
+      | Patterns.RepRange mini maxi => (fun greedy => Quantified greedy mini (NoI.N (maxi-mini)))
+      end.
+
+    Fixpoint warblre_to_linden (wr: Patterns.Regex) (n: nat): regex :=
+      match wr with
+      | Patterns.Empty => Epsilon
+      | Patterns.Char chr => Character (CdSingle chr)
+      | Patterns.Dot => Character CdDot
+      | Patterns.AtomEsc ae => atomesc_to_linden ae
+      | Patterns.CharacterClass cc => Character (charclass_to_linden cc)
+      | Patterns.Disjunction wr1 wr2 =>
+          let lr1 := warblre_to_linden wr1 n in
+          let lr2 := warblre_to_linden wr2 (num_groups lr1 + n) in
+          Disjunction lr1 lr2
+      | Patterns.Quantified wr (Patterns.Greedy qp) =>
+          let quant := wquantpref_to_linden qp in
+          let lr := warblre_to_linden wr n in
+          quant true lr
+      | Patterns.Quantified wr (Patterns.Lazy qp) =>
+          let quant := wquantpref_to_linden qp in
+          let lr := warblre_to_linden wr n in
+          quant false lr
+      | Patterns.Seq wr1 wr2 =>
+          let lr1 := warblre_to_linden wr1 n in
+          let lr2 := warblre_to_linden wr2 (num_groups lr1 + n) in
+          Sequence lr1 lr2
+      | Patterns.Group _ wr =>
+          let lr := warblre_to_linden wr (S n) in
+          Group (S n) lr
+      | Patterns.InputStart => Anchor BeginInput
+      | Patterns.InputEnd => Anchor EndInput
+      | Patterns.WordBoundary => Anchor WordBoundary
+      | Patterns.NotWordBoundary => Anchor NonWordBoundary
+      | Patterns.Lookahead wr =>
+          let lr := warblre_to_linden wr n in
+          Lookaround LookAhead lr
+      | Patterns.NegativeLookahead wr =>
+          let lr := warblre_to_linden wr n in
+          Lookaround NegLookAhead lr
+      | Patterns.Lookbehind wr =>
+          let lr := warblre_to_linden wr n in
+          Lookaround LookBehind lr
+      | Patterns.NegativeLookbehind wr =>
+          let lr := warblre_to_linden wr n in
+          Lookaround NegLookBehind lr
+      end.
+
+  End WarblreToLinden.
 End RegexpTranslation.
