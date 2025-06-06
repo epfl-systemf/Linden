@@ -3,7 +3,7 @@ From Linden Require Import Equiv EquivDef LindenParameters RegexpTranslation
   EquivLemmas Utils MSInput Tactics ComputeIsTree GroupMapLemmas.
 From Warblre Require Import Patterns RegExpRecord Parameters Semantics
   Result Base Notation Match.
-From Coq Require Import List Lia PeanoNat ZArith.
+From Coq Require Import List Lia PeanoNat ZArith DecidableClass.
 Import Match.
 Import Notation.
 Import ListNotations.
@@ -23,20 +23,31 @@ Section EquivMain.
     
     Lemma init_ms_equiv_empty:
       forall str0 idx rer, equiv_groupmap_ms GroupMap.empty (init_match_state str0 idx rer).
-    Admitted.
+    Proof.
+      intros str0 idx rer. unfold equiv_groupmap_ms.
+      intro gid_prec. rewrite gm_find_empty. unfold init_match_state. simpl.
+      rewrite nth_repeat. constructor.
+    Qed.
 
     Lemma empty_gm_equiv_empty_gl:
       group_map_equiv_open_groups GroupMap.empty nil.
-    Admitted.
+    Proof.
+      unfold group_map_equiv_open_groups. intros gid idx. rewrite gm_find_empty.
+      split; try discriminate. intro H. inversion H.
+    Qed.
 
     Lemma init_input_compat:
       forall str0, input_compat (init_input str0) str0.
-    Admitted.
+    Proof.
+      intro str0. unfold init_input. constructor. reflexivity.
+    Qed.
 
     Lemma init_ms_matches_inp:
       forall str0 rer,
         ms_matches_inp (init_match_state str0 0 rer) (init_input str0).
-    Admitted.
+    Proof.
+      intros str0 rer. unfold init_match_state, init_input. constructor; reflexivity.
+    Qed.
   End InitState.
 
 

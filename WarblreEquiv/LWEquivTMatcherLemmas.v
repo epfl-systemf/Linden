@@ -1,5 +1,5 @@
 From Linden Require Import LWEquivTMatcherDef Tree LindenParameters
-ListLemmas WarblreLemmas Groups GroupMapMS.
+  ListLemmas WarblreLemmas Groups GroupMapMS GroupMapLemmas Tactics.
 From Warblre Require Import Result Notation Base Errors Parameters List.
 Import Notation.
 Import Result.Notations.
@@ -117,12 +117,35 @@ Section LWEquivTMatcherLemmas.
     intros gm ms gm_reset ms_reset parenIndex parenCount cap' Hgmms Hupdsucc Heqms_reset Heqgm_reset.
     unfold equiv_groupmap_ms. intro gid_prec.
     destruct (nat_in_range_dec (parenIndex + 1 - 1) (parenIndex + parenCount + 1 - 1) gid_prec) as [Hinrange | Houtrange].
-    - assert (Hinrange_linden: parenIndex + 1 <= S gid_prec < parenIndex + parenCount + 1) by lia.
+    - (* In reset range *)
+      assert (Hinrange_linden: parenIndex + 1 <= S gid_prec < parenIndex + parenCount + 1) by lia.
       unfold List.Range.Nat.Bounds.range in Hupdsucc. rewrite range_seq in Hupdsucc.
       replace (parenIndex + parenCount + 1 - 1 - _) with parenCount in Hupdsucc by lia.
       replace (parenIndex + parenCount + 1 - 1) with ((parenIndex + 1 - 1) + parenCount) in Hinrange by lia.
       apply <- List.in_seq in Hinrange.
-  Admitted.
+      replace (GroupMap.find _ gm_reset) with (None (A := GroupMap.range)). 2: {
+        symmetry. subst gm_reset. rewrite gm_reset_find. 1: reflexivity.
+        apply List.in_seq. lia.
+      }
+      replace (List.nth gid_prec (MatchState.captures ms_reset) None) with (None (A := CaptureRange)). 2: {
+        symmetry. subst ms_reset. simpl.
+        pose proof batch_update_1 _ _ _ _ gid_prec Hupdsucc Hinrange None. auto.
+      }
+      constructor.
+    - (* Not in reset range *)
+      replace (GroupMap.find (S gid_prec) gm_reset) with (GroupMap.find (S gid_prec) gm). 2: {
+        symmetry. subst gm_reset. rewrite gm_reset_find_other. 1: reflexivity.
+        rewrite List.in_seq. lia.
+      }
+      replace (List.nth gid_prec (MatchState.captures ms_reset) None)
+        with (List.nth gid_prec (MatchState.captures ms) None). 2: {
+        symmetry. subst ms_reset. simpl.
+        pose proof batch_update_2 _ _ _ _ gid_prec Hupdsucc.
+        specialize_prove H0. { unfold List.Range.Nat.Bounds.range. rewrite range_seq, List.in_seq. lia. }
+        apply H0.
+      }
+      apply Hgmms.
+  Qed.
     
 
 End LWEquivTMatcherLemmas.

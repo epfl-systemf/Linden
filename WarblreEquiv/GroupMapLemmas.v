@@ -1,6 +1,22 @@
 From Linden Require Import Groups Tactics.
 From Coq Require Import List DecidableClass Lia PeanoNat.
 
+Lemma gm_find_empty:
+  forall gid, GroupMap.find gid GroupMap.empty = None.
+Proof.
+  intro gid.
+  destruct GroupMap.find eqn:Hfind; try reflexivity.
+  exfalso. apply GroupMap.MapS.find_2 in Hfind.
+  exact (GroupMap.MapS.empty_1 Hfind).
+Qed.
+
+Lemma gm_find_add:
+  forall gid r gm,
+    GroupMap.find gid (GroupMap.MapS.add gid r gm) = Some r.
+Proof.
+  intros gid r gm. apply GroupMap.MapS.find_1, GroupMap.MapS.add_1. reflexivity.
+Qed.
+
 Lemma group_map_open_find_other:
   forall gm idx gid gid',
     gid <> gid' ->
@@ -172,25 +188,46 @@ Inductive range_dir_valid: option GroupMap.range -> Prop :=
 Definition gm_valid (gm: GroupMap.t): Prop :=
   forall gid: group_id, range_dir_valid (GroupMap.find gid gm).
 
-Lemma empty_gm_valid: gm_valid GroupMap.empty.
-Admitted.
+Inductive gm_opt_valid : option GroupMap.t -> Prop :=
+| Gm_None_valid: gm_opt_valid None
+| Gm_Some_valid: forall gm, gm_valid gm -> gm_opt_valid (Some gm).
 
-Lemma gm_remove_valid:
-  forall gm gid,
-    gm_valid gm -> gm_valid (GroupMap.MapS.remove gid gm).
-Admitted.
+Lemma empty_gm_valid: gm_valid GroupMap.empty.
+Proof.
+  intro gid. rewrite gm_find_empty. constructor.
+Qed.
 
 Lemma gm_open_valid:
   forall gm gid idx,
     gm_valid gm -> gm_valid (GroupMap.open idx gid gm).
-Admitted.
+Proof.
+  intros gm gid idx Hvalid gid'.
+  decide (gid' = gid).
+  - subst gid'. rewrite group_map_open_find. constructor.
+  - rewrite group_map_open_find_other. 2: congruence. apply Hvalid.
+Qed.
 
 Lemma gm_close_valid:
   forall gm gid idx,
     gm_valid gm -> gm_valid (GroupMap.close idx gid gm).
-Admitted.
+Proof.
+  intros gm gid idx Hvalid gid'.
+  decide (gid' = gid).
+  - subst gid'. unfold GroupMap.close.
+    destruct (GroupMap.find gid gm) as [[startIdx endIdxOpt]|] eqn:Hfindorig; simpl.
+    + destruct Nat.leb eqn:Hle; simpl.
+      * apply Nat.leb_le in Hle. rewrite gm_find_add. constructor. assumption.
+      * apply Nat.leb_nle in Hle. rewrite gm_find_add. constructor. lia.
+    + rewrite Hfindorig. constructor.
+  - rewrite group_map_close_find_other. 2: congruence. apply Hvalid.
+Qed.
 
 Lemma gm_reset_valid:
   forall gm gidl,
     gm_valid gm -> gm_valid (GroupMap.reset gidl gm).
-Admitted.
+Proof.
+  intros gm gidl Hvalid gid.
+  destruct (in_dec Nat.eq_dec gid gidl) as [Hin | Hnotin].
+  - rewrite gm_reset_find by assumption. constructor.
+  - rewrite gm_reset_find_other by assumption. apply Hvalid.
+Qed.
