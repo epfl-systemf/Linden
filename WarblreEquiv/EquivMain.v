@@ -1,6 +1,6 @@
 From Linden Require Import Equiv EquivDef LindenParameters RegexpTranslation
   Chars Tree Semantics FunctionalSemantics Groups GroupMapMS Regex
-  EquivLemmas Utils MSInput Tactics ComputeIsTree GroupMapLemmas.
+  EquivLemmas Utils MSInput Tactics ComputeIsTree GroupMapLemmas FunctionalUtils.
 From Warblre Require Import Patterns RegExpRecord Parameters Semantics
   Result Base Notation Match.
 From Coq Require Import List Lia PeanoNat ZArith DecidableClass.
@@ -60,7 +60,7 @@ Section EquivMain.
       RegExpRecord.capturingGroupsCount := StaticSemantics.countLeftCapturingParensWithin wroot nil
     |}.
   
-  Theorem equiv_matcher_idmcont:
+  Theorem equiv_matcher_idmcont_compsucc:
     forall wroot lroot rer m,
       equiv_regex wroot lroot ->
       rer = computeRer wroot ->
@@ -86,14 +86,14 @@ Section EquivMain.
       equiv_regex wroot lroot ->
       rer = computeRer wroot ->
       Semantics.compilePattern wroot rer = Success m ->
-      forall str0 res,
+      forall str0 res t,
         m str0 0 = Success res ->
-        exists t: tree,
-          is_tree [Areg lroot] (init_input str0) GroupMap.empty forward t /\
-          equiv_groupmap_ms_opt (first_branch t) res.
+        t = compute_tr [Areg lroot] (init_input str0) GroupMap.empty forward ->
+        is_tree [Areg lroot] (init_input str0) GroupMap.empty forward t /\
+        equiv_groupmap_ms_opt (first_branch t) res.
   Proof.
-    intros wroot lroot rer m Hequiv Heqrer Hcompsucc str0 res Heqres.
-    pose proof equiv_matcher_idmcont wroot lroot rer as Hequivm.
+    intros wroot lroot rer m Hequiv Heqrer Hcompsucc str0 res t Heqres Heqt.
+    pose proof equiv_matcher_idmcont_compsucc wroot lroot rer as Hequivm.
     unfold Semantics.compilePattern in Hcompsucc.
     destruct Semantics.compileSubPattern as [msp|]; simpl in *; try discriminate.
     injection Hcompsucc as <-.
@@ -108,7 +108,6 @@ Section EquivMain.
     specialize (Hequivm GroupMap.empty ms0 (init_input str0) res fuel).
     pose proof functional_terminates [Areg lroot] (init_input str0) GroupMap.empty forward fuel as Hcomputetreesucc.
     specialize_prove Hcomputetreesucc by lia.
-    destruct compute_tree as [t|] eqn:Hcomputetree; try congruence.
     specialize (Hequivm t).
     specialize_prove Hequivm by apply init_input_compat.
     specialize_prove Hequivm by apply init_ms_equiv_empty.
@@ -117,8 +116,15 @@ Section EquivMain.
     specialize_prove Hequivm. { apply ms_valid_wrt_checks_Areg, ms_valid_wrt_checks_nil. }
     specialize_prove Hequivm by apply empty_gm_valid.
     specialize_prove Hequivm by apply noforb_empty.
-    specialize (Hequivm Heqres eq_refl).
-    exists t. split.
+    specialize (Hequivm Heqres).
+    assert (Hcompute: compute_tree [Areg lroot] (init_input str0) GroupMap.empty forward fuel = Some t). {
+      unfold compute_tr in Heqt. unfold Nat.add in fuel. unfold fuel in Hcomputetreesucc.
+      destruct compute_tree.
+      - f_equal. congruence.
+      - contradiction.
+    }
+    specialize (Hequivm Hcompute).
+    split.
     - apply compute_is_tree with (fuel := fuel); auto.
       apply inp_valid_checks_Areg, inp_valid_checks_nil.
     - exact Hequivm.
