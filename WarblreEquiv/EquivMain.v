@@ -81,7 +81,7 @@ Section EquivMain.
     - apply List.Disjoint_nil_r.
   Qed.
 
-  Corollary equiv_main:
+  Corollary equiv_main':
     forall wroot lroot rer m,
       equiv_regex wroot lroot ->
       rer = computeRer wroot ->
@@ -128,6 +128,34 @@ Section EquivMain.
     - apply compute_is_tree with (fuel := fuel); auto.
       apply inp_valid_checks_Areg, inp_valid_checks_nil.
     - exact Hequivm.
+  Qed.
+
+  Corollary equiv_main:
+    forall wroot lroot rer str0,
+      equiv_regex wroot lroot ->
+      rer = computeRer wroot ->
+      EarlyErrors.Pass_Regex wroot nil ->
+      exists m res,
+        Semantics.compilePattern wroot rer = Success m /\
+        m str0 0 = Success res /\
+        forall t, t = compute_tr [Areg lroot] (init_input str0) GroupMap.empty forward ->
+          is_tree [Areg lroot] (init_input str0) GroupMap.empty forward t /\
+          equiv_groupmap_ms_opt (first_branch t) res.
+  Proof.
+    intros wroot lroot rer str0 Hequiv Heqrer HearlyErrors.
+    pose proof Compile.compilePattern_success wroot rer as Hcompilesucc.
+    assert (Hrercapvalid: StaticSemantics.countLeftCapturingParensWithin wroot [] = RegExpRecord.capturingGroupsCount rer). {
+      subst rer. unfold computeRer. simpl. reflexivity.
+    }
+    specialize (Hcompilesucc Hrercapvalid HearlyErrors). destruct Hcompilesucc as [m Hcompilesucc].
+    exists m.
+    pose proof Match.no_failure wroot rer str0 0 m HearlyErrors Hrercapvalid Hcompilesucc as Hresnofail.
+    pose proof Match.termination wroot rer str0 0 m HearlyErrors Hrercapvalid Hcompilesucc as Hresterminates.
+    specialize (Hresnofail ltac:(lia)).
+    destruct (m str0 0) as [res|[]] eqn:Heqres.
+    2,3: contradiction.
+    exists res. split; [|split]; auto.
+    intros t Heqt. eapply equiv_main'; eauto.
   Qed.
 
 End EquivMain.
