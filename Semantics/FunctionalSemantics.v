@@ -392,7 +392,30 @@ Section FunctionalSemantics.
       advance_input inp dir = Some inpnext ->
       inpnext = inpsuf \/ strict_suffix inpsuf inpnext dir.
   Proof.
-  Admitted.
+    intros [next pref] [nextnext nextpref] [sufnext sufpref] dir Hss Hadv.
+    destruct dir.
+    - (* Forward *)
+      apply ss_fwd_diff in Hss. destruct Hss as [diff [Hdiffcons [Hnext_sufnext Hpref_sufpref]]].
+      destruct diff as [|x diff']; try easy. clear Hdiffcons.
+      destruct diff' as [|y diff''].
+      + rewrite Hnext_sufnext in Hadv. simpl in *. injection Hadv as <- <-. left. f_equal. congruence.
+      + right. apply ss_fwd_diff. rewrite Hnext_sufnext in Hadv. simpl in *.
+        injection Hadv as <- <-. exists (y :: diff''). split; [|split].
+        * easy.
+        * apply app_comm_cons.
+        * simpl. rewrite <- app_assoc. do 2 rewrite <- app_assoc in Hpref_sufpref. auto.
+    - (* Backward *)
+      apply ss_bwd_diff in Hss. destruct Hss as [diff [Hdiffcons [Hnext_sufnext Hpref_sufpref]]].
+      apply exists_last in Hdiffcons. destruct Hdiffcons as [diff' [x Heqdiff]]. subst diff.
+      destruct (decide_nil diff') as [Hnil | Hnotnil].
+      + subst diff'. rewrite Hpref_sufpref in Hadv. simpl in *. injection Hadv as <- <-. left. f_equal. congruence.
+      + right. apply exists_last in Hnotnil. destruct Hnotnil as [diff'' [y Heqdiff']]. subst diff'.
+        apply ss_bwd_diff. rewrite Hpref_sufpref, rev_app_distr in Hadv. simpl in *.
+        injection Hadv as <- <-. exists (diff'' ++ [y]). split; [|split].
+        * now destruct diff''.
+        * rewrite <- app_assoc in Hnext_sufnext. auto.
+        * reflexivity.
+  Qed.
 
 
   (** * Total input  *)
