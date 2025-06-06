@@ -201,7 +201,7 @@ Section RegexpTranslation.
     Definition atomesc_to_linden (ae: Patterns.AtomEscape): regex :=
       match ae with
       | Patterns.DecimalEsc gid => Backreference (positive_to_nat gid)
-      | Patterns.ACharacterClassEsc esc => unknown_regex
+      | Patterns.ACharacterClassEsc esc => Character (characterClassEsc_to_linden esc)
       | Patterns.ACharacterEsc esc => Character (characterEscape_to_linden esc)
       | Patterns.GroupEsc gn => unknown_regex (* TODO *)
       end.
