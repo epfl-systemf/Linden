@@ -7,7 +7,7 @@ From Linden Require Import NumericLemmas.
 From Linden Require Import Groups Semantics.
 From Warblre Require Import Numeric Base.
 
-From Coq Require Import Lia.
+From Coq Require Import Lia DecidableClass.
 (* From Coq Require Import Program. *)
 
 Section FunctionalSemantics.
@@ -59,97 +59,104 @@ Section FunctionalSemantics.
 
 
   (** * Lemmas about strict_suffix and is_strict_suffix *)
-  Definition opposite_dir (dir: Direction): Direction :=
-    match dir with forward => backward | backward => forward end.
-  
-  Lemma advance_input_fwd_idx:
-    forall inp nextinp,
-      advance_input inp forward = Some nextinp <->
-        idx nextinp = S (idx inp) /\
-        exists str0,
-          input_compat inp str0 /\ input_compat nextinp str0.
+
+  Lemma decide_nil {A}:
+    forall l: list A, {l = []} + {l <> []}.
   Proof.
-    intros [next pref] nextinp. simpl. split.
+    intro l. destruct l.
+    - left. reflexivity.
+    - right. discriminate.
+  Defined.
+
+  Theorem ss_fwd_diff:
+    forall next1 pref1 next2 pref2,
+      strict_suffix (Input next1 pref1) (Input next2 pref2) forward <->
+        exists diff, diff <> [] /\ next2 = diff ++ next1 /\ pref1 = rev diff ++ pref2.
+  Proof.
+    intros next1 pref1 next2 pref2. split.
     {
-      intro Hadv. destruct next as [|h next']; try discriminate.
-      injection Hadv as <-. simpl. split.
-      - reflexivity.
-      - exists (List.rev pref ++ h :: next'). split; constructor.
-        + reflexivity.
-        + simpl. rewrite <- List.app_assoc. simpl. reflexivity.
+      intro Hss. remember forward as dir. remember (Input next1 pref1) as inp1. remember (Input next2 pref2) as inp2.
+      revert next1 pref1 next2 pref2 Heqinp1 Heqinp2.
+      induction Hss as [inp nextinp dir Hadv|inp1 inp2 inp3 dir Hadv Hss IH]; subst dir.
+      - intros. subst inp nextinp. simpl in Hadv. destruct next2 as [|h next2']; simpl in *; try discriminate.
+        injection Hadv as <- <-. exists [h]. split; [|split]; easy.
+      - intros next1 pref1 next3 pref3 -> ->. destruct inp2 as [next2 pref2].
+        specialize (IH eq_refl _ _ _ _ eq_refl eq_refl). destruct IH as [diff [Hdiffcons [Hnext23 Hpref23]]].
+        simpl in Hadv. destruct next2 as [|h next2']; try discriminate.
+        injection Hadv as <- <-. exists (diff ++ [h]). split; [|split].
+        + destruct diff; easy.
+        + rewrite Hnext23, <- app_assoc. reflexivity.
+        + rewrite Hpref23, rev_app_distr, <- app_assoc. reflexivity.
     }
     {
-      destruct nextinp as [next' pref']. simpl.
-      intros [Hlenpref [str0 [Hinpcompat Hnextcompat]]].
-      inversion Hinpcompat. subst next0 pref0 str1.
-      inversion Hnextcompat. subst next0 pref0 str1.
-      (* Intuitively obvious... *)
-      admit.
+      intros [diff [Hdiffcons [Hnext12 Hpref12]]].
+      rewrite <- length_zero_iff_nil in Hdiffcons. remember (length diff) as nd.
+      revert next1 pref1 next2 pref2 diff Heqnd Hdiffcons Hnext12 Hpref12. induction nd as [|nd' IH].
+      - easy.
+      - intros next1 pref1 next2 pref2 diff Hlendiff _ Hnext12 Hpref12.
+        destruct diff as [|x diff']; try discriminate.
+        destruct (decide_nil diff') as [Hnil | Hnotnil].
+        + subst diff'. simpl in *. apply ss_advance. simpl. rewrite Hnext12. f_equal. f_equal. congruence.
+        + pose proof exists_last Hnotnil as [diff'' [a Heqdiff']]. subst diff'.
+          (* Situation:
+          |-----------|---|--------|---|-------|
+            rev pref2  [x]  diff''  [a]  next1
+          *)
+          apply ss_next with (inp2 := Input (a::next1) (rev (x :: diff'') ++ pref2)).
+          * simpl. f_equal. f_equal. rewrite Hpref12. simpl.
+            rewrite rev_app_distr, <- app_assoc, <- app_assoc, <- app_assoc. reflexivity.
+          * simpl in *. rewrite app_length in Hlendiff. simpl in *. apply IH with (diff := x :: diff'').
+            -- simpl. lia. 
+            -- lia.
+            -- rewrite <- app_comm_cons. rewrite <- app_assoc in Hnext12. auto.
+            -- f_equal.
     }
-  Admitted.
+  Qed.
 
-  Lemma advance_input_bwd_idx:
-    forall inp nextinp,
-      advance_input inp backward = Some nextinp <->
-        idx inp = S (idx nextinp) /\
-        exists str0,
-          input_compat inp str0 /\ input_compat nextinp str0.
+  Theorem ss_bwd_diff:
+    forall next1 pref1 next2 pref2,
+      strict_suffix (Input next1 pref1) (Input next2 pref2) backward <->
+        exists diff, diff <> [] /\ next1 = diff ++ next2 /\ pref2 = rev diff ++ pref1.
   Proof.
-    intros [next pref] nextinp. simpl. split.
+    intros next1 pref1 next2 pref2. split.
     {
-      intro Hadv. simpl in *.
-      destruct pref as [|h pref']; try discriminate.
-      injection Hadv as <-. simpl. split.
-      - reflexivity.
-      - exists (List.rev pref' ++ h :: next). split; constructor.
-        + simpl. rewrite <- List.app_assoc. simpl. reflexivity.
-        + reflexivity.
+      intro Hss. remember backward as dir. remember (Input next1 pref1) as inp1. remember (Input next2 pref2) as inp2.
+      revert next1 pref1 next2 pref2 Heqinp1 Heqinp2.
+      induction Hss as [inp nextinp dir Hadv|inp1 inp2 inp3 dir Hadv Hss IH]; subst dir.
+      - intros. subst inp nextinp. simpl in Hadv. destruct pref2 as [|h pref2']; simpl in *; try discriminate.
+        injection Hadv as <- <-. exists [h]. split; [|split]; easy.
+      - intros next1 pref1 next3 pref3 -> ->. destruct inp2 as [next2 pref2].
+        specialize (IH eq_refl _ _ _ _ eq_refl eq_refl). destruct IH as [diff [Hdiffcons [Hnext23 Hpref23]]].
+        simpl in Hadv. destruct pref2 as [|h pref2']; try discriminate.
+        injection Hadv as <- <-. exists (h :: diff). split; [|split].
+        + destruct diff; easy.
+        + rewrite Hnext23, <- app_comm_cons. reflexivity.
+        + rewrite Hpref23. simpl. rewrite <- app_assoc. reflexivity.
     }
     {
-      destruct nextinp as [next' pref']. simpl.
-      intros [Hlenpref [str0 [Hinpcompat Hnextcompat]]].
-      inversion Hinpcompat. subst next0 pref0 str1.
-      inversion Hnextcompat. subst next0 pref0 str1.
-      (* Intuitively obvious... *)
-      admit.
+      intros [diff [Hdiffcons [Hnext12 Hpref12]]].
+      rewrite <- length_zero_iff_nil in Hdiffcons. remember (length diff) as nd.
+      revert next1 pref1 next2 pref2 diff Heqnd Hdiffcons Hnext12 Hpref12. induction nd as [|nd' IH].
+      - easy.
+      - intros next1 pref1 next2 pref2 diff Hlendiff _ Hnext12 Hpref12.
+        destruct diff as [|x diff']; try discriminate.
+        destruct (decide_nil diff') as [Hnil | Hnotnil].
+        + subst diff'. simpl in *. apply ss_advance. simpl. rewrite Hpref12. f_equal. f_equal. congruence.
+        + pose proof exists_last Hnotnil as [diff'' [a Heqdiff']]. subst diff'.
+          (* Situation:
+          |-----------|---|--------|---|-------|
+            rev pref1  [x]  diff''  [a]  next2
+          *)
+          apply ss_next with (inp2 := Input (diff'' ++ a :: next2) (x :: pref1)).
+          * simpl. f_equal. f_equal. rewrite Hnext12. simpl.
+            rewrite <- app_assoc. reflexivity.
+          * simpl in *. rewrite app_length in Hlendiff. simpl in *. apply IH with (diff := diff'' ++ [a]).
+            -- rewrite app_length. simpl. lia. 
+            -- lia.
+            -- rewrite <- app_assoc. auto.
+            -- rewrite <- app_assoc in Hpref12. auto.
     }
-  Admitted.
-
-
-  Theorem ss_idx_fwd:
-    forall inp1 inp2,
-      strict_suffix inp1 inp2 forward <->
-        idx inp1 > idx inp2 /\
-        exists str0,
-          input_compat inp1 str0 /\ input_compat inp2 str0.
-  Proof.
-    intros inp1 inp2. split.
-    - (* Easy direction *)
-      intro Hss. remember forward as dir. induction Hss; subst dir.
-      + apply advance_input_fwd_idx in H. destruct H as [Hidx [str0 [Hinpcompat Hnextinpcompat]]]. split. 1: lia.
-        exists str0. auto.
-      + specialize (IHHss eq_refl).
-        apply advance_input_fwd_idx in H. destruct H as [Hidx [str0 [Hinp2compat Hinp1compat]]]. destruct IHHss as [Hidx23 [str0' [Hinp2compat' Hinp3compat]]].
-        split. 1: lia.
-        exists str0. split; auto.
-        inversion Hinp2compat. inversion Hinp2compat'. rewrite <- H0 in H3. injection H3 as -> ->.
-        rewrite H2 in H. subst str0'. auto.
-    - (* Hard direction *)
-      remember (idx inp1 - idx inp2) as delta.
-      revert inp1 inp2 Heqdelta. induction delta as [|delta IH].
-      + lia.
-      + 
-  Admitted.
-
-  Theorem ss_idx_bwd:
-    forall inp1 inp2,
-      strict_suffix inp1 inp2 backward <->
-        idx inp1 < idx inp2 /\
-        exists str0,
-          input_compat inp1 str0 /\ input_compat inp2 str0.
-  Proof.
-
-  Admitted.
+  Qed.
 
   Lemma ss_next':
     forall inp1 inp2 inp3 dir,
@@ -162,36 +169,6 @@ Section FunctionalSemantics.
     - intros inp4 H34. eauto using ss_next, ss_advance, IH.
   Qed.
 
-
-  (* Situation: if
-      ---|-------|-|----> dir
-         1       2 3
-     then
-      ---|-|-------|----> dir
-         1 2'      3
-     and either 2 = 2' or strict_suffix 2 2'.
-  *)
-  Lemma ss_next'_inv:
-    forall inp1 inp2 inp3 dir,
-      advance_input inp2 dir = Some inp1 ->
-      strict_suffix inp2 inp3 dir ->
-      exists inp2',
-        strict_suffix inp1 inp2' dir /\
-        advance_input inp3 dir = Some inp2' /\
-        (inp2' = inp2 \/ strict_suffix inp2 inp2' dir).
-  Admitted.
-
-  Lemma strict_suffix_ind':
-    forall (P: input -> input -> Direction -> Prop)
-      (Hadvance: forall inp nextinp dir,
-      advance_input inp dir = Some nextinp -> P nextinp inp dir)
-      (Hnext': forall inp1 inp2 inp3 dir,
-        P inp1 inp2 dir ->
-        advance_input inp3 dir = Some inp2 ->
-        P inp1 inp3 dir),
-      forall inp1 inp2 dir,
-        strict_suffix inp1 inp2 dir -> P inp1 inp2 dir.
-  Admitted.
 
   Lemma strict_suffix_forward_sound:
     forall inp next pref,
@@ -209,7 +186,24 @@ Section FunctionalSemantics.
   Lemma strict_suffix_forward_complete:
     forall inp next pref,
       strict_suffix inp (Input next pref) forward -> strict_suffix_forward inp next pref = true.
-  Admitted.
+  Proof.
+    intros [next' pref'] next pref Hss.
+    apply ss_fwd_diff in Hss. destruct Hss as [diff [Hdiffcons [Hnextnext' Hprefpref']]].
+    revert next' pref' next pref Hdiffcons Hnextnext' Hprefpref'.
+    induction diff as [|x diff' IH].
+    { easy. }
+    (* Situation:
+    |--------|-|------|---------|
+       pref   x  diff    next'
+    *)
+    intros next' pref' next pref _ Hnextnext' Hprefpref'. rewrite Hnextnext', <- app_comm_cons.
+    simpl.
+    destruct (decide_nil diff') as [Hdiff'nil | Hdiff'notnil].
+    - subst diff'. simpl in *. rewrite <- Hprefpref', EqDec.reflb. reflexivity.
+    - destruct EqDec.eqb; try reflexivity.
+      apply IH; auto.
+      simpl in Hprefpref'. rewrite <- app_assoc in Hprefpref'. auto.
+  Qed.
 
   Lemma strict_suffix_backward_sound:
     forall inp next pref,
@@ -227,7 +221,23 @@ Section FunctionalSemantics.
   Lemma strict_suffix_backward_complete:
     forall inp next pref,
       strict_suffix inp (Input next pref) backward -> strict_suffix_backward inp next pref = true.
-  Admitted.
+  Proof.
+    intros [next' pref'] next pref Hss.
+    apply ss_bwd_diff in Hss. destruct Hss as [diff [Hdiffcons [Hnextnext' Hprefpref']]].
+    revert next' pref' next pref Hdiffcons Hnextnext' Hprefpref'.
+    induction diff as [|x diff' IH] using rev_ind.
+    { easy. }
+    (* Situation:
+    |--------|-|------|---------|
+       pref'  x  diff'   next
+    *)
+    intros next' pref' next pref _ Hnextnext' Hprefpref'. rewrite Hprefpref', rev_app_distr. simpl.
+    destruct (decide_nil diff') as [Hdiff'nil | Hdiff'notnil].
+    - subst diff'. simpl in *. rewrite <- Hnextnext', EqDec.reflb. reflexivity.
+    - destruct EqDec.eqb; try reflexivity.
+      apply IH; auto.
+      rewrite <- app_assoc in Hnextnext'. auto.
+  Qed.
 
   Theorem is_strict_suffix_correct:
     forall inp1 inp2 dir,
