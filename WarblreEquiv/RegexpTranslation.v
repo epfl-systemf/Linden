@@ -265,7 +265,7 @@ Section RegexpTranslation.
                 Some (Some (CdUnion (CdRange cl ch) cdt))
               else
                 Some None
-          | Some _, Some _, Some None => Some None
+          | Some _, Some _, Some None | None, _, Some _ | _, None, Some _ => Some None
           | _, _, _ => None
           end
       end.
@@ -389,4 +389,94 @@ Section RegexpTranslation.
       end.
 
   End WarblreToLinden.
+
+  Section LindenToWarblre.
+
+    Parameter todo_regex: option Patterns.Regex.
+
+    Definition cd_to_warblre (cd: char_descr): option Patterns.Regex :=
+      match cd with
+      | CdEmpty => Some (Patterns.CharacterClass (Patterns.NoninvertedCC Patterns.EmptyCR))
+      | CdDot => Some Patterns.Dot
+      | CdAll => None
+      | CdSingle c => Some (Patterns.Char c)
+      | CdDigits => Some (Patterns.AtomEsc (Patterns.ACharacterClassEsc Patterns.esc_d))
+      | CdWhitespace => Some (Patterns.AtomEsc (Patterns.ACharacterClassEsc Patterns.esc_s))
+      | CdWordChar => Some (Patterns.AtomEsc (Patterns.ACharacterClassEsc Patterns.esc_w))
+      | CdInv cd => None (* any way to translate CdInv easily? *)
+      | CdRange l h => Some (Patterns.CharacterClass (Patterns.NoninvertedCC (Patterns.RangeCR (Patterns.SourceCharacter l) (Patterns.SourceCharacter h) Patterns.EmptyCR)))
+      | CdUnion cd1 cd2 => None (* any way to translate this easily? *)
+      end.
+
+    Definition to_warblre_qp (min: nat) (delta: non_neg_integer_or_inf) :=
+      match delta with
+      | +∞ => Patterns.RepPartialRange min
+      | NoI.N delta => Patterns.RepRange min (min + delta)
+      end.
+
+    Fixpoint linden_to_warblre (lr: regex) (n: nat): option Patterns.Regex :=
+      match lr with
+      | Epsilon => Some Patterns.Empty
+      | Character cd => cd_to_warblre cd
+      | Disjunction r1 r2 =>
+          let wr1_opt := linden_to_warblre r1 n in
+          let wr2_opt := linden_to_warblre r2 (num_groups r1 + n) in
+          match wr1_opt, wr2_opt with
+          | Some wr1, Some wr2 => Some (Patterns.Disjunction wr1 wr2)
+          | _, _ => None
+          end
+      | Sequence r1 r2 =>
+          let wr1_opt := linden_to_warblre r1 n in
+          let wr2_opt := linden_to_warblre r2 (num_groups r1 + n) in
+          match wr1_opt, wr2_opt with
+          | Some wr1, Some wr2 => Some (Patterns.Seq wr1 wr2)
+          | _, _ => None
+          end
+      | Quantified greedy min delta r =>
+          let greedylazy :=
+            if greedy then Patterns.Greedy else Patterns.Lazy
+          in
+          let qp := to_warblre_qp min delta in
+          let wr_opt := linden_to_warblre r n in
+          match wr_opt with
+          | Some wr => Some (Patterns.Quantified wr (greedylazy qp))
+          | None => None
+          end
+      | Lookaround lk r =>
+          let wr_opt := linden_to_warblre r n in
+          let wlk :=
+            match lk with
+            | LookAhead => Patterns.Lookahead
+            | LookBehind => Patterns.Lookbehind
+            | NegLookAhead => Patterns.NegativeLookahead
+            | NegLookBehind => Patterns.NegativeLookbehind
+            end
+          in
+          match wr_opt with
+          | Some wr => Some (wlk wr)
+          | None => None
+          end
+      | Group id r =>
+          if id !=? S n then
+            None
+          else
+            let wr_opt := linden_to_warblre r (S n) in
+            match wr_opt with
+            | Some wr => Some (Patterns.Group None wr)
+            | None => None
+            end
+      | Anchor a =>
+          match a with
+          | BeginInput => Some Patterns.InputStart
+          | EndInput => Some Patterns.InputEnd
+          | WordBoundary => Some Patterns.WordBoundary
+          | NonWordBoundary => Some Patterns.NotWordBoundary
+          end
+      | Backreference gid => 
+          match NonNegInt.to_positive gid with
+          | Success gid => Some (Patterns.AtomEsc (Patterns.DecimalEsc gid))
+          | Error _ => None
+          end
+      end.
+
 End RegexpTranslation.
