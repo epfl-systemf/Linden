@@ -160,20 +160,16 @@ Section RegexpTranslation.
   (* Translation function from Warblre to Linden. *)
   Section WarblreToLinden.
 
-    Parameter unknown_regex: regex.
-    Parameter unknown_char_descr: char_descr.
-    Parameter unknown_char: Parameters.Character.
-
-    Definition characterClassEsc_to_linden (esc: Patterns.CharacterClassEscape): char_descr :=
+    Definition characterClassEsc_to_linden (esc: Patterns.CharacterClassEscape): option char_descr :=
       match esc with
-      | Patterns.esc_d => CdDigits
-      | Patterns.esc_D => CdInv CdDigits
-      | Patterns.esc_s => CdWhitespace
-      | Patterns.esc_S => CdInv CdWhitespace
-      | Patterns.esc_w => CdWordChar
-      | Patterns.esc_W => CdInv CdWordChar
-      | Patterns.UnicodeProp _ => unknown_char_descr (* Unsupported *)
-      | Patterns.UnicodePropNeg _ => unknown_char_descr (* Unsupported *)
+      | Patterns.esc_d => Some CdDigits
+      | Patterns.esc_D => Some (CdInv CdDigits)
+      | Patterns.esc_s => Some CdWhitespace
+      | Patterns.esc_S => Some (CdInv CdWhitespace)
+      | Patterns.esc_w => Some CdWordChar
+      | Patterns.esc_W => Some (CdInv CdWordChar)
+      | Patterns.UnicodeProp _ => None (* Unsupported *)
+      | Patterns.UnicodePropNeg _ => None (* Unsupported *)
       end.
 
     Definition controlEsc_singleCharacter (esc: Patterns.ControlEscape): Parameters.Character :=
@@ -189,71 +185,100 @@ Section RegexpTranslation.
       let n := NonNegInt.modulo (AsciiLetter.numeric_value l) 32 in
       Character.from_numeric_value n.
     
-    Definition characterEscape_singleCharacter (esc: Patterns.CharacterEscape): Parameters.Character :=
+    Definition characterEscape_singleCharacter (esc: Patterns.CharacterEscape): option Parameters.Character :=
       match esc with
-      | Patterns.ControlEsc esc => controlEsc_singleCharacter esc
-      | Patterns.AsciiControlEsc l => asciiEsc_singleCharacter l
-      | Patterns.esc_Zero => Character.from_numeric_value 0
-      | Patterns.HexEscape d1 d2 => Character.from_numeric_value (HexDigit.to_integer_2 d1 d2)
-      | Patterns.UnicodeEsc _ => unknown_char (* Unsupported *)
-      | Patterns.IdentityEsc _ => unknown_char (* Unsupported *)
+      | Patterns.ControlEsc esc => Some (controlEsc_singleCharacter esc)
+      | Patterns.AsciiControlEsc l => Some (asciiEsc_singleCharacter l)
+      | Patterns.esc_Zero => Some (Character.from_numeric_value 0)
+      | Patterns.HexEscape d1 d2 => Some (Character.from_numeric_value (HexDigit.to_integer_2 d1 d2))
+      | Patterns.UnicodeEsc _ => None (* Unsupported *)
+      | Patterns.IdentityEsc _ => None (* Unsupported *)
       end.
 
-    Definition characterEscape_to_linden (esc: Patterns.CharacterEscape): char_descr :=
-      CdSingle (characterEscape_singleCharacter esc).
+    Definition characterEscape_to_linden (esc: Patterns.CharacterEscape): option char_descr :=
+      match characterEscape_singleCharacter esc with
+      | Some c => Some (CdSingle c)
+      | None => None
+      end.
 
-    Definition atomesc_to_linden (ae: Patterns.AtomEscape): regex :=
+    Definition atomesc_to_linden (ae: Patterns.AtomEscape): option regex :=
       match ae with
-      | Patterns.DecimalEsc gid => Backreference (positive_to_nat gid)
-      | Patterns.ACharacterClassEsc esc => Character (characterClassEsc_to_linden esc)
-      | Patterns.ACharacterEsc esc => Character (characterEscape_to_linden esc)
-      | Patterns.GroupEsc gn => unknown_regex (* TODO *)
+      | Patterns.DecimalEsc gid => Some (Backreference (positive_to_nat gid))
+      | Patterns.ACharacterClassEsc esc => 
+          match characterClassEsc_to_linden esc with
+          | Some cd => Some (Character cd)
+          | None => None
+          end
+      | Patterns.ACharacterEsc esc => 
+          match characterEscape_to_linden esc with
+          | Some cd => Some (Character cd)
+          | None => None
+          end
+      | Patterns.GroupEsc gn => None (* TODO *)
       end.
 
-    Definition classEscape_to_linden (esc: Patterns.ClassEscape): char_descr :=
+    Definition classEscape_to_linden (esc: Patterns.ClassEscape): option char_descr :=
       match esc with
-      | Patterns.esc_b => CdSingle Characters.BACKSPACE
-      | Patterns.esc_Dash => CdSingle Characters.HYPHEN_MINUS
+      | Patterns.esc_b => Some (CdSingle Characters.BACKSPACE)
+      | Patterns.esc_Dash => Some (CdSingle Characters.HYPHEN_MINUS)
       | Patterns.CCharacterClassEsc esc => characterClassEsc_to_linden esc
       | Patterns.CCharacterEsc esc => characterEscape_to_linden esc
       end.
 
+    (* Here, the option is not an option monad *)
     Definition classEscape_singleCharacter (esc: Patterns.ClassEscape): option Parameters.Character :=
       match esc with
       | Patterns.esc_b => Some Characters.BACKSPACE
       | Patterns.esc_Dash => Some Characters.HYPHEN_MINUS
       | Patterns.CCharacterClassEsc esc => None
-      | Patterns.CCharacterEsc esc => Some (characterEscape_singleCharacter esc)
+      | Patterns.CCharacterEsc esc => characterEscape_singleCharacter esc
       end.
     
-    Definition classAtom_to_linden (ca: Patterns.ClassAtom): char_descr :=
+    Definition classAtom_to_linden (ca: Patterns.ClassAtom): option char_descr :=
       match ca with
-      | Patterns.SourceCharacter c => CdSingle c
+      | Patterns.SourceCharacter c => Some (CdSingle c)
       | Patterns.ClassEsc esc => classEscape_to_linden esc
       end.
 
+    (* Here, the option is not an option monad *)
     Definition classAtom_singleCharacter (ca: Patterns.ClassAtom): option Parameters.Character :=
       match ca with
       | Patterns.SourceCharacter c => Some c
       | Patterns.ClassEsc esc => classEscape_singleCharacter esc
       end.
     
-    (* TODO Wrap into option *)
-    Fixpoint classRanges_to_linden (cr: Patterns.ClassRanges): char_descr :=
+    (* The first option is an option monad, the second one accounts for the fact that class atoms do not necessarily
+    represent single characters *)
+    Fixpoint classRanges_to_linden (cr: Patterns.ClassRanges): option (option char_descr) :=
       match cr with
-      | Patterns.EmptyCR => CdEmpty
-      | Patterns.ClassAtomCR ca t => CdUnion (classAtom_to_linden ca) (classRanges_to_linden t)
+      | Patterns.EmptyCR => Some (Some CdEmpty)
+      | Patterns.ClassAtomCR ca t => 
+          match classAtom_to_linden ca, classRanges_to_linden t with
+          | Some cda, Some (Some cdt) => Some (Some (CdUnion cda cdt))
+          | Some _, Some None => Some None
+          | _, _ => None
+          end
       | Patterns.RangeCR l h t => 
-          match classAtom_singleCharacter l, classAtom_singleCharacter h with
-          | Some cl, Some ch => CdUnion (CdRange cl ch) (classRanges_to_linden t)
-          | _, _ => unknown_char_descr
+          match classAtom_singleCharacter l, classAtom_singleCharacter h, classRanges_to_linden t with
+          | Some cl, Some ch, Some (Some cdt) =>
+              if Character.numeric_value cl <=? Character.numeric_value ch then
+                Some (Some (CdUnion (CdRange cl ch) cdt))
+              else
+                Some None
+          | Some _, Some _, Some None => Some None
+          | _, _, _ => None
           end
       end.
     
-    Definition charclass_to_linden (cc: Patterns.CharClass): char_descr :=
+    Definition charclass_to_linden (cc: Patterns.CharClass): option (option char_descr) :=
       match cc with
       | Patterns.NoninvertedCC crs => classRanges_to_linden crs
-      | Patterns.InvertedCC crs => CdInv (classRanges_to_linden crs)
+      | Patterns.InvertedCC crs => 
+          match classRanges_to_linden crs with
+          | Some (Some cd) => Some (Some (CdInv cd))
+          | Some None => Some None
+          | None => None
+          end
       end.
 
     Definition wquantpref_to_linden (qp: Patterns.QuantifierPrefix): bool -> regex -> regex :=
@@ -266,48 +291,101 @@ Section RegexpTranslation.
       | Patterns.RepRange mini maxi => (fun greedy => Quantified greedy mini (NoI.N (maxi-mini)))
       end.
 
-    Fixpoint warblre_to_linden (wr: Patterns.Regex) (n: nat): regex :=
+    (* First option for unsupported features, second option for invalid regexes *)
+    Fixpoint warblre_to_linden (wr: Patterns.Regex) (n: nat): option (option regex) :=
       match wr with
-      | Patterns.Empty => Epsilon
-      | Patterns.Char chr => Character (CdSingle chr)
-      | Patterns.Dot => Character CdDot
-      | Patterns.AtomEsc ae => atomesc_to_linden ae
-      | Patterns.CharacterClass cc => Character (charclass_to_linden cc)
+      | Patterns.Empty => Some (Some Epsilon)
+      | Patterns.Char chr => Some (Some (Character (CdSingle chr)))
+      | Patterns.Dot => Some (Some (Character CdDot))
+      | Patterns.AtomEsc ae =>
+          match atomesc_to_linden ae with
+          | Some lr => Some (Some lr)
+          | None => None
+          end
+      | Patterns.CharacterClass cc => match charclass_to_linden cc with
+          | Some (Some cd) => Some (Some (Character cd))
+          | Some None => Some None
+          | None => None
+          end
       | Patterns.Disjunction wr1 wr2 =>
           let lr1 := warblre_to_linden wr1 n in
-          let lr2 := warblre_to_linden wr2 (num_groups lr1 + n) in
-          Disjunction lr1 lr2
+          let num_groups_lr1 := match lr1 with
+          | Some (Some lr1) => num_groups lr1
+          | _ => 0
+          end in
+          let lr2 := warblre_to_linden wr2 (num_groups_lr1 + n) in
+          match lr1, lr2 with
+          | Some (Some lr1), Some (Some lr2) => Some (Some (Disjunction lr1 lr2))
+          | Some None, Some _ | Some _, Some None => Some None
+          | None, _ | _, None => None
+          end
       | Patterns.Quantified wr (Patterns.Greedy qp) =>
           let quant := wquantpref_to_linden qp in
           let lr := warblre_to_linden wr n in
-          quant true lr
+          match lr with
+          | Some (Some lr) => Some (Some (quant true lr))
+          | Some None => Some None
+          | None => None
+          end
       | Patterns.Quantified wr (Patterns.Lazy qp) =>
           let quant := wquantpref_to_linden qp in
           let lr := warblre_to_linden wr n in
-          quant false lr
+          match lr with
+          | Some (Some lr) => Some (Some (quant false lr))
+          | Some None => Some None
+          | None => None
+          end
       | Patterns.Seq wr1 wr2 =>
           let lr1 := warblre_to_linden wr1 n in
-          let lr2 := warblre_to_linden wr2 (num_groups lr1 + n) in
-          Sequence lr1 lr2
+          let num_groups_lr1 := match lr1 with
+          | Some (Some lr1) => num_groups lr1
+          | _ => 0
+          end in
+          let lr2 := warblre_to_linden wr2 (num_groups_lr1 + n) in
+          match lr1, lr2 with
+          | Some (Some lr1), Some (Some lr2) => Some (Some (Sequence lr1 lr2))
+          | Some None, Some _ | Some _, Some None => Some None
+          | None, _ | _, None => None
+          end
       | Patterns.Group _ wr =>
           let lr := warblre_to_linden wr (S n) in
-          Group (S n) lr
-      | Patterns.InputStart => Anchor BeginInput
-      | Patterns.InputEnd => Anchor EndInput
-      | Patterns.WordBoundary => Anchor WordBoundary
-      | Patterns.NotWordBoundary => Anchor NonWordBoundary
+          match lr with
+          | Some (Some lr) => Some (Some (Group (S n) lr))
+          | Some None => Some None
+          | None => None
+          end
+      | Patterns.InputStart => Some (Some (Anchor BeginInput))
+      | Patterns.InputEnd => Some (Some (Anchor EndInput))
+      | Patterns.WordBoundary => Some (Some (Anchor WordBoundary))
+      | Patterns.NotWordBoundary => Some (Some (Anchor NonWordBoundary))
       | Patterns.Lookahead wr =>
           let lr := warblre_to_linden wr n in
-          Lookaround LookAhead lr
+          match lr with
+          | Some (Some lr) => Some (Some (Lookaround LookAhead lr))
+          | Some None => Some None
+          | None => None
+          end
       | Patterns.NegativeLookahead wr =>
           let lr := warblre_to_linden wr n in
-          Lookaround NegLookAhead lr
+          match lr with
+          | Some (Some lr) => Some (Some (Lookaround NegLookAhead lr))
+          | Some None => Some None
+          | None => None
+          end
       | Patterns.Lookbehind wr =>
           let lr := warblre_to_linden wr n in
-          Lookaround LookBehind lr
+          match lr with
+          | Some (Some lr) => Some (Some (Lookaround LookBehind lr))
+          | Some None => Some None
+          | None => None
+          end
       | Patterns.NegativeLookbehind wr =>
           let lr := warblre_to_linden wr n in
-          Lookaround NegLookBehind lr
+          match lr with
+          | Some (Some lr) => Some (Some (Lookaround NegLookBehind lr))
+          | Some None => Some None
+          | None => None
+          end
       end.
 
   End WarblreToLinden.
