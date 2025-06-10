@@ -8,8 +8,9 @@ From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeTreeSeen PikeVMSeen.
 From Linden Require Import PikeEquiv PikeSeenEquiv PikeSubset.
-From Warblre Require Import Base.
-
+From Linden Require Import EquivMain RegexpTranslation GroupMapMS.
+From Warblre Require Import Base Semantics Result.
+Import Result.Notations.
 
 (** * Transitive Reflexive Closure of Small-step semantics  *)
 
@@ -106,3 +107,31 @@ Proof.
   eapply pike_tree_trc_correct in TRC as FINALINV; eauto.
   inversion FINALINV. subst. unfold first_branch. auto.
 Qed.
+
+Local Open Scope result_flow.
+From Linden Require Import LindenParameters.
+
+Theorem pike_vm_same_warblre:
+  forall lr wr str0 rer,
+    pike_regex lr ->
+    equiv_regex wr lr ->
+    rer = computeRer wr ->
+    EarlyErrors.Pass_Regex wr nil ->
+    exists m res,
+      Semantics.compilePattern wr rer = Success m /\
+      m str0 0 = Success res /\
+      forall result,
+        trc_pike_vm (compilation lr) (pike_vm_seen_initial_state (init_input str0)) (PVSS_final result) ->
+        equiv_groupmap_ms_opt result res.
+Proof.
+  intros lr wr str0 rer Hpike Hequiv Heqrer HearlyErrors.
+  pose proof equiv_main wr lr rer str0 Hequiv Heqrer HearlyErrors as HequivMain.
+  destruct HequivMain as [m [res [Hcompsucc [Hexecsucc Hsameresult]]]].
+  exists m. exists res. split; [|split]; auto.
+  set (tree := FunctionalUtils.compute_tr [Areg lr] (init_input str0) GroupMap.empty forward).
+  specialize (Hsameresult tree eq_refl). destruct Hsameresult as [His_tree Hsameresult].
+  intros result Hpikeresult.
+  pose proof pike_vm_correct lr (init_input str0) tree result Hpike His_tree Hpikeresult as Hsameresult'.
+  rewrite Hsameresult'. assumption.
+Qed.
+
