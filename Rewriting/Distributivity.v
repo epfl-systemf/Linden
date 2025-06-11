@@ -18,8 +18,8 @@ Module Right.
       forall trf tre,
         is_tree [Areg factored] i gm forward trf ->
         is_tree [Areg expanded] i gm forward tre ->
-        tree_leaves trf gm (idx i) forward =
-          tree_leaves tre gm (idx i) forward.
+        tree_leaves trf gm i forward =
+          tree_leaves tre gm i forward.
     Proof.
       intros * Hf He.
       erewrite is_tree_determ with (1 := Hf).
@@ -54,8 +54,8 @@ Module Left.
       forall trf tre,
         priotree factored input trf ->
         priotree expanded input tre ->
-        tree_res trf GroupMap.empty 0 forward <>
-          tree_res tre GroupMap.empty 0 forward.
+        tree_res trf GroupMap.empty (init_input input) forward <>
+          tree_res tre GroupMap.empty (init_input input) forward.
     Proof.
       intros * Hf He.
       pattern trf; eapply compute_tr_ind with (3 := Hf).

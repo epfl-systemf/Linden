@@ -27,7 +27,7 @@ Section Equiv.
   Proof.
     intros. unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden; simpl; try discriminate.
     unfold id_mcont. intro H. injection H as <-. intro H. injection H as <-.
-    simpl. constructor. assumption.
+    simpl. constructor; assumption.
   Qed.
 
   (* Case when the repeat matcher is done iterating the regex because min = max = 0. *)
@@ -136,7 +136,7 @@ Section Equiv.
             specialize_prove Hequiv by now apply gm_reset_valid.
             specialize_prove Hequiv. { eapply noforb_reset; eauto. reflexivity. } (* gmreset does not contain any of the forbidden groups in lreg because those have just been reset, and does not contain any of the rest of the forbidden groups by assumption on gm *)
             specialize (Hequiv eq_refl Htitersucc).
-            inversion Hequiv. simpl. unfold gmreset in H. rewrite <- H. simpl. constructor. assumption.
+            inversion Hequiv. simpl. unfold gmreset in H. rewrite <- H. simpl. constructor; assumption.
           * (* delta is infinite; copy-pasting and removing one line *)
             destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
             destruct (compute_tree act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
@@ -149,7 +149,7 @@ Section Equiv.
             specialize_prove Hequiv by now apply gm_reset_valid.
             specialize_prove Hequiv. { eapply noforb_reset; eauto. reflexivity. }
             specialize (Hequiv eq_refl Htitersucc).
-            inversion Hequiv. simpl. unfold gmreset in H. rewrite <- H. simpl. constructor. assumption.
+            inversion Hequiv. simpl. unfold gmreset in H. rewrite <- H. simpl. constructor; assumption.
         + (* resloop is None *)
           intro Hcontsucc. destruct delta as [[|delta']|]; simpl in *; try discriminate.
           * (* delta is finite *)
@@ -195,7 +195,7 @@ Section Equiv.
             specialize (Hequivcont tskip Hinpcompat Hgmms Hgmgl Hmsinp).
             specialize_prove Hequivcont. { apply ms_valid_wrt_checks_tail in Hmschecks. auto. }
             specialize (Hequivcont Hgmvalid Hnoforbidden eq_refl eq_refl).
-            inversion Hequivcont. simpl. rewrite <- H. simpl. constructor. assumption.
+            inversion Hequivcont. simpl. rewrite <- H. simpl. constructor; assumption.
           * (* delta is infinite; copy-pasting and removing one line *)
             destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
             destruct (compute_tree act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
@@ -203,7 +203,7 @@ Section Equiv.
             specialize (Hequivcont tskip Hinpcompat Hgmms Hgmgl Hmsinp).
             specialize_prove Hequivcont. { apply ms_valid_wrt_checks_tail in Hmschecks. auto. }
             specialize (Hequivcont Hgmvalid Hnoforbidden eq_refl eq_refl).
-            inversion Hequivcont. simpl. rewrite <- H. simpl. constructor. assumption.
+            inversion Hequivcont. simpl. rewrite <- H. simpl. constructor; assumption.
         + (* resloop is None *)
           intro Hcontsucc. destruct delta as [[|delta']|]; simpl in *; try discriminate.
           * (* delta is finite *)
@@ -355,7 +355,7 @@ Section Equiv.
         destruct compute_tree as [tcont|] eqn:Htcont; simpl; try discriminate.
         intro H. injection H as <-. simpl.
         unfold equiv_cont in Hequivcont.
-        rewrite advance_idx_advance_input with (inp' := inp') by assumption.
+        rewrite advance_input_success with (nexti := inp') by assumption.
         eapply Hequivcont with (ms := match_state (MatchState.input ms) nextend (MatchState.captures ms)); eauto.
         3: {
           apply ms_valid_wrt_checks_tail in Hmschecks. destruct dir; simpl in *; constructor; unfold nextend.
@@ -405,7 +405,7 @@ Section Equiv.
         destruct compute_tree as [tcont|] eqn:Htcont; simpl; try discriminate.
         intro H. injection H as <-. simpl.
         unfold equiv_cont in Hequivcont.
-        rewrite advance_idx_advance_input with (inp' := inp') by assumption.
+        rewrite advance_input_success with (nexti := inp') by assumption.
         eapply Hequivcont with (ms := match_state (MatchState.input ms) nextend (MatchState.captures ms)); eauto.
         3: {
           apply ms_valid_wrt_checks_tail in Hmschecks. destruct dir; simpl in *; constructor; unfold nextend.

@@ -41,8 +41,8 @@ Section Anchors.
       end; reflexivity.
 
   Theorem desugar_anchor_correct' (a: anchor) (i: input) dir gm:
-    tree_leaves (compute_tr [Areg (Anchor a)] i gm dir) gm (idx i) dir =
-      tree_leaves (compute_tr [Areg (desugar_anchor a)] i gm dir) gm (idx i) dir.
+    tree_leaves (compute_tr [Areg (Anchor a)] i gm dir) gm i dir =
+      tree_leaves (compute_tr [Areg (desugar_anchor a)] i gm dir) gm i dir.
   Proof.
     unfold compute_tr;
       destruct a, dir; simpl;
@@ -54,8 +54,8 @@ Section Anchors.
     forall tra trl,
       is_tree [Areg (Anchor a)] i gm dir tra ->
       is_tree [Areg (desugar_anchor a)] i gm dir trl ->
-      tree_leaves tra gm (idx i) dir =
-        tree_leaves trl gm (idx i) dir.
+      tree_leaves tra gm i dir =
+        tree_leaves trl gm i dir.
   Proof.
     eintros tra trlk Ha Hlk.
     pattern tra; eapply compute_tr_ind with (3 := Ha).

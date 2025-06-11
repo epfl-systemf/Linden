@@ -49,14 +49,18 @@ Section Semantics.
   (* Positive lookarounds expect trees with a result, and negative ones expect trees without results *)
   Definition lk_result (lk:lookaround) (t:tree) : Prop :=
     match (positivity lk) with
-    | true => exists res, first_branch t = Some res
-    | false => first_branch t = None
+    | true => exists res, first_branch t [] = Some res
+    | false => first_branch t [] = None
     end.
 
   (* Computes the updated group_map after finding the first result in a tree of lookarounds *)
-  Definition lk_group_map (lk: lookaround) (t: tree) (gm: group_map) (idx: nat): option group_map :=
+  Definition lk_group_map (lk: lookaround) (t: tree) (gm: group_map) (inp: input): option group_map :=
     match (positivity lk) with
-    | true => tree_res t gm idx (lk_dir lk)
+    | true => 
+      match tree_res t gm inp (lk_dir lk) with 
+      | Some (_, gm') => Some gm
+      | None => None
+      end
     | false => Some gm
     end.
 
@@ -109,12 +113,6 @@ Section Semantics.
     match dir with
     | forward => [Areg r1; Areg r2]
     | backward => [Areg r2; Areg r1]
-    end.
-
-  (* Get the current string index from the input *)
-  Definition idx (inp:input) : nat :=
-    match inp with
-    | Input next pref => List.length pref
     end.
 
   (* `is_tree actions str t` means that `t` is a correct backtracking tree for all `actions` on `s` *)
@@ -197,7 +195,7 @@ Section Semantics.
       (* this tree has the correct expected result (positivity) *)
       (RES_LK: lk_result lk treelk)
       (* we update the group_map with the groups defined in the lookaround *)
-      (GM_LK: lk_group_map lk treelk gm (idx inp) = Some gmlk)
+      (GM_LK: lk_group_map lk treelk gm inp = Some gmlk)
       (TREECONT: is_tree cont inp gmlk dir treecont),
       is_tree (Areg (Lookaround lk r1) :: cont) inp gm dir (LK lk treelk treecont)
   | tree_lk_fail:
@@ -304,7 +302,7 @@ Section Semantics.
   | bt_result:
     forall r str res tree
       (TREE: priotree r str tree)
-      (FIRST: first_branch tree = res),
+      (FIRST: first_branch tree str = res),
       highestprio_result r str res.
 
   Lemma highestprio_determ:
