@@ -51,15 +51,15 @@ Section Anchors.
   Qed.
 
   Theorem desugar_anchor_correct (a: anchor) (i: input) dir gm:
-    forall tr tr',
-      is_tree [Areg (Anchor a)] i gm dir tr ->
-      is_tree [Areg (desugar_anchor a)] i gm dir tr' ->
-      tree_leaves tr gm (idx i) dir =
-      tree_leaves tr' gm (idx i) dir.
+    forall tra trl,
+      is_tree [Areg (Anchor a)] i gm dir tra ->
+      is_tree [Areg (desugar_anchor a)] i gm dir trl ->
+      tree_leaves tra gm (idx i) dir =
+        tree_leaves trl gm (idx i) dir.
   Proof.
-    eintros tra trlk Ha Hlk.
+    intros * Ha Hl.
     pattern tra; eapply compute_tr_ind with (2 := Ha).
-    pattern trlk; eapply compute_tr_ind with (2 := Hlk).
+    pattern trl; eapply compute_tr_ind with (2 := Hl).
     apply desugar_anchor_correct'.
   Qed.
 End Anchors.
