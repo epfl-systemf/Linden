@@ -172,25 +172,11 @@ Inductive bool_encoding: LoopBool -> input -> actions -> Prop :=
     (ENCODE: bool_encoding CanExit str stk)
     (STRICT: strict_suffix (current_str str forward) (current_str head forward)),
     bool_encoding CanExit str (Acheck head::stk)
-| to_false:
-  (* to switch to false, we need the head of the stack to be equal to the current string
-   no progress has been made. *)
-  forall stk str
-    (ENCODE: bool_encoding CanExit str stk),
-    bool_encoding CannotExit str (Acheck str::stk)
 | cons_false:
-  (* when the bool is already false, we can push the current string to the stack *)
-  forall stk str
-    (ENCODE: bool_encoding CannotExit str stk),
+  (* when we push the current string to the stack *)
+  forall b stk str
+    (ENCODE: bool_encoding b str stk),
     bool_encoding CannotExit str (Acheck str::stk).
-
-(* Generalizes the encoding to inputs *)
-(* later: add direction, so that the input can be read in two directions *)
-(* Inductive encodes : LoopBool -> input -> actions -> Prop := *)
-(* | encode_forward: *)
-(*   forall b next pref cont *)
-(*     (ENCODE: bool_encoding b next cont), *)
-(*     encodes b (Input next pref) cont. *)
 
 
 (* when we are already encoded with true, reading a new character preserves this true encoding *)
@@ -210,25 +196,6 @@ Proof.
   - constructor.
     + apply IHbool_encoding; auto.
     + rewrite Heqprevstr. apply strict_cons.
-  - constructor.
-    + apply IHbool_encoding; auto.
-    + rewrite Heqprevstr. apply strict_cons.
-Qed.
-
-
-(* when entering a new quantifier, this pushes the current string on the stack *)
-(* this makes the whole stack encoded with false *)
-Lemma false_encoding:
-  forall str cont b,
-    bool_encoding b str cont ->
-    bool_encoding CannotExit str (Acheck str::cont).
-Proof.
-  intros str cont b H.
-  induction cont.
-  - constructor. constructor.
-  - destruct b.
-    + apply to_false. auto.
-    + apply cons_false. auto.
 Qed.
 
 (* if the string is different than the check, we know the boolean is true *)
@@ -322,18 +289,13 @@ Proof.
     { inversion H1. subst. inversion H0. subst.
       repeat progress (constructor; auto). }
     inversion ENCODE; subst; constructor; constructor; auto.
-  (* - constructor; auto. apply IHTREE; auto. *)
-    (* { inversion H1. inversion H0. } *)
-    (* apply encode_next. apply encode_next. apply encode_next in ENCODE. auto. *)
-  (* - constructor; auto. apply IHTREE; auto. *)
-  (*   apply encode_next in ENCODE. auto. *)
   - destruct plus.
     { pike_subset. }
     eapply tree_quant_free; eauto.
     + eapply IHTREE1; auto.
       { inversion H1. inversion H0. subst.
         repeat progress (constructor; auto). }
-      apply encode_next. eapply false_encoding; eauto.
+      apply encode_next. eapply cons_false; eauto.
     + subst. eapply IHTREE2; auto. apply encode_next in ENCODE. auto.
   - constructor. apply IHTREE; auto.
     { inversion H1. inversion H0. subst. repeat progress (constructor; auto). }
@@ -342,19 +304,19 @@ Proof.
 Qed.
     
 Corollary boolean_correct:
-  forall r str t,
+  forall r inp t,
     pike_regex r ->
-    priotree r str t ->
-    bool_tree [Areg r] (init_input str) CanExit t.
+    is_tree [Areg r] inp GroupMap.empty forward t ->
+    bool_tree [Areg r] inp CanExit t.
 Proof.
-  unfold priotree. intros r str t PIKE H.
+  intros r str t PIKE H.
   eapply encode_equal; eauto.
   { constructor; constructor; auto. }
   constructor. constructor. 
 Qed.
 
 
-(* Pie actions translate to Pike trees *)
+(* Pike actions translate to Pike trees *)
 Theorem subset_semantics:
   forall actions tree inp b
     (SUBSET: pike_actions actions)
@@ -402,3 +364,40 @@ Qed.
       f_equal. apply IHbool_tree. auto.
     - inversion H0; subst; rewrite ANCHOR0 in ANCHOR; inversion ANCHOR. auto.
   Qed.
+
+(** * Unused direction  *)
+(* the other direction of implication is obtained using only determinism and productivity *)
+(* but in our engine proofs we don't actually need this direction *)
+
+  From Linden Require Import FunctionalSemantics.
+  From Linden Require Import ComputeIsTree.
+
+  Theorem bool_to_istree:
+  forall r inp t,
+    pike_regex r ->
+    bool_tree [Areg r] inp CanExit t ->
+    is_tree [Areg r] inp GroupMap.empty forward t.
+  Proof.
+    intros r inp t H H0.
+    (* productivity *)
+    assert (exists t', is_tree [Areg r] inp GroupMap.empty forward t') as [t' ISTREE].
+    { destruct (compute_tree [Areg r] inp  GroupMap.empty forward (S (actions_fuel [Areg r] inp forward))) eqn:PROD.
+      2: { generalize functional_terminates. intros H1. apply H1 in PROD; auto; lia. }
+      exists t0. eapply compute_is_tree; eauto.
+      unfold inp_valid_checks. simpl. intros strcheck [H1|H1]; inversion H1. }
+    apply boolean_correct in ISTREE as BOOLTREE; auto.
+    (* determinism *)
+    assert (t = t') by (eapply bool_tree_determ; eauto). subst. auto.
+Qed.
+
+  Theorem booltree_istree_equiv:
+    forall r inp t,
+      pike_regex r ->
+      bool_tree [Areg r] inp CanExit t <->
+      is_tree [Areg r] inp GroupMap.empty forward t.
+  Proof.
+    intros r inp t SUBSET. split.
+    - apply bool_to_istree; auto.
+    - apply boolean_correct; auto.
+  Qed.
+
