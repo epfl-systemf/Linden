@@ -57,9 +57,11 @@ Section Anchors.
       tree_leaves tra gm (idx i) dir =
         tree_leaves trl gm (idx i) dir.
   Proof.
-    intros * Ha Hl.
-    pattern tra; eapply compute_tr_ind with (2 := Ha).
-    pattern trl; eapply compute_tr_ind with (2 := Hl).
+    eintros tra trlk Ha Hlk.
+    pattern tra; eapply compute_tr_ind with (3 := Ha).
+    2: { apply ComputeIsTree.inp_valid_checks_Areg, ComputeIsTree.inp_valid_checks_nil. }
+    pattern trlk; eapply compute_tr_ind with (3 := Hlk).
+    2: { apply ComputeIsTree.inp_valid_checks_Areg, ComputeIsTree.inp_valid_checks_nil. }
     apply desugar_anchor_correct'.
   Qed.
 End Anchors.

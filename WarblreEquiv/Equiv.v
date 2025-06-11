@@ -1,5 +1,5 @@
 From Linden Require Import EquivDef RegexpTranslation Regex LindenParameters
-  Semantics FunctionalSemantics LWEquivTreeLemmas CharDescrCharSet Tactics
+  Semantics FunctionalSemantics CharDescrCharSet Tactics
   NumericLemmas MSInput Chars Groups EquivLemmas Utils CharSet GroupMapLemmas
   LKFactorization.
 From Warblre Require Import Parameters Semantics RegExpRecord Patterns
