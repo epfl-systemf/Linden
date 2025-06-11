@@ -160,16 +160,20 @@ Section RegexpTranslation.
   (* Translation function from Warblre to Linden. *)
   Section WarblreToLinden.
 
-    Definition characterClassEsc_to_linden (esc: Patterns.CharacterClassEscape): option char_descr :=
+    Inductive wl_transl_error: Type :=
+      | WlMalformed
+      | WlUnsupported.
+
+    Definition characterClassEsc_to_linden (esc: Patterns.CharacterClassEscape): Result char_descr wl_transl_error :=
       match esc with
-      | Patterns.esc_d => Some CdDigits
-      | Patterns.esc_D => Some (CdInv CdDigits)
-      | Patterns.esc_s => Some CdWhitespace
-      | Patterns.esc_S => Some (CdInv CdWhitespace)
-      | Patterns.esc_w => Some CdWordChar
-      | Patterns.esc_W => Some (CdInv CdWordChar)
-      | Patterns.UnicodeProp _ => None (* Unsupported *)
-      | Patterns.UnicodePropNeg _ => None (* Unsupported *)
+      | Patterns.esc_d => Success CdDigits
+      | Patterns.esc_D => Success (CdInv CdDigits)
+      | Patterns.esc_s => Success CdWhitespace
+      | Patterns.esc_S => Success (CdInv CdWhitespace)
+      | Patterns.esc_w => Success CdWordChar
+      | Patterns.esc_W => Success (CdInv CdWordChar)
+      | Patterns.UnicodeProp _ => Error WlUnsupported
+      | Patterns.UnicodePropNeg _ => Error WlUnsupported
       end.
 
     Definition controlEsc_singleCharacter (esc: Patterns.ControlEscape): Parameters.Character :=
@@ -185,214 +189,149 @@ Section RegexpTranslation.
       let n := NonNegInt.modulo (AsciiLetter.numeric_value l) 32 in
       Character.from_numeric_value n.
     
-    Definition characterEscape_singleCharacter (esc: Patterns.CharacterEscape): option Parameters.Character :=
+    Definition characterEscape_singleCharacter (esc: Patterns.CharacterEscape): Result Parameters.Character wl_transl_error :=
       match esc with
-      | Patterns.ControlEsc esc => Some (controlEsc_singleCharacter esc)
-      | Patterns.AsciiControlEsc l => Some (asciiEsc_singleCharacter l)
-      | Patterns.esc_Zero => Some (Character.from_numeric_value 0)
-      | Patterns.HexEscape d1 d2 => Some (Character.from_numeric_value (HexDigit.to_integer_2 d1 d2))
-      | Patterns.UnicodeEsc _ => None (* Unsupported *)
-      | Patterns.IdentityEsc _ => None (* Unsupported *)
+      | Patterns.ControlEsc esc => Success (controlEsc_singleCharacter esc)
+      | Patterns.AsciiControlEsc l => Success (asciiEsc_singleCharacter l)
+      | Patterns.esc_Zero => Success (Character.from_numeric_value 0)
+      | Patterns.HexEscape d1 d2 => Success (Character.from_numeric_value (HexDigit.to_integer_2 d1 d2))
+      | Patterns.UnicodeEsc _ => Error WlUnsupported (* Unsupported *)
+      | Patterns.IdentityEsc _ => Error WlUnsupported (* Unsupported *)
       end.
 
-    Definition characterEscape_to_linden (esc: Patterns.CharacterEscape): option char_descr :=
-      match characterEscape_singleCharacter esc with
-      | Some c => Some (CdSingle c)
-      | None => None
-      end.
+    Definition characterEscape_to_linden (esc: Patterns.CharacterEscape): Result char_descr wl_transl_error :=
+      let! c =<< characterEscape_singleCharacter esc in
+      Success (CdSingle c).
 
-    Definition atomesc_to_linden (ae: Patterns.AtomEscape): option regex :=
+    Definition atomesc_to_linden (ae: Patterns.AtomEscape): Result regex wl_transl_error :=
       match ae with
-      | Patterns.DecimalEsc gid => Some (Backreference (positive_to_nat gid))
+      | Patterns.DecimalEsc gid => Success (Backreference (positive_to_nat gid))
       | Patterns.ACharacterClassEsc esc => 
-          match characterClassEsc_to_linden esc with
-          | Some cd => Some (Character cd)
-          | None => None
-          end
+          let! cd =<< characterClassEsc_to_linden esc in
+          Success (Character cd)
       | Patterns.ACharacterEsc esc => 
-          match characterEscape_to_linden esc with
-          | Some cd => Some (Character cd)
-          | None => None
-          end
-      | Patterns.GroupEsc gn => None (* TODO *)
+          let! cd =<< characterEscape_to_linden esc in
+          Success (Character cd)
+      | Patterns.GroupEsc gn => Error WlUnsupported (* TODO *)
       end.
 
-    Definition classEscape_to_linden (esc: Patterns.ClassEscape): option char_descr :=
+    Definition classEscape_to_linden (esc: Patterns.ClassEscape): Result char_descr wl_transl_error :=
       match esc with
-      | Patterns.esc_b => Some (CdSingle Characters.BACKSPACE)
-      | Patterns.esc_Dash => Some (CdSingle Characters.HYPHEN_MINUS)
+      | Patterns.esc_b => Success (CdSingle Characters.BACKSPACE)
+      | Patterns.esc_Dash => Success (CdSingle Characters.HYPHEN_MINUS)
       | Patterns.CCharacterClassEsc esc => characterClassEsc_to_linden esc
       | Patterns.CCharacterEsc esc => characterEscape_to_linden esc
       end.
 
-    (* Here, the option is not an option monad *)
-    Definition classEscape_singleCharacter (esc: Patterns.ClassEscape): option Parameters.Character :=
+    Definition classEscape_singleCharacter (esc: Patterns.ClassEscape): Result Parameters.Character wl_transl_error :=
       match esc with
-      | Patterns.esc_b => Some Characters.BACKSPACE
-      | Patterns.esc_Dash => Some Characters.HYPHEN_MINUS
-      | Patterns.CCharacterClassEsc esc => None
+      | Patterns.esc_b => Success Characters.BACKSPACE
+      | Patterns.esc_Dash => Success Characters.HYPHEN_MINUS
+      | Patterns.CCharacterClassEsc esc => Error WlMalformed
       | Patterns.CCharacterEsc esc => characterEscape_singleCharacter esc
       end.
     
-    Definition classAtom_to_linden (ca: Patterns.ClassAtom): option char_descr :=
+    Definition classAtom_to_linden (ca: Patterns.ClassAtom): Result char_descr wl_transl_error :=
       match ca with
-      | Patterns.SourceCharacter c => Some (CdSingle c)
+      | Patterns.SourceCharacter c => Success (CdSingle c)
       | Patterns.ClassEsc esc => classEscape_to_linden esc
       end.
 
-    (* Here, the option is not an option monad *)
-    Definition classAtom_singleCharacter (ca: Patterns.ClassAtom): option Parameters.Character :=
+    Definition classAtom_singleCharacter (ca: Patterns.ClassAtom): Result Parameters.Character wl_transl_error :=
       match ca with
-      | Patterns.SourceCharacter c => Some c
+      | Patterns.SourceCharacter c => Success c
       | Patterns.ClassEsc esc => classEscape_singleCharacter esc
       end.
-    
-    (* The first option is an option monad, the second one accounts for the fact that class atoms do not necessarily
-    represent single characters *)
-    Fixpoint classRanges_to_linden (cr: Patterns.ClassRanges): option (option char_descr) :=
+
+    Fixpoint classRanges_to_linden (cr: Patterns.ClassRanges): Result char_descr wl_transl_error :=
       match cr with
-      | Patterns.EmptyCR => Some (Some CdEmpty)
+      | Patterns.EmptyCR => Success CdEmpty
       | Patterns.ClassAtomCR ca t => 
-          match classAtom_to_linden ca, classRanges_to_linden t with
-          | Some cda, Some (Some cdt) => Some (Some (CdUnion cda cdt))
-          | Some _, Some None => Some None
-          | _, _ => None
-          end
+          let! cda =<< classAtom_to_linden ca in
+          let! cdt =<< classRanges_to_linden t in
+          Success (CdUnion cda cdt)
       | Patterns.RangeCR l h t => 
-          match classAtom_singleCharacter l, classAtom_singleCharacter h, classRanges_to_linden t with
-          | Some cl, Some ch, Some (Some cdt) =>
-              if Character.numeric_value cl <=? Character.numeric_value ch then
-                Some (Some (CdUnion (CdRange cl ch) cdt))
-              else
-                Some None
-          | Some _, Some _, Some None | None, _, Some _ | _, None, Some _ => Some None
-          | _, _, _ => None
-          end
+          let! cl =<< classAtom_singleCharacter l in
+          let! ch =<< classAtom_singleCharacter h in
+          let! cdt =<< classRanges_to_linden t in
+          if Character.numeric_value cl <=? Character.numeric_value ch then
+            Success (CdUnion (CdRange cl ch) cdt)
+          else
+            Error WlMalformed
       end.
     
-    Definition charclass_to_linden (cc: Patterns.CharClass): option (option char_descr) :=
+    Definition charclass_to_linden (cc: Patterns.CharClass): Result char_descr wl_transl_error :=
       match cc with
       | Patterns.NoninvertedCC crs => classRanges_to_linden crs
       | Patterns.InvertedCC crs => 
-          match classRanges_to_linden crs with
-          | Some (Some cd) => Some (Some (CdInv cd))
-          | Some None => Some None
-          | None => None
-          end
+          let! cd =<< classRanges_to_linden crs in
+          Success (CdInv cd)
       end.
 
-    Definition wquantpref_to_linden (qp: Patterns.QuantifierPrefix): bool -> regex -> regex :=
+    Definition wquantpref_to_linden (qp: Patterns.QuantifierPrefix): Result (bool -> regex -> regex) wl_transl_error :=
       match qp with
-      | Patterns.Star => (fun greedy => Quantified greedy 0 +∞)
-      | Patterns.Plus => (fun greedy => Quantified greedy 1 +∞)
-      | Patterns.Question => (fun greedy => Quantified greedy 0 (NoI.N 1))
-      | Patterns.RepExact n => (fun greedy => Quantified greedy n (NoI.N 0))
-      | Patterns.RepPartialRange n => (fun greedy => Quantified greedy n +∞)
-      | Patterns.RepRange mini maxi => (fun greedy => Quantified greedy mini (NoI.N (maxi-mini)))
+      | Patterns.Star => Success (fun greedy => Quantified greedy 0 +∞)
+      | Patterns.Plus => Success (fun greedy => Quantified greedy 1 +∞)
+      | Patterns.Question => Success (fun greedy => Quantified greedy 0 (NoI.N 1))
+      | Patterns.RepExact n => Success (fun greedy => Quantified greedy n (NoI.N 0))
+      | Patterns.RepPartialRange n => Success (fun greedy => Quantified greedy n +∞)
+      | Patterns.RepRange mini maxi => 
+          if mini <=? maxi then
+            Success (fun greedy => Quantified greedy mini (NoI.N (maxi-mini)))
+          else
+            Error WlMalformed
       end.
 
     (* First option for unsupported features, second option for invalid regexes *)
-    Fixpoint warblre_to_linden (wr: Patterns.Regex) (n: nat): option (option regex) :=
+    Fixpoint warblre_to_linden (wr: Patterns.Regex) (n: nat): Result regex wl_transl_error :=
       match wr with
-      | Patterns.Empty => Some (Some Epsilon)
-      | Patterns.Char chr => Some (Some (Character (CdSingle chr)))
-      | Patterns.Dot => Some (Some (Character CdDot))
-      | Patterns.AtomEsc ae =>
-          match atomesc_to_linden ae with
-          | Some lr => Some (Some lr)
-          | None => None
-          end
-      | Patterns.CharacterClass cc => match charclass_to_linden cc with
-          | Some (Some cd) => Some (Some (Character cd))
-          | Some None => Some None
-          | None => None
-          end
+      | Patterns.Empty => Success Epsilon
+      | Patterns.Char chr => Success (Character (CdSingle chr))
+      | Patterns.Dot => Success (Character CdDot)
+      | Patterns.AtomEsc ae => atomesc_to_linden ae
+      | Patterns.CharacterClass cc => 
+          let! cd =<< charclass_to_linden cc in
+          Success (Character cd)
       | Patterns.Disjunction wr1 wr2 =>
-          let lr1 := warblre_to_linden wr1 n in
-          let num_groups_lr1 := match lr1 with
-          | Some (Some lr1) => num_groups lr1
-          | _ => 0
-          end in
-          let lr2 := warblre_to_linden wr2 (num_groups_lr1 + n) in
-          match lr1, lr2 with
-          | Some (Some lr1), Some (Some lr2) => Some (Some (Disjunction lr1 lr2))
-          | Some None, Some _ | Some _, Some None => Some None
-          | None, _ | _, None => None
-          end
+          let! lr1 =<< warblre_to_linden wr1 n in
+          let! lr2 =<< warblre_to_linden wr2 (num_groups lr1 + n) in
+          Success (Disjunction lr1 lr2)
       | Patterns.Quantified wr (Patterns.Greedy qp) =>
-          let quant := wquantpref_to_linden qp in
-          let lr := warblre_to_linden wr n in
-          match lr with
-          | Some (Some lr) => Some (Some (quant true lr))
-          | Some None => Some None
-          | None => None
-          end
+          let! quant =<< wquantpref_to_linden qp in
+          let! lr =<< warblre_to_linden wr n in
+          Success (quant true lr)
       | Patterns.Quantified wr (Patterns.Lazy qp) =>
-          let quant := wquantpref_to_linden qp in
-          let lr := warblre_to_linden wr n in
-          match lr with
-          | Some (Some lr) => Some (Some (quant false lr))
-          | Some None => Some None
-          | None => None
-          end
+          let! quant =<< wquantpref_to_linden qp in
+          let! lr =<< warblre_to_linden wr n in
+          Success (quant false lr)
       | Patterns.Seq wr1 wr2 =>
-          let lr1 := warblre_to_linden wr1 n in
-          let num_groups_lr1 := match lr1 with
-          | Some (Some lr1) => num_groups lr1
-          | _ => 0
-          end in
-          let lr2 := warblre_to_linden wr2 (num_groups_lr1 + n) in
-          match lr1, lr2 with
-          | Some (Some lr1), Some (Some lr2) => Some (Some (Sequence lr1 lr2))
-          | Some None, Some _ | Some _, Some None => Some None
-          | None, _ | _, None => None
-          end
+          let! lr1 =<< warblre_to_linden wr1 n in
+          let! lr2 =<< warblre_to_linden wr2 (num_groups lr1 + n) in
+          Success (Sequence lr1 lr2)
       | Patterns.Group _ wr =>
-          let lr := warblre_to_linden wr (S n) in
-          match lr with
-          | Some (Some lr) => Some (Some (Group (S n) lr))
-          | Some None => Some None
-          | None => None
-          end
-      | Patterns.InputStart => Some (Some (Anchor BeginInput))
-      | Patterns.InputEnd => Some (Some (Anchor EndInput))
-      | Patterns.WordBoundary => Some (Some (Anchor WordBoundary))
-      | Patterns.NotWordBoundary => Some (Some (Anchor NonWordBoundary))
+          let! lr =<< warblre_to_linden wr (S n) in
+          Success (Group (S n) lr)
+      | Patterns.InputStart => Success (Anchor BeginInput)
+      | Patterns.InputEnd => Success (Anchor EndInput)
+      | Patterns.WordBoundary => Success (Anchor WordBoundary)
+      | Patterns.NotWordBoundary => Success (Anchor NonWordBoundary)
       | Patterns.Lookahead wr =>
-          let lr := warblre_to_linden wr n in
-          match lr with
-          | Some (Some lr) => Some (Some (Lookaround LookAhead lr))
-          | Some None => Some None
-          | None => None
-          end
+          let! lr =<< warblre_to_linden wr n in
+          Success (Lookaround LookAhead lr)
       | Patterns.NegativeLookahead wr =>
-          let lr := warblre_to_linden wr n in
-          match lr with
-          | Some (Some lr) => Some (Some (Lookaround NegLookAhead lr))
-          | Some None => Some None
-          | None => None
-          end
+          let! lr =<< warblre_to_linden wr n in
+          Success (Lookaround NegLookAhead lr)
       | Patterns.Lookbehind wr =>
-          let lr := warblre_to_linden wr n in
-          match lr with
-          | Some (Some lr) => Some (Some (Lookaround LookBehind lr))
-          | Some None => Some None
-          | None => None
-          end
+          let! lr =<< warblre_to_linden wr n in
+          Success (Lookaround LookBehind lr)
       | Patterns.NegativeLookbehind wr =>
-          let lr := warblre_to_linden wr n in
-          match lr with
-          | Some (Some lr) => Some (Some (Lookaround NegLookBehind lr))
-          | Some None => Some None
-          | None => None
-          end
+          let! lr =<< warblre_to_linden wr n in
+          Success (Lookaround NegLookBehind lr)
       end.
 
   End WarblreToLinden.
 
   Section LindenToWarblre.
-
-    Parameter todo_regex: option Patterns.Regex.
 
     Definition cd_to_warblre (cd: char_descr): option Patterns.Regex :=
       match cd with
@@ -478,5 +417,211 @@ Section RegexpTranslation.
           | Error _ => None
           end
       end.
+  
+  End LindenToWarblre.
+
+  Section TranslationSoundness.
+
+    Lemma characterClassEsc_to_linden_sound:
+      forall esc cd,
+        characterClassEsc_to_linden esc = Success cd ->
+        equiv_CharacterClassEscape esc cd.
+    Proof.
+      intro esc. destruct esc; simpl; try discriminate.
+      all: intros cd H; injection H as <-; constructor.
+    Qed.
+
+    Lemma controlEsc_singleCharacter_sound:
+      forall esc, equiv_ControlEscape esc (CdSingle (controlEsc_singleCharacter esc)).
+    Proof.
+      intro esc. destruct esc; simpl; constructor.
+    Qed.
+
+    Lemma asciiEsc_singleCharacter_sound:
+      forall l, equiv_asciiesc l (CdSingle (asciiEsc_singleCharacter l)).
+    Proof.
+      intro l. unfold asciiEsc_singleCharacter. constructor. reflexivity.
+    Qed.
+
+    Lemma characterEscape_to_linden_sound:
+      forall esc cd,
+        characterEscape_to_linden esc = Success cd ->
+        equiv_CharacterEscape esc cd.
+    Proof.
+      intro esc. destruct esc; try discriminate; simpl; unfold characterEscape_to_linden; simpl.
+      all: intros cd H; injection H as <-; constructor.
+      - apply controlEsc_singleCharacter_sound.
+      - apply asciiEsc_singleCharacter_sound.
+    Qed.
+
+    Lemma atomesc_to_linden_sound:
+      forall ae lr n,
+        atomesc_to_linden ae = Success lr ->
+        equiv_regex' (Patterns.AtomEsc ae) lr n.
+    Proof.
+      intro ae. destruct ae.
+      - simpl. intros lr gid H. injection H as <-. constructor.
+      - simpl. intros lr n.
+        destruct characterClassEsc_to_linden as [cd|] eqn:Hcd; try discriminate. simpl.
+        intro H. injection H as <-. constructor. apply characterClassEsc_to_linden_sound. auto.
+      - simpl. intros lr n.
+        destruct characterEscape_to_linden as [cd|] eqn:Hcd; try discriminate. simpl.
+        intro H. injection H as <-. constructor. apply characterEscape_to_linden_sound. auto.
+      - discriminate.
+    Qed.
+
+    Lemma wquantpref_to_linden_sound:
+      forall qp quant,
+        wquantpref_to_linden qp = Success quant ->
+        equiv_quantifier qp quant.
+    Proof.
+      intros qp quant H. destruct qp.
+      1-5: injection H as <-; constructor.
+      simpl in H. destruct Nat.leb eqn:Hle; try discriminate.
+      injection H as <-. constructor. apply PeanoNat.Nat.leb_le. auto.
+    Qed.
+
+    Lemma classEscape_to_linden_sound:
+      forall esc cda,
+        classEscape_to_linden esc = Success cda ->
+        equiv_ClassEscape esc cda.
+    Proof.
+      intros esc cda. destruct esc; simpl.
+      - intro H. injection H as <-. constructor.
+      - intro H. injection H as <-. constructor.
+      - intro H. constructor. apply characterClassEsc_to_linden_sound. auto.
+      - intro H. constructor. apply characterEscape_to_linden_sound. auto.
+    Qed.
+
+    Lemma classAtom_to_linden_sound:
+      forall ca cda,
+        classAtom_to_linden ca = Success cda ->
+        equiv_ClassAtom ca cda.
+    Proof.
+      intro ca. destruct ca.
+      - simpl. intros cda H. injection H as <-. constructor.
+      - simpl. intros cda H. constructor. apply classEscape_to_linden_sound. auto.
+    Qed.
+
+    Lemma characterEscape_singleCharacter_sound:
+      forall esc clh,
+        characterEscape_singleCharacter esc = Success clh ->
+        equiv_CharacterEscape esc (CdSingle clh).
+    Proof.
+      intros esc clh. destruct esc; simpl; try discriminate.
+      all: intro H; injection H as <-; constructor.
+      - apply controlEsc_singleCharacter_sound.
+      - apply asciiEsc_singleCharacter_sound.
+    Qed.
+
+    Lemma classEscape_singleCharacter_sound:
+      forall esc clh,
+        classEscape_singleCharacter esc = Success clh ->
+        equiv_ClassEscape esc (CdSingle clh).
+    Proof.
+      intros esc clh. destruct esc; simpl; try discriminate.
+      - intro H. injection H as <-. constructor.
+      - intro H. injection H as <-. constructor.
+      - intro H. constructor. apply characterEscape_singleCharacter_sound. auto.
+    Qed.
+
+    Lemma classAtom_singleCharacter_sound:
+      forall lh clh,
+        classAtom_singleCharacter lh = Success clh ->
+        equiv_ClassAtom lh (CdSingle clh).
+    Proof.
+      intros lh clh. destruct lh.
+      - simpl. intro H. injection H as <-. constructor.
+      - simpl. intro H. constructor. apply classEscape_singleCharacter_sound. auto.
+    Qed.
+
+    Lemma classRanges_to_linden_sound:
+      forall crs cd,
+        classRanges_to_linden crs = Success cd ->
+        equiv_ClassRanges crs cd.
+    Proof.
+      intro crs. induction crs.
+      - simpl. intros cd H. injection H as <-. constructor.
+      - simpl. intro cd.
+        destruct classAtom_to_linden as [cda|] eqn:Hcda; try discriminate; simpl.
+        destruct classRanges_to_linden as [cdt|] eqn:Hcdt; try discriminate; simpl.
+        intro H. injection H as <-.
+        constructor; auto. apply classAtom_to_linden_sound. auto.
+      - simpl. intro cd.
+        destruct classAtom_singleCharacter as [cl|] eqn:Hcl; try discriminate; simpl.
+        destruct (classAtom_singleCharacter h) as [ch|] eqn:Hch; try discriminate; simpl.
+        destruct classRanges_to_linden as [cdt|] eqn:Hcdt; try discriminate; simpl.
+        destruct Nat.leb eqn:Hle; try discriminate; simpl.
+        apply PeanoNat.Nat.leb_le in Hle.
+        intro H. injection H as <-. constructor; auto; apply classAtom_singleCharacter_sound; auto.
+    Qed.
+
+    Lemma charclass_to_linden_sound:
+      forall cc cd,
+        charclass_to_linden cc = Success cd ->
+        equiv_CharClass cc cd.
+    Proof.
+      intro cc. destruct cc.
+      - simpl. intros cd H. constructor. apply classRanges_to_linden_sound. auto.
+      - simpl. destruct classRanges_to_linden as [cdsub|] eqn:Hcdsub; simpl; try discriminate.
+        intros cd H. injection H as <-. constructor. apply classRanges_to_linden_sound. auto.
+    Qed.
+
+    Lemma warblre_to_linden_sound:
+      forall wr lr n,
+        warblre_to_linden wr n = Success lr ->
+        equiv_regex' wr lr n.
+    Proof.
+      intro wr. induction wr.
+      - simpl. intros lr n H. injection H as <-. apply Equiv_empty.
+      - simpl. intros lr n H. injection H as <-. apply Equiv_char.
+      - simpl. intros lr n H. injection H as <-. apply Equiv_dot.
+      - simpl. intros lr n H. apply atomesc_to_linden_sound. auto.
+      - simpl. intros lr n.
+        destruct charclass_to_linden as [cd|] eqn:Hcd; simpl; try discriminate.
+        intro H. injection H as <-. constructor. apply charclass_to_linden_sound. auto.
+      - simpl. intros lr n.
+        destruct warblre_to_linden as [lr1|] eqn:Hwl1; try discriminate. simpl.
+        destruct (warblre_to_linden wr2 _) as [lr2|] eqn:Hwl2; try discriminate. simpl.
+        intro H. injection H as <-.
+        apply Equiv_disj; auto.
+      - simpl. intros lr n.
+        destruct q as [qp|qp].
+        + destruct wquantpref_to_linden as [quant|] eqn:Hquant; try discriminate. simpl.
+          destruct warblre_to_linden as [lrsub|] eqn:Hwl; try discriminate. simpl.
+          intro H. injection H as <-.
+          apply Equiv_quant; auto. 2: constructor.
+          apply wquantpref_to_linden_sound. auto.
+        + destruct wquantpref_to_linden as [quant|] eqn:Hquant; try discriminate. simpl.
+          destruct warblre_to_linden as [lrsub|] eqn:Hwl; try discriminate. simpl.
+          intro H. injection H as <-.
+          apply Equiv_quant; auto. 2: constructor.
+          apply wquantpref_to_linden_sound. auto.
+      - simpl. intros lr n.
+        destruct warblre_to_linden as [lr1|] eqn:Hwl1; try discriminate. simpl.
+        destruct (warblre_to_linden wr2 _) as [lr2|] eqn:Hwl2; try discriminate. simpl.
+        intro H. injection H as <-. constructor; auto.
+      - simpl. intros lr n.
+        destruct warblre_to_linden as [lrsub|] eqn:Hwl; try discriminate. simpl.
+        intro H. injection H as <-. constructor. auto.
+      - simpl. intros lr n H. injection H as <-. constructor. constructor.
+      - simpl. intros lr n H. injection H as <-. constructor. constructor.
+      - simpl. intros lr n H. injection H as <-. constructor. constructor.
+      - simpl. intros lr n H. injection H as <-. constructor. constructor.
+      - simpl. intros lr n.
+        destruct warblre_to_linden as [lrsub|] eqn:Hwl; try discriminate. simpl.
+        intro H. injection H as <-. constructor; auto; constructor.
+      - simpl. intros lr n.
+        destruct warblre_to_linden as [lrsub|] eqn:Hwl; try discriminate. simpl.
+        intro H. injection H as <-. constructor; auto; constructor.
+      - simpl. intros lr n.
+        destruct warblre_to_linden as [lrsub|] eqn:Hwl; try discriminate. simpl.
+        intro H. injection H as <-. constructor; auto; constructor.
+      - simpl. intros lr n.
+        destruct warblre_to_linden as [lrsub|] eqn:Hwl; try discriminate. simpl.
+        intro H. injection H as <-. constructor; auto; constructor.
+    Qed.
+
+  End TranslationSoundness.
 
 End RegexpTranslation.
