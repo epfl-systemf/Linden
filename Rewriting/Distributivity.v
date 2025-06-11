@@ -25,7 +25,8 @@ Module Right.
       erewrite is_tree_determ with (1 := Hf).
       erewrite is_tree_determ with (1 := He).
       2, 3: repeat (econstructor; simpl); eapply compute_tr_is_tree.
-      reflexivity.
+      1: reflexivity.
+      all: do 2 apply ComputeIsTree.inp_valid_checks_Areg; apply ComputeIsTree.inp_valid_checks_nil.
     Qed.
   End EquivalenceProof.
 End Right.
@@ -57,8 +58,10 @@ Module Left.
           tree_res tre GroupMap.empty 0 forward.
     Proof.
       intros * Hf He.
-      pattern trf; eapply compute_tr_ind with (2 := Hf).
-      pattern tre; eapply compute_tr_ind with (2 := He).
+      pattern trf; eapply compute_tr_ind with (3 := Hf).
+      2: { apply ComputeIsTree.inp_valid_checks_Areg, ComputeIsTree.inp_valid_checks_nil. }
+      pattern tre; eapply compute_tr_ind with (3 := He).
+      2: { apply ComputeIsTree.inp_valid_checks_Areg, ComputeIsTree.inp_valid_checks_nil. }
       unfold compute_tr; repeat (simpl; rewrite ?EqDec.reflb).
       inversion 1.
     Qed.
