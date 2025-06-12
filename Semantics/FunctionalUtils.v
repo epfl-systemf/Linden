@@ -22,6 +22,12 @@ Section Utilities.
     eauto using compute_is_tree.
   Qed.
 
+  Lemma compute_tr_reg_is_tree {r i gm dir} :
+    is_tree [Areg r] i gm dir (compute_tr [Areg r] i gm dir).
+  Proof.
+    eauto using compute_tr_is_tree with inp_valid.
+  Qed.
+
   Lemma compute_tr_ind {actions i gm dir P} :
     P (compute_tr actions i gm dir) ->
     inp_valid_checks i actions dir ->
@@ -30,6 +36,13 @@ Section Utilities.
     intros HP Hvalidchecks tr Htr.
     erewrite is_tree_determ with (1 := Htr) (2 := compute_tr_is_tree Hvalidchecks).
     assumption.
+  Qed.
+
+  Lemma compute_tr_reg_ind {r i gm dir P} :
+    P (compute_tr [Areg r] i gm dir) ->
+    forall {tr}, is_tree [Areg r] i gm dir tr -> P tr.
+  Proof.
+    intros; eapply compute_tr_ind; eauto with inp_valid.
   Qed.
 
   Definition compute_tr_dep (act: actions) (inp: input) (gm: group_map) (dir: Direction): tree :=
@@ -51,5 +64,11 @@ Section Utilities.
     set (functional_terminates _ _ _ _ _ _) as fn; clearbody fn.
     destruct compute_tree eqn:Htr; try contradiction.
     eauto using compute_is_tree.
+  Qed.
+
+  Lemma compute_tr_dep_reg_is_tree {r i gm dir} :
+    is_tree [Areg r] i gm dir (compute_tr_dep [Areg r] i gm dir).
+  Proof.
+    eauto using compute_tr_dep_is_tree with inp_valid.
   Qed.
 End Utilities.
