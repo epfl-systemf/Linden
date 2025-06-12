@@ -154,7 +154,6 @@ Section EquivMain.
     specialize (Hequivm Hcompute).
     split.
     - apply compute_is_tree with (fuel := fuel); auto.
-      apply inp_valid_checks_Areg, inp_valid_checks_nil.
     - exact Hequivm.
   Qed.
 

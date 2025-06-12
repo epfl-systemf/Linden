@@ -3,7 +3,7 @@ From Warblre Require Import Notation Parameters Match Base Result Typeclasses.
 Import Notation.
 Import Match.
 Import Result.Notations.
-From Linden Require Import Chars LindenParameters FunctionalSemantics.
+From Linden Require Import Chars LindenParameters FunctionalSemantics StrictSuffix.
 
 Local Open Scope result_flow.
 

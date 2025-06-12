@@ -13,9 +13,8 @@ Section Utilities.
     end.
 
   Lemma compute_tr_is_tree {actions i gm dir} :
-    inp_valid_checks i actions dir -> is_tree actions i gm dir (compute_tr actions i gm dir).
+    is_tree actions i gm dir (compute_tr actions i gm dir).
   Proof.
-    intro Hvalidchecks.
     unfold compute_tr.
     pose proof functional_terminates actions i gm dir _ (PeanoNat.Nat.lt_succ_diag_r _).
     destruct compute_tree eqn:Htr; try contradiction.
@@ -25,16 +24,15 @@ Section Utilities.
   Lemma compute_tr_reg_is_tree {r i gm dir} :
     is_tree [Areg r] i gm dir (compute_tr [Areg r] i gm dir).
   Proof.
-    eauto using compute_tr_is_tree with inp_valid.
+    eauto using compute_tr_is_tree.
   Qed.
 
   Lemma compute_tr_ind {actions i gm dir P} :
     P (compute_tr actions i gm dir) ->
-    inp_valid_checks i actions dir ->
     forall {tr}, is_tree actions i gm dir tr -> P tr.
   Proof.
-    intros HP Hvalidchecks tr Htr.
-    erewrite is_tree_determ with (1 := Htr) (2 := compute_tr_is_tree Hvalidchecks).
+    intros HP tr Htr.
+    erewrite is_tree_determ with (1 := Htr) (2 := compute_tr_is_tree).
     assumption.
   Qed.
 
@@ -42,7 +40,7 @@ Section Utilities.
     P (compute_tr [Areg r] i gm dir) ->
     forall {tr}, is_tree [Areg r] i gm dir tr -> P tr.
   Proof.
-    intros; eapply compute_tr_ind; eauto with inp_valid.
+    intros; eapply compute_tr_ind; eauto.
   Qed.
 
   Definition compute_tr_dep (act: actions) (inp: input) (gm: group_map) (dir: Direction): tree :=
@@ -56,10 +54,8 @@ Section Utilities.
     end eq_refl.
 
   Lemma compute_tr_dep_is_tree {actions i gm dir} :
-    inp_valid_checks i actions dir ->
     is_tree actions i gm dir (compute_tr_dep actions i gm dir).
   Proof.
-    intro Hvalidchecks.
     unfold compute_tr_dep.
     set (functional_terminates _ _ _ _ _ _) as fn; clearbody fn.
     destruct compute_tree eqn:Htr; try contradiction.
@@ -69,6 +65,6 @@ Section Utilities.
   Lemma compute_tr_dep_reg_is_tree {r i gm dir} :
     is_tree [Areg r] i gm dir (compute_tr_dep [Areg r] i gm dir).
   Proof.
-    eauto using compute_tr_dep_is_tree with inp_valid.
+    eauto using compute_tr_dep_is_tree.
   Qed.
 End Utilities.

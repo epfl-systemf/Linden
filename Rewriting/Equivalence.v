@@ -51,10 +51,10 @@ Section Equivalence.
     tree_equiv_dir dir r1 r2 <-> tree_equiv_compute_dir dir r1 r2.
   Proof.
     unfold tree_equiv_dir, tree_equiv_compute_dir, tree_equiv_tr_dir; split.
-    - eauto 6 using compute_tr_is_tree with inp_valid.
+    - eauto 6 using compute_tr_is_tree.
     - intros Heq * H1 H2.
-      pattern tr1; eapply compute_tr_ind with (3 := H1); eauto with inp_valid.
-      pattern tr2; eapply compute_tr_ind with (3 := H2); eauto with inp_valid.
+      pattern tr1; eapply compute_tr_ind with (2 := H1); eauto.
+      pattern tr2; eapply compute_tr_ind with (2 := H2); eauto.
   Qed.
 
   Lemma tree_equiv_compute_iff {r1 r2} :

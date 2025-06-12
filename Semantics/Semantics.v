@@ -6,6 +6,7 @@ From Linden Require Import Tree.
 From Linden Require Import NumericLemmas.
 From Warblre Require Import Numeric Base.
 From Linden Require Import Groups.
+From Linden Require Import StrictSuffix.
 From Coq Require Import Lia.
 
 (* This relates a regex and a string to their backtracking tree *)
@@ -124,13 +125,13 @@ Section Semantics.
   | tree_check:
   (* pops a successful check from the action list *)
     forall inp gm dir strcheck cont treecont
-      (PROGRESS: inp <> strcheck)
+      (PROGRESS: strict_suffix inp strcheck dir)
       (TREECONT: is_tree cont inp gm dir treecont),
       is_tree (Acheck strcheck :: cont) inp gm dir (Progress treecont)
   | tree_check_fail:
   (* pops a failing check from the action list *)
     forall inp gm dir strcheck cont
-      (CHECKFAIL: inp = strcheck),
+      (CHECKFAIL: ~strict_suffix inp strcheck dir),
       is_tree (Acheck strcheck :: cont) inp gm dir Mismatch
   | tree_close:
   (* pops the closing of a group from the action list *)
@@ -229,7 +230,6 @@ Section Semantics.
 
 
   (** * Determinism  *)
-
   Theorem is_tree_determ:
     forall actions i gm dir t1 t2,
       is_tree actions i gm dir t1 ->
@@ -242,9 +242,9 @@ Section Semantics.
     - inversion H; subst; auto.
     - inversion H0; subst; auto.
       + apply IHis_tree in TREECONT. subst. auto.
-      + exfalso. apply PROGRESS. auto.
+      + exfalso. auto.
     - inversion H; subst; auto.
-      exfalso. apply PROGRESS. auto.
+      exfalso. auto.
     - inversion H0; subst; auto.
       apply IHis_tree in TREECONT. subst. auto.
     - inversion H0; auto.
