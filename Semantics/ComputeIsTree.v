@@ -280,3 +280,11 @@ Section ComputeIsTree.
   Qed.
 
 End ComputeIsTree.
+
+Create HintDb inp_valid.
+#[export] Hint Resolve
+  inp_valid_checks_Acheck
+  inp_valid_checks_Aclose
+  inp_valid_checks_Areg
+  inp_valid_checks_nil
+  : inp_valid.

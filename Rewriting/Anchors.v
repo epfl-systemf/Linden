@@ -1,7 +1,4 @@
-From Coq Require Import List.
-From Warblre Require Import Base.
-From Linden Require Import Regex Chars Groups Tree Semantics FunctionalSemantics FunctionalUtils.
-Import ListNotations.
+From Linden.Rewriting Require Import ProofSetup.
 
 Section Anchors.
   Context {char: Parameters.Character.class}.
@@ -40,28 +37,13 @@ Section Anchors.
           end
       end; reflexivity.
 
-  Theorem desugar_anchor_correct' (a: anchor) (i: input) dir gm:
-    tree_leaves (compute_tr [Areg (Anchor a)] i gm dir) gm i dir =
-      tree_leaves (compute_tr [Areg (desugar_anchor a)] i gm dir) gm i dir.
+  Theorem desugar_anchor_correct (a: anchor):
+    Anchor a ≅ desugar_anchor a.
   Proof.
+    rewrite tree_equiv_compute_iff; autounfold with tree_equiv; intros.
     unfold compute_tr;
       destruct a, dir; simpl;
       unfold compute_tr, anchor_satisfied, is_boundary, word_char, xorb, negb.
     all: destr.
-  Qed.
-
-  Theorem desugar_anchor_correct (a: anchor) (i: input) dir gm:
-    forall tra trl,
-      is_tree [Areg (Anchor a)] i gm dir tra ->
-      is_tree [Areg (desugar_anchor a)] i gm dir trl ->
-      tree_leaves tra gm i dir =
-        tree_leaves trl gm i dir.
-  Proof.
-    eintros tra trlk Ha Hlk.
-    pattern tra; eapply compute_tr_ind with (3 := Ha).
-    2: { apply ComputeIsTree.inp_valid_checks_Areg, ComputeIsTree.inp_valid_checks_nil. }
-    pattern trlk; eapply compute_tr_ind with (3 := Hlk).
-    2: { apply ComputeIsTree.inp_valid_checks_Areg, ComputeIsTree.inp_valid_checks_nil. }
-    apply desugar_anchor_correct'.
   Qed.
 End Anchors.

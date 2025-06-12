@@ -1,7 +1,4 @@
-From Coq Require Import List.
-From Warblre Require Import Base.
-From Linden Require Import Regex Chars Groups Tree Semantics FunctionalSemantics FunctionalUtils.
-Import ListNotations.
+From Linden.Rewriting Require Import ProofSetup.
 
 Module Right.
   Section EquivalenceProof.
@@ -14,19 +11,14 @@ Module Right.
     Definition expanded: regex :=
       Disjunction (Sequence x0 y) (Sequence x1 y).
 
-    Theorem expand_correct i gm:
-      forall trf tre,
-        is_tree [Areg factored] i gm forward trf ->
-        is_tree [Areg expanded] i gm forward tre ->
-        tree_leaves trf gm i forward =
-          tree_leaves tre gm i forward.
+    Theorem factored_expanded_right_equiv:
+      factored ≅[forward] expanded.
     Proof.
-      intros * Hf He.
+      autounfold with tree_equiv; intros * Hf He.
       erewrite is_tree_determ with (1 := Hf).
       erewrite is_tree_determ with (1 := He).
-      2, 3: repeat (econstructor; simpl); eapply compute_tr_is_tree.
+      2, 3: repeat (econstructor; simpl); eapply compute_tr_is_tree; eauto with inp_valid.
       1: reflexivity.
-      all: do 2 apply ComputeIsTree.inp_valid_checks_Areg; apply ComputeIsTree.inp_valid_checks_nil.
     Qed.
   End EquivalenceProof.
 End Right.
@@ -48,21 +40,13 @@ Module Left.
     Definition expanded: regex :=
       Disjunction (Sequence x y0) (Sequence x y1).
 
-    Definition input := [c].
+    Definition input := init_input [c].
 
-    Theorem expand_incorrect:
-      forall trf tre,
-        priotree factored input trf ->
-        priotree expanded input tre ->
-        tree_res trf GroupMap.empty (init_input input) forward <>
-          tree_res tre GroupMap.empty (init_input input) forward.
+    Theorem factored_expanded_left_nequiv:
+      factored ≇ expanded.
     Proof.
-      intros * Hf He.
-      pattern trf; eapply compute_tr_ind with (3 := Hf).
-      2: { apply ComputeIsTree.inp_valid_checks_Areg, ComputeIsTree.inp_valid_checks_nil. }
-      pattern tre; eapply compute_tr_ind with (3 := He).
-      2: { apply ComputeIsTree.inp_valid_checks_Areg, ComputeIsTree.inp_valid_checks_nil. }
-      unfold compute_tr; repeat (simpl; rewrite ?EqDec.reflb).
+      eapply (tree_nequiv_compute_counterexample input GroupMap.empty forward).
+      autounfold with tree_equiv; unfold compute_tr; repeat (simpl; rewrite ?EqDec.reflb).
       inversion 1.
     Qed.
   End Counterexample.
