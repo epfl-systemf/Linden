@@ -195,7 +195,7 @@ Proof.
   - constructor; auto. rewrite Heqprevstr in STRICT. eapply strict_app; eauto.
   - constructor.
     + apply IHbool_encoding; auto.
-    + rewrite Heqprevstr. apply strict_cons.
+    + subst. simpl. apply strict_cons.
 Qed.
 
 (* if the string is different than the check, we know the boolean is true *)
@@ -245,6 +245,16 @@ Proof.
   - destruct inp. constructor. inversion H; subst; auto.
 Qed.
 
+(** * Encoding means suffixes (strict or not)  *)
+(* Here we encode the invariant that the current input is always either equal or strict suffix of any checks in the current list of actions *)
+
+Lemma encoding_suffix:
+  forall b inp act chk,
+    bool_encoding b inp act ->
+    In (Acheck chk) act ->
+    inp = chk \/ StrictSuffix.strict_suffix inp chk forward.
+Proof.
+Admitted.
 
 
 (** * Second Step: encoding equality  *)
@@ -263,10 +273,14 @@ Proof.
   induction TREE; inversion PIKE; subst; intros;
     try solve[constructor; auto]; try solve [inversion H1; inversion H0].
   - assert (b = CanExit).
-    { eapply encoding_different; eauto. }
+    { eapply encoding_different; eauto.
+      eapply StrictSuffix.ss_neq; eauto. }
     subst. constructor. eapply IHTREE; eauto.
     inversion ENCODE; subst; auto.
-  - assert (b = CannotExit).
+  - assert (inp = strcheck \/ StrictSuffix.strict_suffix inp strcheck forward).
+    { eapply encoding_suffix; eauto. simpl. auto. }
+    destruct H; try contradiction. subst.
+    assert (b = CannotExit).
     { eapply encoding_same; eauto. }
     subst. constructor.
   - constructor; apply IHTREE; auto;
@@ -383,8 +397,9 @@ Qed.
     assert (exists t', is_tree [Areg r] inp GroupMap.empty forward t') as [t' ISTREE].
     { destruct (compute_tree [Areg r] inp  GroupMap.empty forward (S (actions_fuel [Areg r] inp forward))) eqn:PROD.
       2: { generalize functional_terminates. intros H1. apply H1 in PROD; auto; lia. }
-      exists t0. eapply compute_is_tree; eauto.
-      unfold inp_valid_checks. simpl. intros strcheck [H1|H1]; inversion H1. }
+      exists t0. eapply compute_is_tree; eauto. }
+    (* deprecated: when we had to prove valid checks *)
+      (* unfold inp_valid_checks. simpl. intros strcheck [H1|H1]; inversion H1. } *)
     apply boolean_correct in ISTREE as BOOLTREE; auto.
     (* determinism *)
     assert (t = t') by (eapply bool_tree_determ; eauto). subst. auto.
