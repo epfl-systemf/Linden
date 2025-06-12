@@ -8,10 +8,10 @@ Section Equivalence.
   Context {char: Parameters.Character.class}.
 
   Definition tree_equiv_tr_dir i gm dir tr1 tr2 :=
-    tree_leaves tr1 gm (idx i) dir = tree_leaves tr2 gm (idx i) dir.
+    tree_leaves tr1 gm i dir = tree_leaves tr2 gm i dir.
 
   Definition tree_nequiv_tr_dir i gm dir tr1 tr2 :=
-    tree_leaves tr1 gm (idx i) dir <> tree_leaves tr2 gm (idx i) dir.
+    tree_leaves tr1 gm i dir <> tree_leaves tr2 gm i dir.
 
   Section IsTree.
     Definition tree_equiv_dir dir r1 r2 :=

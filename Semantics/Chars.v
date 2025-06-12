@@ -27,6 +27,12 @@ Section Chars.
   #[export] Instance input_EqDec: EqDec input := EqDec.make input input_eq_dec.
 
 
+  (* Get the current string index from the input *)
+  Definition idx (inp:input) : nat :=
+    match inp with
+    | Input next pref => List.length pref
+    end.
+
   Definition next_str (i:input) : string :=
     match i with
     | Input s _ => s
@@ -182,6 +188,21 @@ Section Chars.
             end
         end
     end.
+
+  (* Same, but just return the input in case of failure *)
+  Definition advance_input' (i: input) (dir: Direction): input :=
+    match advance_input i dir with
+    | Some nextinp => nextinp
+    | None => i
+    end.
+
+  Lemma advance_input_success:
+    forall i dir nexti,
+      advance_input i dir = Some nexti ->
+      advance_input' i dir = nexti.
+  Proof.
+    intros i dir nexti H. unfold advance_input'. rewrite H. reflexivity.
+  Qed.
 
   (* Advancing input several times *)
   Definition advance_input_n (i: input) (n: nat) (dir: Direction): input :=

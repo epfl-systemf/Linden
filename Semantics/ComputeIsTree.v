@@ -108,16 +108,17 @@ Section ComputeIsTree.
   Qed.
 
   Lemma lk_succeeds_group_map:
-    forall lk treelk gm idx,
+    forall lk treelk gm inp,
       lk_succeeds lk treelk = true ->
-      lk_group_map lk treelk gm idx <> None.
+      lk_group_map lk treelk gm inp <> None.
   Proof.
-    intros lk treelk gm idx Hsucceeds.
+    intros lk treelk gm inp Hsucceeds.
     unfold lk_succeeds in Hsucceeds. unfold lk_group_map.
     destruct Regex.positivity. 2: discriminate.
     unfold Tree.first_branch in Hsucceeds.
     destruct Tree.tree_res as [res|] eqn:Hres; try discriminate.
-    intro Habs. apply Tree.res_group_map_indep with (gm2 := Groups.GroupMap.empty) (idx2 := 0) (dir2 := Base.forward) in Habs.
+    intro Habs. destruct (Tree.tree_res treelk gm inp _) as [[]|] eqn:Habs'; try discriminate.
+    apply Tree.res_group_map_indep with (gm2 := Groups.GroupMap.empty) (inp2 := init_input nil) (dir2 := Base.forward) in Habs'.
     congruence.
   Qed.
 
@@ -217,7 +218,7 @@ Section ComputeIsTree.
       destruct compute_tree as [treelk|] eqn:Htreelk; simpl; try discriminate.
       destruct lk_succeeds eqn:Hlksucc.
       + (* Lookaround succeds *)
-        pose proof lk_succeeds_group_map lk treelk gm (idx inp) Hlksucc as Hlkgm_not_None.
+        pose proof lk_succeeds_group_map lk treelk gm inp Hlksucc as Hlkgm_not_None.
         destruct lk_group_map as [gmlk|] eqn:Hgmlk; try contradiction.
         destruct (compute_tree acts inp gmlk dir fuel) as [treecont|] eqn:Hcomputecont; try discriminate.
         intros H Hvalidchecks. injection H as <-.

@@ -109,7 +109,7 @@ Section Tree.
 
   (** * Tree Results  *)
 
-  Definition leaf: Type := (group_map).
+  Definition leaf: Type := (input * group_map).
 
   Definition advance_idx (idx: nat) (dir: Direction) :=
     match dir with
@@ -125,70 +125,73 @@ Section Tree.
 
   (* returning the highest-priority result *)
   (* we also return the corresponding group map *)
-  Fixpoint tree_res (t:tree) (gm:group_map) (idx:nat) (dir: Direction): option leaf :=
+  Fixpoint tree_res (t:tree) (gm:group_map) (inp:input) (dir: Direction): option leaf :=
     match t with
     | Mismatch => None
-    | Match => Some gm
+    | Match => Some (inp, gm)
     | Choice t1 t2 =>
-        seqop (tree_res t1 gm idx dir) (tree_res t2 gm idx dir)
-    | Read c t1 => tree_res t1 gm (advance_idx idx dir) dir
-    | Progress t1 => tree_res t1 gm idx dir
-    | GroupAction a t1 => tree_res t1 (GroupMap.update idx a gm) idx dir
+        seqop (tree_res t1 gm inp dir) (tree_res t2 gm inp dir)
+    | Read c t1 => tree_res t1 gm (advance_input' inp dir) dir
+    | Progress t1 => tree_res t1 gm inp dir
+    | GroupAction a t1 => tree_res t1 (GroupMap.update (idx inp) a gm) inp dir
     | LK lk tlk t1 =>
         match (positivity lk) with
         | true => 
-            match tree_res tlk gm idx (lk_dir lk) with
+            match tree_res tlk gm inp (lk_dir lk) with
             | None => None
             (* using the captures defined in the first branch of the lookahead *)
-            | Some gm' => tree_res t1 gm' idx dir
+            | Some (_, gm') => tree_res t1 gm' inp dir
             end
         | false =>
-            match tree_res tlk gm idx (lk_dir lk) with
+            match tree_res tlk gm inp (lk_dir lk) with
             (* using previous captures *)
-            | None => tree_res t1 gm idx dir
+            | None => tree_res t1 gm inp dir
             | Some _ => None
             end
         end
     | LKFail _ _ => None
-    | AnchorPass _ t => tree_res t gm idx dir
-    | ReadBackRef br_str t => tree_res t gm (advance_idx_n idx (length br_str) dir) dir
+    | AnchorPass _ t => tree_res t gm inp dir
+    | ReadBackRef br_str t => tree_res t gm (advance_input_n inp (length br_str) dir) dir
     end.
 
   (* initializing on a the empty group map *)
-  Definition first_branch (t:tree) : option leaf :=
-    tree_res t GroupMap.empty 0 forward.
+  Definition first_branch (t:tree) (str0: string) : option leaf :=
+    tree_res t GroupMap.empty (init_input str0) forward.
+
+  Definition first_branch' (t:tree) (inp:input) : option leaf :=
+    tree_res t GroupMap.empty inp forward.
 
   (** * All Tree Results *)
 
   (* returns the ordered list of all results of a tree *)
   (* together with the corresponding group map *)
-  Fixpoint tree_leaves (t:tree) (gm:group_map) (idx:nat) (dir: Direction): list leaf :=
+  Fixpoint tree_leaves (t:tree) (gm:group_map) (inp:input) (dir: Direction): list leaf :=
     match t with
     | Mismatch => []
-    | Match => [gm]
+    | Match => [(inp, gm)]
     | Choice t1 t2 =>
-        tree_leaves t1 gm idx dir ++ tree_leaves t2 gm idx dir
-    | Read c t1 => tree_leaves t1 gm (advance_idx idx dir) dir
-    | Progress t1 => tree_leaves t1 gm idx dir
-    | GroupAction a t1 => tree_leaves t1 (GroupMap.update idx a gm) idx dir
+        tree_leaves t1 gm inp dir ++ tree_leaves t2 gm inp dir
+    | Read c t1 => tree_leaves t1 gm (advance_input' inp dir) dir
+    | Progress t1 => tree_leaves t1 gm inp dir
+    | GroupAction a t1 => tree_leaves t1 (GroupMap.update (idx inp) a gm) inp dir
     | LK lk tlk t1 =>
         match (positivity lk) with (* Do we want to explore all the branches of the lookahead tree that succeed? *)
         | true =>
-            match (tree_leaves tlk gm idx (lk_dir lk)) with
+            match (tree_leaves tlk gm inp (lk_dir lk)) with
             | [] => []             (* should not happen *)
             (* using the captures defined in the first branch of the lookaround *)
-            | gm'::_ => tree_leaves t1 gm' idx dir
+            | (_, gm')::_ => tree_leaves t1 gm' inp dir
             end
         | false =>
-            match (tree_leaves tlk gm idx (lk_dir lk)) with
+            match (tree_leaves tlk gm inp (lk_dir lk)) with
             (* using previous captures *)
-            | [] => tree_leaves t1 gm idx dir
+            | [] => tree_leaves t1 gm inp dir
             | _ => []              (* should not happen *)
             end
         end
     | LKFail _ _ => []
-    | AnchorPass _ t => tree_leaves t gm idx dir
-    | ReadBackRef br_str t => tree_leaves t gm (advance_idx_n idx (length br_str) dir) dir
+    | AnchorPass _ t => tree_leaves t gm inp dir
+    | ReadBackRef br_str t => tree_leaves t gm (advance_input_n inp (length br_str) dir) dir
     end.
 
 
@@ -218,7 +221,7 @@ Section Tree.
     intros lk tlk t1 Hpos IHtlk IHt1.
     unfold first_tree_leaf_prop in *. intros gm idx dir. simpl. rewrite Hpos.
     specialize (IHtlk gm idx (lk_dir lk)). destruct (tree_res tlk gm idx (lk_dir lk)); destruct (tree_leaves tlk gm idx (lk_dir lk)); try discriminate; simpl in *. 2: reflexivity.
-    injection IHtlk as <-; auto.
+    injection IHtlk as <-; destruct l; auto.
   Qed.
 
   (* Intermediate lemma for negative lookarounds *)
@@ -253,8 +256,8 @@ Section Tree.
 
   (* Group map irrelevance property for a given tree. *)
   Definition leaves_group_map_indep_prop (t: tree): Prop :=
-    forall gm1 gm2 idx1 idx2 dir1 dir2,
-      tree_leaves t gm1 idx1 dir1 = [] -> tree_leaves t gm2 idx2 dir2 = [].
+    forall gm1 gm2 inp1 inp2 dir1 dir2,
+      tree_leaves t gm1 inp1 dir1 = [] -> tree_leaves t gm2 inp2 dir2 = [].
 
   (* Intermediate lemma for positive lookarounds *)
   Lemma leaves_group_map_indep_poslk:
@@ -263,10 +266,10 @@ Section Tree.
       leaves_group_map_indep_prop (LK lk tlk t1).
   Proof.
     intros lk tlk t1 Hposlk IHtlk IHt1; unfold leaves_group_map_indep_prop in *; simpl.
-    rewrite Hposlk. intros gm1 gm2 idx1 idx2 dir1 dir2 Hnil1.
-    specialize (IHtlk gm1 gm2 idx1 idx2 (lk_dir lk) (lk_dir lk)). destruct (tree_leaves tlk gm1 idx1 _) as [|gm' q]; simpl in *.
+    rewrite Hposlk. intros gm1 gm2 inp1 inp2 dir1 dir2 Hnil1.
+    specialize (IHtlk gm1 gm2 inp1 inp2 (lk_dir lk) (lk_dir lk)). destruct (tree_leaves tlk gm1 inp1 _) as [|[inp' gm'] q]; simpl in *.
     1: { specialize (IHtlk eq_refl). now rewrite IHtlk. }
-    destruct (tree_leaves tlk gm2 idx2 _) as [|gm'0 q0]; simpl in *. 1: reflexivity.
+    destruct (tree_leaves tlk gm2 inp2 _) as [|[inp'0 gm'0] q0]; simpl in *. 1: reflexivity.
     eapply IHt1; eauto.
   Qed.
 
@@ -277,23 +280,23 @@ Section Tree.
       leaves_group_map_indep_prop (LK lk tlk t1).
   Proof.
     intros lk tlk t1 Hposlk IHtlk IHt1; unfold leaves_group_map_indep_prop in *; simpl.
-    rewrite Hposlk. intros gm1 gm2 idx1 idx2 dir1 dir2 Hnil1.
-    destruct (tree_leaves tlk gm1 idx1 _) as [|gm' q] eqn:Hnilsub1; simpl in *.
-    1: { specialize (IHtlk gm1 gm2 idx1 idx2 (lk_dir lk) (lk_dir lk) Hnilsub1). rewrite IHtlk. eapply IHt1; eauto. }
-    destruct (tree_leaves tlk gm2 idx2 _) as [|gm'0 q0] eqn:Hnilsub2; simpl in *. 2: reflexivity.
-    exfalso. apply IHtlk with (gm2 := gm1) (idx2 := idx1) (dir2 := lk_dir lk) in Hnilsub2. congruence.
+    rewrite Hposlk. intros gm1 gm2 inp1 inp2 dir1 dir2 Hnil1.
+    destruct (tree_leaves tlk gm1 inp1 _) as [|[inp' gm'] q] eqn:Hnilsub1; simpl in *.
+    1: { specialize (IHtlk gm1 gm2 inp1 inp2 (lk_dir lk) (lk_dir lk) Hnilsub1). rewrite IHtlk. eapply IHt1; eauto. }
+    destruct (tree_leaves tlk gm2 inp2 _) as [|[inp'0 gm'0] q0] eqn:Hnilsub2; simpl in *. 2: reflexivity.
+    exfalso. apply IHtlk with (gm2 := gm1) (inp2 := inp1) (dir2 := lk_dir lk) in Hnilsub2. congruence.
   Qed.
 
 
   Lemma leaves_group_map_indep:
-    forall t gm1 gm2 idx1 idx2 dir1 dir2,
-      tree_leaves t gm1 idx1 dir1 = [] -> tree_leaves t gm2 idx2 dir2 = [].
+    forall t gm1 gm2 inp1 inp2 dir1 dir2,
+      tree_leaves t gm1 inp1 dir1 = [] -> tree_leaves t gm2 inp2 dir2 = [].
   Proof.
     intros t.
     induction t; intros; eauto.
     - simpl in H. inversion H.
     - simpl in H. simpl. apply app_eq_nil in H as [NIL1 NIL2].
-      apply IHt1 with (gm2:=gm2) (idx2:=idx2) (dir2:=dir2) in NIL1. apply IHt2 with (gm2:=gm2) (idx2:=idx2) (dir2:=dir2) in NIL2.
+      apply IHt1 with (gm2:=gm2) (inp2:=inp2) (dir2:=dir2) in NIL1. apply IHt2 with (gm2:=gm2) (inp2:=inp2) (dir2:=dir2) in NIL2.
       rewrite NIL1. rewrite NIL2. auto.
     - destruct (positivity lk) eqn:Hlkpos.
       + eapply leaves_group_map_indep_poslk; eauto.
@@ -312,8 +315,8 @@ Section Tree.
   Qed.
 
   Lemma res_group_map_indep:
-    forall t gm1 gm2 idx1 idx2 dir1 dir2,
-      tree_res t gm1 idx1 dir1 = None -> tree_res t gm2 idx2 dir2 = None.
+    forall t gm1 gm2 inp1 inp2 dir1 dir2,
+      tree_res t gm1 inp1 dir1 = None -> tree_res t gm2 inp2 dir2 = None.
   Proof.
     intros. rewrite first_tree_leaf, hd_error_none_nil in *. eauto using leaves_group_map_indep.
   Qed. 

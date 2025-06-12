@@ -41,48 +41,59 @@ Definition tree_bfs_step (t:tree) (gm:group_map) (idx:nat): step_result :=
 
 (* The semantic states of the PikeTree algorithm *)
 Inductive pike_tree_state : Type :=
-| PTS (idx:nat) (active: list (tree * group_map)) (best: option leaf) (blocked: list (tree * group_map))
+| PTS (inp:input) (active: list (tree * group_map)) (best: option leaf) (blocked: list (tree * group_map))
 | PTS_final (best: option leaf).
 
 Definition pike_pts (pts:pike_tree_state) : Prop :=
   match pts with
   | PTS_final _ => True
-  | PTS idx active best blocked =>
+  | PTS inp active best blocked =>
       pike_list active /\ pike_list blocked
   end.
 
 Definition upd_blocked {X:Type} (newblocked: option X) (blocked: list X) :=
   match newblocked with Some b => b::blocked | None => blocked end.
 
+Definition next_inp (i:input) :=
+  advance_input' i forward.
+
+Lemma advance_next:
+  forall i1 i2,
+    advance_input i1 forward = Some i2 ->
+    next_inp i1 = i2.
+Proof.
+  intros i1 i2 H. unfold next_inp, advance_input'. rewrite H. auto.
+Qed.
+
+
 (* Small-step semantics for the PikeTree algorithm *)
 Inductive pike_tree_step : pike_tree_state -> pike_tree_state -> Prop :=
 | pts_final:
 (* moving to a final state when there are no more active or blocked trees *)
-  forall idx best,
-    pike_tree_step (PTS idx [] best []) (PTS_final best)
+  forall inp best,
+    pike_tree_step (PTS inp [] best []) (PTS_final best)
 | pts_nextchar:
   (* when the list of active trees is empty, restart from the blocked ones, proceeding to the next character *)
-  forall idx best blocked tgm,
-    pike_tree_step (PTS idx [] best (tgm::blocked)) (PTS (idx + 1) (tgm::blocked) best [])
+  forall inp best blocked tgm,
+    pike_tree_step (PTS inp [] best (tgm::blocked)) (PTS (next_inp inp) (tgm::blocked) best [])
 | pts_active:
   (* generated new active trees: add them in front of the low-priority ones *)
-  forall idx t gm active best blocked nextactive
-    (STEP: tree_bfs_step t gm idx = StepActive nextactive),
-    pike_tree_step (PTS idx ((t,gm)::active) best blocked) (PTS idx (nextactive++active) best blocked)
+  forall inp t gm active best blocked nextactive
+    (STEP: tree_bfs_step t gm (idx inp) = StepActive nextactive),
+    pike_tree_step (PTS inp ((t,gm)::active) best blocked) (PTS inp (nextactive++active) best blocked)
 | pts_match:
   (* a match is found, discard remaining low-priority active trees *)
-  forall idx t gm active best blocked
-    (STEP: tree_bfs_step t gm idx = StepMatch),
-    pike_tree_step (PTS idx ((t,gm)::active) best blocked) (PTS idx [] (Some gm) blocked)
+  forall inp t gm active best blocked
+    (STEP: tree_bfs_step t gm (idx inp) = StepMatch),
+    pike_tree_step (PTS inp ((t,gm)::active) best blocked) (PTS inp [] (Some (inp, gm)) blocked)
 | pts_blocked:
 (* add the new blocked thread after the previous ones *)
-  forall idx t gm active best blocked newt
-    (STEP: tree_bfs_step t gm idx = StepBlocked newt),
-    pike_tree_step (PTS idx ((t,gm)::active) best blocked) (PTS idx active best (blocked ++ [(newt,gm)])).
+  forall inp t gm active best blocked newt
+    (STEP: tree_bfs_step t gm (idx inp) = StepBlocked newt),
+    pike_tree_step (PTS inp ((t,gm)::active) best blocked) (PTS inp active best (blocked ++ [(newt,gm)])).
 
-Definition pike_tree_initial_state (t:tree) : pike_tree_state :=
-  (PTS 0 [(t, GroupMap.empty)] None []).
-
+Definition pike_tree_initial_state (t:tree) (i:input) : pike_tree_state :=
+  (PTS i [(t, GroupMap.empty)] None []).
 
 (** * Pike Tree Properties  *)
 
@@ -103,25 +114,25 @@ Qed.
 (** * Pike Tree Correction *)
 (* we show it's related to the baktracking exploration of the tree *)
 
-Definition list_result (l:list (tree * group_map)) (idx:nat) : option leaf :=
-  seqop_list l (fun tgm => tree_res (fst tgm) (snd tgm) idx forward).
+Definition list_result (l:list (tree * group_map)) (inp:input) : option leaf :=
+  seqop_list l (fun tgm => tree_res (fst tgm) (snd tgm) inp forward).
 
 Lemma list_result_cons:
-  forall t gm l idx,
-    list_result ((t,gm)::l) idx = seqop (tree_res t gm idx forward) (list_result l idx).
+  forall t gm l inp,
+    list_result ((t,gm)::l) inp = seqop (tree_res t gm inp forward) (list_result l inp).
 Proof.
-  intros. unfold list_result. destruct (tree_res t gm idx forward) eqn:RES.
+  intros. unfold list_result. destruct (tree_res t gm inp forward) eqn:RES.
   - erewrite seqop_list_head_some; simpl; eauto.
   - erewrite seqop_list_head_none; simpl; eauto.
 Qed.
 
 Lemma list_result_app:
-  forall l1 l2 idx,
-    list_result (l1 ++ l2) idx = seqop (list_result l1 idx) (list_result l2 idx).
+  forall l1 l2 inp,
+    list_result (l1 ++ l2) inp = seqop (list_result l1 inp) (list_result l2 inp).
 Proof.
   intros l1. induction l1; intros; auto.
   destruct a as [t gm]. unfold list_result.
-  destruct (tree_res t gm idx forward) eqn:RES.
+  destruct (tree_res t gm inp forward) eqn:RES.
   - erewrite seqop_list_head_some; simpl; eauto.
     erewrite seqop_list_head_some; simpl; eauto.
   - erewrite seqop_list_head_none; simpl; eauto.
@@ -132,8 +143,8 @@ Qed.
 (* this is an invariant: after each step, the state result is preserved *)
 Definition state_result (pts: pike_tree_state) : option leaf :=
   match pts with
-  | (PTS idx active best blocked) =>
-      seqop (list_result blocked (idx+1)) (seqop (list_result active idx) best)
+  | (PTS inp active best blocked) =>
+      seqop (list_result blocked (next_inp inp)) (seqop (list_result active inp) best)
   | (PTS_final best) => best
   end.
   
@@ -194,9 +205,9 @@ Qed.
 
 (* the invariant is properly initialized: at the beginning, the result of the state is the first result of the tree *)
 Lemma pts_result_init:
-  forall t,
-    state_result (pike_tree_initial_state t) = first_branch t.
+  forall t inp,
+    state_result (pike_tree_initial_state t inp) = first_branch' t inp.
 Proof.
-  intros t. unfold pike_tree_initial_state, first_branch. simpl.
+  intros t inp. unfold pike_tree_initial_state, first_branch. simpl.
   unfold list_result, seqop_list. simpl. rewrite seqop_none. auto.
 Qed.

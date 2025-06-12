@@ -37,7 +37,7 @@ Definition head_pc (threadactive:list thread) : label :=
 
 Inductive pike_inv (code:code): pike_tree_seen_state -> pike_vm_seen_state -> nat -> Prop :=
 | pikeinv:
-  forall inp idx treeactive treeblocked threadactive threadblocked best treeseen threadseen measureactive measureblocked n
+  forall inp treeactive treeblocked threadactive threadblocked best treeseen threadseen measureactive measureblocked n
     (ACTIVE: list_tree_thread code inp treeactive threadactive measureactive)
     (* blocked threads should be equivalent for the next input *)
     (* nothing to say if there is no next input *)
@@ -49,7 +49,7 @@ Inductive pike_inv (code:code): pike_tree_seen_state -> pike_vm_seen_state -> na
     (SEEN: seen_inclusion code inp treeseen threadseen (hd_error treeactive) (head_pc threadactive))
     (* the measure is simply the measure of the top priority thread *)
     (MEASURE: n = hd 0 (measureactive++measureblocked)),
-    pike_inv code (PTSS idx treeactive best treeblocked treeseen) (PVSS inp idx threadactive best threadblocked threadseen) n
+    pike_inv code (PTSS inp treeactive best treeblocked treeseen) (PVSS inp threadactive best threadblocked threadseen) n
 | pikeinv_final:
   forall best,
     pike_inv code (PTSS_final best) (PVSS_final best) 0.
@@ -232,9 +232,9 @@ Qed.
 (* to show that a stuttering step cannot lead the PikeVM to immediately memoize something that was not memoized by the PikeTree, we need to show that stutteing instructions always point to a greater pc *)
 
 Definition stutter_wf (code:code) : Prop :=
-  forall pc gm b nextpc nextgm nextb inp idx,
+  forall pc gm b nextpc nextgm nextb inp,
     stutters pc code = true ->
-    epsilon_step (pc,gm,b) code inp idx = EpsActive[(nextpc,nextgm,nextb)] ->
+    epsilon_step (pc,gm,b) code inp = EpsActive[(nextpc,nextgm,nextb)] ->
     pc < nextpc.
 
 Lemma nth_nil:
@@ -325,7 +325,7 @@ Proof.
   eapply compile_nfa_rep with (prev:=[]) in H as REP; simpl; auto.
   simpl in REP. apply fresh_correct in H. simpl in H. subst.
   unfold stutter_wf. unfold stutters. unfold get_pc.
-  intros pc gm b nextpc nextgm nextb inp idx H H0.
+  intros pc gm b nextpc nextgm nextb inp H H0.
   destruct (nth_error code pc) eqn:NTH.
   2: { inversion H. }
   destruct b0; inversion H; simpl in H0; unfold get_pc in H0; rewrite NTH in H0;
@@ -343,7 +343,7 @@ Proof.
   destruct (compile r 0) as [r_code fresh] eqn:COMP. subst.
   apply compile_stutter_wf in COMP.
   unfold stutter_wf, stutters, get_pc.
-  intros pc gm b nextpc nextgm nextb inp idx H H0.
+  intros pc gm b nextpc nextgm nextb inp H H0.
   destruct (nth_error (r_code ++ [Accept]) pc) eqn:NTH.
   2: { inversion H. }
   assert (HL: pc < length (r_code ++ [Accept])).
@@ -359,7 +359,7 @@ Proof.
   assert (get_pc r_code pc = Some b0).
   { rewrite nth_error_app1 in NTH; auto. }
   unfold stutter_wf in COMP.
-  assert (epsilon_step (pc,gm,b) r_code inp idx = EpsActive [(nextpc,nextgm,nextb)]).
+  assert (epsilon_step (pc,gm,b) r_code inp = EpsActive [(nextpc,nextgm,nextb)]).
   { simpl in H0. unfold get_pc in H0. rewrite NTH in H0.
     simpl. rewrite H2.
     destruct b0; auto. }
@@ -378,7 +378,7 @@ Lemma initial_pike_inv:
     (TREE: bool_tree [Areg r] inp CanExit tree)
     (COMPILE: compilation r = code)
     (SUBSET: pike_regex r),
-    pike_inv code (pike_tree_seen_initial_state tree) (pike_vm_seen_initial_state inp) 0.
+    pike_inv code (pike_tree_seen_initial_state tree inp) (pike_vm_seen_initial_state inp) 0.
 Proof.
   intros r inp tree code TREE COMPILE SUBSET.
   unfold compilation in COMPILE. destruct (compile r 0) as [c fresh] eqn:COMP.
@@ -404,7 +404,7 @@ Qed.
 Definition skip_state (pvs:pike_vm_seen_state) : bool :=
   match pvs with
   | PVSS_final _ => false
-  | PVSS inp idx active best blocked seen =>
+  | PVSS inp active best blocked seen =>
       match active with
       | [] => false
       | (pc,gm,b)::active => inseenpc seen pc b
@@ -435,7 +435,7 @@ Proof.
   inversion INV; subst.
   (* Final states make no step *)
   2: { inversion VMSTEP. }
-  destruct (skip_state (PVSS inp idx threadactive best threadblocked threadseen)) eqn:SKIP.
+  destruct (skip_state (PVSS inp threadactive best threadblocked threadseen)) eqn:SKIP.
   (* skip states are performed in lockstep *)
   { left. destruct threadactive as [|[[pc gm] b] active]; simpl in SKIP.
     { inversion SKIP. }
@@ -446,7 +446,7 @@ Proof.
     - assert (teq = tree).
       { eapply tt_same_tree; eauto. }
       subst.
-      exists (PTSS idx treeactive best treeblocked treeseen).
+      exists (PTSS inp treeactive best treeblocked treeseen).
       exists (hd 0 (measurelist ++ measureblocked)).
       split.
       + apply ptss_skip; auto.
@@ -469,9 +469,11 @@ Proof.
     - destruct (advance_input inp) eqn:ADV.
       2: { specialize (ENDTREE (eq_refl None)). inversion ENDTREE. }
       specialize (BLOCKED i (eq_refl (Some i))). inversion BLOCKED; subst.
-      assert (pvs2 = PVSS i (idx+1) ((pc,gmblocked,b)::threadlist) best [] initial_seenpcs).
+      assert (pvs2 = PVSS i ((pc,gmblocked,b)::threadlist) best [] initial_seenpcs).
       { eapply pikevm_deterministic; eauto. constructor. auto. }
-      subst. left. exists (PTSS (idx+1) ((tblocked,gmblocked)::treeblocked) best [] initial_seentrees). exists n. split; econstructor; eauto.
+      subst. left. exists (PTSS i ((tblocked,gmblocked)::treeblocked) best [] initial_seentrees).
+      apply advance_next in ADV. subst.
+      exists n. split; try econstructor; eauto.
       + intros nextinp H. constructor.
       + apply initial_inclusion.
   }
@@ -481,36 +483,36 @@ Proof.
   destruct (stutters pc code) eqn:STUTTERS.
   {
     (* stuttering step *)
-    right. apply stutter_step with (idx:=idx) in TT as H; auto.
+    right. apply stutter_step in TT as H; auto.
     destruct H as [nextpc [nextb [m [EPSSTEP [TT2 LESS]]]]]; subst.
-    exists m. assert (pvs2 = (PVSS inp idx ([(nextpc, gm, nextb)] ++ threadactive) best threadblocked (add_thread threadseen (pc,gm,b)))).
+    exists m. assert (pvs2 = (PVSS inp ([(nextpc, gm, nextb)] ++ threadactive) best threadblocked (add_thread threadseen (pc,gm,b)))).
     { eapply pikevm_deterministic; eauto. eapply pvss_active; eauto. }
     split; subst; simpl; auto. eapply pikeinv with (measureactive:=m::measurelist); simpl; eauto.
     - constructor; eauto.
     - (* Here we use that the code is stutter-well-formed *)
       simpl in SEEN. eapply stutter_inclusion; eauto.
   }
-  destruct (tree_bfs_step t gm idx) eqn:TREESTEP.
+  destruct (tree_bfs_step t gm (idx inp)) eqn:TREESTEP.
   (* active *)
   - left. eapply generate_active in TREESTEP as H; eauto. destruct H as [newthreads [measure [EPS LTT2]]].
-    assert (pvs2 = PVSS inp idx (newthreads ++ threadactive) best threadblocked (add_thread threadseen (pc,gm,b))).
+    assert (pvs2 = PVSS inp (newthreads ++ threadactive) best threadblocked (add_thread threadseen (pc,gm,b))).
     { eapply pikevm_deterministic; eauto. constructor; auto. }
-    subst. exists (PTSS idx (l ++ treeactive) best treeblocked (add_seentrees treeseen t)). exists (hd 0 ((measure ++ measurelist) ++ measureblocked)). split.
+    subst. exists (PTSS inp (l ++ treeactive) best treeblocked (add_seentrees treeseen t)). exists (hd 0 ((measure ++ measurelist) ++ measureblocked)). split.
     + eapply ptss_active; eauto.
     + eapply pikeinv; try (eapply add_inclusion; eauto); try constructor; eauto.
       apply ltt_app; eauto.
   (* match *)
   - left. eapply generate_match in TREESTEP as THREADSTEP; eauto.
-    assert (pvs2 = PVSS inp idx [] (Some (gm_of (pc,gm,b))) threadblocked (add_thread threadseen (pc,gm,b))).
+    assert (pvs2 = PVSS inp [] (Some (inp,gm_of (pc,gm,b))) threadblocked (add_thread threadseen (pc,gm,b))).
     { eapply pikevm_deterministic; eauto. constructor; auto. }
-    subst. exists (PTSS idx [] (Some gm) treeblocked (add_seentrees treeseen t)). exists (hd 0 ([] ++ measureblocked)). split.
+    subst. exists (PTSS inp [] (Some (inp,gm)) treeblocked (add_seentrees treeseen t)). exists (hd 0 ([] ++ measureblocked)). split.
     + constructor; auto.
     + eapply pikeinv; try (eapply add_inclusion; eauto); try constructor; eauto.
   (* blocked *)
-  - left. specialize (generate_blocked _ _ _ _ _ _ _ _ _ TREESTEP STUTTERS TT) as [EPS2 [TT2 [nexti ADVANCE]]].
-    assert (pvs2 = PVSS inp idx threadactive best (threadblocked ++ [(pc+1,gm,CanExit)]) (add_thread threadseen (pc,gm,b))).
+  - left. specialize (generate_blocked _ _ _ _ _ _ _ _ TREESTEP STUTTERS TT) as [EPS2 [TT2 [nexti ADVANCE]]].
+    assert (pvs2 = PVSS inp threadactive best (threadblocked ++ [(pc+1,gm,CanExit)]) (add_thread threadseen (pc,gm,b))).
     { eapply pikevm_deterministic; eauto. constructor; auto. }
-    subst. exists (PTSS idx treeactive best (treeblocked ++ [(t0,gm)]) (add_seentrees treeseen t)). exists (hd 0 (measurelist ++ measureblocked ++ [n])). split.
+    subst. exists (PTSS inp treeactive best (treeblocked ++ [(t0,gm)]) (add_seentrees treeseen t)). exists (hd 0 (measurelist ++ measureblocked ++ [n])). split.
     + eapply ptss_blocked; eauto.
     + eapply pikeinv; try (eapply add_inclusion; eauto); try constructor; eauto.
       2: { intros H. rewrite ADVANCE in H. inversion H. }

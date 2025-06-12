@@ -488,12 +488,6 @@ Section FunctionalSemantics.
 
   (** * Computing the measure  *)
 
-  (* Get the current string index from the input *)
-  Definition idx (inp:input) : nat :=
-    match inp with
-    | Input next pref => List.length pref
-    end.
-
   (* The predecessor of a non_negative or infinite delta of a quantifier *)
   Definition noi_pred (noi:non_neg_integer_or_inf) : non_neg_integer_or_inf :=
     match noi with
@@ -874,11 +868,11 @@ Section FunctionalSemantics.
 
   Definition lk_succeeds (lk: lookaround) (t: tree): bool :=
     match positivity lk with
-    | true => match first_branch t with
+    | true => match first_branch t [] with
       | Some res => true
       | None => false
       end
-    | false => match first_branch t with
+    | false => match first_branch t [] with
       | Some res => false
       | None => true
       end
@@ -955,7 +949,7 @@ Section FunctionalSemantics.
             let treelk := compute_tree [Areg r1] inp gm (lk_dir lk) fuel in
             match treelk with None => None | Some treelk =>
               if lk_succeeds lk treelk then
-                match lk_group_map lk treelk gm (idx inp) with
+                match lk_group_map lk treelk gm inp with
                 | Some gmlk =>
                   let treecont := compute_tree cont inp gmlk dir fuel in
                   match treecont with None => None | Some treecont =>

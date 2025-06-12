@@ -24,10 +24,6 @@ Section GroupMapMS.
   (* A group map and a MatchState are said to be equivalent when they define the same capture groups. *)
   Definition equiv_groupmap_ms (gm: GroupMap.t) (ms: MatchState): Prop :=
     forall gid_prec: nat, equiv_ranges_opt (GroupMap.find (S gid_prec) gm) (List.nth gid_prec (MatchState.captures ms) None).
-  (* Lifting above equivalence to option *)
-  Inductive equiv_groupmap_ms_opt: option leaf -> option MatchState -> Prop :=
-  | Equiv_leaf_ms_None: equiv_groupmap_ms_opt None None
-  | Equiv_leaf_ms_Some: forall gm ms, equiv_groupmap_ms gm ms -> equiv_groupmap_ms_opt (Some gm) (Some ms).
 
   (** * Definition of lists of open groups and equivalence with group maps *)
   (* This is needed to characterize Warblre continuations *)

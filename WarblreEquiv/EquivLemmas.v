@@ -772,19 +772,19 @@ Section EquivLemmas.
   
   (* Lemma for a list of actions *)
   Lemma actions_tree_no_outside_groups:
-    forall acts gm0 inp dir0 fuel t,
-      compute_tree acts inp gm0 dir0 fuel = Some t ->
-      forall gm1 gm2 idx dir,
-        Tree.tree_res t gm1 idx dir = Some gm2 ->
+    forall acts gm0 inp0 dir0 fuel t,
+      compute_tree acts inp0 gm0 dir0 fuel = Some t ->
+      forall gm1 gm2 inp1 inp2 dir,
+        Tree.tree_res t gm1 inp1 dir = Some (inp2, gm2) ->
         forall gid, ~In gid (actions_def_groups acts) -> GroupMap.find gid gm2 = GroupMap.find gid gm1.
   Proof.
-    intros acts gm0 inp dir0 fuel. revert acts gm0 inp dir0.
+    intros acts gm0 inp0 dir0 fuel. revert acts gm0 inp0 dir0.
     induction fuel as [|fuel IHfuel]. { discriminate. }
-    intros acts gm0 inp dir0 t. simpl.
+    intros acts gm0 inp0 dir0 t. simpl.
     destruct acts as [|[reg | inpcheck | gid] acts].
     - (* No action *)
       intro H. injection H as <-. simpl.
-      intros gm1 gm2 _ _ H. now injection H as <-.
+      intros gm1 gm2 inp1 inp2 dir H. now injection H as <- <-.
     
     - (* Areg *)
       destruct reg as [ | cd | r1 r2 | r1 r2 | greedy min delta r | lk r | gid r | a | gid].
@@ -797,29 +797,29 @@ Section EquivLemmas.
         2: { intro H. injection H as <-. discriminate. }
         specialize (IHfuel acts gm0 nextinp dir0).
         destruct compute_tree as [treecont|]; simpl; try discriminate.
-        intro H. injection H as <-. intros gm1 gm2 idx dir.
-        simpl. intro Hrescont. specialize (IHfuel treecont eq_refl gm1 gm2 (advance_idx idx dir) dir Hrescont).
+        intro H. injection H as <-. intros gm1 gm2 inp1 inp2 dir.
+        simpl. intro Hrescont. specialize (IHfuel treecont eq_refl gm1 gm2 (advance_input' inp1 dir) inp2 dir Hrescont).
         exact IHfuel.
       
       + (* Disjunction *)
         destruct compute_tree as [t1|] eqn:Heqt1; simpl; try discriminate.
         destruct (compute_tree (Areg r2 :: acts) _ _ _ _) as [t2|] eqn:Heqt2; simpl; try discriminate.
         intro H. injection H as <-. simpl.
-        intros gm1 gm2 idx dir Hres gid Hnotin.
+        intros gm1 gm2 inp1 inp2 dir Hres gid Hnotin.
         do 2 rewrite in_app_iff in Hnotin.
-        unfold seqop in Hres. destruct (tree_res t1 gm1 idx dir) as [gmres1|] eqn:Hres1; simpl in *.
+        unfold seqop in Hres. destruct (tree_res t1 gm1 inp1 dir) as [[inpres1 gmres1]|] eqn:Hres1; simpl in *.
         * (* First branch succeeds *)
-          injection Hres as <-.
-          apply (IHfuel _ _ _ _ _ Heqt1 _ _ _ _ Hres1). simpl. rewrite in_app_iff. tauto.
+          injection Hres as <- <-.
+          apply (IHfuel _ _ _ _ _ Heqt1 _ _ _ _ _ Hres1). simpl. rewrite in_app_iff. tauto.
         * eapply IHfuel; eauto. simpl. rewrite in_app_iff. tauto.
 
       + (* Sequence *)
         destruct dir0.
         * simpl.
-          intro Htreecomp. specialize (IHfuel (Areg r1 :: Areg r2 :: acts) gm0 inp forward t Htreecomp).
+          intro Htreecomp. specialize (IHfuel (Areg r1 :: Areg r2 :: acts) gm0 inp0 forward t Htreecomp).
           simpl in IHfuel. rewrite <- app_assoc. exact IHfuel.
         * simpl.
-          intro Htreecomp. specialize (IHfuel (Areg r2 :: Areg r1 :: acts) gm0 inp backward t Htreecomp).
+          intro Htreecomp. specialize (IHfuel (Areg r2 :: Areg r1 :: acts) gm0 inp0 backward t Htreecomp).
           simpl in IHfuel. rewrite <- app_assoc. intros. eapply IHfuel; eauto.
           do 2 rewrite in_app_iff. do 2 rewrite in_app_iff in H0. tauto.
       
@@ -829,70 +829,70 @@ Section EquivLemmas.
           simpl. intros. eapply IHfuel; eauto. rewrite in_app_iff in H1. tauto.
         * (* Free, finite delta *)
           simpl. replace (ndelta' - 0) with ndelta' by lia.
-          destruct (compute_tree (Areg r :: Acheck inp :: _ :: acts) inp _ dir0 fuel) as [titer|] eqn:Hiter; simpl; try discriminate.
-          destruct (compute_tree acts inp gm0 dir0 fuel) as [tskip|] eqn:Hskip; simpl; try discriminate.
+          destruct (compute_tree (Areg r :: Acheck inp0 :: _ :: acts) inp0 _ dir0 fuel) as [titer|] eqn:Hiter; simpl; try discriminate.
+          destruct (compute_tree acts inp0 gm0 dir0 fuel) as [tskip|] eqn:Hskip; simpl; try discriminate.
           intro H. injection H as <-.
-          intros gm1 gm2 idx dir.
+          intros gm1 gm2 inp1 inp2 dir.
           pose proof IHfuel _ _ _ _ _ Hiter (GroupMap.reset (def_groups r) gm1) as IHiter.
           pose proof IHfuel _ _ _ _ _ Hskip gm1 as IHskip.
           destruct greedy; simpl.
           -- (* Greedy *)
-             destruct (tree_res titer _ idx dir) as [gmiter|] eqn:Hiterres; simpl.
+             destruct (tree_res titer _ inp1 dir) as [[inpiter gmiter]|] eqn:Hiterres; simpl.
              ++ (* Iteration succeeds *)
-                intro H. injection H as <-.
-                specialize (IHiter gmiter idx dir Hiterres). simpl in IHiter.
+                intro H. injection H as <- <-.
+                specialize (IHiter gmiter inp1 inpiter dir Hiterres). simpl in IHiter.
                 intros. rewrite IHiter. 2: { do 2 rewrite in_app_iff. rewrite in_app_iff in H. tauto. }
                 rewrite in_app_iff in H. assert (~In gid (def_groups r)) by tauto. now apply gm_reset_find_other.
              ++ (* Iteration fails *)
-                intro Hskipres. specialize (IHskip gm2 idx dir Hskipres).
+                intro Hskipres. specialize (IHskip gm2 inp1 inp2 dir Hskipres).
                 intros. apply IHskip. rewrite in_app_iff in H. tauto.
           -- (* Lazy *)
-             destruct (tree_res tskip _ idx dir) as [gmskip|] eqn:Hskipres; simpl.
+             destruct (tree_res tskip _ inp1 dir) as [[inpskip gmskip]|] eqn:Hskipres; simpl.
              ++ (* Iteration succeeds *)
-                intro H. injection H as <-.
-                specialize (IHskip gmskip idx dir Hskipres).
+                intro H. injection H as <- <-.
+                specialize (IHskip gmskip inp1 inpskip dir Hskipres).
                 intros gid H. apply IHskip. rewrite in_app_iff in H. tauto.
              ++ (* Iteration fails *)
-                intro Hiterres. specialize (IHiter _ _ _ Hiterres). simpl in IHiter.
+                intro Hiterres. specialize (IHiter _ _ _ _ Hiterres). simpl in IHiter.
                 intros. rewrite in_app_iff in H.
                 rewrite IHiter. 2: { do 2 rewrite in_app_iff. tauto. }
                 assert (~In gid (def_groups r)) by tauto. now apply gm_reset_find_other.
         * (* Free, infinite delta *)
           simpl.
           (* Copy-pasting from above!! *)
-          destruct (compute_tree (Areg r :: Acheck inp :: _ :: acts) inp _ dir0 fuel) as [titer|] eqn:Hiter; simpl; try discriminate.
-          destruct (compute_tree acts inp gm0 dir0 fuel) as [tskip|] eqn:Hskip; simpl; try discriminate.
+          destruct (compute_tree (Areg r :: Acheck inp0 :: _ :: acts) inp0 _ dir0 fuel) as [titer|] eqn:Hiter; simpl; try discriminate.
+          destruct (compute_tree acts inp0 gm0 dir0 fuel) as [tskip|] eqn:Hskip; simpl; try discriminate.
           intro H. injection H as <-.
-          intros gm1 gm2 idx dir.
+          intros gm1 gm2 inp1 inp2 dir.
           pose proof IHfuel _ _ _ _ _ Hiter (GroupMap.reset (def_groups r) gm1) as IHiter.
           pose proof IHfuel _ _ _ _ _ Hskip gm1 as IHskip.
           destruct greedy; simpl.
           -- (* Greedy *)
-             destruct (tree_res titer _ idx dir) as [gmiter|] eqn:Hiterres; simpl.
+             destruct (tree_res titer _ inp1 dir) as [[inpiter gmiter]|] eqn:Hiterres; simpl.
              ++ (* Iteration succeeds *)
-                intro H. injection H as <-.
-                specialize (IHiter gmiter idx dir Hiterres). simpl in IHiter.
+                intro H. injection H as <- <-.
+                specialize (IHiter gmiter inp1 inpiter dir Hiterres). simpl in IHiter.
                 intros. rewrite IHiter. 2: { do 2 rewrite in_app_iff. rewrite in_app_iff in H. tauto. }
                 rewrite in_app_iff in H. assert (~In gid (def_groups r)) by tauto. now apply gm_reset_find_other.
              ++ (* Iteration fails *)
-                intro Hskipres. specialize (IHskip gm2 idx dir Hskipres).
+                intro Hskipres. specialize (IHskip gm2 inp1 inp2 dir Hskipres).
                 intros. apply IHskip. rewrite in_app_iff in H. tauto.
           -- (* Lazy *)
-             destruct (tree_res tskip _ idx dir) as [gmskip|] eqn:Hskipres; simpl.
+             destruct (tree_res tskip _ inp1 dir) as [[inpskip gmskip]|] eqn:Hskipres; simpl.
              ++ (* Iteration succeeds *)
-                intro H. injection H as <-.
-                specialize (IHskip gmskip idx dir Hskipres).
+                intro H. injection H as <- <-.
+                specialize (IHskip gmskip inp1 inpskip dir Hskipres).
                 intros gid H. apply IHskip. rewrite in_app_iff in H. tauto.
              ++ (* Iteration fails *)
-                intro Hiterres. specialize (IHiter _ _ _ Hiterres). simpl in IHiter.
+                intro Hiterres. specialize (IHiter _ _ _ _ Hiterres). simpl in IHiter.
                 intros. rewrite in_app_iff in H.
                 rewrite IHiter. 2: { do 2 rewrite in_app_iff. tauto. }
                 assert (~In gid (def_groups r)) by tauto. now apply gm_reset_find_other.
         * (* Forced *)
           destruct compute_tree as [titer|] eqn:Hiter; try discriminate.
           intro H. injection H as <-.
-          simpl. intros gm1 gm2 idx dir Heqgm2 gid Hnotin. rewrite in_app_iff in Hnotin. 
-          rewrite (IHfuel _ _ _ _ _ Hiter _ _ _ _ Heqgm2).
+          simpl. intros gm1 gm2 inp1 inp2 dir Heqgm2 gid Hnotin. rewrite in_app_iff in Hnotin. 
+          rewrite (IHfuel _ _ _ _ _ Hiter _ _ _ _ _ Heqgm2).
           2: { simpl. do 2 rewrite in_app_iff. tauto. }
           assert (~In gid (def_groups r)) by tauto. now apply gm_reset_find_other.
         
@@ -901,17 +901,17 @@ Section EquivLemmas.
         destruct lk_succeeds eqn:Hlksucc.
         * (* Lookaround succeeds *)
           destruct lk_group_map as [gmlk|] eqn:Heqgmlk.
-          -- destruct (compute_tree acts inp gmlk dir0 fuel) as [treecont|] eqn:Htreecont; try discriminate.
+          -- destruct (compute_tree acts inp0 gmlk dir0 fuel) as [treecont|] eqn:Htreecont; try discriminate.
              intro H. injection H as <-.
              simpl. destruct positivity.
-             ++ intros gm1 gm2 idx dir. destruct tree_res as [gmafterlk|] eqn:Heqgmafterlk; try discriminate.
+             ++ intros gm1 gm2 inp1 inp2 dir. destruct tree_res as [[inpafterlk gmafterlk]|] eqn:Heqgmafterlk; try discriminate.
                 intros Heqgm2 gid Hnotin.
                 rewrite in_app_iff in Hnotin.
-                rewrite (IHfuel _ _ _ _ _ Htreecont _ _ _ _ Heqgm2) by tauto.
-                rewrite (IHfuel _ _ _ _ _ Hcomputelk _ _ _ _ Heqgmafterlk).
+                rewrite (IHfuel _ _ _ _ _ Htreecont _ _ _ _ _ Heqgm2) by tauto.
+                rewrite (IHfuel _ _ _ _ _ Hcomputelk _ _ _ _ _ Heqgmafterlk).
                 2: { simpl. rewrite app_nil_r. tauto. }
                 reflexivity.
-             ++ intros gm1 gm2 idx dir.
+             ++ intros gm1 gm2 inp1 inp2 dir.
                 destruct tree_res eqn:Hgmafterlk; try discriminate.
                 intros Heqgm2 gid Hnotin. rewrite in_app_iff in Hnotin.
                 eapply IHfuel; eauto.
@@ -923,8 +923,8 @@ Section EquivLemmas.
       + (* Group *)
         destruct compute_tree as [treecont|] eqn:Hcomputecont; try discriminate.
         intro H. injection H as <-. simpl.
-        intros gm1 gm2 idx dir Heqgm2 gid' Hnotin.
-        rewrite (IHfuel _ _ _ _ _ Hcomputecont _ _ _ _ Heqgm2).
+        intros gm1 gm2 inp1 inp2 dir Heqgm2 gid' Hnotin.
+        rewrite (IHfuel _ _ _ _ _ Hcomputecont _ _ _ _ _ Heqgm2).
         2: { simpl. rewrite in_app_iff in *. simpl. tauto. }
         assert (gid <> gid') by tauto.
         now apply group_map_open_find_other.
@@ -944,21 +944,21 @@ Section EquivLemmas.
     - (* Acheck *)
       destruct is_strict_suffix.
       + (* Check passes *)
-        specialize (IHfuel acts gm0 inp dir0).
+        specialize (IHfuel acts gm0 inp0 dir0).
         destruct compute_tree as [treecont|]; simpl; try discriminate.
-        intro H. injection H as <-. intros gm1 gm2 idx dir. simpl.
-        intro Hrescont. specialize (IHfuel treecont eq_refl gm1 gm2 idx dir Hrescont).
+        intro H. injection H as <-. intros gm1 gm2 inp1 inp2 dir. simpl.
+        intro Hrescont. specialize (IHfuel treecont eq_refl gm1 gm2 inp1 inp2 dir Hrescont).
         exact IHfuel.
       + (* Check fails *)
         intro H. injection H as <-. discriminate.
     
     - (* Aclose *)
-      specialize (IHfuel acts (GroupMap.close (idx inp) gid gm0) inp dir0).
+      specialize (IHfuel acts (GroupMap.close (idx inp0) gid gm0) inp0 dir0).
       destruct compute_tree as [treecont|]; simpl; try discriminate.
       specialize (IHfuel treecont eq_refl).
       intro H. injection H as <-.
-      intros gm1 gm2 idx dir. simpl.
-      specialize (IHfuel (GroupMap.close idx gid gm1) gm2 idx dir).
+      intros gm1 gm2 inp1 inp2 dir. simpl.
+      specialize (IHfuel (GroupMap.close (idx inp1) gid gm1) gm2 inp1 inp2 dir).
       intro Hrescont. specialize (IHfuel Hrescont).
       intros gid' Hnotin. rewrite IHfuel by tauto.
       assert (gid' <> gid) by (symmetry; tauto).
@@ -966,14 +966,14 @@ Section EquivLemmas.
   Qed.
 
   Corollary reg_tree_no_outside_groups:
-    forall reg gm0 inp dir0 fuel t,
-      compute_tree [Areg reg] inp gm0 dir0 fuel = Some t ->
-      forall gm1 gm2 idx dir,
-        Tree.tree_res t gm1 idx dir = Some gm2 ->
+    forall reg gm0 inp0 dir0 fuel t,
+      compute_tree [Areg reg] inp0 gm0 dir0 fuel = Some t ->
+      forall gm1 gm2 inp1 inp2 dir,
+        Tree.tree_res t gm1 inp1 dir = Some (inp2, gm2) ->
         forall gid, ~In gid (def_groups reg) -> GroupMap.find gid gm2 = GroupMap.find gid gm1.
   Proof.
     intros.
-    apply actions_tree_no_outside_groups with (acts := [Areg reg]) (inp := inp) (dir := dir) (fuel := fuel) (t := t) (idx := idx) (gm0 := gm0) (dir0 := dir0); auto.
+    apply actions_tree_no_outside_groups with (acts := [Areg reg]) (inp0 := inp0) (dir := dir) (fuel := fuel) (t := t) (inp1 := inp1) (inp2 := inp2) (gm0 := gm0) (dir0 := dir0); auto.
     simpl. rewrite app_nil_r. assumption.
   Qed.
 
@@ -996,10 +996,10 @@ Section EquivLemmas.
   Qed.
 
   Lemma actions_tree_no_open_groups:
-    forall acts gm0 inp dir0 fuel t,
-      compute_tree acts inp gm0 dir0 fuel = Some t ->
-      forall gm1 gm2 idx dir,
-        Tree.tree_res t gm1 idx dir = Some gm2 ->
+    forall acts gm0 inp0 dir0 fuel t,
+      compute_tree acts inp0 gm0 dir0 fuel = Some t ->
+      forall gm1 gm2 inp1 inp2 dir,
+        Tree.tree_res t gm1 inp1 dir = Some (inp2, gm2) ->
         forall gid idx,
           GroupMap.find gid gm2 = Some (GroupMap.Range idx None) ->
           GroupMap.find gid gm1 = Some (GroupMap.Range idx None) /\
@@ -1012,10 +1012,10 @@ Section EquivLemmas.
     2: destruct reg as [ | cd | r1 r2 | r1 r2 | greedy min delta r | lk r | gid r | a | gid].
     - (* No action *)
       simpl. intros _ _ _ t H. injection H as <-. simpl.
-      intros gm1 gm2 _ _ H. injection H as <-. auto.
+      intros gm1 gm2 inp1 inp2 _ H. injection H as <- <-. auto.
     
     - (* Epsilon *)
-      simpl. intros gm0 inp dir0 t Hcomputesucc gm1 gm2 idx dir Heqgm2 gid Hopen2.
+      simpl. intros gm0 inp dir0 t Hcomputesucc gm1 gm2 inp1 inp2 dir Heqgm2 gid idx Hopen2.
       rewrite Areg_Aclose_disappear. eauto using IHfuel.
 
     - (* Character *)
@@ -1024,7 +1024,7 @@ Section EquivLemmas.
       + (* Read succeeds *)
         destruct compute_tree as [treecont|] eqn:Htreecont; try discriminate.
         intro H. injection H as <-. simpl.
-        intros gm1 gm2 idx dir Hres gid Hopen2.
+        intros gm1 gm2 inp1 inp2 dir Hres gid idx Hopen2.
         rewrite Areg_Aclose_disappear.
         eapply IHfuel; eauto.
       + (* Read fails *)
@@ -1035,20 +1035,20 @@ Section EquivLemmas.
       destruct compute_tree as [t1|] eqn:Hcompute1; try discriminate.
       destruct (compute_tree (Areg r2 :: acts) inp gm0 dir0 fuel) as [t2|] eqn:Hcompute2; try discriminate.
       intro H. injection H as <-.
-      intros gm1 gm2 idx dir. simpl.
-      destruct (tree_res t1 gm1 idx dir) as [res1|] eqn:Hres1; simpl.
+      intros gm1 gm2 inp1 inp2 dir. simpl.
+      destruct (tree_res t1 gm1 inp1 dir) as [[inpres1 res1]|] eqn:Hres1; simpl.
       + (* First branch succeeds *)
-        intro H. injection H as <-. intros gid idx' Hopenres.
-        pose proof IHfuel _ _ _ _ _ Hcompute1 _ _ _ _ Hres1 _ _ Hopenres.
+        intro H. injection H as <- <-. intros gid idx' Hopenres.
+        pose proof IHfuel _ _ _ _ _ Hcompute1 _ _ _ _ _ Hres1 _ _ Hopenres.
         simpl in H. rewrite Areg_Aclose_disappear in *. auto.
       + (* First branch fails *)
         intros Hres2 gid idx' Hopen2.
-        pose proof IHfuel _ _ _ _ _ Hcompute2 _ _ _ _ Hres2 _ _ Hopen2.
+        pose proof IHfuel _ _ _ _ _ Hcompute2 _ _ _ _ _ Hres2 _ _ Hopen2.
         simpl in H. rewrite Areg_Aclose_disappear in *. auto.
     
     - (* Sequence *)
-      simpl. intros gm0 inp dir0 t Hcomputesucc gm1 gm2 idx dir Heqgm2 gid idx' Hopen2.
-      pose proof IHfuel _ _ _ _ _ Hcomputesucc _ _ _ _ Heqgm2 _ _ Hopen2.
+      simpl. intros gm0 inp dir0 t Hcomputesucc gm1 gm2 inp1 inp2 dir Heqgm2 gid idx' Hopen2.
+      pose proof IHfuel _ _ _ _ _ Hcomputesucc _ _ _ _ _ Heqgm2 _ _ Hopen2.
       destruct dir0; simpl in H.
       + do 2 rewrite Areg_Aclose_disappear in H. rewrite Areg_Aclose_disappear. auto.
       + do 2 rewrite Areg_Aclose_disappear in H. rewrite Areg_Aclose_disappear. auto.
@@ -1059,36 +1059,36 @@ Section EquivLemmas.
       destruct min as [|min'].
       1: destruct delta as [[|n']|].
       + (* Done *)
-        intros Hcompute gm1 gm2 idx dir Heqgm2 gid idx' Hopen2.
+        intros Hcompute gm1 gm2 inp1 inp2 dir Heqgm2 gid idx' Hopen2.
         rewrite Areg_Aclose_disappear. eauto using IHfuel.
       + (* Free, finite delta *)
         destruct compute_tree as [titer|] eqn:Htiter; try discriminate.
         destruct (compute_tree acts inp gm0 dir0 fuel) as [tskip|] eqn:Htskip; try discriminate.
         intro H. injection H as <-.
-        intros gm1 gm2 idx dir. destruct greedy; simpl.
+        intros gm1 gm2 inp1 inp2 dir. destruct greedy; simpl.
         * (* Greedy *)
-          destruct (tree_res titer _ idx dir) as [gmiter|] eqn:Hresiter; simpl.
+          destruct (tree_res titer _ inp1 dir) as [[inpiter gmiter]|] eqn:Hresiter; simpl.
           -- (* Iterating succeeds *)
-             intro H. injection H as <-. intros gid idx' Hopeniter.
+             intro H. injection H as <- <-. intros gid idx' Hopeniter.
              rewrite Areg_Aclose_disappear.
-             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Hresiter _ _ Hopeniter.
+             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ _ Hresiter _ _ Hopeniter.
              simpl in H. rewrite Areg_Aclose_disappear, Acheck_Aclose_disappear, Areg_Aclose_disappear in H.
              destruct (in_dec Nat.eq_dec gid (def_groups r)) as [Hreset | Hnotreset].
              ++ rewrite gm_reset_find in H by assumption. destruct H. inversion H. (* gid was reset *)
              ++ rewrite gm_reset_find_other in H by assumption. auto.
           -- (* Iterating fails *)
              intros Heqgm2 gid idx' Hopen2.
-             pose proof IHfuel _ _ _ _ _ Htskip _ _ _ _ Heqgm2 _ _ Hopen2.
+             pose proof IHfuel _ _ _ _ _ Htskip _ _ _ _ _ Heqgm2 _ _ Hopen2.
              rewrite Areg_Aclose_disappear. auto.
         * (* Lazy *)
-          destruct (tree_res tskip gm1 idx dir) as [gmskip|] eqn:Hresskip; simpl.
+          destruct (tree_res tskip gm1 inp1 dir) as [[inpskip gmskip]|] eqn:Hresskip; simpl.
           -- (* Skipping succeeds *)
-             intro H. injection H as <-. intros gid Hopenskip.
+             intro H. injection H as <- <-. intros gid idx Hopenskip.
              rewrite Areg_Aclose_disappear. eauto using IHfuel.
           -- (* Skipping fails *)
              intros Heqgm2 gid idx' Hopen2.
              rewrite Areg_Aclose_disappear.
-             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Heqgm2 _ _ Hopen2. simpl in H.
+             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ _ Heqgm2 _ _ Hopen2. simpl in H.
              rewrite Areg_Aclose_disappear, Acheck_Aclose_disappear, Areg_Aclose_disappear in H.
              destruct (in_dec Nat.eq_dec gid (def_groups r)) as [Hreset | Hnotreset].
              ++ rewrite gm_reset_find in H by assumption. destruct H. inversion H. (* gid was reset *)
@@ -1097,30 +1097,30 @@ Section EquivLemmas.
         destruct compute_tree as [titer|] eqn:Htiter; try discriminate.
         destruct (compute_tree acts inp gm0 dir0 fuel) as [tskip|] eqn:Htskip; try discriminate.
         intro H. injection H as <-.
-        intros gm1 gm2 idx dir. destruct greedy; simpl.
+        intros gm1 gm2 inp1 inp2 dir. destruct greedy; simpl.
         * (* Greedy *)
-          destruct (tree_res titer _ idx dir) as [gmiter|] eqn:Hresiter; simpl.
+          destruct (tree_res titer _ inp1 dir) as [[inpiter gmiter]|] eqn:Hresiter; simpl.
           -- (* Iterating succeeds *)
-             intro H. injection H as <-. intros gid idx' Hopeniter.
+             intro H. injection H as <- <-. intros gid idx' Hopeniter.
              rewrite Areg_Aclose_disappear.
-             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Hresiter _ _ Hopeniter.
+             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ _ Hresiter _ _ Hopeniter.
              simpl in H. rewrite Areg_Aclose_disappear, Acheck_Aclose_disappear, Areg_Aclose_disappear in H.
              destruct (in_dec Nat.eq_dec gid (def_groups r)) as [Hreset | Hnotreset].
              ++ rewrite gm_reset_find in H by assumption. destruct H. inversion H. (* gid was reset *)
              ++ rewrite gm_reset_find_other in H by assumption. auto.
           -- (* Iterating fails *)
              intros Heqgm2 gid idx' Hopen2.
-             pose proof IHfuel _ _ _ _ _ Htskip _ _ _ _ Heqgm2 _ _ Hopen2.
+             pose proof IHfuel _ _ _ _ _ Htskip _ _ _ _ _ Heqgm2 _ _ Hopen2.
              rewrite Areg_Aclose_disappear. auto.
         * (* Lazy *)
-          destruct (tree_res tskip gm1 idx dir) as [gmskip|] eqn:Hresskip; simpl.
+          destruct (tree_res tskip gm1 inp1 dir) as [[inpskip gmskip]|] eqn:Hresskip; simpl.
           -- (* Skipping succeeds *)
-             intro H. injection H as <-. intros gid idx' Hopenskip.
+             intro H. injection H as <- <-. intros gid idx' Hopenskip.
              rewrite Areg_Aclose_disappear. eauto using IHfuel.
           -- (* Skipping fails *)
              intros Heqgm2 gid idx' Hopen2.
              rewrite Areg_Aclose_disappear.
-             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Heqgm2 _ _ Hopen2. simpl in H.
+             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ _ Heqgm2 _ _ Hopen2. simpl in H.
              rewrite Areg_Aclose_disappear, Acheck_Aclose_disappear, Areg_Aclose_disappear in H.
              destruct (in_dec Nat.eq_dec gid (def_groups r)) as [Hreset | Hnotreset].
              ++ rewrite gm_reset_find in H by assumption. destruct H. inversion H. (* gid was reset *)
@@ -1128,9 +1128,9 @@ Section EquivLemmas.
       + (* Forced *)
         destruct compute_tree as [titer|] eqn:Htiter; try discriminate.
         intro H. injection H as <-.
-        intros gm1 gm2 idx dir Heqgm2 gid idx' Hopen2.
+        intros gm1 gm2 inp1 inp2 dir Heqgm2 gid idx' Hopen2.
         rewrite Areg_Aclose_disappear.
-        pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ Heqgm2 _ _ Hopen2. simpl in H.
+        pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ _ Heqgm2 _ _ Hopen2. simpl in H.
         do 2 rewrite Areg_Aclose_disappear in H.
         destruct (in_dec Nat.eq_dec gid (def_groups r)) as [Hreset | Hnotreset].
         ++ rewrite gm_reset_find in H by assumption. destruct H. inversion H. (* gid was reset *)
@@ -1144,14 +1144,14 @@ Section EquivLemmas.
         destruct lk_group_map as [gmlk|] eqn:Hgmlk.
         * (* Only valid case *)
           destruct (compute_tree acts inp gmlk dir0 fuel) as [treecont|] eqn:Htreecont; try discriminate.
-          intro H. injection H as <-. intros gm1 gm2 idx dir.
+          intro H. injection H as <-. intros gm1 gm2 inp1 inp2 dir.
           simpl.
           destruct positivity.
-          -- destruct tree_res as [gmafterlk|] eqn:Hgmafterlk; try discriminate.
+          -- destruct tree_res as [[inpafterlk gmafterlk]|] eqn:Hgmafterlk; try discriminate.
              intros Heqgm2 gid idx' Hopen2.
              rewrite Areg_Aclose_disappear.
-             pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ Heqgm2 _ _ Hopen2 as [].
-             pose proof IHfuel _ _ _ _ _ Hcomputelk _ _ _ _ Hgmafterlk _ _ H as []. auto.
+             pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ _ Heqgm2 _ _ Hopen2 as [].
+             pose proof IHfuel _ _ _ _ _ Hcomputelk _ _ _ _ _ Hgmafterlk _ _ H as []. auto.
           -- destruct tree_res as [gmafterlk|] eqn:Hgmafterlk; try discriminate.
              intros Heqgm2 gid Hopen2.
              rewrite Areg_Aclose_disappear.
@@ -1165,9 +1165,9 @@ Section EquivLemmas.
       intros gm0 inp dir0 t. simpl.
       destruct compute_tree as [treecont|] eqn:Htreecont; try discriminate.
       intro H. injection H as <-.
-      intros gm1 gm2 idx dir Heqgm2 gid0 idx' Hopen2.
+      intros gm1 gm2 inp1 inp2 dir Heqgm2 gid0 idx' Hopen2.
       simpl in Heqgm2.
-      pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ Heqgm2 _ _ Hopen2 as [].
+      pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ _ Heqgm2 _ _ Hopen2 as [].
       simpl in H0.
       rewrite Areg_Aclose_disappear in *.
       apply Decidable.not_or in H0. destruct H0.
@@ -1179,7 +1179,7 @@ Section EquivLemmas.
       destruct anchor_satisfied.
       + (* Anchor is satisfied *)
         destruct compute_tree as [treecont|] eqn:Hcomputecont; try discriminate.
-        intro H. injection H as <-. intros gm1 gm2 idx dir Heqgm2 gid Hopen2.
+        intro H. injection H as <-. intros gm1 gm2 inp1 inp2 dir Heqgm2 gid Hopen2.
         rewrite Areg_Aclose_disappear. eauto using IHfuel.
       + (* Anchor is not satisfied *)
         intro H. injection H as <-. discriminate.
@@ -1189,7 +1189,7 @@ Section EquivLemmas.
       destruct read_backref as [[br_str nextinp]|].
       + destruct compute_tree as [tcont|] eqn:Htcont; try discriminate.
         intro H. injection H as <-. simpl.
-        intros gm1 gm2 idx dir0 Heqgm2 gid' Hopen2.
+        intros gm1 gm2 inp1 inp2 dir0 Heqgm2 gid' Hopen2.
         rewrite Areg_Aclose_disappear. eauto using IHfuel.
       + intro H. injection H as <-. discriminate.
     
@@ -1198,7 +1198,7 @@ Section EquivLemmas.
       destruct is_strict_suffix.
       + (* Is strict suffix *)
         destruct compute_tree as [treecont|] eqn:Htreecont; try discriminate.
-        intro H. injection H as <-. intros gm1 gm2 idx dir Heqgm2 gid Hopen2.
+        intro H. injection H as <-. intros gm1 gm2 inp1 inp2 dir Heqgm2 gid Hopen2.
         rewrite Acheck_Aclose_disappear. eauto using IHfuel.
       + (* Is not strict suffix *)
         intro H. injection H as <-. discriminate.
@@ -1206,11 +1206,11 @@ Section EquivLemmas.
     - (* Close *)
       intros gm0 inp dir0 t. simpl.
       destruct compute_tree as [treecont|] eqn:Htreecont; try discriminate.
-      intro H. injection H as <-. simpl. intros gm1 gm2 idx dir Heqgm2 gid' idx' Hopen2.
-      pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ Heqgm2 _ _ Hopen2.
+      intro H. injection H as <-. simpl. intros gm1 gm2 inp1 inp2 dir Heqgm2 gid' idx' Hopen2.
+      pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ _ Heqgm2 _ _ Hopen2.
       destruct (Nat.eq_dec gid gid') as [Heq | Hnoteq].
       + subst gid'.
-        pose proof group_map_close_find_notopen gm1 idx gid as Hnotopen. destruct H. exfalso. apply Hnotopen.
+        pose proof group_map_close_find_notopen gm1 (idx inp1) gid as Hnotopen. destruct H. exfalso. apply Hnotopen.
         rewrite H. constructor.
       + rewrite group_map_close_find_other in H by assumption. destruct H. split; auto.
         intro Habs. destruct Habs.
@@ -1585,18 +1585,18 @@ Section EquivLemmas.
 
   (* Lemma used in lookarounds *)
   Lemma noforb_lk:
-    forall lr gm gmafterlk forbgroups tlk inp fuel dir,
+    forall lr gm gmafterlk forbgroups tlk inp inpafterlk fuel dir,
       no_forbidden_groups gm (forbidden_groups (Lookaround (LKFactorization.to_lookaround dir true) lr) ++ forbgroups) ->
       compute_tree [Areg lr] inp gm dir fuel = Some tlk ->
-      tree_res tlk gm (idx inp) dir = Some gmafterlk ->
+      tree_res tlk gm inp dir = Some (inpafterlk, gmafterlk) ->
       List.Disjoint (def_groups (Lookaround LookAhead lr)) forbgroups ->
       no_forbidden_groups gmafterlk forbgroups.
   Proof.
-    intros lr gm gmafterlk forbgroups tlk inp fuel dir Hnoforb Heqtlk Heqgmafterlk Hdef_forbid_disj.
+    intros lr gm gmafterlk forbgroups tlk inp inpafterlk fuel dir Hnoforb Heqtlk Heqgmafterlk Hdef_forbid_disj.
     unfold no_forbidden_groups. intros gid Hinforb.
     destruct (in_dec Nat.eq_dec gid (def_groups lr)) as [Hinlr | Hnotinlr].
     - exfalso. unfold List.Disjoint, not in Hdef_forbid_disj. simpl in Hdef_forbid_disj. eauto.
-    - rewrite (reg_tree_no_outside_groups _ _ _ _ _ _ Heqtlk _ _ _ _ Heqgmafterlk) by assumption.
+    - rewrite (reg_tree_no_outside_groups _ _ _ _ _ _ Heqtlk _ _ _ _ _ Heqgmafterlk) by assumption.
       unfold no_forbidden_groups in Hnoforb. apply Hnoforb. apply in_or_app. now right.
   Qed.
 
@@ -1675,21 +1675,21 @@ Section EquivLemmas.
 
   (* Lemma used in lookarounds as well *)
   Lemma equiv_open_groups_lk:
-    forall gm gl gmafterlk lr inp fuel tlk forbgroups dir,
+    forall gm gl gmafterlk lr inp inpafterlk fuel tlk forbgroups dir,
       group_map_equiv_open_groups gm gl ->
       compute_tree [Areg lr] inp gm dir fuel = Some tlk ->
-      tree_res tlk gm (idx inp) dir = Some gmafterlk ->
+      tree_res tlk gm inp dir = Some (inpafterlk, gmafterlk) ->
       no_forbidden_groups gm (forbidden_groups (Lookaround LookAhead lr) ++ forbgroups) ->
       group_map_equiv_open_groups gmafterlk gl.
   Proof.
-    intros gm gl gmafterlk lr inp fuel tlk forbgroups dir Hgmgl Heqtlk Heqgmafterlk Hnoforb.
+    intros gm gl gmafterlk lr inp inpafterlk fuel tlk forbgroups dir Hgmgl Heqtlk Heqgmafterlk Hnoforb.
     unfold group_map_equiv_open_groups. intros gid idx.
     split.
     - intro Hfind.
-      apply (actions_tree_no_open_groups _ _ _ _ _ _ Heqtlk _ _ _ _ Heqgmafterlk) in Hfind.
+      apply (actions_tree_no_open_groups _ _ _ _ _ _ Heqtlk _ _ _ _ _ Heqgmafterlk) in Hfind.
       destruct Hfind as [Hfind _]. apply Hgmgl. auto.
     - intro Hin.
-      rewrite (reg_tree_no_outside_groups _ _ _ _ _ _ Heqtlk _ _ _ _ Heqgmafterlk).
+      rewrite (reg_tree_no_outside_groups _ _ _ _ _ _ Heqtlk _ _ _ _ _ Heqgmafterlk).
       + apply Hgmgl. auto.
       + intro Habs. specialize (Hnoforb gid). apply Hgmgl in Hin. rewrite in_app_iff in Hnoforb.
         simpl in Hnoforb. specialize (Hnoforb (or_introl Habs)). congruence.
@@ -2398,30 +2398,33 @@ Section EquivLemmas.
 
   (* tree_res preserves validity of group maps *)
   Lemma tree_res_gm_valid:
-    forall t gm idx dir,
-      gm_valid gm -> gm_opt_valid (tree_res t gm idx dir).
+    forall t gm inp inp' gm' dir,
+      gm_valid gm ->
+      tree_res t gm inp dir = Some (inp', gm') ->
+      gm_valid gm'.
   Proof.
     intro t. induction t as [ | | t1 IH1 t2 IH2 | | | | | act t IH | lk tlk IHlk tcont IHcont |].
-    - constructor.
-    - intros gm idx dir Hvalid. constructor. auto.
-    - intros gm idx dir Hvalid. simpl.
-      specialize (IH1 gm idx dir Hvalid). specialize (IH2 gm idx dir Hvalid).
-      destruct (tree_res t1 gm idx dir); auto.
-    - intros gm idx dir Hvalid. simpl. auto.
-    - intros gm idx dir Hvalid. simpl. auto.
-    - intros gm idx dir Hvalid. simpl. auto.
-    - intros gm idx dir Hvalid. simpl. auto.
-    - intros gm idx dir Hvalid. destruct act as [gid | gid | gl]; simpl.
+    - discriminate.
+    - intros gm inp inp' gm' dir Hvalid. simpl. intro H. injection H as <- <-. auto.
+    - intros gm inp inp' gm' dir Hvalid. simpl.
+      destruct (tree_res t1 gm inp dir) as [[inp1 gm1]|] eqn:H1; simpl.
+      + intro H. injection H as <- <-. eauto.
+      + intro H. eauto.
+    - intros gm inp inp' gm' dir Hvalid. simpl. eauto.
+    - intros gm inp inp' gm' dir Hvalid. simpl. eauto.
+    - intros gm inp inp' gm' dir Hvalid. simpl. eauto.
+    - intros gm inp inp' gm' dir Hvalid. simpl. eauto.
+    - intros gm inp inp' gm' dir Hvalid. destruct act as [gid | gid | gl]; simpl.
       + apply IH. apply gm_open_valid. auto.
       + apply IH. apply gm_close_valid. auto.
       + apply IH. apply gm_reset_valid. auto.
-    - intros gm idx dir Hvalid. simpl.
+    - intros gm inp inp' gm' dir Hvalid. simpl.
       destruct positivity.
-      + specialize (IHlk gm idx (lk_dir lk) Hvalid). destruct (tree_res tlk gm idx _).
-        * apply IHcont. inversion IHlk. auto.
-        * constructor.
-      + destruct tree_res; [constructor|auto].
-    - constructor.
+      + destruct (tree_res tlk gm inp _) as [[inplk gmlk]|] eqn:Hlk; simpl.
+        * apply IHcont. eauto.
+        * discriminate.
+      + destruct tree_res; [discriminate|eauto].
+    - discriminate.
   Qed.
 
 End EquivLemmas.

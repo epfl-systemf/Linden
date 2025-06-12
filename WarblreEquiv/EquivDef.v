@@ -33,6 +33,15 @@ Section EquivDef.
   Definition ms_valid_wrt_checks (ms: MatchState) (act: actions) (dir: Direction): Prop :=
     forall inpcheck: input, In (Acheck inpcheck) act -> ms_valid_wrt_check ms inpcheck dir.
 
+  
+  (* Equivalence of results is defined as equivalence of MatchStates, group maps and inputs. *)
+  Inductive equiv_res: option leaf -> option MatchState -> Prop :=
+  | Equiv_res_None: equiv_res None None
+  | Equiv_res_Some: forall inp gm ms,
+      ms_matches_inp ms inp ->
+      equiv_groupmap_ms gm ms ->
+      equiv_res (Some (inp, gm)) (Some ms).
+
 
   (* Definition of when a MatcherContinuation performs a given list of actions. *)
   (* A MatcherContinuation mc, working on input string str0 and with the open group list gl,
@@ -55,7 +64,7 @@ Section EquivDef.
       (* then letting t be the tree corresponding to the actions in act on the input inp with group map gm and direction dir, *)
       compute_tree act inp gm dir fuel = Some t ->
       (* the first branch of t is equivalent to the result res. *)
-      equiv_groupmap_ms_opt (tree_res t gm (idx inp) dir) res.
+      equiv_res (tree_res t gm inp dir) res.
 
   (* Definition of when a Matcher recognizes a regex in a given direction. *)
   (* A Matcher m is said to recognize a regex reg in direction dir when: *)
