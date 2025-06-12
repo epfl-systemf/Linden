@@ -512,8 +512,8 @@ Section Equiv.
         replace (endMatch <? 0)%Z with false by lia. simpl.
         assert (Hoobiff: (endMatch >? Z.of_nat (length (MatchState.input ms)))%Z = true <->
           (Z.to_nat rlen >? length next) = true) by eauto using endMatch_oob_forward.
-        simpl in Hoobiff.
-        rewrite <- Bool.eq_iff_eq_true in Hoobiff. rewrite <- Hoobiff.
+        (*simpl in Hoobiff.*)
+        rewrite <- Bool.eq_iff_eq_true in Hoobiff. setoid_rewrite <- Hoobiff.
         destruct Z.gtb eqn:Hoob.
         * (* Out of bounds *)
           intros H1 H2. injection H1 as <-. injection H2 as <-. constructor.
@@ -540,7 +540,10 @@ Section Equiv.
              destruct compute_tree as [tcont|] eqn:Htcont; try discriminate.
              intro H. injection H as <-. simpl.
              unfold equiv_cont in Hequivcont.
-             replace (length pref + length _) with (idx inp'). 2: { symmetry; eapply backref_inp'_idx_fwd; eauto. }
+             rewrite <- Hfirstn_next_substr.
+             replace (length (List.firstn _ next)) with (Z.to_nat rlen).
+             2: { symmetry in Hoobiff. rewrite Nat.leb_gt in Hoobiff. rewrite List.firstn_length. lia. }
+             fold inp'.
              apply Hequivcont with (ms := ms') (fuel := fuel); auto.
              (* Remains to prove that the new MatchState remains valid with respect to the checks in act *)
              apply ms_valid_wrt_checks_tail in Hmschecks.
@@ -555,8 +558,8 @@ Section Equiv.
         replace (MatchState.endIndex ms - rlen >? Z.of_nat (length (MatchState.input ms)))%Z with false by lia.
         rewrite Bool.orb_false_r.
         assert (Hoobiff: (MatchState.endIndex ms - rlen <? 0)%Z = true <-> (Z.to_nat rlen >? length pref) = true) by eauto using beginMatch_oob_backward.
-        rewrite <- Bool.eq_iff_eq_true in Hoobiff. simpl in Hoobiff.
-        rewrite <- Hoobiff.
+        rewrite <- Bool.eq_iff_eq_true in Hoobiff. (*simpl in Hoobiff.*)
+        setoid_rewrite <- Hoobiff.
         destruct Z.ltb.
         * (* Out of bounds *)
           intros H1 H2. injection H1 as <-. injection H2 as <-. constructor.
@@ -595,10 +598,10 @@ Section Equiv.
              destruct compute_tree as [tcont|] eqn:Htcont; try discriminate.
              intro H. injection H as <-. simpl.
              unfold equiv_cont in Hequivcont.
-             replace (length pref - length _) with (idx inp').
-             2: { symmetry. eapply backref_inp'_idx_bwd; eauto.
-             inversion Hmsinp. subst next0 pref0 ms. simpl in *.
-             lia. }
+             rewrite <- Hfirstn_pref_substr.
+             replace (length (List.rev _)) with (Z.to_nat rlen).
+             2: { symmetry in Hoobiff. rewrite Nat.leb_gt in Hoobiff. rewrite List.rev_length, List.firstn_length. lia. }
+             fold inp'.
              apply Hequivcont with (ms := ms') (fuel := fuel); auto.
              (* Remains to prove that the new MatchState remains valid with respect to the checks in act *)
              apply ms_valid_wrt_checks_tail in Hmschecks.
@@ -615,20 +618,14 @@ Section Equiv.
       + destruct compute_tree as [tcont|] eqn:Htcont; try discriminate.
         intros Hres H. injection H as <-.
         simpl.
-        replace (Tree.advance_idx_n (length pref) 0 dir) with (idx (Input next pref)). 2: {
-          unfold Tree.advance_idx_n. simpl.
-          destruct dir; lia.
-        }
+        replace (match dir with | forward | _ => Input next pref end) with (Input next pref) by now destruct dir.
         apply Hequivcont with (ms := ms) (fuel := fuel); auto.
         now apply ms_valid_wrt_checks_tail in Hmschecks.
       + (* Copy-pasting *)
         destruct compute_tree as [tcont|] eqn:Htcont; try discriminate.
         intros Hres H. injection H as <-.
         simpl.
-        replace (Tree.advance_idx_n (length pref) 0 dir) with (idx (Input next pref)). 2: {
-          unfold Tree.advance_idx_n. simpl.
-          destruct dir; lia.
-        }
+        replace (match dir with | forward | _ => Input next pref end) with (Input next pref) by now destruct dir.
         apply Hequivcont with (ms := ms) (fuel := fuel); auto.
         now apply ms_valid_wrt_checks_tail in Hmschecks.
   Qed.
@@ -758,7 +755,7 @@ Section Equiv.
       + (* Left choice matches *)
         intro H. injection H as <-. intro H. injection H as <-.
         simpl.
-        inversion IH1 as [ | gm1 msres1' IH1' Heqgm1 Heqmsres1' ]. simpl. constructor. assumption.
+        inversion IH1 as [ | gm1 msres1' IH1' Heqgm1 Heqmsres1' ]. simpl. constructor; assumption.
       + (* Left choice does not match *)
         rename res into res2.
         intros Hres2 H. injection H as <-. simpl.
@@ -920,11 +917,11 @@ Section Equiv.
         unfold lk_succeeds. simpl. unfold Tree.first_branch, lk_group_map. simpl.
         destruct rlk as [rlk|]; simpl.
         * (* Lookaround succeeds *)
-          inversion IH as [|gmafterlk rlk' Hequivafterlk Heqgmafterlk Heqrlk']. subst rlk'.
-          replace (Tree.tree_res tlk _ 0 forward is not None) with true.
+          inversion IH as [|inpafterlk gmafterlk rlk' Hrlk'inpafterlk Hequivafterlk Heqgmafterlk Heqrlk']. subst rlk'.
+          replace (Tree.tree_res tlk _ (init_input nil) forward is not None) with true.
           2: {
-            symmetry. destruct (Tree.tree_res tlk GroupMap.empty 0 forward) eqn:Hreslk; try reflexivity.
-            symmetry in Heqgmafterlk. apply Tree.res_group_map_indep with (gm2 := gm) (idx2 := idx inp) (dir2 := forward) in Hreslk. congruence.
+            symmetry. destruct (Tree.tree_res tlk GroupMap.empty _ forward) eqn:Hreslk; try reflexivity.
+            symmetry in Heqgmafterlk. apply Tree.res_group_map_indep with (gm2 := gm) (inp2 := inp) (dir2 := forward) in Hreslk. congruence.
           }
           set (msafterlk := match_state _ _ _).
           unfold equiv_cont in Hequivcont. specialize (Hequivcont gmafterlk msafterlk inp res fuel).
@@ -934,7 +931,7 @@ Section Equiv.
           specialize_prove Hequivcont by eauto using equiv_open_groups_lk. (* Follows from Hgmgl, Heqgmafterlk, Htlk and Hnoforbidden; see paper reasoning (non-trivial, but should not depend on compileSubPattern) *)
           specialize_prove Hequivcont. { unfold msafterlk. apply ms_matches_inp_capchg with (cap := MatchState.captures ms). now destruct ms. }
           specialize_prove Hequivcont. { unfold msafterlk. apply ms_valid_wrt_checks_inpcap with (winp' := MatchState.input ms) (cap' := MatchState.captures ms). apply ms_valid_wrt_checks_tail in Hmschecks. now destruct ms. }
-          specialize_prove Hequivcont. { pose proof tree_res_gm_valid tlk gm (idx inp) forward Hgmvalid. rewrite <- Heqgmafterlk in H. inversion H. auto. } (* tree_res preserves validity of group maps *)
+          specialize_prove Hequivcont. { pose proof tree_res_gm_valid tlk gm inp inpafterlk gmafterlk forward Hgmvalid. rewrite <- Heqgmafterlk in H. auto. } (* tree_res preserves validity of group maps *)
           specialize_prove Hequivcont. { eapply noforb_lk with (lr := lr); eauto. } (* Follows from Hnoforbidden, Heqgmafterlk and Htlk; non-trivial but should not depend on compileSubPattern *)
           intro Hcontsucc. specialize (Hequivcont Hcontsucc eq_refl).
           intro H. injection H as <-.
@@ -942,10 +939,10 @@ Section Equiv.
         * (* Lookaround fails *)
           inversion IH as [Htreeresnone|].
           intro H. injection H as <-.
-          replace (Tree.tree_res tlk _ 0 forward is not None) with false.
+          replace (Tree.tree_res tlk _ _ forward is not None) with false.
           2: {
-            symmetry. destruct (Tree.tree_res tlk _ 0 forward) eqn:Hreslk; try reflexivity.
-            symmetry in Htreeresnone. apply Tree.res_group_map_indep with (gm2 := GroupMap.empty) (idx2 := 0) (dir2 := forward) in Htreeresnone. congruence.
+            symmetry. destruct (Tree.tree_res tlk _ (init_input nil) forward) eqn:Hreslk; try reflexivity.
+            symmetry in Htreeresnone. apply Tree.res_group_map_indep with (gm2 := GroupMap.empty) (inp2 := init_input nil) (dir2 := forward) in Htreeresnone. setoid_rewrite Htreeresnone in Hreslk. discriminate.
           }
           intro H. injection H as <-.
           simpl. constructor.
@@ -979,21 +976,21 @@ Section Equiv.
         unfold lk_succeeds. simpl. unfold Tree.first_branch, lk_group_map. simpl.
         destruct rlk as [rlk|]; simpl.
         * (* Lookaround succeeds *)
-          inversion IH as [|gmafterlk rlk' Hequivafterlk Heqgmafterlk Heqrlk']. subst rlk'.
+          inversion IH as [|inpafterlk gmafterlk rlk' Hrlk'inpafterlk Hequivafterlk Heqgmafterlk Heqrlk']. subst rlk'.
           intro H. injection H as <-.
-          replace (Tree.tree_res tlk _ 0 forward is not (Some _)) with false.
+          replace (Tree.tree_res tlk _ _ forward is not (Some _)) with false.
           2: {
-            symmetry. destruct (Tree.tree_res tlk _ 0 forward) eqn:Hreslk; try reflexivity.
-            symmetry in Heqgmafterlk. apply Tree.res_group_map_indep with (gm2 := gm) (idx2 := idx inp) (dir2 := forward) in Hreslk. congruence.
+            symmetry. destruct (Tree.tree_res tlk _ (init_input nil) forward) eqn:Hreslk; try reflexivity.
+            symmetry in Heqgmafterlk. apply Tree.res_group_map_indep with (gm2 := gm) (inp2 := inp) (dir2 := forward) in Hreslk. congruence.
           }
           intro H. injection H as <-.
           simpl. constructor.
         * (* Lookaround fails *)
           inversion IH as [Htreeresnone|].
-          replace (Tree.tree_res tlk _ 0 forward is not (Some _)) with true.
+          replace (Tree.tree_res tlk _ _ forward is not (Some _)) with true.
           2: {
-            symmetry. destruct (Tree.tree_res tlk GroupMap.empty 0 forward) eqn:Hreslk; try reflexivity.
-            symmetry in Htreeresnone. apply Tree.res_group_map_indep with (gm2 := GroupMap.empty) (idx2 := 0) (dir2 := forward) in Htreeresnone. congruence.
+            symmetry. destruct (Tree.tree_res tlk GroupMap.empty _ forward) eqn:Hreslk; try reflexivity.
+            symmetry in Htreeresnone. apply Tree.res_group_map_indep with (gm2 := GroupMap.empty) (inp2 := init_input nil) (dir2 := forward) in Htreeresnone. setoid_rewrite Htreeresnone in Hreslk. discriminate.
           }
           unfold equiv_cont in Hequivcont. specialize (Hequivcont gm ms inp res fuel).
           destruct (compute_tree act inp gm dir fuel) as [treecont|] eqn:Heqtreecont; simpl; try discriminate.
@@ -1037,11 +1034,11 @@ Section Equiv.
         unfold lk_succeeds. simpl. unfold Tree.first_branch, lk_group_map. simpl.
         destruct rlk as [rlk|]; simpl.
         * (* Lookaround succeeds *)
-          inversion IH as [|gmafterlk rlk' Hequivafterlk Heqgmafterlk Heqrlk']. subst rlk'.
-          replace (Tree.tree_res tlk _ 0 forward is not None) with true.
+          inversion IH as [|inpafterlk gmafterlk rlk' Hrlk'inpafterlk Hequivafterlk Heqgmafterlk Heqrlk']. subst rlk'.
+          replace (Tree.tree_res tlk _ _ forward is not None) with true.
           2: {
-            symmetry. destruct (Tree.tree_res tlk GroupMap.empty 0 forward) eqn:Hreslk; try reflexivity.
-            symmetry in Heqgmafterlk. apply Tree.res_group_map_indep with (gm2 := gm) (idx2 := idx inp) (dir2 := backward) in Hreslk. congruence.
+            symmetry. destruct (Tree.tree_res tlk GroupMap.empty _ forward) eqn:Hreslk; try reflexivity.
+            symmetry in Heqgmafterlk. apply Tree.res_group_map_indep with (gm2 := gm) (inp2 := inp) (dir2 := backward) in Hreslk. congruence.
           }
           set (msafterlk := match_state _ _ _).
           unfold equiv_cont in Hequivcont. specialize (Hequivcont gmafterlk msafterlk inp res fuel).
@@ -1051,7 +1048,7 @@ Section Equiv.
           specialize_prove Hequivcont by eauto using equiv_open_groups_lk. (* Follows from Hgmgl, Heqgmafterlk, Htlk and Hnoforbidden; see paper reasoning (non-trivial, but should not depend on compileSubPattern) *)
           specialize_prove Hequivcont. { unfold msafterlk. apply ms_matches_inp_capchg with (cap := MatchState.captures ms). now destruct ms. }
           specialize_prove Hequivcont. { unfold msafterlk. apply ms_valid_wrt_checks_inpcap with (winp' := MatchState.input ms) (cap' := MatchState.captures ms). apply ms_valid_wrt_checks_tail in Hmschecks. now destruct ms. }
-          specialize_prove Hequivcont. { pose proof tree_res_gm_valid tlk gm (idx inp) backward Hgmvalid. rewrite <- Heqgmafterlk in H. inversion H. auto. } (* tree_res preserves validity of group maps *)
+          specialize_prove Hequivcont. { pose proof tree_res_gm_valid tlk gm inp inpafterlk gmafterlk backward Hgmvalid. rewrite <- Heqgmafterlk in H. auto. } (* tree_res preserves validity of group maps *)
           specialize_prove Hequivcont. { eapply noforb_lk with (lr := lr); eauto. } (* Follows from Hnoforbidden, Heqgmafterlk and Htlk; non-trivial but should not depend on compileSubPattern *)
           intro Hcontsucc. specialize (Hequivcont Hcontsucc eq_refl).
           intro H. injection H as <-.
@@ -1059,10 +1056,11 @@ Section Equiv.
         * (* Lookaround fails *)
           inversion IH as [Htreeresnone|].
           intro H. injection H as <-.
-          replace (Tree.tree_res tlk _ 0 forward is not None) with false.
+          replace (Tree.tree_res tlk _ _ forward is not None) with false.
           2: {
-            symmetry. destruct (Tree.tree_res tlk _ 0 forward) eqn:Hreslk; try reflexivity.
-            symmetry in Htreeresnone. apply Tree.res_group_map_indep with (gm2 := GroupMap.empty) (idx2 := 0) (dir2 := forward) in Htreeresnone. congruence.
+            symmetry. destruct (Tree.tree_res tlk _ (init_input nil) forward) eqn:Hreslk; try reflexivity.
+            symmetry in Htreeresnone. apply Tree.res_group_map_indep with (gm2 := GroupMap.empty) (inp2 := init_input nil) (dir2 := forward) in Htreeresnone.
+            setoid_rewrite Htreeresnone in Hreslk. discriminate.
           }
           intro H. injection H as <-.
           simpl. constructor.
@@ -1096,21 +1094,22 @@ Section Equiv.
         unfold lk_succeeds. simpl. unfold Tree.first_branch, lk_group_map. simpl.
         destruct rlk as [rlk|]; simpl.
         * (* Lookaround succeeds *)
-          inversion IH as [|gmafterlk rlk' Hequivafterlk Heqgmafterlk Heqrlk']. subst rlk'.
+          inversion IH as [|inpafterlk gmafterlk rlk' Hrlk'inpafterlk Hequivafterlk Heqgmafterlk Heqrlk']. subst rlk'.
           intro H. injection H as <-.
-          replace (Tree.tree_res tlk _ 0 forward is not (Some _)) with false.
+          replace (Tree.tree_res tlk _ _ forward is not (Some _)) with false.
           2: {
-            symmetry. destruct (Tree.tree_res tlk _ 0 forward) eqn:Hreslk; try reflexivity.
-            symmetry in Heqgmafterlk. apply Tree.res_group_map_indep with (gm2 := gm) (idx2 := idx inp) (dir2 := backward) in Hreslk. congruence.
+            symmetry. destruct (Tree.tree_res tlk _ (init_input nil) forward) eqn:Hreslk; try reflexivity.
+            symmetry in Heqgmafterlk. apply Tree.res_group_map_indep with (gm2 := gm) (inp2 := inp) (dir2 := backward) in Hreslk. congruence.
           }
           intro H. injection H as <-.
           simpl. constructor.
         * (* Lookaround fails *)
           inversion IH as [Htreeresnone|].
-          replace (Tree.tree_res tlk _ 0 forward is not (Some _)) with true.
+          replace (Tree.tree_res tlk _ _ forward is not (Some _)) with true.
           2: {
-            symmetry. destruct (Tree.tree_res tlk GroupMap.empty 0 forward) eqn:Hreslk; try reflexivity.
-            symmetry in Htreeresnone. apply Tree.res_group_map_indep with (gm2 := GroupMap.empty) (idx2 := 0) (dir2 := forward) in Htreeresnone. congruence.
+            symmetry. destruct (Tree.tree_res tlk GroupMap.empty _ forward) eqn:Hreslk; try reflexivity.
+            symmetry in Htreeresnone. apply Tree.res_group_map_indep with (gm2 := GroupMap.empty) (inp2 := init_input nil) (dir2 := forward) in Htreeresnone.
+            setoid_rewrite Htreeresnone in Hreslk. discriminate.
           }
           unfold equiv_cont in Hequivcont. specialize (Hequivcont gm ms inp res fuel).
           destruct (compute_tree act inp gm dir fuel) as [treecont|] eqn:Heqtreecont; simpl; try discriminate.

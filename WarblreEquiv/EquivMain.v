@@ -118,7 +118,7 @@ Section EquivMain.
         (* this tree respects the Linden semantics and *)
         is_tree [Areg lroot] (init_input str0) GroupMap.empty forward t /\
         (* the result res is equivalent to the first branch of the tree. *)
-        equiv_groupmap_ms_opt (first_branch t) res.
+        equiv_res (first_branch t str0) res.
   Proof.
     intros wroot lroot rer m Hequiv Heqrer Hcompsucc str0 res t Heqres Heqt.
     pose proof equiv_matcher_idmcont_compsucc wroot lroot rer as Hequivm.
@@ -176,7 +176,7 @@ Section EquivMain.
           (* this tree respects the Linden semantics and *)
           is_tree [Areg lroot] (init_input str0) GroupMap.empty forward t /\
           (* the result res is equivalent to the first branch of this tree. *)
-          equiv_groupmap_ms_opt (first_branch t) res.
+          equiv_res (first_branch t str0) res.
   Proof.
     intros wroot lroot rer str0 Hequiv Heqrer HearlyErrors.
     pose proof Compile.compilePattern_success wroot rer as Hcompilesucc.

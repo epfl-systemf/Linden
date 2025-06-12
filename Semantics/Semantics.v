@@ -58,7 +58,7 @@ Section Semantics.
     match (positivity lk) with
     | true => 
       match tree_res t gm inp (lk_dir lk) with 
-      | Some (_, gm') => Some gm
+      | Some (_, gm') => Some gm'
       | None => None
       end
     | false => Some gm
