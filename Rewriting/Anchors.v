@@ -37,7 +37,7 @@ Section Anchors.
           end
       end; reflexivity.
 
-  Theorem desugar_anchor_correct (a: anchor) (i: input):
+  Theorem desugar_anchor_correct (a: anchor):
     Anchor a ≅ desugar_anchor a.
   Proof.
     rewrite tree_equiv_compute_iff; autounfold with tree_equiv; intros.
