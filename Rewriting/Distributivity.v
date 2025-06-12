@@ -1,4 +1,4 @@
-From Linden Require Import RewritingSetup.
+From Linden.Rewriting Require Import ProofSetup.
 
 Module Right.
   Section EquivalenceProof.

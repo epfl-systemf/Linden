@@ -1,4 +1,4 @@
-From Linden Require Import RewritingSetup.
+From Linden.Rewriting Require Import ProofSetup.
 
 Section Anchors.
   Context {char: Parameters.Character.class}.

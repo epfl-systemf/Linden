@@ -1,10 +1,10 @@
 From Coq Require Export List.
-From Warblre Require Export Base.
-From Linden Require Export Regex Chars Groups Tree Semantics FunctionalSemantics FunctionalUtils ComputeIsTree.
+From Warblre Require Import Base.
+From Linden Require Import Regex Chars Groups Tree Semantics FunctionalSemantics FunctionalUtils ComputeIsTree.
 
 Export ListNotations.
 
-Section Setup.
+Section Equivalence.
   Context {char: Parameters.Character.class}.
 
   Definition tree_equiv_tr_dir i gm dir tr1 tr2 :=
@@ -120,25 +120,9 @@ Section Setup.
     unfold tree_nequiv, tree_nequiv_tr_dir, tree_equiv.
     intros * Hneq Heq; apply Hneq, Heq; eauto using compute_tr_reg_is_tree.
   Qed.
-End Setup.
+End Equivalence.
 
 Notation "tr1 '≅[' dir ']' tr2" := (tree_equiv_dir dir tr1 tr2) (at level 70).
 Notation "tr1 '≅' tr2" := (tree_equiv tr1 tr2) (at level 70).
 Notation "tr1 '≇[' dir ']' tr2" := (tree_nequiv_dir dir tr1 tr2) (at level 70).
 Notation "tr1 '≇' tr2" := (tree_nequiv tr1 tr2) (at level 70).
-
-#[export]
-Hint Unfold
-  tree_equiv
-  tree_equiv_dir
-  tree_equiv_tr_dir
-  tree_equiv_compute
-  tree_equiv_compute_dir
-  tree_equiv_counterexample
-  tree_nequiv
-  tree_nequiv_dir
-  tree_nequiv_tr_dir
-  tree_nequiv_compute
-  tree_nequiv_compute_dir
-  tree_nequiv_counterexample
-  : tree_equiv.
