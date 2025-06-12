@@ -158,6 +158,9 @@ Section Tree.
   Definition first_branch (t:tree) (str0: string) : option leaf :=
     tree_res t GroupMap.empty (init_input str0) forward.
 
+  Definition first_branch' (t:tree) (inp:input) : option leaf :=
+    tree_res t GroupMap.empty inp forward.
+
   (** * All Tree Results *)
 
   (* returns the ordered list of all results of a tree *)

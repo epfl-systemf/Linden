@@ -61,7 +61,7 @@ Theorem pike_vm_to_pike_tree:
     pike_regex r -> 
     bool_tree [Areg r] inp CanExit tree ->
     trc_pike_vm (compilation r) (pike_vm_seen_initial_state inp) (PVSS_final result) ->
-    trc_pike_tree (pike_tree_seen_initial_state tree) (PTSS_final result).
+    trc_pike_tree (pike_tree_seen_initial_state tree inp) (PTSS_final result).
 Proof.
   intros r inp tree result SUBSET TREE TRCVM.
   generalize (initial_pike_inv r inp tree (compilation r) TREE (@eq_refl _ _) SUBSET).
@@ -95,7 +95,7 @@ Theorem pike_vm_correct:
     (* the result of the PikeVM is `result` *)
     trc_pike_vm (compilation r) (pike_vm_seen_initial_state inp) (PVSS_final result) ->
     (* This `result` is the priority result of the `tree` *)
-    result = first_branch tree.
+    result = first_branch' tree inp.
 Proof.
   intros r inp tree result SUBSET TREE TRC.
   eapply encode_equal with (b:=CanExit) in TREE as BOOLTREE; pike_subset.
@@ -103,7 +103,7 @@ Proof.
   assert (SUBTREE: pike_subtree tree).
   { eapply pike_actions_pike_tree with (cont:=[Areg r]); eauto.
     pike_subset. }
-  generalize (init_piketree_inv tree SUBTREE). intros INIT.
+  generalize (init_piketree_inv tree inp SUBTREE). intros INIT.
   eapply pike_tree_trc_correct in TRC as FINALINV; eauto.
   inversion FINALINV. subst. unfold first_branch. auto.
 Qed.
@@ -122,7 +122,7 @@ Theorem pike_vm_same_warblre:
       m str0 0 = Success res /\
       forall result,
         trc_pike_vm (compilation lr) (pike_vm_seen_initial_state (init_input str0)) (PVSS_final result) ->
-        equiv_groupmap_ms_opt result res.
+        EquivDef.equiv_res result res.
 Proof.
   intros lr wr str0 rer Hpike Hequiv Heqrer HearlyErrors.
   pose proof equiv_main wr lr rer str0 Hequiv Heqrer HearlyErrors as HequivMain.
