@@ -1,10 +1,10 @@
-From Coq Require Export List.
+From Coq Require Export List Equivalence.
 From Warblre Require Import Base.
 From Linden Require Import Regex Chars Groups Tree Semantics FunctionalSemantics FunctionalUtils ComputeIsTree.
 
 Export ListNotations.
 
-Section Equivalence.
+Section Definitions.
   Context {char: Parameters.Character.class}.
 
   Definition tree_equiv_tr_dir i gm dir tr1 tr2 :=
@@ -120,9 +120,82 @@ Section Equivalence.
     unfold tree_nequiv, tree_nequiv_tr_dir, tree_equiv.
     intros * Hneq Heq; apply Hneq, Heq; eauto using compute_tr_reg_is_tree.
   Qed.
-End Equivalence.
+End Definitions.
 
-Notation "tr1 '≅[' dir ']' tr2" := (tree_equiv_dir dir tr1 tr2) (at level 70).
-Notation "tr1 '≅' tr2" := (tree_equiv tr1 tr2) (at level 70).
-Notation "tr1 '≇[' dir ']' tr2" := (tree_nequiv_dir dir tr1 tr2) (at level 70).
-Notation "tr1 '≇' tr2" := (tree_nequiv tr1 tr2) (at level 70).
+#[export]
+Hint Unfold
+  tree_equiv
+  tree_equiv_dir
+  tree_equiv_tr_dir
+  tree_equiv_compute
+  tree_equiv_compute_dir
+  tree_equiv_counterexample
+  tree_nequiv
+  tree_nequiv_dir
+  tree_nequiv_tr_dir
+  tree_nequiv_compute
+  tree_nequiv_compute_dir
+  tree_nequiv_counterexample
+  : tree_equiv.
+
+Section Relation.
+  Context {char: Parameters.Character.class}.
+  Context (dir: Direction).
+
+  Ltac eqv :=
+    repeat red;
+    try setoid_rewrite tree_equiv_compute_dir_iff;
+    try setoid_rewrite tree_equiv_compute_iff;
+    try setoid_rewrite tree_nequiv_compute_dir_iff;
+    try setoid_rewrite tree_nequiv_compute_iff;
+    autounfold with tree_equiv; solve [congruence | intuition].
+
+  #[global] Add Relation regex (tree_equiv_dir dir)
+      reflexivity proved by ltac:(eqv)
+      symmetry proved by ltac:(eqv)
+      transitivity proved by ltac:(eqv)
+      as tree_equiv_dir_rel.
+
+  #[global] Add Relation regex tree_equiv
+      reflexivity proved by ltac:(eqv)
+      symmetry proved by ltac:(eqv)
+      transitivity proved by ltac:(eqv)
+      as tree_equiv_rel.
+
+  #[global] Instance : Irreflexive (tree_nequiv_dir dir) := ltac:(eqv).
+  #[global] Add Relation regex (tree_nequiv_dir dir)
+      symmetry proved by ltac:(eqv)
+      as tree_nequiv_dir_rel.
+
+  #[global] Instance : Irreflexive tree_nequiv := ltac:(eqv).
+  #[global] Add Relation regex tree_nequiv
+      symmetry proved by ltac:(eqv)
+      as tree_nequiv_rel.
+
+  #[global] Add Relation regex (tree_equiv_compute_dir dir)
+      reflexivity proved by ltac:(eqv)
+      symmetry proved by ltac:(eqv)
+      transitivity proved by ltac:(eqv)
+      as tree_equiv_compute_dir_rel.
+
+  #[global] Add Relation regex tree_equiv_compute
+      reflexivity proved by ltac:(eqv)
+      symmetry proved by ltac:(eqv)
+      transitivity proved by ltac:(eqv)
+      as tree_equiv_compute_rel.
+
+  #[global] Instance : Irreflexive (tree_nequiv_compute_dir dir) := ltac:(eqv).
+  #[global] Add Relation regex (tree_nequiv_compute_dir dir)
+      symmetry proved by ltac:(eqv)
+      as tree_nequiv_compute_dir_rel.
+
+  #[global] Instance : Irreflexive tree_nequiv_compute := ltac:(eqv).
+  #[global] Add Relation regex tree_nequiv_compute
+      symmetry proved by ltac:(eqv)
+      as tree_nequiv_compute_rel.
+End Relation.
+
+Notation "r1 ≅[ dir ] r2" := (tree_equiv_dir dir r1 r2) (at level 70, format "r1  ≅[ dir ]  r2").
+Notation "r1 ≅ r2" := (tree_equiv r1 r2) (at level 70, format "r1  ≅  r2").
+Notation "r1 ≇[ dir ] r2" := (tree_nequiv_dir dir r1 r2) (at level 70, format "r1  ≇[ dir ]  r2").
+Notation "r1 ≇ r2" := (tree_nequiv r1 r2) (at level 70, format "r1  ≇  r2").
