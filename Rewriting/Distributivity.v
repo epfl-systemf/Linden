@@ -1,6 +1,6 @@
 From Coq Require Import List.
 From Warblre Require Import Base.
-From Linden Require Import Regex Chars Groups Tree Semantics FunctionalSemantics FunctionalUtils.
+From Linden Require Import Regex Chars Groups Tree Semantics FunctionalSemantics FunctionalUtils ComputeIsTree.
 Import ListNotations.
 
 Module Right.
@@ -24,9 +24,8 @@ Module Right.
       intros * Hf He.
       erewrite is_tree_determ with (1 := Hf).
       erewrite is_tree_determ with (1 := He).
-      2, 3: repeat (econstructor; simpl); eapply compute_tr_is_tree.
+      2, 3: repeat (econstructor; simpl); eapply compute_tr_is_tree; eauto with inp_valid.
       1: reflexivity.
-      all: do 2 apply ComputeIsTree.inp_valid_checks_Areg; apply ComputeIsTree.inp_valid_checks_nil.
     Qed.
   End EquivalenceProof.
 End Right.
@@ -58,10 +57,8 @@ Module Left.
           tree_res tre GroupMap.empty 0 forward.
     Proof.
       intros * Hf He.
-      pattern trf; eapply compute_tr_ind with (3 := Hf).
-      2: { apply ComputeIsTree.inp_valid_checks_Areg, ComputeIsTree.inp_valid_checks_nil. }
-      pattern tre; eapply compute_tr_ind with (3 := He).
-      2: { apply ComputeIsTree.inp_valid_checks_Areg, ComputeIsTree.inp_valid_checks_nil. }
+      pattern trf; eapply compute_tr_ind with (3 := Hf); eauto with inp_valid.
+      pattern tre; eapply compute_tr_ind with (3 := He); eauto with inp_valid.
       unfold compute_tr; repeat (simpl; rewrite ?EqDec.reflb).
       inversion 1.
     Qed.

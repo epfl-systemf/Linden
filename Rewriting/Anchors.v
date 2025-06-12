@@ -1,6 +1,6 @@
 From Coq Require Import List.
 From Warblre Require Import Base.
-From Linden Require Import Regex Chars Groups Tree Semantics FunctionalSemantics FunctionalUtils.
+From Linden Require Import Regex Chars Groups Tree Semantics FunctionalSemantics FunctionalUtils ComputeIsTree.
 Import ListNotations.
 
 Section Anchors.
@@ -58,10 +58,8 @@ Section Anchors.
         tree_leaves trl gm (idx i) dir.
   Proof.
     eintros tra trlk Ha Hlk.
-    pattern tra; eapply compute_tr_ind with (3 := Ha).
-    2: { apply ComputeIsTree.inp_valid_checks_Areg, ComputeIsTree.inp_valid_checks_nil. }
-    pattern trlk; eapply compute_tr_ind with (3 := Hlk).
-    2: { apply ComputeIsTree.inp_valid_checks_Areg, ComputeIsTree.inp_valid_checks_nil. }
+    pattern tra; eapply compute_tr_ind with (3 := Ha); eauto with inp_valid.
+    pattern trlk; eapply compute_tr_ind with (3 := Hlk); eauto with inp_valid.
     apply desugar_anchor_correct'.
   Qed.
 End Anchors.
