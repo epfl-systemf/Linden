@@ -75,7 +75,7 @@ Qed.
 (* lifting the equivalence predicate to pike states, to get the full invariant *)
 Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> nat -> Prop :=
 | pikeinv:
-  forall inp idx treeactive treeblocked threadactive threadblocked best measureactive measureblocked n
+  forall inp treeactive treeblocked threadactive threadblocked best measureactive measureblocked n
     (ACTIVE: list_tree_thread code inp treeactive threadactive measureactive)
     (* blocked threads should be equivalent for the next input *)
     (* nothing to say if there is no next input *)
@@ -85,11 +85,10 @@ Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> nat -> Prop 
     (ENDTREE: advance_input inp forward = None -> treeblocked = [])
     (* the measure is simply the measure of the top priority thread *)
     (MEASURE: n = hd 0 (measureactive++measureblocked)),
-    pike_inv code (PTS idx treeactive best treeblocked) (PVS inp idx threadactive best threadblocked) n
+    pike_inv code (PTS inp treeactive best treeblocked) (PVS inp threadactive best threadblocked) n
 | pikeinv_final:
   forall best,
     pike_inv code (PTS_final best) (PVS_final best) 0.
-
 
 (** * Invariant Initialization  *)
 
@@ -99,9 +98,9 @@ Lemma initial_pike_inv:
     (TREE: bool_tree [Areg r] inp CanExit tree)
     (COMPILE: compilation r = code)
     (SUBSET: pike_regex r),
-    pike_inv code (pike_tree_initial_state tree) (pike_vm_initial_state inp) 0.
+    pike_inv code (pike_tree_initial_state tree inp) (pike_vm_initial_state inp) 0.
 Proof.
-  intros r inp tree code TREE COMPILE SUBSET.
+  intros r inp tree code TREE COMPILE SUBSET.         
   unfold compilation in COMPILE. destruct (compile r 0) as [c fresh] eqn:COMP.
   apply compile_nfa_rep with (prev := []) in COMP as REP; auto. simpl in REP.
   apply fresh_correct in COMP. simpl in COMP. subst.
@@ -200,13 +199,13 @@ Ltac invert_rep :=
 (* These lemmas discard the stuttering steps by preventing the current pc being at a Jmp instruction *)
 
 Theorem generate_match:
-  forall tree gm idx inp code pc b n
-    (TREESTEP: tree_bfs_step tree gm idx = StepMatch)
+  forall tree gm inp code pc b n
+    (TREESTEP: tree_bfs_step tree gm (idx inp) = StepMatch)
     (NOSTUTTER: stutters pc code = false)
     (TT: tree_thread code inp (tree, gm) (pc, gm, b) n),
-    epsilon_step (pc, gm, b) code inp idx = EpsMatch.
+    epsilon_step (pc, gm, b) code inp = EpsMatch.
 Proof.
-  intros tree gm idx inp code pc b n TREESTEP NOSTUTTER TT.
+  intros tree gm inp code pc b n TREESTEP NOSTUTTER TT.
   unfold tree_bfs_step in TREESTEP. destruct tree; inversion TREESTEP. subst. clear TREESTEP.
   inversion TT; subst; try no_stutter.
   remember Match as TMATCH.
@@ -224,15 +223,15 @@ Proof.
 
 
 Theorem generate_blocked:
-  forall tree gm idx inp code pc b nexttree n
-    (TREESTEP: tree_bfs_step tree gm idx = StepBlocked nexttree)
+  forall tree gm inp code pc b nexttree n
+    (TREESTEP: tree_bfs_step tree gm (idx inp) = StepBlocked nexttree)
     (NOSTUTTER: stutters pc code = false)
     (TT: tree_thread code inp (tree, gm) (pc, gm, b) n),
-    epsilon_step (pc,gm,b) code inp idx = EpsBlocked (pc+1,gm,CanExit) /\
+    epsilon_step (pc,gm,b) code inp = EpsBlocked (pc+1,gm,CanExit) /\
       (forall nextinp, advance_input inp forward = Some nextinp -> tree_thread code nextinp (nexttree,gm) (pc+1,gm,CanExit) n) /\
       exists nextinp, advance_input inp forward = Some nextinp.
 Proof.
-  intros tree gm idx inp code pc b nexttree n TREESTEP NOSTUTTER TT.
+  intros tree gm inp code pc b nexttree n TREESTEP NOSTUTTER TT.
   unfold tree_bfs_step in TREESTEP. destruct tree; inversion TREESTEP. subst. clear TREESTEP.
   inversion TT; subst; try no_stutter.
   remember (Read c nexttree) as TREAD.
@@ -254,13 +253,13 @@ Qed.
 
 
 Theorem generate_open:
-  forall gid tree gm idx inp code pc b n
+  forall gid tree gm inp code pc b n
     (TT: tree_thread code inp (GroupAction (Open gid) tree, gm) (pc, gm, b) n)
     (NOSTUTTER: stutters pc code = false),
-    epsilon_step (pc, gm, b) code inp idx = EpsActive [(pc + 1, GroupMap.open idx gid gm, b)] /\
-      tree_thread code inp (tree,GroupMap.open idx gid gm) (pc + 1, GroupMap.open idx gid gm, b) n.
+    epsilon_step (pc, gm, b) code inp = EpsActive [(pc + 1, GroupMap.open (idx inp) gid gm, b)] /\
+      tree_thread code inp (tree,GroupMap.open (idx inp) gid gm) (pc + 1, GroupMap.open (idx inp) gid gm, b) n.
 Proof.
-  intros gid tree gm idx inp code pc b n TT NOSTUTTER.
+  intros gid tree gm inp code pc b n TT NOSTUTTER.
   inversion TT; subst; try invert_rep.
   remember (GroupAction (Open gid) tree) as TOPEN.
   induction TREE; intros; subst; try inversion HeqTOPEN; subst.
@@ -279,13 +278,13 @@ Qed.
 
 
 Theorem generate_close:
-  forall gid tree gm idx inp code pc b n
+  forall gid tree gm inp code pc b n
     (TT: tree_thread code inp (GroupAction (Close gid) tree, gm) (pc, gm, b) n)
     (NOSTUTTER: stutters pc code = false),
-    epsilon_step (pc, gm, b) code inp idx = EpsActive [(pc + 1, GroupMap.close idx gid gm, b)] /\
-      tree_thread code inp (tree,GroupMap.close idx gid gm) (pc + 1, GroupMap.close idx gid gm, b) n.
+    epsilon_step (pc, gm, b) code inp = EpsActive [(pc + 1, GroupMap.close (idx inp) gid gm, b)] /\
+      tree_thread code inp (tree,GroupMap.close (idx inp) gid gm) (pc + 1, GroupMap.close (idx inp) gid gm, b) n.
 Proof.
-  intros gid tree gm idx inp code pc b n TT NOSTUTTER.
+  intros gid tree gm inp code pc b n TT NOSTUTTER.
   inversion TT; subst; try no_stutter.
   remember (GroupAction (Close gid) tree) as TCLOSE.
   induction TREE; intros; subst; try inversion HeqTCLOSE; subst.
@@ -316,10 +315,10 @@ Proof.
 Qed.
 
 Corollary generate_reset:  
-  forall gidl tree inp code pc b gm n idx
+  forall gidl tree inp code pc b gm n
     (TT: tree_thread code inp (GroupAction (Reset gidl) tree, gm) (pc,gm,b) n)
     (NOSTUTTER: stutters pc code = false),
-    epsilon_step (pc,gm,b) code inp idx = EpsActive [(pc+1, GroupMap.reset gidl gm, b)] /\
+    epsilon_step (pc,gm,b) code inp = EpsActive [(pc+1, GroupMap.reset gidl gm, b)] /\
       tree_thread code inp (tree,GroupMap.reset gidl gm) (pc+1, GroupMap.reset gidl gm, b) n.
 Proof.
   intros.
@@ -330,12 +329,12 @@ Proof.
 Qed.
 
 Theorem generate_mismatch:
-  forall gm idx inp code pc b n
+  forall gm inp code pc b n
     (TT: tree_thread code inp (Mismatch, gm) (pc, gm, b) n)
     (NOSTUTTER: stutters pc code = false),
-    epsilon_step (pc, gm, b) code inp idx = EpsActive [].
+    epsilon_step (pc, gm, b) code inp = EpsActive [].
 Proof.
-  intros gm idx inp code pc b n TT NOSTUTTER.
+  intros gm inp code pc b n TT NOSTUTTER.
   inversion TT; subst; try no_stutter.
   remember (Mismatch) as TMIS.
   induction TREE; intros; subst; try inversion HeqTMIS; subst.
@@ -351,13 +350,13 @@ Proof.
 Qed.
 
 Theorem generate_checkpass:
-  forall tree gm idx inp code pc b n
+  forall tree gm inp code pc b n
     (TT: tree_thread code inp (Progress tree, gm) (pc, gm, b) n)
     (NOSTUTTER: stutters pc code = false),
-    exists nextpc, epsilon_step (pc, gm, b) code inp idx = EpsActive [(nextpc,gm,CanExit)] /\
+    exists nextpc, epsilon_step (pc, gm, b) code inp = EpsActive [(nextpc,gm,CanExit)] /\
       tree_thread code inp (tree,gm) (nextpc,gm,CanExit) n.
 Proof.
-  intros tree gm idx inp code pc b n TT NOSTUTTER.
+  intros tree gm inp code pc b n TT NOSTUTTER.
   inversion TT; subst; try no_stutter.
   remember (Progress tree) as TPASS.
   induction TREE; intros; subst; try inversion HeqTPASS; subst.
@@ -372,15 +371,15 @@ Qed.
 
 
 Theorem generate_choice:
-  forall tree1 tree2 gm idx inp code pc b treeactive n
-    (TREESTEP: tree_bfs_step (Choice tree1 tree2) gm idx = StepActive treeactive)
+  forall tree1 tree2 gm inp code pc b treeactive n
+    (TREESTEP: tree_bfs_step (Choice tree1 tree2) gm (idx inp) = StepActive treeactive)
     (NOSTUTTER: stutters pc code = false)
     (TT: tree_thread code inp (Choice tree1 tree2, gm) (pc, gm, b) n),
   exists threadactive measure,
-    epsilon_step (pc, gm, b) code inp idx = EpsActive threadactive /\
+    epsilon_step (pc, gm, b) code inp = EpsActive threadactive /\
       list_tree_thread code inp treeactive threadactive measure.
 Proof.
-  intros tree1 tree2 gm idx inp code pc b treeactive n TREESTEP NOSTUTTER TT.
+  intros tree1 tree2 gm inp code pc b treeactive n TREESTEP NOSTUTTER TT.
   unfold tree_bfs_step in TREESTEP. inversion TREESTEP. subst. clear TREESTEP.
   inversion TT; subst; try no_stutter.
   remember (Choice tree1 tree2) as TCHOICE.
@@ -436,15 +435,15 @@ Qed.
 
 (* next we combine the generate lemmas together, for the general non-stuttering case *)
 Theorem generate_active:
-  forall tree gm idx inp code pc b treeactive n
-    (TREESTEP: tree_bfs_step tree gm idx = StepActive treeactive)
+  forall tree gm inp code pc b treeactive n
+    (TREESTEP: tree_bfs_step tree gm (idx inp) = StepActive treeactive)
     (NOSTUTTER: stutters pc code = false)
     (TT: tree_thread code inp (tree, gm) (pc, gm, b) n),
   exists threadactive measure,
-    epsilon_step (pc, gm, b) code inp idx = EpsActive threadactive /\
+    epsilon_step (pc, gm, b) code inp = EpsActive threadactive /\
       list_tree_thread code inp treeactive threadactive measure.
 Proof.
-  intros tree gm idx inp code pc b treeactive n TREESTEP NOSTUTTER TT.
+  intros tree gm inp code pc b treeactive n TREESTEP NOSTUTTER TT.
   destruct tree; simpl in TREESTEP; inversion TREESTEP; subst.
   - eapply generate_mismatch in TT; auto. exists []. exists []. split; eauto. constructor.
   - eapply generate_choice; eauto.
@@ -459,10 +458,10 @@ Proof.
     inversion SUBSETTREE.
   - destruct g.
     + eapply generate_open in TT as [STEP EQ]; auto.
-      exists [(pc+1,GroupMap.open idx g gm,b)]. exists [n]. split; eauto.
+      exists [(pc+1,GroupMap.open (idx inp) g gm,b)]. exists [n]. split; eauto.
       constructor; auto. constructor.
     + eapply generate_close in TT as [STEP EQ]; auto.
-      exists [(pc+1,GroupMap.close idx g gm,b)]. exists [n]. split; eauto.
+      exists [(pc+1,GroupMap.close (idx inp) g gm,b)]. exists [n]. split; eauto.
       constructor; auto. constructor.
     + eapply generate_reset in TT as [STEP EQ]; auto.
       exists [(pc + 1, GroupMap.reset gl gm, b)]. exists [n]. split; eauto.
@@ -478,15 +477,15 @@ Qed.
 (* TODO: simplify/automate this proof *)
 (* in the case where we are at a stuttering step, we show that we still preserve the invariant and decrease the measure *)
 Theorem stutter_step:
-  forall tree gm inp code pc b n idx
+  forall tree gm inp code pc b n
     (TT: tree_thread code inp (tree,gm) (pc,gm,b) n)
     (STUTTER: stutters pc code = true),
   exists nextpc nextb m,
-    epsilon_step (pc,gm,b) code inp idx = EpsActive [(nextpc,gm,nextb)] /\
+    epsilon_step (pc,gm,b) code inp = EpsActive [(nextpc,gm,nextb)] /\
       tree_thread code inp (tree,gm) (nextpc,gm,nextb) m /\
       n = S m.
 Proof.
-  intros tree gm inp code pc b n idx TT STUTTER.
+  intros tree gm inp code pc b n TT STUTTER.
   inversion TT; subst.
   (* reset is not stuttering *)
   2: { unfold stutters in STUTTER. rewrite RESET in STUTTER. inversion STUTTER. }
@@ -604,46 +603,46 @@ Proof.
     destruct (advance_input inp) as [nextinp|] eqn:ADVANCE.
     + specialize (BLOCKED nextinp eq_refl).
       inversion BLOCKED. subst.
-      exists (PVS nextinp (idx+1) ((pc,gm,b)::threadlist) best []). exists n. split.
+      exists (PVS nextinp ((pc,gm,b)::threadlist) best []). exists n. split.
       * apply pvs_nextchar. auto.
-      * eapply pikeinv; eauto. intros. constructor.
+      * apply advance_next in ADVANCE. subst. eapply pikeinv; eauto. intros. constructor.
     + specialize (ENDTREE eq_refl). inversion ENDTREE.
   (* pts_active *)
   - inversion ACTIVE. subst.
     destruct (stutters pc code) eqn:STUTTERS.
-    + right. apply stutter_step with (idx:=idx) in TT as [nextpc [nextb [m [EPSSTEP [TT LESS]]]]]; subst; eauto.
-      exists (PVS inp idx ([(nextpc, gm, nextb)] ++ threadlist) best threadblocked). exists m.
+    + right. apply stutter_step in TT as [nextpc [nextb [m [EPSSTEP [TT LESS]]]]]; subst; eauto.
+      exists (PVS inp ([(nextpc, gm, nextb)] ++ threadlist) best threadblocked). exists m.
       split; try split; auto.
       * apply pvs_active. auto.
       * simpl. eapply pikeinv with (measureactive:=m::measurelist); eauto. econstructor; eauto.
     + left. inversion ACTIVE. subst. rename t into tree.
       eapply generate_active in TT as [newthreads [measure [EPS LTT2]]]; eauto.
-      exists (PVS inp idx (newthreads++threadlist) best threadblocked). exists (hd 0 ((measure ++ measurelist) ++ measureblocked)). split.
+      exists (PVS inp (newthreads++threadlist) best threadblocked). exists (hd 0 ((measure ++ measurelist) ++ measureblocked)). split.
       * apply pvs_active. auto.
       * eapply pikeinv; auto. apply ltt_app; eauto.
   (* pts_match *)
   - inversion ACTIVE. subst.
      destruct (stutters pc code) eqn:STUTTERS.
-    + right. apply stutter_step with (idx:=idx) in TT as [nextpc [nextb [m [EPSSTEP [TT LESS]]]]]; subst; eauto.
-      exists (PVS inp idx ([(nextpc, gm, nextb)] ++ threadlist) best threadblocked). exists m.
+    + right. apply stutter_step in TT as [nextpc [nextb [m [EPSSTEP [TT LESS]]]]]; subst; eauto.
+      exists (PVS inp ([(nextpc, gm, nextb)] ++ threadlist) best threadblocked). exists m.
       split; try split; auto.
       * apply pvs_active. auto.
       * simpl. eapply pikeinv with (measureactive:=m::measurelist); eauto. econstructor; eauto.
     + left. rename t into tree. eapply generate_match in TT; eauto.
-      exists (PVS inp idx [] (Some gm) threadblocked). exists (hd 0 measureblocked). split.
+      exists (PVS inp [] (Some (inp,gm)) threadblocked). exists (hd 0 measureblocked). split.
       * apply pvs_match. auto.
       * econstructor; auto. constructor. simpl. auto.
   (* pts_blocked *)
   - inversion ACTIVE. subst.
     destruct (stutters pc code) eqn:STUTTERS.
-    + right. apply stutter_step with (idx:=idx) in TT as [nextpc [nextb [m [EPSSTEP [TT LESS]]]]]; subst; eauto.
-      exists (PVS inp idx ([(nextpc, gm, nextb)] ++ threadlist) best threadblocked). exists m.
+    + right. apply stutter_step in TT as [nextpc [nextb [m [EPSSTEP [TT LESS]]]]]; subst; eauto.
+      exists (PVS inp ([(nextpc, gm, nextb)] ++ threadlist) best threadblocked). exists m.
       split; try split; auto.
       * apply pvs_active. auto.
       * simpl. eapply pikeinv with (measureactive:=m::measurelist); eauto. econstructor; eauto.
     + left. rename t into tree.
-      specialize (generate_blocked _ _ _ _ _ _ _ _ _ STEP STUTTERS TT) as [EPS2 [TT2 [nexti ADVANCE]]].
-      exists (PVS inp idx threadlist best (threadblocked ++ [(pc+1,gm,CanExit)])). exists (hd 0 (measurelist ++ measureblocked ++ [n])). split.
+      specialize (generate_blocked _ _ _ _ _ _ _ _ STEP STUTTERS TT) as [EPS2 [TT2 [nexti ADVANCE]]].
+      exists (PVS inp threadlist best (threadblocked ++ [(pc+1,gm,CanExit)])). exists (hd 0 (measurelist ++ measureblocked ++ [n])). split.
       * apply pvs_blocked. auto.
       * econstructor; eauto.
         2: { intros H. rewrite ADVANCE in H. inversion H. }
