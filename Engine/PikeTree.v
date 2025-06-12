@@ -206,7 +206,7 @@ Qed.
 (* the invariant is properly initialized: at the beginning, the result of the state is the first result of the tree *)
 Lemma pts_result_init:
   forall t inp,
-    state_result (pike_tree_initial_state t inp) = first_branch' t inp.
+    state_result (pike_tree_initial_state t inp) = first_leaf t inp.
 Proof.
   intros t inp. unfold pike_tree_initial_state, first_branch. simpl.
   unfold list_result, seqop_list. simpl. rewrite seqop_none. auto.
