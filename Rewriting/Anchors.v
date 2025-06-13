@@ -41,9 +41,6 @@ Section Anchors.
     Anchor a ≅ desugar_anchor a.
   Proof.
     tree_equiv_rw.
-    unfold compute_tr;
-      destruct a, dir; simpl;
-      unfold compute_tr, anchor_satisfied, is_boundary, word_char, xorb, negb.
-    all: destr.
+    destruct a, dir; tree_equiv_symbex; reflexivity.
   Qed.
 End Anchors.

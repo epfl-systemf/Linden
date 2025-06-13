@@ -50,9 +50,9 @@ Module Left.
     Theorem factored_expanded_left_nequiv:
       factored ≇ expanded.
     Proof.
-      apply tree_nequiv_compute_counterexample; exists input, GroupMap.empty, forward.
-      compute_tr_cbv.
-      inversion 1.
+      tree_equiv_rw.
+      exists forward, input, GroupMap.empty.
+      compute_tr_cbv; inversion 1.
     Qed.
   End Counterexample.
 End Left.

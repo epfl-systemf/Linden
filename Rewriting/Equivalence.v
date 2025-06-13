@@ -11,7 +11,7 @@ Section Definitions.
     tree_leaves tr1 gm i dir = tree_leaves tr2 gm i dir.
 
   Definition tree_nequiv_tr_dir i gm dir tr1 tr2 :=
-    tree_leaves tr1 gm i dir <> tree_leaves tr2 gm i dir.
+    tree_res tr1 gm i dir <> tree_res tr2 gm i dir.
 
   Section IsTree.
     Definition tree_equiv_dir dir r1 r2 :=
@@ -24,16 +24,20 @@ Section Definitions.
       forall dir, tree_equiv_dir dir r1 r2.
 
     Definition tree_nequiv_dir dir r1 r2 :=
-      not (tree_equiv_dir dir r1 r2).
+      exists i gm tr1 tr2,
+        is_tree [Areg r1] i gm dir tr1 /\
+        is_tree [Areg r2] i gm dir tr2 /\
+        tree_nequiv_tr_dir i gm dir tr1 tr2.
 
     Definition tree_nequiv r1 r2 :=
-      not (tree_equiv r1 r2).
+      exists dir, tree_nequiv_dir dir r1 r2.
   End IsTree.
 
   Section ComputeTree.
     Definition tree_equiv_compute_dir dir r1 r2 :=
       forall i gm,
-        tree_equiv_tr_dir i gm dir
+        tree_equiv_tr_dir
+          i gm dir
           (compute_tr [Areg r1] i gm dir)
           (compute_tr [Areg r2] i gm dir).
 
@@ -41,10 +45,14 @@ Section Definitions.
       forall dir, tree_equiv_compute_dir dir r1 r2.
 
     Definition tree_nequiv_compute_dir dir r1 r2 :=
-      not (tree_equiv_compute_dir dir r1 r2).
+      exists i gm,
+        tree_nequiv_tr_dir
+          i gm dir
+          (compute_tr [Areg r1] i gm dir)
+          (compute_tr [Areg r2] i gm dir).
 
     Definition tree_nequiv_compute r1 r2 :=
-      not (tree_equiv_compute r1 r2).
+      exists dir, tree_nequiv_compute_dir dir r1 r2.
   End ComputeTree.
 
   Lemma tree_equiv_compute_dir_iff {dir r1 r2} :
@@ -64,61 +72,24 @@ Section Definitions.
       apply tree_equiv_compute_dir_iff; eauto.
   Qed.
 
-  Lemma tree_nequiv_compute_dir_iff {dir r1 r2} :
+  Lemma tree_nequiv_compute_dir_iff r1 r2 dir :
     tree_nequiv_dir dir r1 r2 <-> tree_nequiv_compute_dir dir r1 r2.
   Proof.
-    unfold tree_nequiv_dir, tree_nequiv_compute_dir.
-    split; intros Hneq Heq%tree_equiv_compute_dir_iff; tauto.
+    unfold tree_nequiv_dir, tree_nequiv_compute_dir, tree_nequiv_tr_dir.
+    split.
+    - intros (i & gm & tr1 & tr2 & Htr1 & Htr2 & Hneq).
+      rewrite (is_tree_eq_compute_tr Htr1), (is_tree_eq_compute_tr Htr2) in Hneq.
+      eauto.
+    - intros (i & gm & Hneq).
+      eauto 7 using compute_tr_is_tree.
   Qed.
 
   Lemma tree_nequiv_compute_iff {r1 r2} :
     tree_nequiv r1 r2 <-> tree_nequiv_compute r1 r2.
   Proof.
     unfold tree_nequiv, tree_nequiv_compute.
-    split; intros Hneq Heq%tree_equiv_compute_iff; tauto.
-  Qed.
-
-  Definition tree_equiv_counterexample i gm dir r1 r2 tr1 tr2 :=
-    is_tree [Areg r1] i gm dir tr1 /\
-      is_tree [Areg r2] i gm dir tr2 /\
-      tree_nequiv_tr_dir i gm dir tr1 tr2.
-
-  Lemma tree_nequiv_dir_counterexample {dir r1 r2}:
-    (exists i gm tr1 tr2, tree_equiv_counterexample i gm dir r1 r2 tr1 tr2) ->
-    tree_nequiv_dir dir r1 r2.
-  Proof.
-    unfold tree_nequiv_dir, tree_equiv_dir, tree_equiv_tr_dir; firstorder.
-  Qed.
-
-  Lemma tree_nequiv_counterexample {r1 r2}:
-    (exists i gm dir tr1 tr2, tree_equiv_counterexample i gm dir r1 r2 tr1 tr2) ->
-    tree_nequiv r1 r2.
-  Proof.
-    unfold tree_nequiv, tree_equiv, tree_equiv_dir, tree_equiv_tr_dir; firstorder.
-  Qed.
-
-  Lemma tree_nequiv_compute_dir_counterexample {dir r1 r2}:
-    (exists i gm,
-        tree_nequiv_tr_dir
-          i gm dir
-          (compute_tr [Areg r1] i gm dir)
-          (compute_tr [Areg r2] i gm dir)) ->
-    tree_nequiv_dir dir r1 r2.
-  Proof.
-    unfold tree_nequiv_dir, tree_nequiv_tr_dir, tree_equiv_dir, tree_equiv_tr_dir.
-    intros * (i & gm & Hneq) Heq; apply Hneq, Heq; eauto using compute_tr_reg_is_tree.
-  Qed.
-
-  Lemma tree_nequiv_compute_counterexample {r1 r2}:
-    (exists i gm dir,
-        tree_nequiv_tr_dir
-          i gm dir
-          (compute_tr [Areg r1] i gm dir)
-          (compute_tr [Areg r2] i gm dir)) ->
-    tree_nequiv r1 r2.
-  Proof.
-    unfold tree_nequiv, tree_nequiv_tr_dir, tree_equiv.
-    intros * (i & gm & dir & Hneq) Heq; apply Hneq, Heq; eauto using compute_tr_reg_is_tree.
+    pose proof tree_nequiv_compute_dir_iff r1 r2.
+    split; intros (dir & Hneq); exists dir; specialize (H dir); intuition.
   Qed.
 End Definitions.
 
@@ -129,13 +100,11 @@ Hint Unfold
   tree_equiv_tr_dir
   tree_equiv_compute
   tree_equiv_compute_dir
-  tree_equiv_counterexample
   tree_nequiv
   tree_nequiv_dir
   tree_nequiv_tr_dir
   tree_nequiv_compute
   tree_nequiv_compute_dir
-  tree_nequiv_counterexample
   : tree_equiv.
 
 Ltac tree_equiv_rw :=
@@ -153,11 +122,37 @@ Ltac tree_equiv_inv :=
   autounfold with tree_equiv; intros * Hl Hr;
   tree_inv Hl; [ tree_inv Hr | ].
 
+Hint Unfold
+     compute_tr
+     anchor_satisfied
+     is_boundary
+     read_char
+     word_char
+     andb orb negb xorb
+  : tree_equiv_symbex.
+
+Ltac tree_equiv_symbex_step :=
+  match goal with
+  | _ => progress simpl
+  | [  |- context[match ?x with _ => _ end] ] =>
+      lazymatch x with
+      | context[match _ with _ => _ end] => fail
+      | _ => destruct x eqn:?
+      end
+  end.
+
+Ltac tree_equiv_symbex_prepare :=
+  repeat (autounfold with tree_equiv_symbex; simpl).
+
+Ltac tree_equiv_symbex :=
+  repeat tree_equiv_symbex_prepare;
+  repeat tree_equiv_symbex_step.
+
 Section Relation.
   Context {char: Parameters.Character.class}.
   Context (dir: Direction).
 
-  Ltac eqv := repeat red; tree_equiv_rw; solve [congruence | intuition].
+  Ltac eqv := repeat red; tree_equiv_rw; solve [congruence | intuition | firstorder].
 
   #[global] Add Relation regex (tree_equiv_dir dir)
       reflexivity proved by ltac:(eqv)
@@ -171,16 +166,6 @@ Section Relation.
       transitivity proved by ltac:(eqv)
       as tree_equiv_rel.
 
-  #[global] Instance : Irreflexive (tree_nequiv_dir dir) := ltac:(eqv).
-  #[global] Add Relation regex (tree_nequiv_dir dir)
-      symmetry proved by ltac:(eqv)
-      as tree_nequiv_dir_rel.
-
-  #[global] Instance : Irreflexive tree_nequiv := ltac:(eqv).
-  #[global] Add Relation regex tree_nequiv
-      symmetry proved by ltac:(eqv)
-      as tree_nequiv_rel.
-
   #[global] Add Relation regex (tree_equiv_compute_dir dir)
       reflexivity proved by ltac:(eqv)
       symmetry proved by ltac:(eqv)
@@ -193,15 +178,25 @@ Section Relation.
       transitivity proved by ltac:(eqv)
       as tree_equiv_compute_rel.
 
-  #[global] Instance : Irreflexive (tree_nequiv_compute_dir dir) := ltac:(eqv).
-  #[global] Add Relation regex (tree_nequiv_compute_dir dir)
-      symmetry proved by ltac:(eqv)
-      as tree_nequiv_compute_dir_rel.
+  (* #[global] Instance : Irreflexive (tree_nequiv_dir dir) := ltac:(eqv). *)
+  (* #[global] Add Relation regex (tree_nequiv_dir dir) *)
+  (*     symmetry proved by ltac:(eqv) *)
+  (*     as tree_nequiv_dir_rel. *)
 
-  #[global] Instance : Irreflexive tree_nequiv_compute := ltac:(eqv).
-  #[global] Add Relation regex tree_nequiv_compute
-      symmetry proved by ltac:(eqv)
-      as tree_nequiv_compute_rel.
+  (* #[global] Instance : Irreflexive tree_nequiv := ltac:(eqv). *)
+  (* #[global] Add Relation regex tree_nequiv *)
+  (*     symmetry proved by ltac:(eqv) *)
+  (*     as tree_nequiv_rel. *)
+
+  (* #[global] Instance : Irreflexive (tree_nequiv_compute_dir dir) := ltac:(eqv). *)
+  (* #[global] Add Relation regex (tree_nequiv_compute_dir dir) *)
+  (*     symmetry proved by ltac:(eqv) *)
+  (*     as tree_nequiv_compute_dir_rel. *)
+
+  (* #[global] Instance : Irreflexive tree_nequiv_compute := ltac:(eqv). *)
+  (* #[global] Add Relation regex tree_nequiv_compute *)
+  (*     symmetry proved by ltac:(eqv) *)
+  (*     as tree_nequiv_compute_rel. *)
 End Relation.
 
 Notation "r1 ≅[ dir ] r2" := (tree_equiv_dir dir r1 r2) (at level 70, format "r1  ≅[ dir ]  r2").
