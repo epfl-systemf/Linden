@@ -266,47 +266,65 @@ Section Equivalence.
   (** * Actions Equivalence *)
 
   (* When for all inputs, they have the same leaves in the same order (with possible duplicates) *)
+  (* We first state equivalence for one given direction, e.g. rewritings involving sequences may only be valid in one direction *)
+  Definition actions_equiv_dir (acts1 acts2: actions) (dir: Direction): Prop :=
+    forall inp gm t1 t2
+      (TREE1: is_tree acts1 inp gm dir t1)
+      (TREE2: is_tree acts2 inp gm dir t2),
+      leaves_equiv (tree_leaves t1 gm inp dir) (tree_leaves t2 gm inp dir) [].
+  
+  (* Stating for all directions *)
   Definition actions_equiv (acts1 acts2: actions): Prop :=
     forall inp gm dir t1 t2
       (TREE1: is_tree acts1 inp gm dir t1)
       (TREE2: is_tree acts2 inp gm dir t2),
       leaves_equiv (tree_leaves t1 gm inp dir) (tree_leaves t2 gm inp dir) [].
 
+  (* actions_equiv_dir with both directions <-> actions_equiv *)
+  Lemma actions_equiv_dir_both:
+    forall acts1 acts2,
+      actions_equiv acts1 acts2 <-> forall dir, actions_equiv_dir acts1 acts2 dir.
+  Proof.
+    intros. split; intros.
+    - unfold actions_equiv_dir. intros. auto.
+    - unfold actions_equiv. intros. unfold actions_equiv_dir in H. auto.
+  Qed.
+
   (* Specialization to two regexes *)
-  Definition regex_equiv (r1 r2: regex) : Prop :=
-    actions_equiv [Areg r1] [Areg r2].
+  Definition regex_equiv_dir (r1 r2: regex) (dir: Direction): Prop :=
+    actions_equiv_dir [Areg r1] [Areg r2] dir.
 
   (** * Equivalence Properties  *)
 
   Lemma equiv_refl:
-    forall acts, actions_equiv acts acts.
+    forall acts dir, actions_equiv_dir acts acts dir.
   Proof.
-    unfold actions_equiv. intros. specialize (is_tree_determ _ _ _ _ _ _ TREE1 TREE2).
+    unfold actions_equiv_dir. intros. specialize (is_tree_determ _ _ _ _ _ _ TREE1 TREE2).
     intros. subst. apply leaves_equiv_refl.
   Qed.
 
   Lemma equiv_trans:
-    forall a1 a2 a3,
-      actions_equiv a1 a2 ->
-      actions_equiv a2 a3 ->
-      actions_equiv a1 a3.
+    forall a1 a2 a3 dir,
+      actions_equiv_dir a1 a2 dir ->
+      actions_equiv_dir a2 a3 dir ->
+      actions_equiv_dir a1 a3 dir.
   Proof.
-    unfold actions_equiv. intros a1 a2 a3 H H0 inp gm dir t1 t3 TREE1 TREE3.
+    unfold actions_equiv_dir. intros a1 a2 a3 dir H H0 inp gm t1 t3 TREE1 TREE3.
     assert (exists t2, is_tree a2 inp gm dir t2).
     { exists (compute_tr a2 inp gm dir). apply compute_tr_is_tree. }
     (* otherwise any regex is equivalent to a regex without tree *)
     destruct H1 as [t2 TREE2].
-    specialize (H inp gm dir t1 t2 TREE1 TREE2).
-    specialize (H0 inp gm dir t2 t3 TREE2 TREE3).
+    specialize (H inp gm t1 t2 TREE1 TREE2).
+    specialize (H0 inp gm t2 t3 TREE2 TREE3).
     eapply leaves_equiv_trans; eauto.
   Qed.
 
   Lemma equiv_commut:
-    forall r1 r2,
-      actions_equiv r1 r2 ->
-      actions_equiv r2 r1.
+    forall r1 r2 dir,
+      actions_equiv_dir r1 r2 dir ->
+      actions_equiv_dir r2 r1 dir.
   Proof.
-    unfold actions_equiv. intros r1 r2 H inp gm dir t1 t2 TREE1 TREE2.
+    unfold actions_equiv_dir. intros r1 r2 dir H inp gm t1 t2 TREE1 TREE2.
     eapply leaves_equiv_comm; eauto.
   Qed.
 
@@ -314,15 +332,15 @@ Section Equivalence.
 
   Theorem observe_equivalence:
     forall r1 r2 str res1 res2
-      (EQUIV: regex_equiv r1 r2)
+      (EQUIV: regex_equiv_dir r1 r2 forward)
       (RES1: highestprio_result r1 str res1)
       (RES2: highestprio_result r2 str res2),
       res1 = res2.
   Proof.
     intros r1 r2 str res1 res2 EQUIV RES1 RES2.
     inversion RES1. subst. inversion RES2. subst.
-    unfold regex_equiv, actions_equiv in EQUIV.
-    specialize (EQUIV _ _ _ _ _ TREE TREE0).
+    unfold regex_equiv_dir, actions_equiv_dir in EQUIV.
+    specialize (EQUIV _ _ _ _ TREE TREE0).
     unfold first_branch. rewrite first_tree_leaf. rewrite first_tree_leaf.
     apply equiv_head. auto.
   Qed.
@@ -513,12 +531,12 @@ Section Equivalence.
   (* to reason about the leaves of an app, we use the flatmap result *)
 
   Lemma app_eq_right:
-    forall a1 a2 acts
-      (ACTS_EQ: actions_equiv a1 a2),
-      actions_equiv (a1 ++ acts) (a2 ++ acts).
+    forall a1 a2 acts dir
+      (ACTS_EQ: actions_equiv_dir a1 a2 dir),
+      actions_equiv_dir (a1 ++ acts) (a2 ++ acts) dir.
   Proof.
-    intros. unfold actions_equiv in *.
-    intros inp gm dir t1acts t2acts TREE1acts TREE2acts.
+    intros. unfold actions_equiv_dir in *.
+    intros inp gm t1acts t2acts TREE1acts TREE2acts.
     assert (exists t1, is_tree a1 inp gm dir t1). {
       exists (compute_tr a1 inp gm dir). apply compute_tr_is_tree.
     }
@@ -528,17 +546,17 @@ Section Equivalence.
     destruct H as [t1 TREE1]. destruct H0 as [t2 TREE2].
     pose proof leaves_concat inp gm dir a1 acts t1acts t1 TREE1acts TREE1.
     pose proof leaves_concat inp gm dir a2 acts t2acts t2 TREE2acts TREE2.
-    specialize (ACTS_EQ inp gm dir t1 t2 TREE1 TREE2).
+    specialize (ACTS_EQ inp gm t1 t2 TREE1 TREE2).
     admit. (* Should now follow from some property on FlatMap and leaves_equiv *)
   Admitted.
 
   Lemma app_eq_left:
-    forall a1 a2 acts
-      (ACTS_EQ: actions_equiv a1 a2),
-      actions_equiv (acts ++ a1) (acts ++ a2).
+    forall a1 a2 acts dir
+      (ACTS_EQ: actions_equiv_dir a1 a2 dir),
+      actions_equiv_dir (acts ++ a1) (acts ++ a2) dir.
   Proof.
-    intros. unfold actions_equiv in *.
-    intros inp gm dir t1acts t2acts TREE1acts TREE2acts.
+    intros. unfold actions_equiv_dir in *.
+    intros inp gm t1acts t2acts TREE1acts TREE2acts.
     assert (exists tacts, is_tree acts inp gm dir tacts). {
       exists (compute_tr acts inp gm dir). apply compute_tr_is_tree.
     }
@@ -574,13 +592,13 @@ Section Equivalence.
   Abort.*)
 
   Lemma regex_equiv_quant:
-    forall r1 r2,
-      regex_equiv r1 r2 ->
+    forall r1 r2 dir,
+      regex_equiv_dir r1 r2 dir ->
       forall greedy min delta,
-        regex_equiv (Quantified greedy min delta r1) (Quantified greedy min delta r2).
+        regex_equiv_dir (Quantified greedy min delta r1) (Quantified greedy min delta r2) dir.
   Proof.
-    intros r1 r2 Hequiv greedy min delta.
-    unfold regex_equiv, actions_equiv. intros inp gm dir t1 t2 TREE1.
+    intros r1 r2 dir Hequiv greedy min delta.
+    unfold regex_equiv_dir, actions_equiv_dir. intros inp gm t1 t2 TREE1.
     remember [Areg _] as act1 in TREE1.
     induction TREE1; try discriminate.
     (*rewrite <- app_nil_l with (l := [Areg (Quantified _ _ _ r1)]) in TREE1.
