@@ -40,7 +40,7 @@ Section Anchors.
   Theorem desugar_anchor_correct (a: anchor):
     Anchor a ≅ desugar_anchor a.
   Proof.
-    rewrite tree_equiv_compute_iff; autounfold with tree_equiv; intros.
+    tree_equiv_rw.
     unfold compute_tr;
       destruct a, dir; simpl;
       unfold compute_tr, anchor_satisfied, is_boundary, word_char, xorb, negb.

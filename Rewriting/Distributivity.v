@@ -11,14 +11,19 @@ Module Right.
     Definition expanded: regex :=
       Disjunction (Sequence x0 y) (Sequence x1 y).
 
-    Theorem factored_expanded_right_equiv:
+    Theorem factored_expanded_right_equiv: (* Proof using inversion on the is_tree predicate *)
       factored ≅[forward] expanded.
     Proof.
       autounfold with tree_equiv; intros * Hf He.
-      erewrite is_tree_determ with (1 := Hf).
-      erewrite is_tree_determ with (1 := He).
-      2, 3: repeat (econstructor; simpl); eapply compute_tr_is_tree; eauto with inp_valid.
-      1: reflexivity.
+      tree_inv Hf; tree_inv He; eauto using compute_tr_is_tree.
+    Qed.
+
+    Theorem factored_expanded_right_equiv_symb: (* Proof using symbolic evaluation *)
+      factored ≅[forward] expanded.
+    Proof.
+      tree_equiv_rw.
+      compute_tr_simpl.
+      reflexivity.
     Qed.
   End EquivalenceProof.
 End Right.
@@ -45,8 +50,8 @@ Module Left.
     Theorem factored_expanded_left_nequiv:
       factored ≇ expanded.
     Proof.
-      eapply (tree_nequiv_compute_counterexample input GroupMap.empty forward).
-      autounfold with tree_equiv; unfold compute_tr; repeat (simpl; rewrite ?EqDec.reflb).
+      apply tree_nequiv_compute_counterexample; exists input, GroupMap.empty, forward.
+      compute_tr_cbv.
       inversion 1.
     Qed.
   End Counterexample.

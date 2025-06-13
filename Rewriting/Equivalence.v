@@ -84,41 +84,41 @@ Section Definitions.
       tree_nequiv_tr_dir i gm dir tr1 tr2.
 
   Lemma tree_nequiv_dir_counterexample {dir r1 r2}:
-    forall i gm tr1 tr2,
-      tree_equiv_counterexample i gm dir r1 r2 tr1 tr2 ->
-      tree_nequiv_dir dir r1 r2.
+    (exists i gm tr1 tr2, tree_equiv_counterexample i gm dir r1 r2 tr1 tr2) ->
+    tree_nequiv_dir dir r1 r2.
   Proof.
     unfold tree_nequiv_dir, tree_equiv_dir, tree_equiv_tr_dir; firstorder.
   Qed.
 
   Lemma tree_nequiv_counterexample {r1 r2}:
-    forall i gm dir tr1 tr2,
-      tree_equiv_counterexample i gm dir r1 r2 tr1 tr2 ->
-      tree_nequiv r1 r2.
+    (exists i gm dir tr1 tr2, tree_equiv_counterexample i gm dir r1 r2 tr1 tr2) ->
+    tree_nequiv r1 r2.
   Proof.
     unfold tree_nequiv, tree_equiv, tree_equiv_dir, tree_equiv_tr_dir; firstorder.
   Qed.
 
   Lemma tree_nequiv_compute_dir_counterexample {dir r1 r2}:
-    forall i gm,
-      tree_nequiv_tr_dir i gm dir
-        (compute_tr [Areg r1] i gm dir)
-        (compute_tr [Areg r2] i gm dir) ->
-      tree_nequiv_dir dir r1 r2.
+    (exists i gm,
+        tree_nequiv_tr_dir
+          i gm dir
+          (compute_tr [Areg r1] i gm dir)
+          (compute_tr [Areg r2] i gm dir)) ->
+    tree_nequiv_dir dir r1 r2.
   Proof.
     unfold tree_nequiv_dir, tree_nequiv_tr_dir, tree_equiv_dir, tree_equiv_tr_dir.
-    intros * Hneq Heq; apply Hneq, Heq; eauto using compute_tr_reg_is_tree.
+    intros * (i & gm & Hneq) Heq; apply Hneq, Heq; eauto using compute_tr_reg_is_tree.
   Qed.
 
   Lemma tree_nequiv_compute_counterexample {r1 r2}:
-    forall i gm dir,
-      tree_nequiv_tr_dir i gm dir
-        (compute_tr [Areg r1] i gm dir)
-        (compute_tr [Areg r2] i gm dir) ->
-      tree_nequiv r1 r2.
+    (exists i gm dir,
+        tree_nequiv_tr_dir
+          i gm dir
+          (compute_tr [Areg r1] i gm dir)
+          (compute_tr [Areg r2] i gm dir)) ->
+    tree_nequiv r1 r2.
   Proof.
     unfold tree_nequiv, tree_nequiv_tr_dir, tree_equiv.
-    intros * Hneq Heq; apply Hneq, Heq; eauto using compute_tr_reg_is_tree.
+    intros * (i & gm & dir & Hneq) Heq; apply Hneq, Heq; eauto using compute_tr_reg_is_tree.
   Qed.
 End Definitions.
 
@@ -138,17 +138,26 @@ Hint Unfold
   tree_nequiv_counterexample
   : tree_equiv.
 
+Ltac tree_equiv_rw :=
+  try setoid_rewrite tree_equiv_compute_dir_iff;
+  try setoid_rewrite tree_equiv_compute_iff;
+  try setoid_rewrite tree_nequiv_compute_dir_iff;
+  try setoid_rewrite tree_nequiv_compute_iff;
+  autounfold with tree_equiv; intros.
+
+Ltac tree_inv H :=
+  erewrite is_tree_determ with (1 := H);
+  [ | repeat (econstructor; simpl; rewrite ?app_nil_r; unfold seq_list)].
+
+Ltac tree_equiv_inv :=
+  autounfold with tree_equiv; intros * Hl Hr;
+  tree_inv Hl; [ tree_inv Hr | ].
+
 Section Relation.
   Context {char: Parameters.Character.class}.
   Context (dir: Direction).
 
-  Ltac eqv :=
-    repeat red;
-    try setoid_rewrite tree_equiv_compute_dir_iff;
-    try setoid_rewrite tree_equiv_compute_iff;
-    try setoid_rewrite tree_nequiv_compute_dir_iff;
-    try setoid_rewrite tree_nequiv_compute_iff;
-    autounfold with tree_equiv; solve [congruence | intuition].
+  Ltac eqv := repeat red; tree_equiv_rw; solve [congruence | intuition].
 
   #[global] Add Relation regex (tree_equiv_dir dir)
       reflexivity proved by ltac:(eqv)
