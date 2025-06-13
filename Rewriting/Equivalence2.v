@@ -517,19 +517,85 @@ Section Equivalence.
       (ACTS_EQ: actions_equiv a1 a2),
       actions_equiv (a1 ++ acts) (a2 ++ acts).
   Proof.
-    intros. unfold actions_equiv.
-    
+    intros. unfold actions_equiv in *.
+    intros inp gm dir t1acts t2acts TREE1acts TREE2acts.
+    assert (exists t1, is_tree a1 inp gm dir t1). {
+      exists (compute_tr a1 inp gm dir). apply compute_tr_is_tree.
+    }
+    assert (exists t2, is_tree a2 inp gm dir t2). {
+      exists (compute_tr a2 inp gm dir). apply compute_tr_is_tree.
+    }
+    destruct H as [t1 TREE1]. destruct H0 as [t2 TREE2].
+    pose proof leaves_concat inp gm dir a1 acts t1acts t1 TREE1acts TREE1.
+    pose proof leaves_concat inp gm dir a2 acts t2acts t2 TREE2acts TREE2.
+    specialize (ACTS_EQ inp gm dir t1 t2 TREE1 TREE2).
+    admit. (* Should now follow from some property on FlatMap and leaves_equiv *)
   Admitted.
 
   Lemma app_eq_left:
-    forall c1 c2 cont
-      (CONT_EQ: cont_eq c1 c2),
-      cont_eq (cont ++ c1) (cont ++ c2).
+    forall a1 a2 acts
+      (ACTS_EQ: actions_equiv a1 a2),
+      actions_equiv (acts ++ a1) (acts ++ a2).
   Proof.
+    intros. unfold actions_equiv in *.
+    intros inp gm dir t1acts t2acts TREE1acts TREE2acts.
+    assert (exists tacts, is_tree acts inp gm dir tacts). {
+      exists (compute_tr acts inp gm dir). apply compute_tr_is_tree.
+    }
+    destruct H as [tacts TREEacts].
+    pose proof leaves_concat inp gm dir acts a1 t1acts tacts TREE1acts TREEacts.
+    pose proof leaves_concat inp gm dir acts a2 t2acts tacts TREE2acts TREEacts.
+    (* Now act_from_leaf a1 dir and act_from_leaf a2 dir are morally equivalent *)
+    admit.
   Admitted.
 
 
   (** * END PLAN *)
+  (* Lemma for quantifiers *)
+  (*Lemma act_quant_ind:
+    forall (r: regex) (P: actions -> input -> group_map -> Direction -> tree -> Prop),
+      (forall greedy inp gm dir t,
+        is_tree [Areg (Quantified greedy 0 (NoI.N 0) r)] inp gm dir t ->
+        P [Areg (Quantified greedy 0 (NoI.N 0) r)] inp gm dir t) ->
+      (forall greedy min delta inp gm dir t,
+        is_tree [Areg (Quantified greedy min delta r)] inp gm dir t ->
+        P [Areg (Quantified greedy min delta r)] inp gm dir t ->
+        P [Areg (Quantified greedy (S min) delta r)] inp gm dir t) ->
+      (forall greedy delta inp gm dir t,
+        is_tree [Areg (Quantified greedy 0 delta r)] inp gm dir t ->
+        P [Areg (Quantified greedy 0 (NoI.N 1 + delta)%NoI r)] inp gm dir t) ->
+      forall greedy min delta inp gm dir t,
+        is_tree [Areg (Quantified greedy min delta r)] inp gm dir t ->
+        P [Areg (Quantified greedy min delta r)] inp gm dir t.
+  Proof.
+    intros r P Hdone Hforced Hfree.
+    fix Fix 8.
+    intros. inversion H; subst.
+  Abort.*)
+
+  Lemma regex_equiv_quant:
+    forall r1 r2,
+      regex_equiv r1 r2 ->
+      forall greedy min delta,
+        regex_equiv (Quantified greedy min delta r1) (Quantified greedy min delta r2).
+  Proof.
+    intros r1 r2 Hequiv greedy min delta.
+    unfold regex_equiv, actions_equiv. intros inp gm dir t1 t2 TREE1.
+    remember [Areg _] as act1 in TREE1.
+    induction TREE1; try discriminate.
+    (*rewrite <- app_nil_l with (l := [Areg (Quantified _ _ _ r1)]) in TREE1.
+    rewrite <- app_nil_l with (l := [Areg (Quantified greedy min delta r2)]).
+    remember [] as act1 in TREE1 at 1. remember [] as act2 in |- * at 1.
+    assert (PREF_EQUIV: actions_equiv act1 act2). {
+      subst. apply equiv_refl.
+    }
+    clear Heqact1 Heqact2.
+    remember (act1 ++ [Areg (Quantified greedy min delta r1)]) as act1r1quant. induction TREE1; try discriminate.
+    - destruct act1; discriminate.
+    - admit.
+    - admit.
+    - *)
+  Abort.
 
   (** * Main theorem: regex equivalence is preserved by plugging into a context *)
   Theorem regex_equiv_ctx:
@@ -537,6 +603,58 @@ Section Equivalence.
       regex_equiv r1 r2 ->
       forall ctx, regex_equiv (plug_ctx ctx r1) (plug_ctx ctx r2).
   Proof.
+    intros r1 r2 Hequiv ctx.
+    induction ctx.
+    - (* Hole *) auto.
+    - (* Disjunction left *)
+      simpl. unfold regex_equiv, actions_equiv in *.
+      intros inp gm dir t1 t2 TREE1 TREE2.
+      inversion TREE1; subst. inversion TREE2; subst.
+      simpl. apply leaves_equiv_app; auto.
+      assert (t1 = t0) by (eapply is_tree_determ; eauto). subst t1. apply leaves_equiv_refl.
+    
+    - (* Disjunction right *)
+      simpl. unfold regex_equiv, actions_equiv in *.
+      intros inp gm dir t1 t2 TREE1 TREE2.
+      inversion TREE1; subst. inversion TREE2; subst.
+      simpl. apply leaves_equiv_app; auto.
+      assert (t4 = t3) by (eapply is_tree_determ; eauto). subst t4. apply leaves_equiv_refl.
+
+    - (* Sequence left *)
+      simpl. unfold regex_equiv, actions_equiv in *.
+      intros inp gm dir t1 t2 TREE1 TREE2.
+      inversion TREE1; subst. inversion TREE2; subst.
+      destruct dir.
+      + (* Forward *)
+        simpl in *. pose proof app_eq_left _ _ [Areg r0] IHctx.
+        unfold actions_equiv in H. simpl in H. auto.
+      + (* Backward *)
+        simpl in *. pose proof app_eq_right _ _ [Areg r0] IHctx.
+        unfold actions_equiv in H. simpl in H. auto.
+      
+    - (* Sequence right *)
+      simpl. unfold regex_equiv, actions_equiv in *.
+      intros inp gm dir t1 t2 TREE1 TREE2.
+      inversion TREE1; subst. inversion TREE2; subst.
+      destruct dir.
+      + (* Forward *)
+        simpl in *. pose proof app_eq_right _ _ [Areg r0] IHctx.
+        unfold actions_equiv in H. simpl in H. auto.
+      + (* Backward *)
+        simpl in *. pose proof app_eq_left _ _ [Areg r0] IHctx.
+        unfold actions_equiv in H. simpl in H. auto.
+      
+    - (* Quantified *)
+      simpl. unfold regex_equiv, actions_equiv.
+      intros inp gm dir t1 t2 TREE1 TREE2.
+      remember ([Areg (Quantified _ _ _ (plug_ctx ctx r1))]) as r1quantctx.
+      generalize dependent t2.
+      induction TREE1; try discriminate; admit.
+
+    - (* Lookaround *)
+      simpl. unfold regex_equiv, actions_equiv in *.
+      intros inp gm dir t1 t2 TREE1 TREE2.
+      inversion TREE1; subst; inversion TREE2; subst.
   Admitted.
 
 End Equivalence.
