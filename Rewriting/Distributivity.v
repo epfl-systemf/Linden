@@ -15,7 +15,7 @@ Module Right.
       factored ≅[forward] expanded.
     Proof.
       autounfold with tree_equiv; intros * Hf He.
-      tree_inv Hf; tree_inv He; eauto using compute_tr_is_tree.
+      tree_inv Hf; tree_inv He; eauto using compute_tr_is_tree. reflexivity.
     Qed.
 
     Theorem factored_expanded_right_equiv_symb: (* Proof using symbolic evaluation *)
@@ -53,6 +53,8 @@ Module Left.
       tree_equiv_rw.
       exists forward, input, GroupMap.empty.
       compute_tr_cbv; inversion 1.
+      - unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] ?]].
+      - unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] ?]].
     Qed.
   End Counterexample.
 End Left.

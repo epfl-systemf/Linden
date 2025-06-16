@@ -66,27 +66,27 @@ Section Definitions.
   (* the notion of duplicates should change in presence of backreferences (to also include group maps) *)
   (* the third list, seen, accumulates inputs that have already been seen and can be removed *)
 
-  Inductive leaves_equiv: list leaf -> list leaf -> list (input * group_map) -> Prop :=
+  Inductive leaves_equiv: list (input * group_map) -> list leaf -> list leaf -> Prop :=
   | equiv_nil:
     forall seen,
-      leaves_equiv [] [] seen
+      leaves_equiv seen [] []
   | equiv_seen_left:
     (* removing a duplicate *)
     forall seen inp gm l1 l2
       (SEEN: is_seen (inp, gm) seen = true)
-      (EQUIV: leaves_equiv l1 l2 seen),
-      leaves_equiv ((inp,gm)::l1) l2 seen
+      (EQUIV: leaves_equiv seen l1 l2),
+      leaves_equiv seen ((inp,gm)::l1) l2
   | equiv_seen_right:
     (* removing a duplicate *)
     forall seen inp gm l1 l2
       (SEEN: is_seen (inp,gm) seen = true)
-      (EQUIV: leaves_equiv l1 l2 seen),
-      leaves_equiv l1 ((inp,gm)::l2) seen
+      (EQUIV: leaves_equiv seen l1 l2),
+      leaves_equiv seen l1 ((inp,gm)::l2)
   | equiv_cons:
     forall seen inp gm l1 l2
       (NEW: is_seen (inp,gm) seen = false)
-      (EQUIV: leaves_equiv l1 l2 ((inp,gm)::seen)),
-      leaves_equiv ((inp,gm)::l1) ((inp,gm)::l2) seen.
+      (EQUIV: leaves_equiv ((inp,gm)::seen) l1 l2),
+      leaves_equiv seen ((inp,gm)::l1) ((inp,gm)::l2).
 
   Lemma filter_decomp:
     forall l seen i g res,
@@ -113,8 +113,8 @@ Section Definitions.
   Lemma equiv_empty_right:
     forall l1 l2 seen pref,
       filter_leaves pref seen = [] ->
-      leaves_equiv l1 l2 seen ->
-      leaves_equiv l1 (pref++l2) seen.
+      leaves_equiv seen l1 l2 ->
+      leaves_equiv seen l1 (pref++l2).
   Proof.
     intros l1 l2 seen pref H H0. induction pref; simpl; auto.
     destruct a as [i g]. simpl in H.
@@ -125,7 +125,7 @@ Section Definitions.
 
   Theorem equiv_nodup:
     forall l1 l2 seen,
-      leaves_equiv l1 l2 seen <->
+      leaves_equiv seen l1 l2 <->
         filter_leaves l1 seen = filter_leaves l2 seen.
   Proof.
     intros l1 l2 seen. split; intros H.
@@ -150,7 +150,7 @@ Section Definitions.
 
 
   Lemma leaves_equiv_refl:
-    forall l seen, leaves_equiv l l seen.
+    forall l seen, leaves_equiv seen l l.
   Proof.
     intros l. induction l; intros.
     { constructor. }
@@ -163,8 +163,8 @@ Section Definitions.
   
   Lemma leaves_equiv_comm:
     forall l1 l2 seen,
-      leaves_equiv l1 l2 seen ->
-      leaves_equiv l2 l1 seen.
+      leaves_equiv seen l1 l2 ->
+      leaves_equiv seen l2 l1.
   Proof.
     intros l1 l2 seen H.
     induction H; solve[constructor; auto].
@@ -173,8 +173,8 @@ Section Definitions.
   Lemma equiv_remove_left:
     forall l1 l2 inp gm seen
       (SEEN: is_seen (inp,gm) seen = true)
-      (EQUIV: leaves_equiv ((inp,gm)::l1) l2 seen),
-      leaves_equiv l1 l2 seen.
+      (EQUIV: leaves_equiv seen ((inp,gm)::l1) l2),
+      leaves_equiv seen l1 l2.
   Proof.
     intros l1 l2 inp gm seen SEEN EQUIV.
     remember ((inp,gm)::l1) as L1.
@@ -185,9 +185,9 @@ Section Definitions.
 
   Lemma leaves_equiv_trans:
     forall l1 l2 l3 seen,
-      leaves_equiv l1 l2 seen ->
-      leaves_equiv l2 l3 seen ->
-      leaves_equiv l1 l3 seen.
+      leaves_equiv seen l1 l2 ->
+      leaves_equiv seen l2 l3 ->
+      leaves_equiv seen l1 l3 .
   Proof.
     intros l1 l2 l3 seen H H0.
     rewrite equiv_nodup in H.
@@ -202,8 +202,8 @@ Section Definitions.
   Lemma leaves_equiv_monotony:
     forall l1 l2 seen1 seen2
       (INCLUSION: forall x, is_seen x seen1 = true -> is_seen x seen2 = true),
-      leaves_equiv l1 l2 seen1 ->
-      leaves_equiv l1 l2 seen2.
+      leaves_equiv seen1 l1 l2 ->
+      leaves_equiv seen2 l1 l2.
   Proof.
     intros l1 l2 seen1 seen2 INCLUSION H.
     generalize dependent seen2.
@@ -228,8 +228,8 @@ Section Definitions.
 
   Lemma seen_or_not:
     forall seen inp gm l1 l2,
-      leaves_equiv l1 l2 ((inp,gm)::seen) ->
-      leaves_equiv ((inp,gm)::l1) ((inp,gm)::l2) seen.
+      leaves_equiv ((inp,gm)::seen) l1 l2 ->
+      leaves_equiv seen ((inp,gm)::l1) ((inp,gm)::l2).
   Proof.
     intros seen inp gm l1 l2 H.
     destruct (is_seen (inp,gm) seen) eqn:SEEN.
@@ -244,9 +244,9 @@ Section Definitions.
 
   Lemma leaves_equiv_app:
     forall p1 p2 l1 l2,
-      leaves_equiv p1 p2 [] ->
-      leaves_equiv l1 l2 [] ->
-      leaves_equiv (p1++l1) (p2++l2) [].
+      leaves_equiv [] p1 p2 ->
+      leaves_equiv [] l1 l2 ->
+      leaves_equiv [] (p1++l1) (p2++l2).
   Proof.
     intros p1 p2 l1 l2 PE LE.
     induction PE; try solve[simpl; auto; constructor; auto].
@@ -258,7 +258,7 @@ Section Definitions.
 
   Lemma equiv_head:
     forall l1 l2,
-      leaves_equiv l1 l2 [] ->
+      leaves_equiv [] l1 l2 ->
       hd_error l1 = hd_error l2.
   Proof.
     intros l1 l2 H. remember [] as nil.
@@ -273,14 +273,14 @@ Section Definitions.
     forall inp gm t1 t2
       (TREE1: is_tree acts1 inp gm dir t1)
       (TREE2: is_tree acts2 inp gm dir t2),
-      leaves_equiv (tree_leaves t1 gm inp dir) (tree_leaves t2 gm inp dir) [].
+      leaves_equiv [] (tree_leaves t1 gm inp dir) (tree_leaves t2 gm inp dir).
   
   (* Stating for all directions *)
   Definition actions_equiv (acts1 acts2: actions): Prop :=
     forall inp gm dir t1 t2
       (TREE1: is_tree acts1 inp gm dir t1)
       (TREE2: is_tree acts2 inp gm dir t2),
-      leaves_equiv (tree_leaves t1 gm inp dir) (tree_leaves t2 gm inp dir) [].
+      leaves_equiv [] (tree_leaves t1 gm inp dir) (tree_leaves t2 gm inp dir).
 
   (* actions_equiv_dir with both directions <-> actions_equiv *)
   Lemma actions_equiv_dir_both:
@@ -377,10 +377,10 @@ Section Definitions.
     end.
 
   Definition tree_equiv_tr_dir i gm dir tr1 tr2 :=
-    leaves_equiv (tree_leaves tr1 gm i dir) (tree_leaves tr2 gm i dir) [].
+    leaves_equiv [] (tree_leaves tr1 gm i dir) (tree_leaves tr2 gm i dir).
 
   Definition tree_nequiv_tr_dir i gm dir tr1 tr2 :=
-    not (leaves_equiv (tree_leaves tr1 gm i dir) (tree_leaves tr2 gm i dir) []).
+    not (leaves_equiv [] (tree_leaves tr1 gm i dir) (tree_leaves tr2 gm i dir)).
 
   Section IsTree.
     Definition tree_equiv_dir dir r1 r2 :=
@@ -521,6 +521,16 @@ Section Relation.
   Context {char: Parameters.Character.class}.
 
   Ltac eqv := repeat red; tree_equiv_rw; solve [congruence | intuition | firstorder].
+
+  Section LeavesEquiv.
+    Context (seen: list (input * group_map)).
+
+    #[global] Add Relation (list leaf) (leaves_equiv seen)
+        reflexivity proved by (fun l => leaves_equiv_refl l seen)
+        symmetry proved by (fun l1 l2 => leaves_equiv_comm l1 l2 seen)
+        transitivity proved by (fun l1 l2 l3 => leaves_equiv_trans l1 l2 l3 seen)
+        as leaves_equiv_rel.
+  End LeavesEquiv.
 
   Section DirSpecific.
     Context (dir: Direction).
@@ -891,10 +901,10 @@ Section Congruence.
 
   Lemma flatmap_leaves_equiv_l:
     forall leaves1 leaves2 f leavesf1 leavesf2,
-      leaves_equiv leaves1 leaves2 [] ->
+      leaves_equiv [] leaves1 leaves2 ->
       FlatMap leaves1 f leavesf1 ->
       FlatMap leaves2 f leavesf2 ->
-      leaves_equiv leavesf1 leavesf2 [].
+      leaves_equiv [] leavesf1 leavesf2.
   Proof.
   Admitted.
 
@@ -984,7 +994,7 @@ Section Congruence.
   Abort.
 
   (** * Main theorem: regex equivalence is preserved by plugging into a context *)
-  Theorem regex_equiv_ctx:
+  (*Theorem regex_equiv_ctx:
     forall r1 r2,
       regex_equiv r1 r2 ->
       forall ctx, regex_equiv (plug_ctx ctx r1) (plug_ctx ctx r2).
@@ -1041,5 +1051,5 @@ Section Congruence.
       simpl. unfold regex_equiv, actions_equiv in *.
       intros inp gm dir t1 t2 TREE1 TREE2.
       inversion TREE1; subst; inversion TREE2; subst.
-  Admitted.
+  Admitted.*)
 End Congruence.

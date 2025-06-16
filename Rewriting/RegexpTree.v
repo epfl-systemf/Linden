@@ -71,6 +71,8 @@ Section RegexpTree.
       tree_equiv_rw.
       exists forward, (init_input [c0; c1; c0]), GroupMap.empty.
       compute_tr_cbv; inversion 1.
+      - unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] ?]].
+      - unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] ?]].
     Qed.
 
     Lemma atmost_atmost_equiv (m n: nat) r: (* r{0,m}r{0,n} ≅ r{0,m+n} *)
