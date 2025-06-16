@@ -429,7 +429,7 @@ Section Equivalence.
   Lemma read_backref_success_advance:
     forall gm gid inp dir br_str nextinp,
       read_backref gm gid inp dir = Some (br_str, nextinp) ->
-      nextinp = advance_input_n inp (length br_str) dir. (* This is false if the backref string is read out of bounds... *)
+      nextinp = advance_input_n inp (length br_str) dir.
   Proof.
     intros gm gid inp dir br_str nextinp H.
     unfold read_backref in H. unfold advance_input_n.
@@ -591,6 +591,15 @@ Section Equivalence.
   (* building up to contextual equivalence *)
   (* to reason about the leaves of an app, we use the flatmap result *)
 
+  Lemma flatmap_leaves_equiv_l:
+    forall leaves1 leaves2 f leavesf1 leavesf2,
+      leaves_equiv leaves1 leaves2 [] ->
+      FlatMap leaves1 f leavesf1 ->
+      FlatMap leaves2 f leavesf2 ->
+      leaves_equiv leavesf1 leavesf2 [].
+  Proof.
+  Admitted.
+
   Lemma app_eq_right:
     forall a1 a2 acts dir
       (ACTS_EQ: actions_equiv_dir a1 a2 dir),
@@ -608,8 +617,8 @@ Section Equivalence.
     pose proof leaves_concat inp gm dir a1 acts t1acts t1 TREE1acts TREE1.
     pose proof leaves_concat inp gm dir a2 acts t2acts t2 TREE2acts TREE2.
     specialize (ACTS_EQ inp gm t1 t2 TREE1 TREE2).
-    admit. (* Should now follow from some property on FlatMap and leaves_equiv *)
-  Admitted.
+    eauto using flatmap_leaves_equiv_l.
+  Qed.
 
   Lemma app_eq_left:
     forall a1 a2 acts dir
