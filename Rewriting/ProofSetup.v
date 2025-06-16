@@ -4,4 +4,8 @@ From Linden Require Export Regex Chars Groups Tree Semantics FunctionalSemantics
 From Linden.Rewriting Require Export Equivalence.
 
 Export ListNotations.
+
 Coercion nat_to_N (n: nat) := NoI.N n.
+
+#[warning="-uniform-inheritance"]
+Coercion char_to_re {char: Parameters.Character.class} c := Character (CdSingle c).

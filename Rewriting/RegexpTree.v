@@ -9,7 +9,6 @@ Coercion nat_to_N (n: nat) := NoI.N n.
 
 Section RegexpTree.
   Context {char: Parameters.Character.class}.
-  Coercion char_to_re (c: Parameters.Character) := Character (CdSingle c).
 
 (*|
 ## Bounded repetitions
