@@ -1,5 +1,5 @@
 From Linden Require Import Tree Chars Groups Semantics Regex FunctionalUtils.
-From Coq Require Import List.
+From Coq Require Import List Lia.
 From Warblre Require Import Parameters Base.
 Import ListNotations.
 
@@ -410,6 +410,51 @@ Section Equivalence.
     - rewrite <- app_assoc, <- app_comm_cons. constructor; auto.
   Qed.
 
+
+  (* The two following lemmas should probably be moved somewhere else *)
+  Lemma read_char_success_advance:
+    forall cd inp dir c nextinp,
+      read_char cd inp dir = Some (c, nextinp) ->
+      advance_input inp dir = Some nextinp.
+  Proof.
+    intros. destruct inp as [next pref]. destruct dir; simpl in *.
+    - (* Forward *)
+      destruct next as [|h next']; try discriminate.
+      destruct char_match; try discriminate. now injection H as <- <-.
+    - (* Backward *)
+      destruct pref as [|h pref']; try discriminate.
+      destruct char_match; try discriminate. now injection H as <- <-.
+  Qed.
+
+  Lemma read_backref_success_advance:
+    forall gm gid inp dir br_str nextinp,
+      read_backref gm gid inp dir = Some (br_str, nextinp) ->
+      nextinp = advance_input_n inp (length br_str) dir. (* This is false if the backref string is read out of bounds... *)
+  Proof.
+    intros gm gid inp dir br_str nextinp H.
+    unfold read_backref in H. unfold advance_input_n.
+    destruct GroupMap.find as [[startIdx [endIdx|]]|].
+    - destruct inp as [next pref]. destruct dir.
+      + (* Forward *)
+        destruct Nat.leb eqn:Hinb; try discriminate.
+        rewrite PeanoNat.Nat.leb_gt in Hinb.
+        destruct EqDec.eqb eqn:Hsubeq; try discriminate.
+        injection H as H <-.
+        rewrite EqDec.inversion_true in Hsubeq.
+        replace (length br_str) with (endIdx - startIdx). 1: reflexivity.
+        rewrite <- H, <- Hsubeq. rewrite firstn_length. lia.
+      + (* Backward *)
+        destruct Nat.leb eqn:Hinb; try discriminate.
+        rewrite PeanoNat.Nat.leb_gt in Hinb.
+        destruct EqDec.eqb eqn:Hsubeq; try discriminate.
+        injection H as H <-.
+        rewrite EqDec.inversion_true in Hsubeq.
+        replace (length br_str) with (endIdx - startIdx). 1: reflexivity.
+        rewrite <- H, <- Hsubeq. rewrite rev_length, firstn_length. lia.
+    - injection H as <- <-. simpl. now destruct inp, dir.
+    - injection H as <- <-. simpl. now destruct inp, dir.
+  Qed.
+
   (* adding new things to the continuation is the same as extending each leaf of the tree with these new things *)
   Theorem leaves_concat:
     forall inp gm dir act1 act2 tapp t1
@@ -442,7 +487,7 @@ Section Equivalence.
       simpl.
       rewrite READ in READ0. injection READ0 as <- <-.
       rewrite advance_input_success with (nexti := nextinp).
-      2: admit.
+      2: eauto using read_char_success_advance.
       auto.
     
     - (* Read char fail *)
@@ -488,7 +533,22 @@ Section Equivalence.
       inversion TREE_APP; subst;
         assert (treelk0 = treelk) by (eapply is_tree_determ; eauto); subst.
       2: contradiction.
-      admit. (* Painful? *)
+      rewrite GM_LK in GM_LK0. injection GM_LK0 as <-.
+      destruct positivity eqn:Hpos.
+      + unfold lk_group_map in GM_LK. rewrite Hpos in GM_LK.
+        pose proof first_tree_leaf treelk gm inp (lk_dir lk) as LK_FIRST.
+        destruct (tree_res treelk gm inp (lk_dir lk)) as [[inplk gmlk']|] eqn:TREERES_LK; try discriminate.
+        injection GM_LK as ->.
+        destruct (tree_leaves treelk gm inp (lk_dir lk)) as [|[inplk' gmlk'] q] eqn:TREELEAVES_LK; try discriminate.
+        simpl in *. injection LK_FIRST as <- <-. rewrite Hpos.
+        rewrite TREELEAVES_LK. auto.
+      + unfold lk_group_map in GM_LK. rewrite Hpos in GM_LK.
+        injection GM_LK as <-.
+        assert (tree_leaves treelk gm inp (lk_dir lk) = []).
+        { apply leaves_group_map_indep with (gm1 := GroupMap.empty) (inp1 := init_input nil) (dir1 := forward).
+          apply hd_error_none_nil. rewrite <- first_tree_leaf.
+          unfold lk_result in RES_LK. rewrite Hpos in RES_LK. apply RES_LK. }
+        simpl. rewrite Hpos, H. auto.
   
     - (* Lookaround failure *)
       inversion TREE_APP; subst;
@@ -512,14 +572,14 @@ Section Equivalence.
       rewrite READ_BACKREF in READ_BACKREF0. injection READ_BACKREF0 as <- <-.
       simpl.
       replace (advance_input_n _ _ _) with nextinp.
-      2: admit.
+      2: eauto using read_backref_success_advance.
       auto.
     
     - (* Backref fail *)
       inversion TREE_APP; subst.
       1: congruence.
       simpl. constructor.
-  Admitted.
+  Qed.
 
   (* There are many ways to rephrase this if needed. *)
   (* We don't need the generic FlatMap: we could specialize it to X=Y=leaf, and to f=cont_from_leaf *)
