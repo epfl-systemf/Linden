@@ -9,8 +9,9 @@ Section Equivalence.
   Definition input_eqb (i1 i2: input): bool :=
     if input_eq_dec i1 i2 then true else false.
 
+  Existing Instance GroupMap.EqDec_t.
   Definition gm_eqb (gm1 gm2: group_map): bool :=
-    if GroupMap.eq_dec gm1 gm2 then true else false.
+    if EqDec.eq_dec gm1 gm2 then true else false.
 
   Lemma input_eqb_true:
     forall i1 i2, input_eqb i1 i2 = true -> i1 = i2.
@@ -23,7 +24,7 @@ Section Equivalence.
     forall gm1 gm2, gm_eqb gm1 gm2 = true -> gm1 = gm2.
   Proof.
     intros gm1 gm2 H. unfold gm_eqb in H.
-    destruct GroupMap.eq_dec; auto. discriminate.
+    destruct EqDec.eq_dec; auto. discriminate.
   Qed.
 
   Definition leaf_eqb (leaf1 leaf2: leaf): bool :=
@@ -676,4 +677,3 @@ Section Equivalence.
   Admitted.
 
 End Equivalence.
-  

@@ -1,0 +1,249 @@
+From Coq Require Import Eqdep_dec List Permutation SetoidList Bool RelationClasses.
+
+Module ProofIrrelevance.
+  Class InvDec (P: Prop) := {
+      Pb: bool;
+      Pb_P: Pb = true -> P;
+      P_Pb: P -> Pb = true;
+      inv: forall p: P, p = Pb_P (P_Pb p)
+    }.
+
+  Class Irrelevant (P: Prop) := {
+      irrel: forall p0 p1: P, p0 = p1
+    }.
+
+  Lemma UIP_bool {b0 b1: bool} (p0 p1: b0 = b1): p0 = p1.
+  Proof.
+    destruct p0; symmetry; apply Eqdep_dec.UIP_refl_bool.
+  Qed.
+
+  Instance InvDec_Irrelevant {P} {ID: InvDec P} : Irrelevant P.
+  Proof.
+    constructor; intros.
+    rewrite (inv p0), (inv p1).
+    f_equal. apply UIP_bool.
+  Qed.
+
+  #[refine] Instance InvDec_lt a b : InvDec (lt a b) := {
+      Pb := Nat.ltb a b
+    }.
+  Proof.
+    - apply PeanoNat.Nat.ltb_lt.
+    - apply PeanoNat.Nat.ltb_lt.
+    - intros; apply Peano_dec.le_unique.
+  Qed.
+
+  Definition InvDec_and_P_Pb {A B bA bB}:
+    (bA = true -> A) ->
+    (bB = true -> B) ->
+    bA && bB = true ->
+    A /\ B.
+  Proof.
+    destruct bA eqn:HA; try discriminate.
+    destruct bB eqn:HB; try discriminate.
+    constructor; eauto.
+  Defined.
+
+  Definition InvDec_and_Pb_P {A B bA bB}:
+    (A -> bA = true) ->
+    (B -> bB = true) ->
+    A /\ B ->
+    bA && bB = true.
+  Proof.
+    intros HbA HbB [HA%HbA HB%HbB].
+    rewrite HA, HB; reflexivity.
+  Defined.
+
+  #[refine] Instance InvDec_and {A B} (IA: InvDec A) (IB: InvDec B) : InvDec (A /\ B) := {
+      Pb := IA.(Pb) && IB.(Pb);
+      P_Pb := _;
+      Pb_P := _;
+    }.
+  Proof.
+    - apply (InvDec_and_P_Pb IA.(Pb_P) IB.(Pb_P)).
+    - apply (InvDec_and_Pb_P IA.(P_Pb) IB.(P_Pb)).
+    - unfold InvDec_and_P_Pb, InvDec_and_Pb_P.
+      destruct p as [HA HB]; simpl.
+      set (P_Pb HA) as HPbA; clearbody HPbA.
+      set (P_Pb HB) as HPbB; clearbody HPbB.
+      set IA.(Pb_P) as PbPA; clearbody PbPA.
+      set IB.(Pb_P) as PbPB; clearbody PbPB.
+      destruct IA.(Pb) eqn:HeqA; try discriminate.
+      destruct IB.(Pb) eqn:HeqB; try discriminate.
+      f_equal; apply irrel.
+  Qed.
+End ProofIrrelevance.
+
+Import ProofIrrelevance ListNotations.
+
+Section Sorted.
+  Context {A: Type} (R: A -> A -> Prop).
+  Context {ID: forall a0 a1, InvDec (R a0 a1)}.
+
+  Definition HdRelb (a: A) (l: list A) :=
+    match l with
+    | [] => true
+    | hd :: tl => (ID a hd).(Pb)
+    end.
+
+  Lemma HdRel_HdRelb : forall a (l: list A),
+      HdRel R a l -> HdRelb a l = true.
+  Proof.
+    inversion 1; simpl; subst.
+    - reflexivity.
+    - apply (ID a b).(P_Pb); assumption.
+  Defined.
+
+  Lemma HdRelb_HdRel : forall a (l: list A),
+      HdRelb a l = true -> HdRel R a l.
+  Proof.
+    destruct l as [ | a' l]; simpl; constructor.
+    apply (ID  a a').(Pb_P); assumption.
+  Defined.
+
+  #[refine] Instance InvDec_HdRel a l : InvDec (HdRel R a l) := {
+      Pb := HdRelb a l;
+      P_Pb := HdRel_HdRelb a l;
+      Pb_P := HdRelb_HdRel a l
+    }.
+  Proof.
+    destruct p; simpl.
+    - reflexivity.
+    - f_equal.
+      apply (ID a b).(inv).
+  Qed.
+
+  Fixpoint Sortedb (l: list A) :=
+    match l with
+    | [] => true
+    | hd :: tl => Sortedb tl && (InvDec_HdRel hd tl).(Pb)
+    end.
+
+  Lemma Sorted_Sortedb : forall (l: list A),
+      Sorted R l -> Sortedb l = true.
+  Proof.
+    fix IH 2.
+    destruct 1 as [ | hd tl HR HS ]; simpl; subst.
+    - reflexivity.
+    - apply IH in HR.
+      apply P_Pb in HS.
+      rewrite HR, HS; reflexivity.
+  Defined.
+
+  Lemma Sortedb_Sorted : forall (l: list A),
+      Sortedb l = true -> Sorted R l.
+  Proof.
+    fix IH 1.
+    destruct l as [ | n l]; simpl.
+    - constructor.
+    - specialize (IH l).
+      pose proof (InvDec_HdRel n l).(Pb_P).
+      destruct (Sortedb l) eqn:HA; try discriminate.
+      destruct (InvDec_HdRel n l).(Pb) eqn:HB; try discriminate.
+      constructor; eauto.
+  Defined.
+
+  #[refine] Instance InvDec_Sorted l : InvDec (Sorted R l) := {
+      Pb := Sortedb l;
+      P_Pb := Sorted_Sortedb l;
+      Pb_P := Sortedb_Sorted l
+    }.
+  Proof.
+    revert l.
+    fix IH 2; destruct p as [ | hd tl HS HR ]; simpl.
+    - reflexivity.
+    - specialize (IH _ HS).
+      set (Sorted_Sortedb tl HS) as HPbS in *; clearbody HPbS.
+      set (P_Pb HR) as HPbR; clearbody HPbR.
+      set (Sortedb_Sorted tl) as PbPS in *; clearbody PbPS.
+      set (InvDec_HdRel hd tl).(Pb_P) as PbPR; clearbody PbPR.
+      destruct (Sortedb tl) eqn:HeqS; try discriminate.
+      destruct (InvDec_HdRel hd tl).(Pb) eqn:HeqB; try discriminate.
+      rewrite (Eqdep_dec.UIP_refl_bool _ HPbR), (Eqdep_dec.UIP_refl_bool _ HPbS) in *.
+      unfold eq_ind_r, eq_sym; simpl; f_equal.
+      + apply IH.
+      + apply irrel.
+  Qed.
+End Sorted.
+
+Lemma In_InA_iff [A] (l : list A) (x : A):
+  In x l <-> InA eq x l.
+Proof.
+  split; eauto using In_InA, eq_equivalence.
+  revert l x; induction l; simpl; inversion 1; subst; eauto.
+Qed.
+
+Lemma Sorted_unique {T} cmp :
+  StrictOrder cmp ->
+  forall  (l0 l1: list T),
+    Sorted cmp l0 ->
+    Sorted cmp l1 ->
+    (forall t, In t l0 <-> In t l1) ->
+    l0 = l1.
+Proof.
+  intros Horder l0 l1 Hl0 Hl1 HP.
+  apply eqlistA_ind with (eqA := eq); [ congruence .. | ].
+  eapply SortA_equivlistA_eqlistA with (ltA := cmp); eauto using eq_equivalence.
+  - cbv; intros; subst; tauto.
+  - intro t; rewrite !InA_alt; split.
+    all: intros [t' (-> & ?)].
+    all: exists t'; split; try apply HP; eauto.
+Qed.
+
+Require Import FMapInterface FMapList FMapFacts.
+
+Module Type OrderedTypeWithIrrelevance.
+  Declare Module OT: OrderedType.
+  Include OT.
+  Parameter eq_leibniz : forall x y, OT.eq x y -> x = y.
+  Parameter InvDec_lt: forall a0 a1, InvDec (OT.lt a0 a1).
+End OrderedTypeWithIrrelevance.
+
+Module Type S.
+  Include FMapInterface.S.
+  Axiom Equal_eq: forall {elt} (t0 t1: t elt), Equal t0 t1 <-> t0 = t1.
+End S.
+
+Module Make (X: OrderedTypeWithIrrelevance) <: S.
+  Module M := FMapList.Make X.
+  Module F := FMapFacts.Facts M.
+  Include M.
+
+  Lemma In_elements {elt} x (t: t elt):
+    List.In x (elements t) <-> MapsTo (fst x) (snd x) t.
+  Proof.
+    rewrite In_InA_iff, F.elements_mapsto_iff, !InA_alt.
+    unfold eq_key_elt, Raw.PX.eqke.
+    split; intros [x' (Heq & ?)]; exists x; simpl in *.
+    - subst; eauto using E.eq_refl.
+    - destruct x, x'; simpl in *. destruct Heq as [->%X.eq_leibniz ->].
+      subst; eauto.
+  Qed.
+
+  Lemma Equal_eq_this {elt} (t0: t elt): forall t1, Equal t0 t1 -> t0.(this) = t1.(this).
+  Proof.
+    intros.
+    eapply Sorted_unique; eauto using sorted, Raw.PX.ltk_strorder.
+    change (this ?t) with (elements t).
+    intros; rewrite !In_elements.
+    apply F.Equal_mapsto_iff; eauto.
+  Qed.
+
+  Lemma Equal_eq {elt} (t0 t1: t elt): Equal t0 t1 <-> t0 = t1.
+  Proof.
+    split; [ | intros ->; reflexivity ].
+    intros HEq%Equal_eq_this.
+    destruct t0, t1; simpl in *; destruct HEq.
+    f_equal.
+    pose proof X.InvDec_lt.
+    apply (irrel (Irrelevant := InvDec_Irrelevant (ID := InvDec_Sorted _ _))).
+  Qed.
+
+  Lemma equal_eq {elt} (cmp: elt -> elt -> bool) (t0 t1: t elt):
+    (forall e0 e1, cmp e0 e1 = true <-> e0 = e1) ->
+    equal cmp t0 t1 = true <-> t0 = t1.
+  Proof.
+    intros; rewrite <- (Equal_eq t0 t1), <- F.equal_iff, <- F.Equal_Equivb;
+      reflexivity || eauto.
+  Qed.
+End Make.
