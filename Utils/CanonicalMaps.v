@@ -173,21 +173,14 @@ Proof.
   revert l x; induction l; simpl; inversion 1; subst; eauto.
 Qed.
 
-Lemma Sorted_unique {T} cmp :
-  StrictOrder cmp ->
-  forall  (l0 l1: list T),
-    Sorted cmp l0 ->
-    Sorted cmp l1 ->
-    (forall t, In t l0 <-> In t l1) ->
-    l0 = l1.
+Lemma eqlistA_eq {A} (cmp: A -> A -> Prop) (l0 l1: list A) :
+  (forall a0 a1, cmp a0 a1 -> a0 = a1) ->
+  eqlistA cmp l0 l1 ->
+  l0 = l1.
 Proof.
-  intros Horder l0 l1 Hl0 Hl1 HP.
-  apply eqlistA_ind with (eqA := eq); [ congruence .. | ].
-  eapply SortA_equivlistA_eqlistA with (ltA := cmp); eauto using eq_equivalence.
-  - cbv; intros; subst; tauto.
-  - intro t; rewrite !InA_alt; split.
-    all: intros [t' (-> & ?)].
-    all: exists t'; split; try apply HP; eauto.
+  intros Hl; apply eqlistA_ind.
+  - reflexivity.
+  - intros * ->%Hl _ ->; reflexivity.
 Qed.
 
 Require Import FMapInterface FMapList FMapFacts.
@@ -209,34 +202,27 @@ Module Make (X: OrderedTypeWithIrrelevance) <: S.
   Module F := FMapFacts.Facts M.
   Include M.
 
-  Lemma In_elements {elt} x (t: t elt):
-    List.In x (elements t) <-> MapsTo (fst x) (snd x) t.
+  Lemma Equal_eq_this {elt} (t0 t1: t elt):
+    Equal t0 t1 ->
+    eqlistA (M.eq_key_elt (elt:=elt)) t0.(this) t1.(this).
   Proof.
-    rewrite In_InA_iff, F.elements_mapsto_iff, !InA_alt.
-    unfold eq_key_elt, Raw.PX.eqke.
-    split; intros [x' (Heq & ?)]; exists x; simpl in *.
-    - subst; eauto using E.eq_refl.
-    - destruct x, x'; simpl in *. destruct Heq as [->%X.eq_leibniz ->].
-      subst; eauto.
-  Qed.
-
-  Lemma Equal_eq_this {elt} (t0: t elt): forall t1, Equal t0 t1 -> t0.(this) = t1.(this).
-  Proof.
-    intros.
-    eapply Sorted_unique; eauto using sorted, Raw.PX.ltk_strorder.
-    change (this ?t) with (elements t).
-    intros; rewrite !In_elements.
-    apply F.Equal_mapsto_iff; eauto.
+    intros HEq.
+    eapply SortA_equivlistA_eqlistA;
+      eauto using sorted, Raw.PX.ltk_strorder, M.Raw.PX.eqke_equiv, M.Raw.PX.ltk_compat'.
+    intros [k e].
+    rewrite F.Equal_mapsto_iff in HEq; specialize (HEq k e).
+    rewrite !F.elements_mapsto_iff in HEq.
+    assumption.
   Qed.
 
   Lemma Equal_eq {elt} (t0 t1: t elt): Equal t0 t1 <-> t0 = t1.
   Proof.
     split; [ | intros ->; reflexivity ].
-    intros HEq%Equal_eq_this.
-    destruct t0, t1; simpl in *; destruct HEq.
-    f_equal.
-    pose proof X.InvDec_lt.
-    apply (irrel (Irrelevant := InvDec_Irrelevant (ID := InvDec_Sorted _ _))).
+    intros HEq%Equal_eq_this%eqlistA_eq.
+    - pose proof X.InvDec_lt.
+      destruct t0, t1; simpl in *; destruct HEq.
+      f_equal; apply (irrel (Irrelevant := InvDec_Irrelevant (ID := InvDec_Sorted _ _))).
+    - intros [k0 e0] [k1 e1] [Hfst%X.eq_leibniz Hsnd]; simpl in *; congruence.
   Qed.
 
   Lemma equal_eq {elt} (cmp: elt -> elt -> bool) (t0 t1: t elt):
