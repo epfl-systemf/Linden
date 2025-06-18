@@ -275,6 +275,18 @@ Section Definitions.
       (TREE2: is_tree acts2 inp gm dir t2),
       leaves_equiv [] (tree_leaves t1 gm inp dir) (tree_leaves t2 gm inp dir).
   
+  Definition actions_equiv_dir_cond (acts1 acts2: actions) (dir: Direction) (P: leaf -> Prop): Prop :=
+    forall lf, P lf ->
+    forall t1 t2
+      (TREE1: is_tree acts1 (fst lf) (snd lf) dir t1)
+      (TREE2: is_tree acts2 (fst lf) (snd lf) dir t2),
+      leaves_equiv [] (tree_leaves t1 (snd lf) (fst lf) dir) (tree_leaves t2 (snd lf) (fst lf) dir).
+
+  Definition actions_respect_prop_dir (acts: actions) (dir: Direction) (P: leaf -> Prop): Prop :=
+    forall inp gm t
+      (TREE: is_tree acts inp gm dir t),
+      Forall P (tree_leaves t gm inp dir).
+  
   (* Stating for all directions *)
   Definition actions_equiv (acts1 acts2: actions): Prop :=
     forall inp gm dir t1 t2
@@ -979,6 +991,21 @@ Section Congruence.
       actions_equiv_dir (a1 ++ b1) (a2 ++ b2) dir.
   Admitted.
 
+  Lemma actions_equiv_interm_prop:
+    forall (a1 a2 b1 b2: actions) (P: leaf -> Prop) (dir: Direction),
+      actions_equiv_dir a1 a2 dir ->
+      actions_respect_prop_dir a1 dir P ->
+      actions_respect_prop_dir a2 dir P ->
+      actions_equiv_dir_cond b1 b2 dir P ->
+      actions_equiv_dir (a1 ++ b1) (a2 ++ b2) dir.
+  Admitted.
+
+  Lemma actions_respect_prop_add_left:
+    forall (a b: actions) (P: leaf -> Prop) (dir: Direction),
+      actions_respect_prop_dir b dir P ->
+      actions_respect_prop_dir (a ++ b) dir P.
+  Admitted.
+
 
   (** * END PLAN *)
   (* Lemma for quantifiers *)
@@ -1014,33 +1041,97 @@ Section Congruence.
     - simpl. apply ISTREE0.
   Qed.
 
-  Lemma regex_equiv_quant:
+  Lemma regex_equiv_quant_done:
+    forall r1 r2 dir greedy,
+      def_groups r1 = def_groups r2 ->
+      tree_equiv_dir dir (Quantified greedy 0 (NoI.N 0) r1) (Quantified greedy 0 (NoI.N 0) r2).
+  Proof.
+    intros. unfold tree_equiv_dir.
+    split; auto. intros inp gm t1 t2 TREE1 TREE2.
+    inversion TREE1; subst; inversion TREE2; subst.
+    - inversion SKIP; subst; inversion SKIP0; subst. unfold tree_equiv_tr_dir. reflexivity.
+    - destruct plus; discriminate.
+    - destruct plus; discriminate.
+    - destruct plus; discriminate.
+  Qed.
+
+  Lemma regex_equiv_quant_free:
+    forall r1 r2 dir,
+      tree_equiv_dir dir r1 r2 ->
+      forall greedy delta,
+        tree_equiv_dir dir (Quantified greedy 0 delta r1) (Quantified greedy 0 delta r2).
+  Proof.
+    intros r1 r2 dir Hequiv greedy delta.
+    destruct Hequiv as [DEF_GROUPS Hequiv].
+    split; auto. intros inp gm t1 t2 TREE1.
+    revert t2. remember (remaining_length inp dir) as n.
+    revert delta inp gm t1 TREE1 Heqn. induction n. (* TODO Replace by strong induction on n *)
+    - (* At end of input *)
+      intros delta inp gm t1 TREE1 Hend t2 TREE2.
+      inversion TREE1; subst; inversion TREE2; subst.
+      + inversion SKIP; subst. inversion SKIP0; subst. unfold tree_equiv_tr_dir. reflexivity.
+      + destruct plus; discriminate.
+      + destruct plus; discriminate.
+      + assert (plus = plus0). { destruct plus0; destruct plus; congruence. }
+        subst plus0. clear H1.
+        inversion SKIP; subst inp0 gm0 dir0 tskip. inversion SKIP0; subst inp0 gm0 dir0 tskip0.
+        unfold tree_equiv_tr_dir.
+        (* In ISTREE1 and ISTREE0, Acheck inp will always fail, so titer and titer0 won't have any leaves *)
+        admit.
+    - (* Not at the end of input *)
+      intros delta inp gm t1 TREE1 Hremlength t2 TREE2.
+      inversion TREE1; subst; inversion TREE2; subst.
+      + inversion SKIP; inversion SKIP0. unfold tree_equiv_tr_dir. reflexivity.
+      + destruct plus; discriminate.
+      + destruct plus; discriminate.
+      + assert (plus = plus0). { destruct plus0; destruct plus; congruence. }
+        subst plus0. clear H1.
+        inversion SKIP; subst inp0 gm0 dir0 tskip. inversion SKIP0; subst inp0 gm0 dir0 tskip0.
+        unfold tree_equiv_tr_dir.
+        rewrite <- DEF_GROUPS in *.
+        destruct greedy; simpl.
+        * (* Greedy *)
+          apply leaves_equiv_app. 2: reflexivity.
+          eapply actions_equiv_interm_prop with
+            (a1 := [Areg r1; Acheck inp]) (a2 := [Areg r2; Acheck inp])
+            (P := fun lf => StrictSuffix.strict_suffix (fst lf) inp dir).
+          5: apply ISTREE1. 5: apply ISTREE0.
+          -- apply app_eq_right with (a1 := [Areg r1]) (a2 := [Areg r2]) (acts := [Acheck inp]).
+             unfold actions_equiv_dir. intros. apply Hequiv; auto.
+          -- apply actions_respect_prop_add_left with (a := [Areg r1]) (b := [Acheck inp]).
+             admit.
+          -- apply actions_respect_prop_add_left with (a := [Areg r2]) (b := [Acheck inp]).
+             admit.
+          -- (* Apply IHn after it is strengthened *)
+             admit.
+        * (* Lazy *)
+          apply leaves_equiv_app with (p1 := [(inp, gm)]) (p2 := [(inp, gm)]). 1: reflexivity.
+          (* Copy-pasting from greedy case... *)
+          eapply actions_equiv_interm_prop with
+            (a1 := [Areg r1; Acheck inp]) (a2 := [Areg r2; Acheck inp])
+            (P := fun lf => StrictSuffix.strict_suffix (fst lf) inp dir).
+          5: apply ISTREE1. 5: apply ISTREE0.
+          -- apply app_eq_right with (a1 := [Areg r1]) (a2 := [Areg r2]) (acts := [Acheck inp]).
+             unfold actions_equiv_dir. intros. apply Hequiv; auto.
+          -- apply actions_respect_prop_add_left with (a := [Areg r1]) (b := [Acheck inp]).
+             admit.
+          -- apply actions_respect_prop_add_left with (a := [Areg r2]) (b := [Acheck inp]).
+             admit.
+          -- (* Apply IHn after it is strengthened *)
+             admit.
+  Admitted.
+
+  Theorem regex_equiv_quant:
     forall r1 r2 dir,
       tree_equiv_dir dir r1 r2 ->
       forall greedy min delta,
         tree_equiv_dir dir (Quantified greedy min delta r1) (Quantified greedy min delta r2).
   Proof.
-    intros r1 r2 dir Hequiv greedy min delta.
-    unfold tree_equiv_dir. intros inp gm t1 t2 TREE1.
-    revert t2. remember (remaining_length inp dir) as n.
-    revert Heqn. induction n.
-    - (* At end of input *)
-      intros Hend t2 TREE2.
-      inversion TREE1; subst; inversion TREE2; subst.
-      + 
-    (*rewrite <- app_nil_l with (l := [Areg (Quantified _ _ _ r1)]) in TREE1.
-    rewrite <- app_nil_l with (l := [Areg (Quantified greedy min delta r2)]).
-    remember [] as act1 in TREE1 at 1. remember [] as act2 in |- * at 1.
-    assert (PREF_EQUIV: actions_equiv act1 act2). {
-      subst. apply equiv_refl.
-    }
-    clear Heqact1 Heqact2.
-    remember (act1 ++ [Areg (Quantified greedy min delta r1)]) as act1r1quant. induction TREE1; try discriminate.
-    - destruct act1; discriminate.
-    - admit.
-    - admit.
-    - *)
-  Admitted.
+    intros r1 r2 dir EQUIV greedy min delta.
+    destruct min.
+    - apply regex_equiv_quant_free. auto.
+    - auto using regex_equiv_quant_forced, regex_equiv_quant_free.
+  Qed.
 
   Lemma ctx_dir'_not_Same:
     forall ctx curr,
