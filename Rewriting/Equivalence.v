@@ -380,10 +380,11 @@ Section Definitions.
     leaves_equiv [] (tree_leaves tr1 gm i dir) (tree_leaves tr2 gm i dir).
 
   Definition tree_nequiv_tr_dir i gm dir tr1 tr2 :=
-    not (leaves_equiv [] (tree_leaves tr1 gm i dir) (tree_leaves tr2 gm i dir)).
+    tree_res tr1 gm i dir <> tree_res tr2 gm i dir.
 
   Section IsTree.
     Definition tree_equiv_dir dir r1 r2 :=
+      def_groups r1 = def_groups r2 /\
       forall i gm tr1 tr2,
         is_tree [Areg r1] i gm dir tr1 ->
         is_tree [Areg r2] i gm dir tr2 ->
@@ -404,6 +405,7 @@ Section Definitions.
 
   Section ComputeTree.
     Definition tree_equiv_compute_dir dir r1 r2 :=
+      def_groups r1 = def_groups r2 /\
       forall i gm,
         tree_equiv_tr_dir
           i gm dir
@@ -428,8 +430,8 @@ Section Definitions.
     tree_equiv_dir dir r1 r2 <-> tree_equiv_compute_dir dir r1 r2.
   Proof.
     unfold tree_equiv_dir, tree_equiv_compute_dir, tree_equiv_tr_dir; split.
-    - eauto 6 using compute_tr_is_tree.
-    - intros Heq * H1 H2.
+    - intros [DEF_GROUPS EQUIV]. eauto 6 using compute_tr_is_tree.
+    - intros [DEF_GROUPS Heq]; split; auto. intros * H1 H2.
       pattern tr1; eapply compute_tr_ind with (2 := H1); eauto.
       pattern tr2; eapply compute_tr_ind with (2 := H2); eauto.
   Qed.
@@ -539,7 +541,7 @@ Section Relation.
       Relation_Definitions.reflexive regex (tree_equiv_dir dir).
     Proof.
       unfold Relation_Definitions.reflexive, tree_equiv_dir, tree_equiv_tr_dir.
-      intros x i gm tr1 tr2 H1 H2.
+      intros x; split; auto. intros i gm tr1 tr2 H1 H2.
       assert (tr2 = tr1) by eauto using is_tree_determ. subst tr2.
       apply leaves_equiv_refl.
     Qed.
@@ -548,7 +550,8 @@ Section Relation.
       Relation_Definitions.symmetric regex (tree_equiv_dir dir).
     Proof.
       unfold Relation_Definitions.symmetric, tree_equiv_dir, tree_equiv_tr_dir.
-      intros x y Hequiv i gm tr1 tr2 H1 H2.
+      intros x y [DEF_GROUPS Hequiv]; split; try solve[congruence].
+      intros i gm tr1 tr2 H1 H2.
       apply leaves_equiv_comm. auto.
     Qed.
 
@@ -556,7 +559,8 @@ Section Relation.
       Relation_Definitions.transitive regex (tree_equiv_dir dir).
     Proof.
       unfold Relation_Definitions.transitive, tree_equiv_dir, tree_equiv_tr_dir.
-      intros x y z H12 H23 i gm tr1 tr3 H1 H3.
+      intros x y z [DEF_GROUPS12 H12] [DEF_GROUPS23 H23]; split; try solve[congruence].
+      intros i gm tr1 tr3 H1 H3.
       assert (exists tr2, is_tree [Areg y] i gm dir tr2). {
         exists (compute_tr [Areg y] i gm dir). apply compute_tr_is_tree.
       }
@@ -574,7 +578,7 @@ Section Relation.
       Relation_Definitions.reflexive regex (tree_equiv_compute_dir dir).
     Proof.
       unfold Relation_Definitions.reflexive, tree_equiv_compute_dir, tree_equiv_tr_dir.
-      intros x i gm.
+      intros x; split; auto. intros i gm.
       apply leaves_equiv_refl.
     Qed.
 
@@ -582,7 +586,8 @@ Section Relation.
       Relation_Definitions.symmetric regex (tree_equiv_compute_dir dir).
     Proof.
       unfold Relation_Definitions.symmetric, tree_equiv_compute_dir, tree_equiv_tr_dir.
-      intros x y Hequiv i gm.
+      intros x y [DEF_GROUPS Hequiv]; split; try solve[congruence].
+      intros i gm.
       apply leaves_equiv_comm. auto.
     Qed.
 
@@ -590,7 +595,8 @@ Section Relation.
       Relation_Definitions.transitive regex (tree_equiv_compute_dir dir).
     Proof.
       unfold Relation_Definitions.transitive, tree_equiv_compute_dir, tree_equiv_tr_dir.
-      intros x y z Hxy Hyz i gm.
+      intros x y z [DEF_GROUPSxy Hxy] [DEF_GROUPSyz Hyz]; split; try solve[congruence].
+      intros i gm.
       eauto using leaves_equiv_trans.
     Qed.
 
@@ -632,21 +638,25 @@ Section Relation.
     Relation_Definitions.reflexive regex tree_equiv_compute.
   Proof.
     unfold Relation_Definitions.reflexive, tree_equiv_compute, tree_equiv_compute_dir, tree_equiv_tr_dir.
-    intros x dir i gm. apply leaves_equiv_refl.
+    intros x; split; try reflexivity.
   Qed.
 
   Lemma tree_equiv_compute_symmetric:
     Relation_Definitions.symmetric regex tree_equiv_compute.
   Proof.
     unfold Relation_Definitions.symmetric, tree_equiv_compute, tree_equiv_compute_dir, tree_equiv_tr_dir.
-    intros x y Hxy dir i gm. apply leaves_equiv_comm. auto.
+    intros x y Hxy dir; split.
+    - symmetry. apply Hxy; auto.
+    - intros i gm. apply leaves_equiv_comm. apply Hxy.
   Qed.
 
   Lemma tree_equiv_compute_transitive:
     Relation_Definitions.transitive regex tree_equiv_compute.
   Proof.
     unfold Relation_Definitions.transitive, tree_equiv_compute, tree_equiv_compute_dir, tree_equiv_tr_dir.
-    intros x y z Hxy Hyz dir i gm. eauto using leaves_equiv_trans.
+    intros x y z Hxy Hyz dir; split.
+    - transitivity (def_groups y). + apply Hxy; auto. + apply Hyz; auto.
+    - intros i gm. pose proof (proj2 (Hxy dir)). pose proof (proj2 (Hyz dir)). eauto using leaves_equiv_trans.
   Qed.
 
   #[global] Add Relation regex tree_equiv_compute
@@ -696,7 +706,7 @@ Section Congruence.
   Proof.
     intros r1 r2 str res1 res2 EQUIV RES1 RES2.
     inversion RES1. subst. inversion RES2. subst.
-    unfold tree_equiv_dir in EQUIV.
+    unfold tree_equiv_dir in EQUIV. destruct EQUIV as [_ EQUIV].
     specialize (EQUIV _ _ _ _ TREE TREE0).
     unfold first_branch. rewrite first_tree_leaf. rewrite first_tree_leaf.
     apply equiv_head. auto.
@@ -961,6 +971,13 @@ Section Congruence.
     (* Now act_from_leaf a1 dir and act_from_leaf a2 dir are morally equivalent *)
     admit.
   Admitted.
+  
+  Lemma app_eq_both:
+    forall a1 a2 b1 b2 dir
+      (A_EQ: actions_equiv_dir a1 a2 dir)
+      (B_EQ: actions_equiv_dir b1 b2 dir),
+      actions_equiv_dir (a1 ++ b1) (a2 ++ b2) dir.
+  Admitted.
 
 
   (** * END PLAN *)
@@ -982,10 +999,20 @@ Section Congruence.
           tree_equiv_dir dir (Quantified greedy min delta r1) (Quantified greedy min delta r2).
   Proof.
     intros r1 r2 dir EQUIV greedy delta EQUIV_ZERO.
-    induction min as [|min' IH]. 1: assumption.
-    unfold tree_equiv_dir. intros inp gm t1 t2 TREE1 TREE2.
+    destruct EQUIV_ZERO as [DEF_GROUPS EQUIV_ZERO]. simpl in DEF_GROUPS.
+    induction min as [|min' IH]. 1: split; assumption.
+    unfold tree_equiv_dir. split; try assumption. intros inp gm t1 t2 TREE1 TREE2.
     inversion TREE1; subst; inversion TREE2; subst.
-  Admitted.
+    rewrite <- DEF_GROUPS in *.
+    unfold tree_equiv_tr_dir. simpl.
+    apply app_eq_both with (a1 := [Areg r1]) (a2 := [Areg r2]) (b1 := [Areg (Quantified greedy min' delta r1)]) (b2 := [Areg (Quantified greedy min' delta r2)]).
+    - unfold actions_equiv_dir. unfold tree_equiv_dir in EQUIV.
+      apply EQUIV.
+    - unfold actions_equiv_dir. unfold tree_equiv_dir in IH.
+      apply IH.
+    - simpl. apply ISTREE1.
+    - simpl. apply ISTREE0.
+  Qed.
 
   Lemma regex_equiv_quant:
     forall r1 r2 dir,
