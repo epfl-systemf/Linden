@@ -1065,6 +1065,32 @@ Section Congruence.
     - destruct plus; discriminate.
   Qed.
 
+  Lemma strict_suffix_remaining_length:
+    forall inp' inp dir,
+      StrictSuffix.strict_suffix inp' inp dir ->
+      remaining_length inp' dir < remaining_length inp dir.
+  Admitted.
+
+  Lemma regex_quant_free_induction:
+    forall n greedy plus r1 r2 dir,
+      (forall (inp : input) (gm : group_map),
+      remaining_length inp dir <= n ->
+      forall (delta : non_neg_integer_or_inf) (t1 t2 : tree),
+      is_tree [Areg (Quantified greedy 0 delta r1)] inp gm dir t1 ->
+      is_tree [Areg (Quantified greedy 0 delta r2)] inp gm dir t2 ->
+      tree_equiv_tr_dir inp gm dir t1 t2) ->
+      forall inp,
+        remaining_length inp dir <= S n ->
+        actions_equiv_dir_cond [Areg (Quantified greedy 0 plus r1)]
+          [Areg (Quantified greedy 0 plus r2)] dir
+          (fun lf : input * group_map => StrictSuffix.strict_suffix (fst lf) inp dir).
+  Proof.
+    intros. unfold actions_equiv_dir_cond.
+    intros [inp' gm'] STRICT_SUFFIX t1 t2 TREE1 TREE2. simpl in *.
+    apply H with (delta := plus); auto.
+    pose proof strict_suffix_remaining_length _ _ _ STRICT_SUFFIX. lia.
+  Qed.
+
   Lemma regex_equiv_quant_free:
     forall r1 r2 dir,
       tree_equiv_dir dir r1 r2 ->
@@ -1086,8 +1112,10 @@ Section Congruence.
         subst plus0. clear H1.
         inversion SKIP; subst inp0 gm0 dir0 tskip. inversion SKIP0; subst inp0 gm0 dir0 tskip0.
         unfold tree_equiv_tr_dir.
+        destruct greedy; simpl.
+        * admit.
+        * admit. 
         (* In ISTREE1 and ISTREE0, Acheck inp will always fail, so titer and titer0 won't have any leaves *)
-        admit.
     - (* Not at the end of input *)
       intros inp gm Hremlength delta t1 t2 TREE1 TREE2.
       inversion TREE1; subst; inversion TREE2; subst.
@@ -1112,8 +1140,8 @@ Section Congruence.
              apply check_actions_prop.
           -- apply actions_respect_prop_add_left with (a := [Areg r2]) (b := [Acheck inp]).
              apply check_actions_prop.
-          -- (* Apply IHn after it is strengthened *)
-             admit.
+          -- (* Apply IHn *)
+             eauto using regex_quant_free_induction.
         * (* Lazy *)
           apply leaves_equiv_app with (p1 := [(inp, gm)]) (p2 := [(inp, gm)]). 1: reflexivity.
           (* Copy-pasting from greedy case... *)
@@ -1127,8 +1155,8 @@ Section Congruence.
              apply check_actions_prop.
           -- apply actions_respect_prop_add_left with (a := [Areg r2]) (b := [Acheck inp]).
              apply check_actions_prop.
-          -- (* Apply IHn after it is strengthened *)
-             admit.
+          -- (* Apply IHn *)
+             eauto using regex_quant_free_induction.
   Admitted.
 
   Theorem regex_equiv_quant:
