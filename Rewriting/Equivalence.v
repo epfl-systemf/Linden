@@ -1161,6 +1161,8 @@ Section Congruence.
     - (* Hole *) auto.
     - (* Disjunction left *)
       simpl in *. unfold tree_equiv_dir in *. specialize (IHctx Hctxdir).
+      destruct IHctx as [IHgroups IHctx]. split.
+      1: { simpl. f_equal. auto. }
       intros inp gm t1 t2 TREE1 TREE2.
       inversion TREE1; subst. inversion TREE2; subst.
       unfold tree_equiv_tr_dir in *.
@@ -1169,6 +1171,8 @@ Section Congruence.
     
     - (* Disjunction right *)
       simpl in *. unfold tree_equiv_dir in *. specialize (IHctx Hctxdir).
+      destruct IHctx as [IHgroups IHctx]. split.
+      1: { simpl. f_equal. auto. }
       intros inp gm t1 t2 TREE1 TREE2.
       inversion TREE1; subst. inversion TREE2; subst.
       unfold tree_equiv_tr_dir in *.
@@ -1177,6 +1181,8 @@ Section Congruence.
 
     - (* Sequence left *)
       simpl in *. unfold tree_equiv_dir in *. specialize (IHctx Hctxdir).
+      destruct IHctx as [IHgroups IHctx]. split.
+      1: { simpl. f_equal. auto. }
       intros inp gm t1 t2 TREE1 TREE2.
       inversion TREE1; subst. inversion TREE2; subst.
       destruct dir.
@@ -1189,6 +1195,8 @@ Section Congruence.
       
     - (* Sequence right *)
       simpl in *. unfold tree_equiv_dir in *. specialize (IHctx Hctxdir).
+      destruct IHctx as [IHgroups IHctx]. split.
+      1: { simpl. f_equal. auto. }
       intros inp gm t1 t2 TREE1 TREE2.
       inversion TREE1; subst. inversion TREE2; subst.
       destruct dir.
@@ -1200,12 +1208,14 @@ Section Congruence.
         unfold actions_equiv in H. simpl in H. unfold tree_equiv_tr_dir in *. auto.
       
     - (* Quantified *)
-      simpl in *. admit. (* TODO *)
+      simpl in *. specialize (IHctx Hctxdir). apply regex_equiv_quant. auto.
 
     - (* Lookaround: direction of context is never Same *)
       exfalso. exact (ctx_dir_lookaround_not_Same _ _ Hctxdir).
 
     - simpl in *. unfold tree_equiv_dir in *. specialize (IHctx Hctxdir).
+      destruct IHctx as [IHgroups IHctx]. split.
+      1: { simpl. f_equal. auto. }
       intros inp gm t1 t2 TREE1 TREE2.
       inversion TREE1; subst. inversion TREE2; subst.
       unfold tree_equiv_tr_dir in *. simpl.
@@ -1221,7 +1231,7 @@ Section Congruence.
       pose proof leaves_concat _ _ _ _ _ _ _ TREECONT TREE1' as APP1.
       pose proof leaves_concat _ _ _ _ _ _ _ TREECONT0 TREE2' as APP2.
       eapply flatmap_leaves_equiv_l. 2: apply APP1. 2: apply APP2. auto.
-  Admitted.
+  Qed.
 
   Lemma regex_equiv_ctx_lookahead:
     forall r1 r2,
@@ -1230,6 +1240,7 @@ Section Congruence.
         tree_equiv_dir dir (Lookaround LookAhead r1) (Lookaround LookAhead r2).
   Proof.
     intros r1 r2 EQUIV dir. unfold tree_equiv_dir in *.
+    destruct EQUIV as [DEF_GROUPS EQUIV]. split; auto.
     intros inp gm t1 t2 TREE1 TREE2.
     inversion TREE1; subst; inversion TREE2; subst.
     - (* Both lookaheads succeed *)
@@ -1273,6 +1284,7 @@ Section Congruence.
         tree_equiv_dir dir (Lookaround LookBehind r1) (Lookaround LookBehind r2).
   Proof. (* Exactly the same proof as above; LATER factorize? *)
     intros r1 r2 EQUIV dir. unfold tree_equiv_dir in *.
+    destruct EQUIV as [DEF_GROUPS EQUIV]. split; auto.
     intros inp gm t1 t2 TREE1 TREE2.
     inversion TREE1; subst; inversion TREE2; subst.
     - (* Both lookaheads succeed *)
@@ -1316,6 +1328,7 @@ Section Congruence.
         tree_equiv_dir dir (Lookaround NegLookAhead r1) (Lookaround NegLookAhead r2).
   Proof.
     intros r1 r2 EQUIV dir. unfold tree_equiv_dir in *.
+    destruct EQUIV as [DEF_GROUPS EQUIV]. split; auto.
     intros inp gm t1 t2 TREE1 TREE2.
     inversion TREE1; subst; inversion TREE2; subst.
     - (* Both lookaheads succeed *)
@@ -1355,6 +1368,7 @@ Section Congruence.
         tree_equiv_dir dir (Lookaround NegLookBehind r1) (Lookaround NegLookBehind r2).
   Proof. (* Exactly the same proof as above *)
     intros r1 r2 EQUIV dir. unfold tree_equiv_dir in *.
+    destruct EQUIV as [DEF_GROUPS EQUIV]. split; auto.
     intros inp gm t1 t2 TREE1 TREE2.
     inversion TREE1; subst; inversion TREE2; subst.
     - (* Both lookaheads succeed *)
