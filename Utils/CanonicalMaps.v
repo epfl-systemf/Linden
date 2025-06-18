@@ -32,46 +32,6 @@ Module ProofIrrelevance.
     - apply PeanoNat.Nat.ltb_lt.
     - intros; apply Peano_dec.le_unique.
   Qed.
-
-  Definition InvDec_and_P_Pb {A B bA bB}:
-    (bA = true -> A) ->
-    (bB = true -> B) ->
-    bA && bB = true ->
-    A /\ B.
-  Proof.
-    destruct bA eqn:HA; try discriminate.
-    destruct bB eqn:HB; try discriminate.
-    constructor; eauto.
-  Defined.
-
-  Definition InvDec_and_Pb_P {A B bA bB}:
-    (A -> bA = true) ->
-    (B -> bB = true) ->
-    A /\ B ->
-    bA && bB = true.
-  Proof.
-    intros HbA HbB [HA%HbA HB%HbB].
-    rewrite HA, HB; reflexivity.
-  Defined.
-
-  #[refine] Instance InvDec_and {A B} (IA: InvDec A) (IB: InvDec B) : InvDec (A /\ B) := {
-      Pb := IA.(Pb) && IB.(Pb);
-      P_Pb := _;
-      Pb_P := _;
-    }.
-  Proof.
-    - apply (InvDec_and_P_Pb IA.(Pb_P) IB.(Pb_P)).
-    - apply (InvDec_and_Pb_P IA.(P_Pb) IB.(P_Pb)).
-    - unfold InvDec_and_P_Pb, InvDec_and_Pb_P.
-      destruct p as [HA HB]; simpl.
-      set (P_Pb HA) as HPbA; clearbody HPbA.
-      set (P_Pb HB) as HPbB; clearbody HPbB.
-      set IA.(Pb_P) as PbPA; clearbody PbPA.
-      set IB.(Pb_P) as PbPB; clearbody PbPB.
-      destruct IA.(Pb) eqn:HeqA; try discriminate.
-      destruct IB.(Pb) eqn:HeqB; try discriminate.
-      f_equal; apply irrel.
-  Qed.
 End ProofIrrelevance.
 
 Import ProofIrrelevance ListNotations.

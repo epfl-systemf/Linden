@@ -34,14 +34,16 @@ Section Examples.
     Sequence Epsilon r ≅ r.
   Proof.
     red; destruct dir; tree_equiv_inv.
-    all: try apply (is_tree_skip_epsilon_r [Areg r]); eauto using compute_tr_is_tree; reflexivity.
+    all: try apply (is_tree_skip_epsilon_r [Areg r]); eauto using compute_tr_is_tree.
+    all: reflexivity.
   Qed.
 
   Lemma sequence_epsilon_right_equiv r:
     Sequence r Epsilon ≅ r.
   Proof.
     red; destruct dir; tree_equiv_inv.
-    all: try apply (is_tree_skip_epsilon_r [Areg r]); eauto using compute_tr_is_tree; reflexivity.
+    all: try apply (is_tree_skip_epsilon_r [Areg r]); eauto using compute_tr_is_tree.
+    all: reflexivity.
   Qed.
 
   Lemma quantified_zero_equiv r:
