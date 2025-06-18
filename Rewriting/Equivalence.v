@@ -1009,6 +1009,16 @@ Section Congruence.
 
   (** * END PLAN *)
   (* Lemma for quantifiers *)
+  Lemma check_actions_prop:
+    forall inp dir,
+      actions_respect_prop_dir [Acheck inp] dir
+        (fun lf : input * group_map => StrictSuffix.strict_suffix (fst lf) inp dir).
+  Proof.
+    intros inp dir. unfold actions_respect_prop_dir.
+    intros inp' gm t TREE. inversion TREE; subst; simpl.
+    - inversion TREECONT; subst. simpl. constructor; auto.
+    - constructor.
+  Qed.
 
   Definition remaining_length (inp: input) (dir: Direction): nat :=
     let '(Input next pref) := inp in
@@ -1063,11 +1073,11 @@ Section Congruence.
   Proof.
     intros r1 r2 dir Hequiv greedy delta.
     destruct Hequiv as [DEF_GROUPS Hequiv].
-    split; auto. intros inp gm t1 t2 TREE1.
-    revert t2. remember (remaining_length inp dir) as n.
-    revert delta inp gm t1 TREE1 Heqn. induction n. (* TODO Replace by strong induction on n *)
+    split; auto. intros inp gm t1 t2 TREE1. remember (remaining_length inp dir) as n.
+    assert (remaining_length inp dir <= n) as Hle_n by lia. clear Heqn.
+    revert inp gm Hle_n delta t1 t2 TREE1. induction n.
     - (* At end of input *)
-      intros delta inp gm t1 TREE1 Hend t2 TREE2.
+      intros inp gm Hend delta t1 t2 TREE1 TREE2.
       inversion TREE1; subst; inversion TREE2; subst.
       + inversion SKIP; subst. inversion SKIP0; subst. unfold tree_equiv_tr_dir. reflexivity.
       + destruct plus; discriminate.
@@ -1079,7 +1089,7 @@ Section Congruence.
         (* In ISTREE1 and ISTREE0, Acheck inp will always fail, so titer and titer0 won't have any leaves *)
         admit.
     - (* Not at the end of input *)
-      intros delta inp gm t1 TREE1 Hremlength t2 TREE2.
+      intros inp gm Hremlength delta t1 t2 TREE1 TREE2.
       inversion TREE1; subst; inversion TREE2; subst.
       + inversion SKIP; inversion SKIP0. unfold tree_equiv_tr_dir. reflexivity.
       + destruct plus; discriminate.
@@ -1099,9 +1109,9 @@ Section Congruence.
           -- apply app_eq_right with (a1 := [Areg r1]) (a2 := [Areg r2]) (acts := [Acheck inp]).
              unfold actions_equiv_dir. intros. apply Hequiv; auto.
           -- apply actions_respect_prop_add_left with (a := [Areg r1]) (b := [Acheck inp]).
-             admit.
+             apply check_actions_prop.
           -- apply actions_respect_prop_add_left with (a := [Areg r2]) (b := [Acheck inp]).
-             admit.
+             apply check_actions_prop.
           -- (* Apply IHn after it is strengthened *)
              admit.
         * (* Lazy *)
@@ -1114,9 +1124,9 @@ Section Congruence.
           -- apply app_eq_right with (a1 := [Areg r1]) (a2 := [Areg r2]) (acts := [Acheck inp]).
              unfold actions_equiv_dir. intros. apply Hequiv; auto.
           -- apply actions_respect_prop_add_left with (a := [Areg r1]) (b := [Acheck inp]).
-             admit.
+             apply check_actions_prop.
           -- apply actions_respect_prop_add_left with (a := [Areg r2]) (b := [Acheck inp]).
-             admit.
+             apply check_actions_prop.
           -- (* Apply IHn after it is strengthened *)
              admit.
   Admitted.
