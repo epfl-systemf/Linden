@@ -16,17 +16,19 @@ Section Definitions.
     if EqDec.eq_dec gm1 gm2 then true else false.
 
   Lemma input_eqb_true:
-    forall i1 i2, input_eqb i1 i2 = true -> i1 = i2.
+    forall i1 i2, input_eqb i1 i2 = true <-> i1 = i2.
   Proof.
-    intros i1 i2 H. unfold input_eqb in H.
-    destruct (input_eq_dec i1 i2); auto. inversion H.
+    unfold input_eqb. intros i1 i2.
+    split; intros H; destruct (input_eq_dec i1 i2); subst; auto.
+    inversion H.
   Qed.
 
   Lemma gm_eqb_true:
-    forall gm1 gm2, gm_eqb gm1 gm2 = true -> gm1 = gm2.
+    forall gm1 gm2, gm_eqb gm1 gm2 = true <-> gm1 = gm2.
   Proof.
-    intros gm1 gm2 H. unfold gm_eqb in H.
-    destruct EqDec.eq_dec; auto. discriminate.
+    unfold gm_eqb. intros gm1 gm2.
+    split; intros H; destruct (EqDec.eq_dec); subst; auto.
+    inversion H.
   Qed.
 
   Definition leaf_eqb (leaf1 leaf2: leaf): bool :=
@@ -279,6 +281,30 @@ Section Definitions.
     intros. simpl. rewrite H. rewrite Bool.orb_true_r. auto.
   Qed.
 
+  (* we sometimes need a more generic version *)
+  (* for the suffix we need to update seen with what we've seen so far *)
+  Lemma leaves_equiv_app2:
+    forall seen p1 p2 l1 l2,
+      leaves_equiv seen p1 p2 ->
+      leaves_equiv (p1++seen) l1 l2 ->
+      leaves_equiv seen (p1++l1) (p2++l2).
+  Proof.
+    intros seen p1 p2 l1 l2 PE LE.
+    induction PE; intros; simpl.
+    - simpl in LE. auto.
+    - constructor; auto.
+      apply IHPE; auto.
+      eapply leaves_equiv_monotony with (seen1:=((inp, gm) :: l0) ++ seen); eauto.
+      { intros x H. rewrite is_seen_spec in H |-*. rewrite in_app_iff in H |-*. simpl in H.
+        destruct H as [[HS|HI]|HL]; auto. rewrite is_seen_spec in SEEN. subst. auto. }
+    - constructor; eauto.
+    - apply equiv_cons; auto. apply IHPE; auto.
+      eapply leaves_equiv_monotony with (seen1:=((inp, gm) :: l0) ++ seen); eauto.
+      { intros x H. rewrite is_seen_spec in H |-*. rewrite in_app_iff in H |-*. simpl in H |-*.
+        destruct H as [[HS|HI]|HL]; auto. }
+  Qed.
+
+  
   Lemma equiv_head:
     forall l1 l2,
       leaves_equiv [] l1 l2 ->
@@ -1043,47 +1069,65 @@ Section Congruence.
       eapply Forall_impl; eauto. simpl. intro. rewrite in_app_iff. tauto.
   Qed.
 
+  Lemma FlatMap_in2:
+    forall f leaf fleaf seen fseen,
+      determ f -> 
+      f leaf fleaf ->
+      is_seen leaf seen = true ->
+      FlatMap seen f fseen ->
+      forall x, is_seen x fleaf = true -> is_seen x fseen = true.
+  Proof.
+    intros f leaf fleaf seen fseen H H0 H1 H2 x H3.
+    rewrite is_seen_spec in H3, H1. rewrite is_seen_spec.
+    specialize (FlatMap_in _ _ _ _ _ H H2 H1 H0).
+    intros H4. rewrite Forall_forall in H4. auto.
+  Qed.
+
+  Lemma leaves_equiv_subseen:
+    forall l1 l2 seen subseen,
+      (forall x, is_seen x subseen = true -> is_seen x seen = true) ->
+      leaves_equiv seen l1 l2 ->
+      leaves_equiv seen (subseen ++ l1) l2.
+  Proof.
+    intros l1 l2 seen subseen SUB EQUIV.
+    generalize dependent l1. generalize dependent l2.
+    induction subseen; intros; auto.
+    destruct a. simpl. constructor.
+    - apply (SUB (i,g)). simpl. replace (input_eqb i i) with true.
+      2: { symmetry. apply input_eqb_true. auto. }
+      simpl. auto. replace (gm_eqb g g) with true; auto.
+      { symmetry. apply gm_eqb_true. auto. }
+    - apply IHsubseen; auto.
+      intros x H. apply SUB. simpl. rewrite H.
+      rewrite Bool.orb_true_r. auto.
+  Qed.
+
+
   Lemma flatmap_leaves_equiv_l_seen:
     forall l1 l2 seen f fseen fl1 fl2,
       determ f ->
       leaves_equiv seen l1 l2 ->
-      FlatMap l1 f fl1 -> FlatMap l2 f fl2 ->
+      FlatMap l1 f fl1 ->
+      FlatMap l2 f fl2 ->
       FlatMap seen f fseen ->
       leaves_equiv fseen fl1 fl2.
   Proof.
-    intros l1 l2 seen f fseen fl1 fl2 DETERM EQUIV.
-    revert fseen fl1 fl2. induction EQUIV.
-    - intros fseen fl1 fl2 FLAT_MAP1 FLAT_MAP2 _.
-      inversion FLAT_MAP1; subst. inversion FLAT_MAP2; subst. reflexivity.
-    - intros fseen fl1 fl2 FLAT_MAP1cons FLAT_MAP2 FLAT_MAP_seen.
-      inversion FLAT_MAP1cons; subst.
-      rewrite is_seen_spec in SEEN.
-      pose proof FlatMap_in _ _ _ _ _ DETERM FLAT_MAP_seen SEEN HEAD as ly_incl_fseen.
-      clear HEAD. clear FLAT_MAP1cons.
-      induction ly.
-      + simpl. apply IHEQUIV; auto.
-      + rewrite <- app_comm_cons. destruct a as [inpa gma].
-        apply equiv_seen_left.
-        * inversion ly_incl_fseen; subst. apply is_seen_spec. auto.
-        * apply IHly. inversion ly_incl_fseen; subst. auto.
-    - (* Mostly copy-pasting previous case *)
-      intros fseen fl1 fl2 FLAT_MAP1 FLAT_MAP2cons FLAT_MAP_seen.
-      inversion FLAT_MAP2cons; subst.
-      rewrite is_seen_spec in SEEN.
-      pose proof FlatMap_in _ _ _ _ _ DETERM FLAT_MAP_seen SEEN HEAD as ly_incl_fseen.
-      clear HEAD. clear FLAT_MAP2cons.
-      induction ly.
-      + simpl. apply IHEQUIV; auto.
-      + rewrite <- app_comm_cons. destruct a as [inpa gma].
-        apply equiv_seen_right.
-        * inversion ly_incl_fseen; subst. apply is_seen_spec. auto.
-        * apply IHly. inversion ly_incl_fseen; subst. auto.
-    - intros fseen fl1 fl2 FLAT_MAP1cons FLAT_MAP2cons FLAT_MAP_seen.
-      inversion FLAT_MAP1cons; subst. inversion FLAT_MAP2cons; subst.
-      assert (ly0 = ly) by eauto (* using DETERM *). subst ly0.
-      clear FLAT_MAP1cons FLAT_MAP2cons HEAD0.
-  Admitted.
-
+    intros l1 l2 seen f fseen fl1 fl2 DET EQUIV FM1 FM2 FMSEEN.
+    generalize dependent fl1. generalize dependent fl2. generalize dependent fseen.
+    induction EQUIV; intros.
+    - inversion FM2; subst. inversion FM1; subst. apply leaves_equiv_refl.
+    - inversion FM1; subst. apply leaves_equiv_subseen; auto.
+      eapply FlatMap_in2; eauto.
+    - inversion FM2; subst. apply leaves_equiv_rel_Symmetric.
+      apply leaves_equiv_subseen; auto.
+      2: { apply leaves_equiv_rel_Symmetric. auto. }
+      eapply FlatMap_in2; eauto.
+    - inversion FM1; inversion FM2; subst.
+      specialize (DET _ _ _ HEAD HEAD0). subst.
+      apply leaves_equiv_app2; auto.
+      + apply leaves_equiv_refl.
+      + eapply IHEQUIV; eauto. constructor; auto.
+  Qed.
 
   Lemma flatmap_leaves_equiv_l:
     forall leaves1 leaves2 f leavesf1 leavesf2,
