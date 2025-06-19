@@ -1006,6 +1006,60 @@ Section Congruence.
       actions_respect_prop_dir (a ++ b) dir P.
   Admitted.
 
+  Definition actions_no_leaves (a: actions) (dir: Direction): Prop :=
+    forall inp gm t,
+      is_tree a inp gm dir t ->
+      tree_leaves t gm inp dir = [].
+
+  Lemma actions_prop_False_no_leaves:
+    forall (a: actions) (dir: Direction) (P: leaf -> Prop),
+      actions_respect_prop_dir a dir P ->
+      (forall lf, ~P lf) ->
+      actions_no_leaves a dir.
+  Proof.
+    intros a dir P RESPECT PROP_FALSE.
+    unfold actions_no_leaves. intros inp gm t TREE.
+    unfold actions_respect_prop_dir in RESPECT. apply RESPECT in TREE.
+    destruct tree_leaves; try reflexivity.
+    inversion TREE; subst. exfalso. apply (PROP_FALSE l H1).
+  Qed.
+
+  Lemma actions_no_leaves_prop_False:
+    forall (a: actions) (dir: Direction),
+      actions_no_leaves a dir ->
+      actions_respect_prop_dir a dir (fun _ => False).
+  Proof.
+    intros a dir NO_LEAVES.
+    unfold actions_respect_prop_dir. unfold actions_no_leaves in NO_LEAVES.
+    intros. rewrite NO_LEAVES; auto.
+  Qed.
+
+  Lemma actions_no_leaves_add_left:
+    forall a b dir,
+      actions_no_leaves b dir ->
+      actions_no_leaves (a ++ b) dir.
+  Proof.
+    intros a b dir NO_LEAVES.
+    apply actions_no_leaves_prop_False in NO_LEAVES.
+    apply actions_respect_prop_add_left with (a := a) in NO_LEAVES.
+    apply actions_prop_False_no_leaves with (P := fun _ => False); auto.
+  Qed.
+
+  Lemma actions_no_leaves_add_right:
+    forall a b dir,
+      actions_no_leaves a dir ->
+      actions_no_leaves (a ++ b) dir.
+  Proof.
+    intros a b dir NO_LEAVES.
+    unfold actions_no_leaves in *. intros inp gm t TREEab.
+    assert (exists ta, is_tree a inp gm dir ta). {
+      exists (compute_tr a inp gm dir). apply compute_tr_is_tree.
+    }
+    destruct H as [ta TREEa].
+    pose proof leaves_concat _ _ _ _ _ _ _ TREEab TREEa as FLAT_MAP.
+    rewrite NO_LEAVES in FLAT_MAP by assumption. inversion FLAT_MAP. reflexivity.
+  Qed.
+
 
   (** * END PLAN *)
   (* Lemma for quantifiers *)
@@ -1071,6 +1125,17 @@ Section Congruence.
       remaining_length inp' dir < remaining_length inp dir.
   Admitted.
 
+  Lemma check_end_no_leaves:
+    forall inp dir,
+      remaining_length inp dir = 0 ->
+      actions_no_leaves [Acheck inp] dir.
+  Proof.
+    intros inp dir END.
+    apply actions_prop_False_no_leaves with (P := fun lf => StrictSuffix.strict_suffix (fst lf) inp dir).
+    - apply check_actions_prop.
+    - intros lf ABS. apply strict_suffix_remaining_length in ABS. lia.
+  Qed.
+
   Lemma regex_quant_free_induction:
     forall n greedy plus r1 r2 dir,
       (forall (inp : input) (gm : group_map),
@@ -1112,10 +1177,20 @@ Section Congruence.
         subst plus0. clear H1.
         inversion SKIP; subst inp0 gm0 dir0 tskip. inversion SKIP0; subst inp0 gm0 dir0 tskip0.
         unfold tree_equiv_tr_dir.
+        assert (NO_LEAVES: actions_no_leaves [Areg r1; Acheck inp; Areg (Quantified greedy 0 plus r1)] dir). {
+          apply actions_no_leaves_add_left with (a := [Areg r1]).
+          apply actions_no_leaves_add_right with (a := [Acheck inp]) (b := [Areg (Quantified greedy 0 plus r1)]).
+          apply check_end_no_leaves. lia.
+        }
+        assert (NO_LEAVES0: actions_no_leaves [Areg r2; Acheck inp; Areg (Quantified greedy 0 plus r2)] dir). {
+          apply actions_no_leaves_add_left with (a := [Areg r2]).
+          apply actions_no_leaves_add_right with (a := [Acheck inp]) (b := [Areg (Quantified greedy 0 plus r2)]).
+          apply check_end_no_leaves. lia.
+        }
+        unfold actions_no_leaves in NO_LEAVES, NO_LEAVES0.
         destruct greedy; simpl.
-        * admit.
-        * admit. 
-        (* In ISTREE1 and ISTREE0, Acheck inp will always fail, so titer and titer0 won't have any leaves *)
+        * rewrite NO_LEAVES by auto. rewrite NO_LEAVES0 by auto. reflexivity.
+        * rewrite NO_LEAVES by auto. rewrite NO_LEAVES0 by auto. reflexivity.
     - (* Not at the end of input *)
       intros inp gm Hremlength delta t1 t2 TREE1 TREE2.
       inversion TREE1; subst; inversion TREE2; subst.
@@ -1157,7 +1232,7 @@ Section Congruence.
              apply check_actions_prop.
           -- (* Apply IHn *)
              eauto using regex_quant_free_induction.
-  Admitted.
+  Qed.
 
   Theorem regex_equiv_quant:
     forall r1 r2 dir,
