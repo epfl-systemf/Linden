@@ -40,9 +40,8 @@ Section Anchors.
   Theorem desugar_anchor_correct (a: anchor):
     Anchor a ≅ desugar_anchor a.
   Proof.
-    split. { destruct a; reflexivity. }
-    tree_equiv_rw.
-    destruct a, dir; tree_equiv_symbex. (* Need to fix the tactics, probably *)
-    all: admit.
-  Admitted.
+    destruct a; tree_equiv_rw.
+    all: destruct dir; tree_equiv_symbex.
+    all: reflexivity.
+  Qed.
 End Anchors.
