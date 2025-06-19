@@ -966,6 +966,13 @@ Section Congruence.
   Definition determ {A B: Type} (f: A -> B -> Prop) :=
     forall x y1 y2, f x y1 -> f x y2 -> y1 = y2.
 
+  Lemma act_from_leaf_determ: forall act dir, determ (act_from_leaf act dir).
+  Proof.
+    intros act dir x y1 y2 Hxy1 Hxy2.
+    inversion Hxy1; subst. inversion Hxy2; subst.
+    assert (t0 = t) by eauto using is_tree_determ. subst t0. reflexivity.
+  Qed.
+
   Lemma FlatMap_in {A B}:
     forall (l: list A) (f: A -> list B -> Prop) fl x fx,
       determ f ->
@@ -1061,7 +1068,7 @@ Section Congruence.
     pose proof leaves_concat inp gm dir a1 acts t1acts t1 TREE1acts TREE1.
     pose proof leaves_concat inp gm dir a2 acts t2acts t2 TREE2acts TREE2.
     specialize (ACTS_EQ inp gm t1 t2 TREE1 TREE2).
-    eauto using flatmap_leaves_equiv_l.
+    eauto using flatmap_leaves_equiv_l, act_from_leaf_determ.
   Qed.
 
   Lemma app_eq_left:
@@ -1443,7 +1450,7 @@ Section Congruence.
       change [Areg ?A; Aclose gid] with ([Areg A] ++ [Aclose gid]) in TREECONT0.
       pose proof leaves_concat _ _ _ _ _ _ _ TREECONT TREE1' as APP1.
       pose proof leaves_concat _ _ _ _ _ _ _ TREECONT0 TREE2' as APP2.
-      eapply flatmap_leaves_equiv_l. 2: apply APP1. 2: apply APP2. auto.
+      eapply flatmap_leaves_equiv_l. 3: apply APP1. 3: apply APP2. 2: auto. apply act_from_leaf_determ.
   Qed.
 
   Lemma tree_leaves_nil_no_first_branch:
