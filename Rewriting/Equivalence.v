@@ -1153,7 +1153,20 @@ Section Congruence.
     forall (a b: actions) (P: leaf -> Prop) (dir: Direction),
       actions_respect_prop_dir b dir P ->
       actions_respect_prop_dir (a ++ b) dir P.
-  Admitted.
+  Proof.
+    intros a b P dir PROPb.
+    unfold actions_respect_prop_dir. intros inp gm t TREE.
+    assert (exists ta, is_tree a inp gm dir ta). {
+      exists (compute_tr a inp gm dir). apply compute_tr_is_tree.
+    }
+    destruct H as [ta TREEa].
+    pose proof leaves_concat _ _ _ _ _ _ _ TREE TREEa as CONCAT.
+    unfold actions_respect_prop_dir in PROPb.
+    remember (act_from_leaf b dir) as f.
+    induction CONCAT. 1: constructor.
+    apply Forall_app. split; auto. subst f.
+    inversion HEAD; subst. apply PROPb. auto.
+  Qed.
 
   Definition actions_no_leaves (a: actions) (dir: Direction): Prop :=
     forall inp gm t,
