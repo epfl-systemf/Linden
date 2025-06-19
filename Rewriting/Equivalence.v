@@ -1139,6 +1139,22 @@ Section Congruence.
     apply B_EQ; auto.
   Qed.
 
+  Definition equiv_leaffuncts_cond (f g: leaf -> list leaf -> Prop) (P: leaf -> Prop): Prop :=
+    forall l, P l ->
+      forall yf yg, f l yf -> g l yg -> leaves_equiv [] yf yg.
+
+  Lemma flatmap_leaves_equiv_lr_prop:
+    forall l1 l2 f g fl1 gl2 P,
+      determ f -> determ g ->
+      equiv_leaffuncts_cond f g P ->
+      Forall P l1 -> Forall P l2 ->
+      leaves_equiv [] l1 l2 ->
+      FlatMap l1 f fl1 ->
+      FlatMap l2 g gl2 ->
+      leaves_equiv [] fl1 gl2.
+  Admitted.
+
+
   Lemma actions_equiv_interm_prop:
     forall (a1 a2 b1 b2: actions) (P: leaf -> Prop) (dir: Direction),
       actions_equiv_dir a1 a2 dir ->
@@ -1147,7 +1163,18 @@ Section Congruence.
       actions_equiv_dir_cond b1 b2 dir P ->
       actions_equiv_dir (a1 ++ b1) (a2 ++ b2) dir.
   Proof.
-  Admitted.
+    intros a1 a2 b1 b2 P dir EQUIV_a PROP1 PROP2 EQUIV_b.
+    unfold actions_equiv_dir. intros inp gm t1 t2 TREE1 TREE2.
+    assert (exists ta1, is_tree a1 inp gm dir ta1). { exists (compute_tr a1 inp gm dir). apply compute_tr_is_tree. }
+    assert (exists ta2, is_tree a2 inp gm dir ta2). { exists (compute_tr a2 inp gm dir). apply compute_tr_is_tree. }
+    destruct H as [ta1 TREEa1]. destruct H0 as [ta2 TREEa2].
+    pose proof leaves_concat _ _ _ _ _ _ _ TREE1 TREEa1 as CONCAT1.
+    pose proof leaves_concat _ _ _ _ _ _ _ TREE2 TREEa2 as CONCAT2.
+    unshelve eapply (flatmap_leaves_equiv_lr_prop _ _ _ _ _ _ P _ _ _ _ _ _ CONCAT1 CONCAT2); auto.
+    1,2: apply act_from_leaf_determ.
+    unfold equiv_leaffuncts_cond. intros. inversion H0; subst. inversion H1; subst.
+    apply EQUIV_b; auto.
+  Qed.
 
   Lemma actions_respect_prop_add_left:
     forall (a b: actions) (P: leaf -> Prop) (dir: Direction),
