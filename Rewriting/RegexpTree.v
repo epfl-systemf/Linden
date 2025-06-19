@@ -76,8 +76,8 @@ Section RegexpTree.
       exists 1, 1, (Disjunction c0 (Sequence c0 c1)).
       tree_equiv_rw.
       exists forward, (init_input [c0; c1; c0]), GroupMap.empty.
-      (*compute_tr_cbv; rewrite equiv_nodup; inversion 1.*) (* Need to fix the tactics *)
-    Admitted.
+      compute_tr_cbv; inversion 1.
+    Qed.
 
     Lemma atmost_atmost_equiv (m n: nat) r: (* r{0,m}r{0,n} ≅ r{0,m+n} *)
       (Sequence (Quantified true 0 m r) (Quantified true 0 n r))
@@ -85,19 +85,19 @@ Section RegexpTree.
     Admitted.
 
     (* TODO: Change nequiv to be contextual *)
-    (* Lemma atmost_lazy_atmost_lazy_nequiv: (* r{0,m}?r{0,n}? ≇ r{0,m+n}? *) *)
-    (*   exists (m n: nat) r, *)
-    (*     (Sequence (Quantified false 0 m r) (Quantified false 0 n r)) *)
-    (*       ≇ Quantified false 0 (m + n) r. *)
-    (* Proof. *)
-    (*   exists 1, 1. *)
-    (*   exists (Sequence *)
-    (*        (Disjunction (Sequence c0 c1) (Sequence c0 (Sequence c1 c0))) *)
-    (*        (Disjunction c1 c2)). *)
-    (*   tree_equiv_rw. *)
-    (*   exists forward, (init_input [c0; c1; c0; c1; c2]), GroupMap.empty. *)
-    (*   compute_tr_cbv; inversion 1. *)
-    (* Qed. *)
+    Lemma atmost_lazy_atmost_lazy_nequiv: (* r{0,m}?r{0,n}? ≇ r{0,m+n}? *)
+      exists (m n: nat) r,
+        (Sequence (Quantified false 0 m r) (Quantified false 0 n r))
+          ≇ Quantified false 0 (m + n) r.
+    Proof.
+      exists 1, 1.
+      exists (Sequence
+           (Disjunction (Sequence c0 c1) (Sequence c0 (Sequence c1 c0)))
+           (Disjunction c1 c2)).
+      tree_equiv_rw.
+      exists forward, (init_input [c0; c1; c0; c1; c2]), GroupMap.empty.
+      compute_tr_cbv; inversion 1.
+    Admitted.
   End BoundedRepetitions.
 
 (*|
@@ -119,27 +119,23 @@ Illustrative examples taken from https://github.com/DmitrySoshnikov/regexp-tree/
       Character.numeric_value c1 <= Character.numeric_value c2 ->
       Character (CdUnion (CdRange c0 c1) (CdRange c1 c2)) ≅ Character (CdRange c0 c2).
     Proof.
-      (* TODO Need to fix the tactics *)
-      (*tree_equiv_rw; tree_equiv_symbex.
+      tree_equiv_rw; tree_equiv_symbex.
       all: repeat match goal with
                   | [ H: _ = true |- _ ] => apply PeanoNat.Nat.leb_le in H
                   | [ H: _ = false |- _ ] => apply PeanoNat.Nat.leb_nle in H
-                  end; (lia || reflexivity).*)
-    Admitted.
+                  end; (lia || reflexivity).
+    Qed.
 
     Lemma class_single_left_equiv c0:
       Character (CdUnion (CdSingle c0) CdEmpty) ≅ Character (CdSingle c0).
     Proof.
-      split. { reflexivity. }
-      (* TODO Need to fix the tactics *)
-      (*tree_equiv_rw; tree_equiv_symbex; reflexivity.*)
-    Admitted.
+      tree_equiv_rw; tree_equiv_symbex; reflexivity.
+    Qed.
 
     Lemma class_single_right_equiv c0:
       Character (CdUnion CdEmpty (CdSingle c0)) ≅ Character (CdSingle c0).
     Proof.
-      (* TODO Need to fix the tactics *)
-      (*tree_equiv_rw; tree_equiv_symbex; reflexivity.*)
-    Admitted.
+      tree_equiv_rw; tree_equiv_symbex; reflexivity.
+    Qed.
   End CharacterClasses.
 End RegexpTree.

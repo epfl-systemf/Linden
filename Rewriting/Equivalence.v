@@ -515,20 +515,36 @@ Hint Unfold
   tree_nequiv_compute_dir
   : tree_equiv.
 
+Hint Rewrite app_nil_l app_nil_r : tree_equiv.
+Hint Rewrite <- app_assoc : tree_equiv.
+
+Hint Unfold seq_list : tree_equiv_simpl.
+
+Ltac tree_equiv_simpl :=
+  repeat progress (
+      autounfold with tree_equiv tree_equiv_simpl;
+      autorewrite with tree_equiv;
+      simpl; intros
+    ).
+
+Ltac tree_equiv_prepare :=
+  tree_equiv_simpl;
+  try (apply conj; [ try congruence | ]).
+
 Ltac tree_equiv_rw :=
   try setoid_rewrite tree_equiv_compute_dir_iff;
   try setoid_rewrite tree_equiv_compute_iff;
   try setoid_rewrite tree_nequiv_compute_dir_iff;
   try setoid_rewrite tree_nequiv_compute_iff;
-  autounfold with tree_equiv; intros.
+  tree_equiv_prepare; [ .. | intros ].
 
 Ltac tree_inv H :=
   erewrite is_tree_determ with (1 := H);
-  [ | repeat (econstructor; simpl; rewrite ?app_nil_r; unfold seq_list)].
+  [ | repeat (econstructor; tree_equiv_simpl) ].
 
 Ltac tree_equiv_inv :=
-  autounfold with tree_equiv; intros * Hl Hr;
-  tree_inv Hl; [ tree_inv Hr | ].
+  tree_equiv_prepare;
+  [ .. | intros * Hl Hr; tree_inv Hl; [ tree_inv Hr | .. ] ].
 
 Hint Unfold
      compute_tr

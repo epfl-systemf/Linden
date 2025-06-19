@@ -33,7 +33,6 @@ Section Examples.
   Lemma sequence_epsilon_left_equiv r:
     Sequence Epsilon r ≅ r.
   Proof.
-    split. { reflexivity. }
     red; destruct dir; tree_equiv_inv.
     all: try apply (is_tree_skip_epsilon_r [Areg r]); eauto using compute_tr_is_tree.
     all: reflexivity.
@@ -42,7 +41,6 @@ Section Examples.
   Lemma sequence_epsilon_right_equiv r:
     Sequence r Epsilon ≅ r.
   Proof.
-    split. { simpl. apply app_nil_r. }
     red; destruct dir; tree_equiv_inv.
     all: try apply (is_tree_skip_epsilon_r [Areg r]); eauto using compute_tr_is_tree.
     all: reflexivity.
@@ -52,11 +50,8 @@ Section Examples.
     def_groups r = [] ->
     Quantified true 0 (NoI.N 0) r ≅ Epsilon.
   Proof.
-    intro NO_GROUPS. split. { simpl. auto. }
     tree_equiv_rw; compute_tr_simpl.
-    inversion H0; subst. inversion ISTREE; subst. inversion H; subst.
-    - inversion SKIP; subst. reflexivity.
-    - destruct plus; try discriminate.
+    reflexivity.
   Qed.
 
   Lemma quantified_S_equiv n:
