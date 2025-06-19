@@ -1172,7 +1172,35 @@ Section Congruence.
       FlatMap leaves f leavesf ->
       FlatMap leaves g leavesg ->
       leaves_equiv [] leavesf leavesg.
+  Proof.
+    intros leaves f g leavesf leavesg DETF DETG FGEQUIV FMF FMG.
+    generalize dependent leavesg.
+    induction FMF; intros; inversion FMG; subst.
+    { apply leaves_equiv_refl. }
+    apply leaves_equiv_app2.
+    - eapply FGEQUIV; eauto.
+    - rewrite app_nil_r. apply IHFMF in FM; auto.
+      eapply leaves_equiv_monotony with (seen1:=[]); eauto.
+      { intros x0 H. simpl in H. inversion H. }
+  Qed.
+
+  Definition equiv_leaffuncts_cond (f g: leaf -> list leaf -> Prop) (P: leaf -> Prop): Prop :=
+    forall l, P l ->
+         forall yf yg, f l yf -> g l yg -> leaves_equiv [] yf yg.
+  
+    Lemma flatmap_leaves_equiv_lr_prop:
+    forall l1 l2 f g fl1 gl2 P,
+      determ f -> determ g ->
+      equiv_leaffuncts_cond f g P ->
+      Forall P l1 -> Forall P l2 ->
+      leaves_equiv [] l1 l2 ->
+      FlatMap l1 f fl1 ->
+      FlatMap l2 g gl2 ->
+      leaves_equiv [] fl1 gl2.
+    Proof.
+      intros l1 l2 f g fl1 gl2 P DETF DETG EQFG PL1 PL2 EQ1 FM1 FM2.
   Admitted.
+
 
   Lemma flatmap_leaves_equiv_lr:
     forall leaves1 leaves2 f g leavesf1 leavesg2,
@@ -1182,8 +1210,16 @@ Section Congruence.
       FlatMap leaves2 g leavesg2 ->
       leaves_equiv [] leavesf1 leavesg2.
   Proof.
-  Admitted.
+    intros leaves1 leaves2 f g leavesf1 leavesg2 H H0 H1 H2 H3 H4.
+    assert (equiv_leaffuncts_cond f g (fun _ => True)).
+    { unfold equiv_leaffuncts_cond. intros l H5 yf yg H6 H7.
+      unfold equiv_leaffuncts in H1. eapply H1; eauto. }
+    eapply flatmap_leaves_equiv_lr_prop with (f:=f) (g:=g) (l1:=leaves1) (l2:=leaves2); eauto.
+    - apply Forall_forall; auto.
+    - apply Forall_forall; auto.
+  Qed.
 
+  
   Lemma app_eq_left:
     forall a1 a2 acts dir
       (ACTS_EQ: actions_equiv_dir a1 a2 dir),
@@ -1228,22 +1264,6 @@ Section Congruence.
     inversion Hyf; subst. inversion Hyg; subst.
     apply B_EQ; auto.
   Qed.
-
-  Definition equiv_leaffuncts_cond (f g: leaf -> list leaf -> Prop) (P: leaf -> Prop): Prop :=
-    forall l, P l ->
-      forall yf yg, f l yf -> g l yg -> leaves_equiv [] yf yg.
-
-  Lemma flatmap_leaves_equiv_lr_prop:
-    forall l1 l2 f g fl1 gl2 P,
-      determ f -> determ g ->
-      equiv_leaffuncts_cond f g P ->
-      Forall P l1 -> Forall P l2 ->
-      leaves_equiv [] l1 l2 ->
-      FlatMap l1 f fl1 ->
-      FlatMap l2 g gl2 ->
-      leaves_equiv [] fl1 gl2.
-  Admitted.
-
 
   Lemma actions_equiv_interm_prop:
     forall (a1 a2 b1 b2: actions) (P: leaf -> Prop) (dir: Direction),
