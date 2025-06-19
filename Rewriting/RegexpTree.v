@@ -110,9 +110,9 @@ Illustrative examples taken from https://github.com/DmitrySoshnikov/regexp-tree/
     Lemma class_union_equiv cd0 cd1:
       Disjunction (Character cd0) (Character cd1) ≅ Character (CdUnion cd0 cd1).
     Proof.
-      tree_equiv_rw; tree_equiv_symbex.
-      (* TODO: Equivalence on the leaves *)
-    Admitted.
+      tree_equiv_rw. tree_equiv_symbex.
+      all: leaves_equiv_t.
+    Qed.
 
     Lemma range_range_equiv c0 c1 c2: (* [a-de-f] -> [a-f] *)
       Character.numeric_value c0 <= Character.numeric_value c1 ->

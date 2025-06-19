@@ -572,6 +572,30 @@ Ltac tree_equiv_symbex :=
   repeat tree_equiv_symbex_prepare;
   repeat tree_equiv_symbex_step.
 
+Lemma equiv_cons'
+  {char : Character.class}
+  (seen : list (input * group_map))
+  (inp : input) (gm : group_map)
+  (l1 l2 : list leaf) :
+  leaves_equiv ((inp, gm) :: seen) l1 l2 ->
+  leaves_equiv seen ((inp, gm) :: l1) ((inp, gm) :: l2).
+Proof.
+  intros; destruct (is_seen (inp, gm) seen) eqn:?.
+  - apply equiv_seen_left, equiv_seen_right; eauto.
+    eapply leaves_equiv_monotony; [ | eauto].
+    intros; rewrite is_seen_spec in *; simpl in *; intuition (subst; eauto).
+  - apply equiv_cons; eauto.
+Qed.
+
+Ltac leaves_equiv_step :=
+  first [ apply equiv_nil
+        | apply equiv_cons'
+        | (apply equiv_seen_left + apply equiv_seen_right);
+          [ apply is_seen_spec; unfold In; tauto | ] ].
+
+Ltac leaves_equiv_t :=
+  first [ reflexivity | repeat leaves_equiv_step ].
+
 Section Relation.
   Context {char: Parameters.Character.class}.
 
