@@ -4,6 +4,7 @@ Module Right.
   Section EquivalenceProof.
     Context {char: Parameters.Character.class}.
     Context {x0 x1 y: regex}.
+    Hypothesis (Y_NO_GROUPS: def_groups y = []).
 
     Definition factored: regex :=
       Sequence (Disjunction x0 x1) y.
@@ -14,18 +15,20 @@ Module Right.
     Theorem factored_expanded_right_equiv: (* Proof using inversion on the is_tree predicate *)
       factored ≅[forward] expanded.
     Proof.
-      autounfold with tree_equiv; intros * Hf He.
+      autounfold with tree_equiv. split.
+      { unfold factored, expanded. simpl. rewrite Y_NO_GROUPS. do 3 rewrite app_nil_r. reflexivity. }
+      intros * Hf He.
       tree_inv Hf; tree_inv He; eauto using compute_tr_is_tree.
       reflexivity.
     Qed.
 
-    Theorem factored_expanded_right_equiv_symb: (* Proof using symbolic evaluation *)
+    (*Theorem factored_expanded_right_equiv_symb: (* Proof using symbolic evaluation *)
       factored ≅[forward] expanded.
-    Proof.
+    Proof. 
       tree_equiv_rw.
       compute_tr_simpl.
       reflexivity.
-    Qed.
+    Qed.*)
   End EquivalenceProof.
 End Right.
 
@@ -54,7 +57,7 @@ Module Left.
       tree_equiv_rw.
       exists forward, input, GroupMap.empty.
       compute_tr_cbv.
-      rewrite equiv_nodup; inversion 1.
+      intro ABS. injection ABS as ABS. discriminate.
     Qed.
   End Counterexample.
 End Left.
