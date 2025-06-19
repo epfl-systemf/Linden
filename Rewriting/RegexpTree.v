@@ -120,10 +120,7 @@ Illustrative examples taken from https://github.com/DmitrySoshnikov/regexp-tree/
       Character (CdUnion (CdRange c0 c1) (CdRange c1 c2)) ≅ Character (CdRange c0 c2).
     Proof.
       tree_equiv_rw; tree_equiv_symbex.
-      all: repeat match goal with
-                  | [ H: _ = true |- _ ] => apply PeanoNat.Nat.leb_le in H
-                  | [ H: _ = false |- _ ] => apply PeanoNat.Nat.leb_nle in H
-                  end; (lia || reflexivity).
+      all: lia || reflexivity.
     Qed.
 
     Lemma class_single_left_equiv c0:

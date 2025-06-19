@@ -555,6 +555,11 @@ Hint Unfold
      andb orb negb xorb
   : tree_equiv_symbex.
 
+Hint Rewrite
+  PeanoNat.Nat.leb_le
+  PeanoNat.Nat.leb_nle
+  : tree_equiv_symbex.
+
 Ltac tree_equiv_symbex_step :=
   match goal with
   | _ => progress simpl
@@ -570,7 +575,8 @@ Ltac tree_equiv_symbex_prepare :=
 
 Ltac tree_equiv_symbex :=
   repeat tree_equiv_symbex_prepare;
-  repeat tree_equiv_symbex_step.
+  repeat tree_equiv_symbex_step;
+  autorewrite with tree_equiv_symbex in *.
 
 Lemma equiv_cons'
   {char : Character.class}
