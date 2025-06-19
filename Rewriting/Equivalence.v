@@ -1201,24 +1201,6 @@ Section Congruence.
       intros l1 l2 f g fl1 gl2 P DETF DETG EQFG PL1 PL2 EQ1 FM1 FM2.
   Admitted.
 
-
-  Lemma flatmap_leaves_equiv_lr:
-    forall leaves1 leaves2 f g leavesf1 leavesg2,
-      determ f -> determ g -> equiv_leaffuncts f g ->
-      leaves_equiv [] leaves1 leaves2 ->
-      FlatMap leaves1 f leavesf1 ->
-      FlatMap leaves2 g leavesg2 ->
-      leaves_equiv [] leavesf1 leavesg2.
-  Proof.
-    intros leaves1 leaves2 f g leavesf1 leavesg2 H H0 H1 H2 H3 H4.
-    assert (equiv_leaffuncts_cond f g (fun _ => True)).
-    { unfold equiv_leaffuncts_cond. intros l H5 yf yg H6 H7.
-      unfold equiv_leaffuncts in H1. eapply H1; eauto. }
-    eapply flatmap_leaves_equiv_lr_prop with (f:=f) (g:=g) (l1:=leaves1) (l2:=leaves2); eauto.
-    - apply Forall_forall; auto.
-    - apply Forall_forall; auto.
-  Qed.
-
   
   Lemma app_eq_left:
     forall a1 a2 acts dir
@@ -1246,23 +1228,9 @@ Section Congruence.
       (B_EQ: actions_equiv_dir b1 b2 dir),
       actions_equiv_dir (a1 ++ b1) (a2 ++ b2) dir.
   Proof.
-    intros. unfold actions_equiv_dir in *.
-    intros inp gm t1 t2 TREE1 TREE2.
-    assert (exists ta1, is_tree a1 inp gm dir ta1). {
-      exists (compute_tr a1 inp gm dir). apply compute_tr_is_tree.
-    }
-    assert (exists ta2, is_tree a2 inp gm dir ta2). {
-      exists (compute_tr a2 inp gm dir). apply compute_tr_is_tree.
-    }
-    destruct H as [ta1 TREEa1]. destruct H0 as [ta2 TREEa2].
-    pose proof leaves_concat _ _ _ _ _ _ _ TREE1 TREEa1 as FM1.
-    pose proof leaves_concat _ _ _ _ _ _ _ TREE2 TREEa2 as FM2.
-    specialize (A_EQ _ _ _ _ TREEa1 TREEa2).
-    eapply flatmap_leaves_equiv_lr; eauto.
-    1,2: apply act_from_leaf_determ.
-    unfold equiv_leaffuncts. intros lf yf yg Hyf Hyg.
-    inversion Hyf; subst. inversion Hyg; subst.
-    apply B_EQ; auto.
+    intros. eapply equiv_trans with (a2:=a1++b2).
+    - apply app_eq_left. auto.
+    - apply app_eq_right. auto.
   Qed.
 
   Lemma actions_equiv_interm_prop:
