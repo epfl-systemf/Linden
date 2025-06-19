@@ -183,7 +183,7 @@ Lemma add_inclusion:
 Proof.
   intros treeseen threadseen c inp t pc gm b n nextcurrent nextpc INCL TT.
   unfold seen_inclusion in *.
-  intros pc0 b0 SEEN. apply inpc_add in SEEN. destruct SEEN as [EQ|SEEN].
+  intros pc0 b0 SEEN. simpl in SEEN. apply inpc_add in SEEN. destruct SEEN as [EQ|SEEN].
   - inversion EQ. subst. left. exists t. exists gm. exists n. split; auto. apply in_add. left. auto.
   - specialize (INCL pc0 b0 SEEN).      
     destruct INCL as [[ts [gms [ns [SEENs TTs]]]] | [ST [ms [ts [gms [GEQ [EQ TTS]]]]]]].

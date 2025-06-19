@@ -12,19 +12,61 @@ From Warblre Require Import Base.
 
 (** * Sets of seen pcs *)
 
-(* remembering pairs of (pc, loopbool) that has been handled at the current input *)
-Parameter seenpcs: Type.
-Parameter initial_seenpcs: seenpcs.
-Parameter add_seenpcs: seenpcs -> label -> LoopBool -> seenpcs.
-Parameter inseenpc : seenpcs -> label -> LoopBool -> bool.
+Module Type VMSeen.
+  (* remembering pairs of (pc, loopbool) that has been handled at the current input *)
+  Parameter seenpcs: Type.
+  Parameter initial_seenpcs: seenpcs.
+  Parameter add_seenpcs: seenpcs -> label -> LoopBool -> seenpcs.
+  Parameter inseenpc : seenpcs -> label -> LoopBool -> bool.
+  
+  Axiom inpc_add:
+    forall seen pc1 b1 pc2 b2,
+      inseenpc (add_seenpcs seen pc2 b2) pc1 b1 = true <->
+        ((pc1,b1) = (pc2,b2)) \/ inseenpc seen pc1 b1 = true.
+  
+  Axiom initial_nothing_pc:
+    forall pc b, inseenpc initial_seenpcs pc b = false.
+  
+End VMSeen.
 
-Axiom inpc_add:
-  forall seen pc1 b1 pc2 b2,
-    inseenpc (add_seenpcs seen pc2 b2) pc1 b1 = true <->
-    ((pc1,b1) = (pc2,b2)) \/ inseenpc seen pc1 b1 = true.
+(* one instanciation using lists, but you could use anything else *)
+Module VMS <: VMSeen.
+  Definition seenpcs: Type := list (label * LoopBool).
+  Definition initial_seenpcs : seenpcs := [].
+  Definition add_seenpcs (s:seenpcs) (l:label) (b:LoopBool) := (l,b)::s.
 
-Axiom initial_nothing_pc:
-  forall pc b, inseenpc initial_seenpcs pc b = false.
+  Definition lblbool_eq_dec : forall (l1 l2 : (label*LoopBool)), { l1 = l2 } + { l1 <> l2 }.
+  Proof. repeat decide equality. Qed.
+  
+  Definition lblbool_eqb l1 l2 : bool :=
+    match lblbool_eq_dec l1 l2 with | left _ => true | _ => false end.
+  Definition inseenpc (s:seenpcs) (l:label) (b:LoopBool) : bool :=
+    List.existsb (fun x => lblbool_eqb x (l,b)) s.
+
+  Theorem inpc_add:
+    forall seen pc1 b1 pc2 b2,
+      inseenpc (add_seenpcs seen pc2 b2) pc1 b1 = true <->
+        ((pc1,b1) = (pc2,b2)) \/ inseenpc seen pc1 b1 = true.
+  Proof.
+    intros seen pc1 b1 pc2 b2. simpl. unfold lblbool_eqb. destruct (lblbool_eq_dec (pc2,b2) (pc1,b1)) as [H1|H2];
+      subst; split; intros; auto.
+    destruct H as [Heq|Hin]; auto.
+  Qed.
+
+  Theorem initial_nothing_pc:
+    forall pc b, inseenpc initial_seenpcs pc b = false.
+  Proof. auto. Qed.
+End VMS.
+
+
+Definition seenpcs := VMS.seenpcs.
+Definition initial_seenpcs := VMS.initial_seenpcs.
+Definition add_seenpcs := VMS.add_seenpcs.
+Definition inseenpc := VMS.inseenpc. 
+Definition inpc_add := VMS.inpc_add.
+Definition initial_nothing_pc := VMS.initial_nothing_pc.
+Global Opaque seenpcs initial_seenpcs add_seenpcs inseenpc inpc_add initial_nothing_pc.
+
 
 Definition seen_thread (seen:seenpcs) (t:thread) :bool :=
   match t with
