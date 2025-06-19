@@ -374,19 +374,21 @@ Section Definitions.
   (* Direction of contexts *)
   Inductive contextdir: Type := Forward | Backward | Same.
 
-  Fixpoint ctx_dir' (ctx: regex_ctx) (current: contextdir): contextdir :=
+  Fixpoint ctx_dir (ctx: regex_ctx): contextdir :=
     match ctx with
-    | CHole => current
-    | CDisjunctionL _ c | CDisjunctionR c _ | CSequenceL _ c | CSequenceR c _ => ctx_dir' c current
-    | CQuantified _ _ _ c | CGroup _ c => ctx_dir' c current
+    | CHole => Same
+    | CDisjunctionL _ c | CDisjunctionR c _ | CSequenceL _ c | CSequenceR c _ => ctx_dir c
+    | CQuantified _ _ _ c | CGroup _ c => ctx_dir c
     | CLookaround lk c =>
-      match lk_dir lk with
-      | forward => ctx_dir' c Forward
-      | backward => ctx_dir' c Backward
+      let override_dir := match lk_dir lk with
+      | forward => Forward
+      | backward => Backward
+      end in
+      match ctx_dir c with
+      | Same => override_dir
+      | d => d
       end
     end.
-  
-  Definition ctx_dir ctx := ctx_dir' ctx Same.
 
   Definition tree_equiv_tr_dir i gm dir tr1 tr2 :=
     leaves_equiv [] (tree_leaves tr1 gm i dir) (tree_leaves tr2 gm i dir).
@@ -1258,19 +1260,10 @@ Section Congruence.
     - auto using regex_equiv_quant_forced, regex_equiv_quant_free.
   Qed.
 
-  Lemma ctx_dir'_not_Same:
-    forall ctx curr,
-      curr <> Same ->
-      ctx_dir' ctx curr <> Same.
-  Proof.
-    induction ctx; intros; simpl; auto.
-    destruct lk; simpl; apply IHctx; discriminate.
-  Qed.
-
   Lemma ctx_dir_lookaround_not_Same:
     forall lk ctx, ctx_dir (CLookaround lk ctx) <> Same.
   Proof.
-    intros lk ctx. destruct lk; unfold ctx_dir; simpl; apply ctx_dir'_not_Same; discriminate.
+    intros lk ctx. destruct lk; simpl; destruct (ctx_dir ctx); discriminate.
   Qed.
 
   (** * Main theorems: regex equivalence is preserved by plugging into a context *)
@@ -1584,54 +1577,72 @@ Section Congruence.
       ctx_dir (CLookaround LookAhead ctx) = Forward ->
       ctx_dir ctx = Forward \/ ctx_dir ctx = Same.
   Proof.
-  Admitted.
+    intros ctx H. simpl in *.
+    destruct (ctx_dir ctx); try discriminate; auto.
+  Qed.
   
   Lemma ctx_dir_lookahead_bwd_inv:
     forall ctx,
       ctx_dir (CLookaround LookAhead ctx) = Backward ->
       ctx_dir ctx = Backward.
   Proof.
-  Admitted.
+    intros ctx H. simpl in *.
+    destruct (ctx_dir ctx); try discriminate; auto.
+  Qed.
 
   Lemma ctx_dir_lookbehind_fwd_inv:
     forall ctx,
       ctx_dir (CLookaround LookBehind ctx) = Forward ->
       ctx_dir ctx = Forward.
   Proof.
-  Admitted.
+    intros ctx H. simpl in *.
+    destruct (ctx_dir ctx); try discriminate; auto.
+  Qed.
 
   Lemma ctx_dir_lookbehind_bwd_inv:
     forall ctx,
       ctx_dir (CLookaround LookBehind ctx) = Backward ->
       ctx_dir ctx = Backward \/ ctx_dir ctx = Same.
-  Admitted.
+  Proof.
+    intros ctx H. simpl in *.
+    destruct (ctx_dir ctx); try discriminate; auto.
+  Qed.
 
   Lemma ctx_dir_neglookahead_fwd_inv:
     forall ctx,
       ctx_dir (CLookaround NegLookAhead ctx) = Forward ->
       ctx_dir ctx = Forward \/ ctx_dir ctx = Same.
   Proof.
-  Admitted.
+    intros ctx H. simpl in *.
+    destruct (ctx_dir ctx); try discriminate; auto.
+  Qed.
   
   Lemma ctx_dir_neglookahead_bwd_inv:
     forall ctx,
       ctx_dir (CLookaround NegLookAhead ctx) = Backward ->
       ctx_dir ctx = Backward.
   Proof.
-  Admitted.
+    intros ctx H. simpl in *.
+    destruct (ctx_dir ctx); try discriminate; auto.
+  Qed.
 
   Lemma ctx_dir_neglookbehind_fwd_inv:
     forall ctx,
       ctx_dir (CLookaround NegLookBehind ctx) = Forward ->
       ctx_dir ctx = Forward.
   Proof.
-  Admitted.
+    intros ctx H. simpl in *.
+    destruct (ctx_dir ctx); try discriminate; auto.
+  Qed.
 
   Lemma ctx_dir_neglookbehind_bwd_inv:
     forall ctx,
       ctx_dir (CLookaround NegLookBehind ctx) = Backward ->
       ctx_dir ctx = Backward \/ ctx_dir ctx = Same.
-  Admitted.
+  Proof.
+    intros ctx H. simpl in *.
+    destruct (ctx_dir ctx); try discriminate; auto.
+  Qed.
 
   Lemma regex_equiv_ctx_forward:
     forall r1 r2,

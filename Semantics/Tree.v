@@ -319,6 +319,13 @@ Section Tree.
       tree_res t gm1 inp1 dir1 = None -> tree_res t gm2 inp2 dir2 = None.
   Proof.
     intros. rewrite first_tree_leaf, hd_error_none_nil in *. eauto using leaves_group_map_indep.
-  Qed. 
+  Qed.
+
+  Lemma leaf_eq_dec (l1 l2: leaf): {l1 = l2} + {l1 <> l2}.
+  Proof.
+    decide equality.
+    - apply (@EqDec.eq_dec _ Groups.GroupMap.EqDec_t).
+    - apply input_eq_dec.
+  Defined.
 
 End Tree.
