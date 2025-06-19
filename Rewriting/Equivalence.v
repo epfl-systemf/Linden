@@ -45,8 +45,30 @@ Section Definitions.
     - now apply gm_eqb_true.
   Qed.
 
+  Lemma leaf_eqb_reflb:
+    forall leaf, leaf_eqb leaf leaf = true.
+  Proof.
+    intros [inp gm]. unfold leaf_eqb.
+    apply Bool.andb_true_iff. split.
+    - unfold input_eqb. destruct input_eq_dec; try reflexivity. contradiction.
+    - unfold gm_eqb. destruct EqDec.eq_dec; try reflexivity. contradiction.
+  Qed.
+
   Definition is_seen (inpgm: input * group_map) (l: list (input * group_map)): bool :=
     existsb (fun x => leaf_eqb x inpgm) l.
+
+  Lemma is_seen_spec:
+    forall inpgm l, is_seen inpgm l = true <-> In inpgm l.
+  Proof.
+    intros. split; intro.
+    - unfold is_seen in H. rewrite existsb_exists in H. destruct H as [x [Hin Heq]].
+      apply leaf_eqb_true in Heq. subst x. auto.
+    - induction l.
+      + inversion H.
+      + destruct H.
+        * subst a. simpl. rewrite leaf_eqb_reflb. reflexivity.
+        * simpl. rewrite IHl by assumption. rewrite Bool.orb_true_r. reflexivity.
+  Qed.
 
   Fixpoint filter_leaves (l:list leaf) (seen: list (input * group_map)) : list leaf :=
     match l with
@@ -199,6 +221,7 @@ Section Definitions.
 
   (* adding things in the seen accumulator preserves equivalence *)
   (* this means that being equivalent under [] is the strongest form of equivalence *)
+  (* Note that this also allows removing duplicates from the accumulator *)
   Lemma leaves_equiv_monotony:
     forall l1 l2 seen1 seen2
       (INCLUSION: forall x, is_seen x seen1 = true -> is_seen x seen2 = true),
@@ -940,14 +963,86 @@ Section Congruence.
   (* building up to contextual equivalence *)
   (* to reason about the leaves of an app, we use the flatmap result *)
 
+  Definition determ {A B: Type} (f: A -> B -> Prop) :=
+    forall x y1 y2, f x y1 -> f x y2 -> y1 = y2.
+
+  Lemma FlatMap_in {A B}:
+    forall (l: list A) (f: A -> list B -> Prop) fl x fx,
+      determ f ->
+      FlatMap l f fl ->
+      In x l ->
+      f x fx ->
+      Forall (fun y => In y fl) fx.
+  Proof.
+    intros l f fl x fx DETERM FM INxl F.
+    revert fl FM.
+    induction l.
+    1: inversion INxl.
+    intros fl FM. destruct INxl.
+    - subst a. inversion FM; subst.
+      assert (ly = fx) by eauto (* using DETERM *). subst ly. clear HEAD FM F IHl.
+      induction fx.
+      + constructor.
+      + constructor.
+        * rewrite <- app_comm_cons. left. reflexivity.
+        * eapply Forall_impl; eauto. simpl. tauto.
+    - inversion FM; subst. specialize (IHl H lmapped FM0).
+      eapply Forall_impl; eauto. simpl. intro. rewrite in_app_iff. tauto.
+  Qed.
+
+  Lemma flatmap_leaves_equiv_l_seen:
+    forall l1 l2 seen f fseen fl1 fl2,
+      determ f ->
+      leaves_equiv seen l1 l2 ->
+      FlatMap l1 f fl1 -> FlatMap l2 f fl2 ->
+      FlatMap seen f fseen ->
+      leaves_equiv fseen fl1 fl2.
+  Proof.
+    intros l1 l2 seen f fseen fl1 fl2 DETERM EQUIV.
+    revert fseen fl1 fl2. induction EQUIV.
+    - intros fseen fl1 fl2 FLAT_MAP1 FLAT_MAP2 _.
+      inversion FLAT_MAP1; subst. inversion FLAT_MAP2; subst. reflexivity.
+    - intros fseen fl1 fl2 FLAT_MAP1cons FLAT_MAP2 FLAT_MAP_seen.
+      inversion FLAT_MAP1cons; subst.
+      rewrite is_seen_spec in SEEN.
+      pose proof FlatMap_in _ _ _ _ _ DETERM FLAT_MAP_seen SEEN HEAD as ly_incl_fseen.
+      clear HEAD. clear FLAT_MAP1cons.
+      induction ly.
+      + simpl. apply IHEQUIV; auto.
+      + rewrite <- app_comm_cons. destruct a as [inpa gma].
+        apply equiv_seen_left.
+        * inversion ly_incl_fseen; subst. apply is_seen_spec. auto.
+        * apply IHly. inversion ly_incl_fseen; subst. auto.
+    - (* Mostly copy-pasting previous case *)
+      intros fseen fl1 fl2 FLAT_MAP1 FLAT_MAP2cons FLAT_MAP_seen.
+      inversion FLAT_MAP2cons; subst.
+      rewrite is_seen_spec in SEEN.
+      pose proof FlatMap_in _ _ _ _ _ DETERM FLAT_MAP_seen SEEN HEAD as ly_incl_fseen.
+      clear HEAD. clear FLAT_MAP2cons.
+      induction ly.
+      + simpl. apply IHEQUIV; auto.
+      + rewrite <- app_comm_cons. destruct a as [inpa gma].
+        apply equiv_seen_right.
+        * inversion ly_incl_fseen; subst. apply is_seen_spec. auto.
+        * apply IHly. inversion ly_incl_fseen; subst. auto.
+    - intros fseen fl1 fl2 FLAT_MAP1cons FLAT_MAP2cons FLAT_MAP_seen.
+      inversion FLAT_MAP1cons; subst. inversion FLAT_MAP2cons; subst.
+      assert (ly0 = ly) by eauto (* using DETERM *). subst ly0.
+      clear FLAT_MAP1cons FLAT_MAP2cons HEAD0.
+  Admitted.
+
+
   Lemma flatmap_leaves_equiv_l:
     forall leaves1 leaves2 f leavesf1 leavesf2,
+      determ f ->
       leaves_equiv [] leaves1 leaves2 ->
       FlatMap leaves1 f leavesf1 ->
       FlatMap leaves2 f leavesf2 ->
       leaves_equiv [] leavesf1 leavesf2.
   Proof.
-  Admitted.
+    intros.
+    eapply flatmap_leaves_equiv_l_seen with (seen := []); eauto. constructor.
+  Qed.
 
   Lemma app_eq_right:
     forall a1 a2 acts dir
