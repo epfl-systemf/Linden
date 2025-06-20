@@ -2,6 +2,7 @@
 (* replacing r* with epsilon when r can only match the empty string *)
 
 From Linden.Rewriting Require Import ProofSetup.
+From Linden Require Import ExampleRegexes FailRegex.
 
 Section StrictlyNullable.
   Context {char: Parameters.Character.class}.
@@ -170,4 +171,83 @@ Fixpoint strictly_nullable (r:regex) : bool :=
     2: reflexivity.
     inversion TREEr; subst. exfalso. apply (StrictSuffix.ss_neq _ _ _ PROGRESS eq_refl).
   Qed.
+
+  Section FailRegex.
+    Fixpoint empty_groups (groups: list group_id): regex :=
+      match groups with
+      | [] => Epsilon
+      | gid::q => Sequence (Group gid Epsilon) (empty_groups q)
+      end.
+    
+    Lemma empty_groups_def_groups:
+      forall groups,
+        def_groups (empty_groups groups) = groups.
+    Proof.
+      induction groups. 1: reflexivity.
+      simpl. f_equal. auto.
+    Qed.
+
+    Definition epsilon_fail (r: regex): regex :=
+      Disjunction Epsilon (Sequence (empty_groups (def_groups r)) fail_regex).
+
+    Lemma epsilon_fail_leaves_r:
+      forall r inp gm dir t,
+        is_tree [Areg (Sequence (empty_groups (def_groups r)) fail_regex)] inp gm dir t ->
+        tree_leaves t gm inp dir = [].
+    Proof.
+      intros r inp gm dir t TREE.
+      inversion TREE; subst. rewrite app_nil_r in CONT. destruct dir; simpl in *.
+      - (* Forward *)
+        assert (exists t', is_tree [Areg (empty_groups (def_groups r))] inp gm forward t') by
+          (eexists; eapply compute_tr_is_tree).
+        destruct H as [t' TREE'].
+        pose proof leaves_concat _ _ _ [Areg (empty_groups (def_groups r))] [Areg fail_regex] _ _ CONT TREE' as CONCAT.
+        remember (act_from_leaf _ forward) as f.
+        induction CONCAT.
+        + reflexivity.
+        + subst f.
+          rewrite IHCONCAT by reflexivity.
+          inversion HEAD; subst. rewrite fail_regex_fail by auto. reflexivity.
+      - (* Backward *)
+        assert (exists t', is_tree [Areg fail_regex] inp gm backward t') by
+          (eexists; eapply compute_tr_is_tree).
+        destruct H as [t' TREE'].
+        pose proof leaves_concat _ _ _ [Areg fail_regex] [Areg (empty_groups (def_groups r))] _ _ CONT TREE' as CONCAT.
+        rewrite fail_regex_fail in CONCAT by auto.
+        inversion CONCAT; reflexivity.
+    Qed.
+
+    Theorem strictly_nullable_correct':
+      forall r, strictly_nullable r = true ->
+          Quantified true 0 NoI.Inf r ≅ epsilon_fail r.
+    Proof.
+      intros r SN. unfold tree_equiv, epsilon_fail.
+      intro dir. unfold tree_equiv_dir.
+      split. { simpl. rewrite empty_groups_def_groups, app_nil_r. reflexivity. }
+      intros i gm t1 t2 TREE1 TREE2.
+      unfold tree_equiv_tr_dir. inversion TREE2; subst. inversion ISTREE1; subst.
+      inversion ISTREE; subst. simpl.
+      rewrite epsilon_fail_leaves_r with (r := r) (t := t3); auto.
+      clear ISTREE ISTREE2 TREE2.
+      inversion TREE1; subst. simpl.
+      inversion SKIP; subst. simpl. clear SKIP.
+      replace (tree_leaves _ _ _ _) with (nil (A := leaf)). 1: reflexivity.
+      symmetry.
+      assert (exists tr, is_tree [Areg r] i (GroupMap.reset (def_groups r) gm) dir tr). { eexists (compute_tr [Areg r] i _ dir). eapply compute_tr_is_tree. }
+      destruct H as [tr TREEr].
+      pose proof leaves_concat _ _ _ [Areg r] [Acheck i; Areg (Quantified true 0 plus r)] _ _ ISTREE0 TREEr as CONCAT.
+      apply strictly_nullable_leaves_no_adv in TREEr; auto.
+      remember (tree_leaves titer _ i dir) as leavesiter. remember (tree_leaves tr _ i dir) as leavesr.
+      clear Heqleavesiter Heqleavesr.
+      remember (act_from_leaf _ dir) as f.
+      induction CONCAT. 1: reflexivity.
+      subst f. replace lmapped with (nil (A := leaf)).
+      2: { symmetry. apply IHCONCAT; auto. now inversion TREEr. }
+      replace ly with (nil (A := leaf)).
+      1: reflexivity.
+      symmetry. inversion HEAD; subst. inversion TREE; subst.
+      2: reflexivity.
+      inversion TREEr; subst. exfalso. apply (StrictSuffix.ss_neq _ _ _ PROGRESS eq_refl).
+    Qed.
+  End FailRegex.
 End StrictlyNullable.
