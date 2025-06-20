@@ -4,6 +4,7 @@ Import ListNotations.
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics PikeSubset.
 From Warblre Require Import Base.
+From Linden Require Import StrictSuffix.
 
 
 (* An alternate definition of the semantics, using a boolean to know if one can exit a loop *)
@@ -115,46 +116,8 @@ Inductive LoopBool : Type :=
 
 
 (** * First Step: encoding the invariant  *)
-Definition suffix (str1 str2:string) : Prop :=
-  exists prefix, str2 = prefix ++ str1.
 
-Definition strict_suffix (str1 str2:string) : Prop :=
-  suffix str1 str2 /\ str1 <> str2.
-
-Lemma cons_neq:
-  forall A str pref (c:A),
-    str = pref ++ c::str -> False.
-Proof.
-  intros A str pref c H.
-  assert (List.length str = List.length pref + 1 + List.length str).
-  { rewrite H at 1. rewrite app_length. simpl. lia. }
-  lia.
-Qed.
-
-Lemma strict_cons:
-  forall s c,
-    strict_suffix s (c::s).
-Proof.
-  intros s c. unfold strict_suffix, suffix. split.
-  - exists [c]. simpl. auto.
-  - unfold not.
-    replace (c::s) with ([] ++ c::s) by auto.
-    apply cons_neq.
-Qed.    
-
-Lemma strict_app:
-  forall str1 str2 c,
-    strict_suffix (c::str1) str2 ->
-    strict_suffix str1 str2.
-Proof.
-  unfold strict_suffix, suffix. intros str2 str0 c [[prefix APP] NEQ].
-  split.
-  - exists (prefix ++ [c]). rewrite <- app_assoc. simpl. auto.
-  - unfold not. intros H. subst. eapply cons_neq; eauto.
-Qed.
-  
-
-Inductive bool_encoding: LoopBool -> input -> actions -> Prop :=
+ Inductive bool_encoding: LoopBool -> input -> actions -> Prop :=
 (* an empty continuation can be encoded with any boolean *)
 | nil_encode:
   forall str b,
@@ -170,7 +133,7 @@ Inductive bool_encoding: LoopBool -> input -> actions -> Prop :=
 | cons_true:
   forall stk str head 
     (ENCODE: bool_encoding CanExit str stk)
-    (STRICT: strict_suffix (current_str str forward) (current_str head forward)),
+    (STRICT: strict_suffix str head forward),
     bool_encoding CanExit str (Acheck head::stk)
 | cons_false:
   (* when we push the current string to the stack *)
@@ -192,10 +155,12 @@ Proof.
   - constructor.
   - constructor; auto.
   - constructor; auto.
-  - constructor; auto. rewrite Heqprevstr in STRICT. eapply strict_app; eauto.
+  - constructor; auto. rewrite Heqprevstr in STRICT.
+    eapply ss_next; eauto. simpl. auto.
   - constructor.
     + apply IHbool_encoding; auto.
-    + rewrite Heqprevstr. apply strict_cons.
+    + subst. simpl.
+      eapply ss_advance; eauto.
 Qed.
 
 (* if the string is different than the check, we know the boolean is true *)
@@ -219,8 +184,7 @@ Proof.
   intros b str cont H.
   remember (Acheck str::cont) as prevcont.
   induction H; intros; auto; inversion Heqprevcont.
-  subst. destruct STRICT as [_ NEQ].
-  exfalso. apply NEQ. auto.
+  subst. apply ss_neq in STRICT. contradiction. 
 Qed.
 
 Lemma encode_next:
@@ -245,6 +209,23 @@ Proof.
   - destruct inp. constructor. inversion H; subst; auto.
 Qed.
 
+(** * Encoding means suffixes (strict or not)  *)
+(* Here we encode the invariant that the current input is always either equal or strict suffix of any checks in the current list of actions *)
+
+Lemma encoding_suffix:
+  forall b inp act chk,
+    bool_encoding b inp act ->
+    In (Acheck chk) act ->
+    inp = chk \/ strict_suffix inp chk forward.
+Proof.
+  intros. induction H.
+  - inversion H0.
+  - simpl in H0. destruct H0 as [H0|IN]; try inversion H0; auto.
+  - simpl in H0. destruct H0 as [H0|IN]; try inversion H0; auto.
+  - simpl in H0. destruct H0 as [H0|IN]; try inversion H0; auto.
+    right. subst. auto.
+  - simpl in H0. destruct H0 as [H0|IN]; try inversion H0; auto.
+Qed.
 
 
 (** * Second Step: encoding equality  *)
@@ -263,10 +244,14 @@ Proof.
   induction TREE; inversion PIKE; subst; intros;
     try solve[constructor; auto]; try solve [inversion H1; inversion H0].
   - assert (b = CanExit).
-    { eapply encoding_different; eauto. }
+    { eapply encoding_different; eauto.
+      eapply ss_neq; eauto. }
     subst. constructor. eapply IHTREE; eauto.
     inversion ENCODE; subst; auto.
-  - assert (b = CannotExit).
+  - assert (inp = strcheck \/ strict_suffix inp strcheck forward).
+    { eapply encoding_suffix; eauto. simpl. auto. }
+    destruct H; try contradiction. subst.
+    assert (b = CannotExit).
     { eapply encoding_same; eauto. }
     subst. constructor.
   - constructor; apply IHTREE; auto;
@@ -383,8 +368,9 @@ Qed.
     assert (exists t', is_tree [Areg r] inp GroupMap.empty forward t') as [t' ISTREE].
     { destruct (compute_tree [Areg r] inp  GroupMap.empty forward (S (actions_fuel [Areg r] inp forward))) eqn:PROD.
       2: { generalize functional_terminates. intros H1. apply H1 in PROD; auto; lia. }
-      exists t0. eapply compute_is_tree; eauto.
-      unfold inp_valid_checks. simpl. intros strcheck [H1|H1]; inversion H1. }
+      exists t0. eapply compute_is_tree; eauto. }
+    (* deprecated: when we had to prove valid checks *)
+      (* unfold inp_valid_checks. simpl. intros strcheck [H1|H1]; inversion H1. } *)
     apply boolean_correct in ISTREE as BOOLTREE; auto.
     (* determinism *)
     assert (t = t') by (eapply bool_tree_determ; eauto). subst. auto.
@@ -400,4 +386,3 @@ Qed.
     - apply bool_to_istree; auto.
     - apply boolean_correct; auto.
   Qed.
-
