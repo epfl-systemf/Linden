@@ -17,12 +17,64 @@ Fixpoint strictly_nullable (r:regex) : bool :=
   | Quantified _ _ _ r1 | Group _ r1 => strictly_nullable r1
   end.
 
+  Definition strictly_nullable_prop (r: regex): Prop :=
+    forall inp gm dir t, is_tree [Areg r] inp gm dir t ->
+      Forall (fun lf => fst lf = inp) (tree_leaves t gm inp dir).
+  
+  Lemma strictly_nullable_leaves_no_adv_quant_0:
+    forall r, strictly_nullable_prop r ->
+      forall greedy delta, strictly_nullable_prop (Quantified greedy 0 delta r).
+  Proof.
+    intros r SN greedy delta. unfold strictly_nullable_prop in *.
+    intros inp gm dir t TREE.
+    inversion TREE; subst.
+    - (* No repetition *)
+      inversion SKIP; subst. simpl. auto.
+    - (* At least one repetition, but the checks will never pass *)
+      inversion SKIP; subst.
+      assert (ITER_LEAVES: Forall (fun lf => fst lf = inp) (tree_leaves (GroupAction (Reset (def_groups r)) titer) gm inp dir)). {
+        simpl.
+        assert (TREEr: exists tr, is_tree [Areg r] inp (GroupMap.reset (def_groups r) gm) dir tr). { eexists; eapply compute_tr_is_tree. }
+        destruct TREEr as [tr TREEr].
+        pose proof leaves_concat _ _ _ [Areg r] [Acheck inp; Areg (Quantified greedy 0 plus r)] _ _ ISTREE1 TREEr as CONCAT.
+        apply SN in TREEr.
+        remember (act_from_leaf _ dir) as f.
+        induction CONCAT; subst f; auto.
+        apply Forall_app; split.
+        - inversion HEAD; subst. inversion TREE0; subst; simpl; auto.
+          inversion TREEr; subst. exfalso. apply (StrictSuffix.ss_neq _ _ _ PROGRESS eq_refl).
+        - apply IHCONCAT; auto. now inversion TREEr.
+      }
+      destruct greedy; simpl.
+      + apply Forall_app; split; auto.
+      + constructor; auto.
+  Qed.
+
+  Lemma strictly_nullable_leaves_no_adv_quant:
+    forall r, strictly_nullable_prop r ->
+      forall greedy min delta, strictly_nullable_prop (Quantified greedy min delta r).
+  Proof.
+    intros r SN greedy min delta. induction min.
+    - apply strictly_nullable_leaves_no_adv_quant_0; auto.
+    - unfold strictly_nullable_prop. intros inp gm dir t TREE.
+      inversion TREE; subst.
+      assert (exists tr, is_tree [Areg r] inp (GroupMap.reset (def_groups r) gm) dir tr). { eexists. eapply compute_tr_is_tree. }
+      destruct H as [tr TREEr].
+      pose proof leaves_concat _ _ _ [Areg r] [Areg (Quantified greedy min delta r)] _ _ ISTREE1 TREEr as CONCAT.
+      apply SN in TREEr.
+      remember (act_from_leaf _ dir) as f. simpl. induction CONCAT; auto.
+      subst f. apply Forall_app; split.
+      + inversion HEAD; subst. unfold strictly_nullable_prop in IHmin.
+        inversion TREEr; subst. apply IHmin. auto.
+      + apply IHCONCAT; auto. now inversion TREEr.
+  Qed.
+
+
   Lemma strictly_nullable_leaves_no_adv:
     forall r, strictly_nullable r = true ->
-      forall inp gm dir t, is_tree [Areg r] inp gm dir t ->
-        Forall (fun lf => fst lf = inp) (tree_leaves t gm inp dir).
+      strictly_nullable_prop r.
   Proof.
-    intros r SN. induction r; simpl in *; try discriminate.
+    intros r SN. unfold strictly_nullable_prop. induction r; simpl in *; try discriminate.
     - (* Epsilon *)
       intros inp gm dir t TREE. inversion TREE; subst. inversion ISTREE; subst.
       simpl. constructor; constructor.
@@ -60,7 +112,7 @@ Fixpoint strictly_nullable (r:regex) : bool :=
         * inversion HEAD; subst. inversion TREE2; subst. apply IHr1; auto.
         * apply IHCONCAT; auto. now inversion TREE2.
     - (* Quantified *)
-      admit.
+      apply strictly_nullable_leaves_no_adv_quant. exact (IHr SN).
     - (* Lookaround *)
       intros inp gm dir t TREE. clear IHr.
       inversion TREE; subst; simpl in *.
@@ -86,7 +138,7 @@ Fixpoint strictly_nullable (r:regex) : bool :=
       intros inp gm dir t TREE.
       inversion TREE; subst; simpl; auto.
       inversion TREECONT; subst; simpl; auto.
-  Admitted.
+  Qed.
 
   Theorem strictly_nullable_correct:
     forall r, strictly_nullable r = true -> def_groups r = [] ->
