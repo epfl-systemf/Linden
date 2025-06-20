@@ -95,7 +95,7 @@ Theorem pike_vm_correct:
     (* the result of the PikeVM is `result` *)
     trc_pike_vm (compilation r) (pike_vm_seen_initial_state inp) (PVSS_final result) ->
     (* This `result` is the priority result of the `tree` *)
-    result = first_branch' tree inp.
+    result = first_leaf tree inp.
 Proof.
   intros r inp tree result SUBSET TREE TRC.
   eapply encode_equal with (b:=CanExit) in TREE as BOOLTREE; pike_subset.

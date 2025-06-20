@@ -71,6 +71,13 @@ Section Tree.
   | LKFail (lk: lookaround) (tlk: tree)       (* Also records the lookaround tree *)
   .
 
+  Definition tree_eq_dec : forall (t1 t2 : tree), { t1 = t2 } + { t1 <> t2 }.
+  Proof.
+    decide equality; try solve[repeat decide equality].
+    - apply Character.eq_dec.
+    - apply string_eq_dec.
+  Qed.
+  
   (** ** Maximum group ID of a tree *)
   (* Maximum group ID of a list of group IDs *)
   Fixpoint max_gid_list (gl: list group_id) :=
@@ -158,7 +165,7 @@ Section Tree.
   Definition first_branch (t:tree) (str0: string) : option leaf :=
     tree_res t GroupMap.empty (init_input str0) forward.
 
-  Definition first_branch' (t:tree) (inp:input) : option leaf :=
+  Definition first_leaf (t:tree) (inp:input) : option leaf :=
     tree_res t GroupMap.empty inp forward.
 
   (** * All Tree Results *)
