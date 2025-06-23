@@ -31,18 +31,22 @@ FROM: https://github.com/DmitrySoshnikov/regexp-tree/tree/master/src/optimizer
 
 ## ^ ~ (?<!True)
 FROM: https://www.microsoft.com/en-us/research/wp-content/uploads/2025/01/cpp24-final.pdf (Section 6.2)
+AND: https://arxiv.org/pdf/2309.14401 (Table 1)
 PROVED
 
 ## $ ~ (?!True)
 FROM: https://www.microsoft.com/en-us/research/wp-content/uploads/2025/01/cpp24-final.pdf (Section 6.2)
+AND: https://arxiv.org/pdf/2309.14401 (Table 1)
 PROVED
 
 ## \b ~ (?<!\w)(?=\w)|(?<=\w)(?!=\w)
 FROM: https://www.microsoft.com/en-us/research/wp-content/uploads/2025/01/popl25-p2-final.pdf
+AND: https://arxiv.org/pdf/2309.14401 (Table 1)
 "a unique zero-cost implementation of the word boundary \b – represented via negative lookarounds"
 PROVED
 
 ## \B ~ ((?<=\w)|(?!=\w))((?<!\w)|(?=\w))
+FROM: https://arxiv.org/pdf/2309.14401 (Table 1)
 PROVED
 
 # Strictly nullable optimization
