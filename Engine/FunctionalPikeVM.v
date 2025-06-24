@@ -128,3 +128,68 @@ Proof.
   match_destr; subst; inversion H; subst.
   eapply loop_trc; eauto.
 Qed.
+
+(** * Execution Example  *)
+
+Lemma unroll_loop:
+  forall code inp active best blocked seen fuel,
+    pike_vm_loop code (PVSS inp active best blocked seen) (S fuel) =
+      pike_vm_loop code (pike_vm_func_step code (PVSS inp active best blocked seen)) fuel.
+Proof. auto. Qed.
+
+
+(* Nullable Quantifier Example *)
+(* Matching ((a|epsilon)(epsilon|b))* on string "ab" matches "ab", a specificity of Javascript semantics *)
+
+Parameter a : Character.type.
+Parameter b : Character.type.
+
+Example a_char : regex := Regex.Character (CdSingle a).
+Example b_char : regex := Regex.Character (CdSingle b).
+Axiom neq_ab: (a ==? b)%wt = false.
+Corollary neq_ba : (b ==? a)%wt = false.
+Proof. rewrite EqDec.inversion_false. symmetry. rewrite <- EqDec.inversion_false. apply neq_ab. Qed.
+
+Example nq_regex: regex :=
+  greedy_star(Sequence
+                (Disjunction(a_char)(Epsilon))
+                (Disjunction(Epsilon)(b_char))).
+
+Example nq_bytecode := [Fork 1 10; BeginLoop; ResetRegs []; Fork 4 6; Consume (CdSingle a); Jmp 6; Fork 7 8; Jmp 9; Consume (CdSingle b); EndLoop 0; Accept].
+
+Lemma compile_nq: compilation nq_regex = nq_bytecode.
+Proof. auto. Qed.
+
+Example nq_inp: input := Input [a;b] [].
+
+Lemma fuel_nq: bytecode_fuel nq_bytecode nq_inp = 72.
+Proof. auto. Qed.
+
+Lemma init_nq: pike_vm_seen_initial_state nq_inp = PVSS nq_inp [(0,GroupMap.empty,CanExit)] None [] initial_seenpcs.
+Proof. auto. Qed.
+
+Ltac simpl_step:=
+   match goal with
+   | [ |- context[VMS.lblbool_eqb ?l1 ?l2] ] => unfold VMS.lblbool_eqb
+   | [ |- context[VMS.lblbool_eq_dec ?l1 ?l2] ] => 
+       let H := fresh "H" in
+       destruct (VMS.lblbool_eq_dec l1 l2) as [H|H];
+       auto; try inversion H
+   | [ |- context[orb false ?b] ] => simpl orb
+   | [ |- context[orb ?b false] ] => simpl orb
+   | [ |- context[if false then ?x else ?y] ] => replace (if false then x else y) with y by auto
+   | [ |- context[(?x ==? ?x)%wt] ] => rewrite EqDec.reflb
+   | [ |- context[(a ==? b)%wt] ] => rewrite neq_ab
+   | [ |- context[(b ==? a)%wt] ] => rewrite neq_ba
+   | [ |- context[EpsDead] ] => unfold EpsDead
+  end.
+
+Ltac one_step:= rewrite unroll_loop; simpl pike_vm_func_step; repeat simpl_step.
+  
+
+Lemma nullable_quant:
+  pike_vm_match nq_regex nq_inp = Finished (Some (Input [] [b;a], GroupMap.empty)).
+Proof. 
+  unfold pike_vm_match, getres. rewrite compile_nq. rewrite fuel_nq. rewrite init_nq.
+  repeat one_step.
+Qed.

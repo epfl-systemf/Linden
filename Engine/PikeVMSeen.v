@@ -65,7 +65,7 @@ Definition add_seenpcs := VMS.add_seenpcs.
 Definition inseenpc := VMS.inseenpc. 
 Definition inpc_add := VMS.inpc_add.
 Definition initial_nothing_pc := VMS.initial_nothing_pc.
-Global Opaque seenpcs initial_seenpcs add_seenpcs inseenpc inpc_add initial_nothing_pc.
+(* Global Opaque seenpcs initial_seenpcs add_seenpcs inseenpc inpc_add initial_nothing_pc. *)
 
 
 Definition seen_thread (seen:seenpcs) (t:thread) :bool :=

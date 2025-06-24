@@ -80,4 +80,30 @@ Section Regex.
     | Anchor _ => []
     | Backreference _ => []
     end.
+
+  (** * Common Quantifiers  *)
+  (* r* *)
+  Definition greedy_star (r:regex) : regex :=
+    Quantified true 0 NoI.Inf r.
+
+  (* r*? *)
+  Definition lazy_star (r:regex) : regex :=
+    Quantified false 0 NoI.Inf r.
+
+  (* r+ *)
+  Definition greedy_plus (r:regex) : regex :=
+    Quantified true 1 NoI.Inf r.
+
+  (* r+? *)
+  Definition lazy_plus (r:regex) : regex :=
+    Quantified false 1 NoI.Inf r.
+
+  (* r? *)
+  Definition greedy_qmark (r:regex) : regex :=
+    Quantified true 0 (NoI.N 1) r.
+
+  (* r?? *)
+  Definition lazy_qmark (r:regex) : regex :=
+    Quantified false 0 (NoI.N 1) r.
+  
 End Regex.
