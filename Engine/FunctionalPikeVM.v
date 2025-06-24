@@ -56,8 +56,13 @@ Fixpoint pike_vm_loop (c:code) (pvs:pike_vm_seen_state) (fuel:nat) : pike_vm_see
   end.
 
 (* an upper bound for the fuel necessary to compute a result *)
+(* For each position in the input (there are (S length (next_str input)) such positions),
+   in the worst-case the algorithm explores each (label,bool) configuration.
+   Each of these explorations may generate up to two children.
+   So we might need as many steps as 4 times the length of the bytecode (2 * 2 boolean values).
+   You need one extra step per input position for pvss_nextchar. *)
 Definition bytecode_fuel (c:code) (inp:input) : nat :=
-  2 * (S (length (next_str inp))) * (S (length c)).
+  4 * (2 + (length (next_str inp))) * (1 + (length c)).
 
 Inductive matchres : Type :=
 | OutOfFuel
@@ -162,7 +167,7 @@ Proof. auto. Qed.
 
 Example nq_inp: input := Input [a;b] [].
 
-Lemma fuel_nq: bytecode_fuel nq_bytecode nq_inp = 72.
+Lemma fuel_nq: bytecode_fuel nq_bytecode nq_inp = 192.
 Proof. auto. Qed.
 
 Lemma init_nq: pike_vm_seen_initial_state nq_inp = PVSS nq_inp [(0,GroupMap.empty,CanExit)] None [] initial_seenpcs.
@@ -191,5 +196,5 @@ Lemma nullable_quant:
   pike_vm_match nq_regex nq_inp = Finished (Some (Input [] [b;a], GroupMap.empty)).
 Proof. 
   unfold pike_vm_match, getres. rewrite compile_nq. rewrite fuel_nq. rewrite init_nq.
-  repeat one_step.
+  do 37 one_step.
 Qed.
