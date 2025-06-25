@@ -133,7 +133,7 @@ Section CharDescrCharSet.
       exists a, Semantics.compileToCharSet_ClassAtom (ClassEsc (CCharacterEsc esc)) rer = Success a /\
              equiv_cd_charset cd a.
   Proof.
-    intros esc cd rer Hequiv. inversion Hequiv as [esc0 cd0 Hequiv' Heqesc Heqcd0 | l cd0 Hequiv' Heqesc Heqcd0 | Heqesc Heqcd | d1 d2 Heqesc Heqcd].
+    intros esc cd rer Hequiv. inversion Hequiv as [esc0 cd0 Hequiv' Heqesc Heqcd0 | l cd0 Hequiv' Heqesc Heqcd0 | Heqesc Heqcd | d1 d2 Heqesc Heqcd | c Heqesc Heqcd].
     - apply equiv_cd_ControlEscape. assumption.
     - inversion Hequiv' as [l0 i Heqi Heql0 Heqcd]. subst cd0 l0.
       simpl. rewrite <- Heqi.
@@ -143,6 +143,8 @@ Section CharDescrCharSet.
       unfold Numeric.nat_to_nni. rewrite Character.numeric_pseudo_bij. apply equiv_cd_single.
     - simpl. unfold Coercions.Coercions.wrap_CharSet. eexists. split. 1: reflexivity.
       unfold Numeric.nat_to_nni. apply equiv_cd_single.
+    - simpl. unfold Coercions.Coercions.wrap_CharSet. eexists. split. 1: reflexivity.
+      unfold Numeric.nat_to_nni. rewrite Character.numeric_pseudo_bij. apply equiv_cd_single.
   Qed.
 
   (* Lemma for ClassEscapes *)
