@@ -32,7 +32,39 @@ Module Right.
   End EquivalenceProof.
 End Right.
 
-Module Left.
+Module LeftBackward.
+  Section EquivalenceProof.
+    Context {char: Parameters.Character.class}.
+
+    Context (x y0 y1: regex).
+    Context (NO_GROUPS_IN_X: def_groups x = []).
+
+    Definition factored: regex :=
+      Sequence x (Disjunction y0 y1).
+
+    Definition expanded: regex :=
+      Disjunction (Sequence x y0) (Sequence x y1).
+
+    Hint Rewrite NO_GROUPS_IN_X : tree_equiv.
+
+    Theorem factored_expanded_left_equiv: (* Proof using inversion on the is_tree predicate *)
+      factored ≅[backward] expanded.
+    Proof.
+      tree_equiv_inv; eauto using compute_tr_is_tree.
+      reflexivity.
+    Qed.
+
+    Theorem factored_expanded_left_equiv_symb: (* Proof using symbolic evaluation *)
+      factored ≅[backward] expanded.
+    Proof.
+      tree_equiv_rw.
+      compute_tr_simpl.
+      reflexivity.
+    Qed.
+  End EquivalenceProof.
+End LeftBackward.
+
+Module LeftForward.
   Section Counterexample.
     Context {char: Parameters.Character.class}.
     Context (c: Parameters.Character).
@@ -60,4 +92,4 @@ Module Left.
       inversion 1.
     Qed.
   End Counterexample.
-End Left.
+End LeftForward.

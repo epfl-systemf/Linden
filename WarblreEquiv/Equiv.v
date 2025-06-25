@@ -692,7 +692,7 @@ Section Equiv.
       apply charSetMatcher_noninv_equiv; auto. rewrite Hdotall. apply equiv_cd_dot.
 
     - (* Backreference *)
-      intros crx Hroot Heqn m dir. simpl.
+      intros ctx Hroot Heqn m dir. simpl.
       destruct Nat.leb eqn:Hgidinbounds; try discriminate. simpl.
       intro H. injection H as <-.
       auto using backref_equiv.
