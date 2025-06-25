@@ -1,4 +1,4 @@
-From Warblre Require Import Patterns Result Errors Coercions Notation Base.
+From Warblre Require Import Patterns Result Errors Coercions Notation Base StaticSemantics.
 From Warblre Require Characters.
 From Linden Require Import Regex LindenParameters Chars Groups.
 Import Notation.
@@ -81,14 +81,24 @@ Section RegexpTranslation.
       equiv_asciiesc l (CdSingle (Character.from_numeric_value n))
   .
 
+  Definition unicodeCodePoint (head tail: Hex4Digits) :=
+    (*>> 1. Let lead be the CharacterValue of HexLeadSurrogate. <<*)
+    let lead := StaticSemantics.characterValue_Hex4Digits head in
+    (*>> 2. Let trail be the CharacterValue of HexTrailSurrogate. <<*)
+    let trail := StaticSemantics.characterValue_Hex4Digits tail in
+    (*>> 3. Let cp be UTF16SurrogatePairToCodePoint(lead, trail). <<*)
+    let cp := Unicode.utf16SurrogatePair lead trail in
+    (*>> 4. Return the numeric value of cp. <<*)
+    cp.
+
   (* CharacterEscape *)
   Inductive equiv_CharacterEscape: Patterns.CharacterEscape -> char_descr -> Prop :=
   | Equiv_ControlEsc: forall esc cd, equiv_ControlEscape esc cd -> equiv_CharacterEscape (Patterns.ControlEsc esc) cd
   | Equiv_AsciiControlEsc: forall l cd, equiv_asciiesc l cd -> equiv_CharacterEscape (Patterns.AsciiControlEsc l) cd
   | Equiv_esc_Zero: equiv_CharacterEscape Patterns.esc_Zero (CdSingle (Character.from_numeric_value 0))
   | Equiv_HexEscape: forall d1 d2: HexDigit, equiv_CharacterEscape (Patterns.HexEscape d1 d2) (CdSingle (Character.from_numeric_value (HexDigit.to_integer_2 d1 d2)))
-  | Equiv_IdentityEsc: forall c, equiv_CharacterEscape (Patterns.IdentityEsc c) (CdSingle c).
-  (* | Equiv_UnicodeEsc: TODO | Equiv_IdentityEsc: TODO *)
+  | Equiv_IdentityEsc: forall c, equiv_CharacterEscape (Patterns.IdentityEsc c) (CdSingle c)
+  | Equiv_UnicodeEsc: forall head tail, equiv_CharacterEscape (Patterns.UnicodeEsc (Patterns.Pair head tail)) (CdSingle (Character.from_numeric_value (unicodeCodePoint head tail))).
 
 
   (** ** Equivalence of character classes *)
