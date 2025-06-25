@@ -8,4 +8,4 @@ Export ListNotations.
 Coercion nat_to_N (n: nat) := NoI.N n.
 
 #[warning="-uniform-inheritance"]
-Coercion char_to_re {char: Parameters.Character.class} c := Character (CdSingle c).
+Coercion char_to_re {char: Parameters.Character.class} {unicodeProp: Parameters.Property.class Parameters.Character} c := Character (CdSingle c).

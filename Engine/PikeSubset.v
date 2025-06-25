@@ -8,6 +8,7 @@ From Warblre Require Import Numeric Base.
 (* The subset of regexes supported by the PikeVM engine *)
 
 Context `{characterClass: Character.class}.
+Context {unicodeProp: Parameters.Property.class Character}.
 
 
 (** * PikeVM supported subset  *)

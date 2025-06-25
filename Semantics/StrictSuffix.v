@@ -6,6 +6,7 @@ Import ListNotations.
 
 Section StrictSuffix.
   Context `{char: Character.class}.
+  Context {unicodeProp: Parameters.Property.class Character}.
 
   (** * Suffixes  *)
 

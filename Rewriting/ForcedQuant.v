@@ -8,6 +8,7 @@ From Linden Require Import Equivalence.
 
 Section ForcedQuant.
   Context {char: Parameters.Character.class}.
+  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
 
   (* TODO: I'm not sure this is how we should proceed. *)
   (* Or if this is, we are lacking better lemmas to relate actions_equiv_dir to tree_equiv *)

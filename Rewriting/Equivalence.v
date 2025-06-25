@@ -6,6 +6,7 @@ Export ListNotations.
 
 Section Definitions.
   Context {char: Parameters.Character.class}.
+  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
 
 
   Definition input_eqb (i1 i2: input): bool :=
@@ -630,6 +631,7 @@ Ltac leaves_equiv_t :=
 
 Section Relation.
   Context {char: Parameters.Character.class}.
+  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
 
   Ltac eqv := repeat red; tree_equiv_rw; solve [congruence | intuition | firstorder].
 
@@ -803,6 +805,7 @@ Notation "r1 ≇ r2" := (tree_nequiv r1 r2) (at level 70, format "r1  ≇  r2").
 
 Section Congruence.
   Context {char: Parameters.Character.class}.
+  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
 
   (** * Observational Consequence on Backtracking Results  *)
 

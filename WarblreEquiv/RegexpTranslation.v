@@ -10,6 +10,7 @@ Local Open Scope result_flow.
 
 Section RegexpTranslation.
   Context `{characterClass: Character.class}.
+  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
   
   (* Computes the number of capture groups of the regex r. *)
   Fixpoint num_groups (r: regex): nat := (* actually len (def_groups r); TODO replace later or prove lemma *)
@@ -62,8 +63,9 @@ Section RegexpTranslation.
   | Equiv_esc_S: equiv_CharacterClassEscape Patterns.esc_S (CdInv CdWhitespace)
   | Equiv_esc_w: equiv_CharacterClassEscape Patterns.esc_w CdWordChar
   | Equiv_esc_W: equiv_CharacterClassEscape Patterns.esc_W (CdInv CdWordChar)
+  | Equiv_UnicodeProp: forall p, equiv_CharacterClassEscape (Patterns.UnicodeProp p) (CdUnicodeProp p)
+  | Equiv_UnicodePropNeg: forall p, equiv_CharacterClassEscape (Patterns.UnicodePropNeg p) (CdInv (CdUnicodeProp p))
   .
-  (* TODO Unicode properties *)
 
   (* ControlEscape *)
   Inductive equiv_ControlEscape: Patterns.ControlEscape -> char_descr -> Prop :=
@@ -98,7 +100,10 @@ Section RegexpTranslation.
   | Equiv_esc_Zero: equiv_CharacterEscape Patterns.esc_Zero (CdSingle (Character.from_numeric_value 0))
   | Equiv_HexEscape: forall d1 d2: HexDigit, equiv_CharacterEscape (Patterns.HexEscape d1 d2) (CdSingle (Character.from_numeric_value (HexDigit.to_integer_2 d1 d2)))
   | Equiv_IdentityEsc: forall c, equiv_CharacterEscape (Patterns.IdentityEsc c) (CdSingle c)
-  | Equiv_UnicodeEsc: forall head tail, equiv_CharacterEscape (Patterns.UnicodeEsc (Patterns.Pair head tail)) (CdSingle (Character.from_numeric_value (unicodeCodePoint head tail))).
+  | Equiv_UnicodeEsc_Pair: forall head tail, equiv_CharacterEscape (Patterns.UnicodeEsc (Patterns.Pair head tail)) (CdSingle (Character.from_numeric_value (unicodeCodePoint head tail)))
+  | Equiv_UnicodeEsc_Lonely: forall hex, equiv_CharacterEscape (Patterns.UnicodeEsc (Patterns.Lonely hex)) (CdSingle (Character.from_numeric_value (StaticSemantics.characterValue_Hex4Digits hex)))
+  | Equiv_UnicodeEsc_CodePoint: forall c, equiv_CharacterEscape (Patterns.UnicodeEsc (Patterns.CodePoint c)) (CdSingle c)
+  .
 
 
   (** ** Equivalence of character classes *)
@@ -182,8 +187,8 @@ Section RegexpTranslation.
       | Patterns.esc_S => Success (CdInv CdWhitespace)
       | Patterns.esc_w => Success CdWordChar
       | Patterns.esc_W => Success (CdInv CdWordChar)
-      | Patterns.UnicodeProp _ => Error WlUnsupported
-      | Patterns.UnicodePropNeg _ => Error WlUnsupported
+      | Patterns.UnicodeProp p => Success (CdUnicodeProp p)
+      | Patterns.UnicodePropNeg p => Success (CdInv (CdUnicodeProp p))
       end.
 
     Definition controlEsc_singleCharacter (esc: Patterns.ControlEscape): Parameters.Character :=
@@ -205,8 +210,10 @@ Section RegexpTranslation.
       | Patterns.AsciiControlEsc l => Success (asciiEsc_singleCharacter l)
       | Patterns.esc_Zero => Success (Character.from_numeric_value 0)
       | Patterns.HexEscape d1 d2 => Success (Character.from_numeric_value (HexDigit.to_integer_2 d1 d2))
-      | Patterns.UnicodeEsc _ => Error WlUnsupported (* Unsupported *)
-      | Patterns.IdentityEsc _ => Error WlUnsupported (* Unsupported *)
+      | Patterns.UnicodeEsc (Patterns.Pair head tail) => Success (Character.from_numeric_value (unicodeCodePoint head tail))
+      | Patterns.UnicodeEsc (Patterns.Lonely hex) => Success (Character.from_numeric_value (StaticSemantics.characterValue_Hex4Digits hex))
+      | Patterns.UnicodeEsc (Patterns.CodePoint c) => Success c
+      | Patterns.IdentityEsc c => Success c
       end.
 
     Definition characterEscape_to_linden (esc: Patterns.CharacterEscape): Result char_descr wl_transl_error :=
@@ -352,6 +359,7 @@ Section RegexpTranslation.
       | CdDigits => Some (Patterns.AtomEsc (Patterns.ACharacterClassEsc Patterns.esc_d))
       | CdWhitespace => Some (Patterns.AtomEsc (Patterns.ACharacterClassEsc Patterns.esc_s))
       | CdWordChar => Some (Patterns.AtomEsc (Patterns.ACharacterClassEsc Patterns.esc_w))
+      | CdUnicodeProp p => Some (Patterns.AtomEsc (Patterns.ACharacterClassEsc (Patterns.UnicodeProp p)))
       | CdInv cd => None (* any way to translate CdInv easily? *)
       | CdRange l h => Some (Patterns.CharacterClass (Patterns.NoninvertedCC (Patterns.RangeCR (Patterns.SourceCharacter l) (Patterns.SourceCharacter h) Patterns.EmptyCR)))
       | CdUnion cd1 cd2 => None (* any way to translate this easily? *)
@@ -459,7 +467,8 @@ Section RegexpTranslation.
         equiv_CharacterEscape esc cd.
     Proof.
       intro esc. destruct esc; try discriminate; simpl; unfold characterEscape_to_linden; simpl.
-      all: intros cd H; injection H as <-; constructor.
+      5: destruct seq; simpl.
+      all: intros cd H; injection H as <-; try constructor.
       - apply controlEsc_singleCharacter_sound.
       - apply asciiEsc_singleCharacter_sound.
     Qed.
@@ -519,6 +528,7 @@ Section RegexpTranslation.
         equiv_CharacterEscape esc (CdSingle clh).
     Proof.
       intros esc clh. destruct esc; simpl; try discriminate.
+      5: destruct seq; simpl.
       all: intro H; injection H as <-; constructor.
       - apply controlEsc_singleCharacter_sound.
       - apply asciiEsc_singleCharacter_sound.

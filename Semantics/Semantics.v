@@ -14,6 +14,7 @@ From Coq Require Import Lia.
 
 Section Semantics.
   Context `{characterClass: Character.class}.
+  Context {unicodeProp: Parameters.Property.class Character}.
 
   (* Reading a substring from a group map *)
   Definition read_backref (gm: group_map) (gid: group_id) (inp: input) (dir: Direction): option (string * input) :=

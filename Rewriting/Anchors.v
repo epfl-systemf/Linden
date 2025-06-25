@@ -2,6 +2,7 @@ From Linden.Rewriting Require Import ProofSetup.
 
 Section Anchors.
   Context {char: Parameters.Character.class}.
+  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
 
   Definition desugar_anchor (a: anchor) :=
     match a with

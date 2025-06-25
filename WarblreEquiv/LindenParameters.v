@@ -12,6 +12,7 @@ Local Open Scope bool_scope.
 
 Section LindenParameters.
   Context `{characterClass: Character.class}.
+  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
   
 
   (* As per the ECMA specification (22.2.2.7.3 Canonicalize ( rer, ch )), when we do not ignore case, canonicalization is the identity function. *)
@@ -47,28 +48,12 @@ Section LindenParameters.
 
 
 
-  (** ** Unicode properties *)
-  (* We don't support Unicode properties *)
-  Inductive NoProperty: Type := .
-
-  Definition NoProp_code_points_for (p: NoProperty): list Character := match p with end.
-
-  #[refine,export] Instance NoPropertyProp: Property.class Character := {|
-    Property.type := NoProperty;
-    Property.code_points_for := NoProp_code_points_for
-  |}.
-  Proof.
-    constructor. decide equality.
-  Defined.
-
-
-
   (** ** Type markers *)
   #[export] Instance char_marker: CharacterMarker Character := mk_character_marker Character.
 
   #[export] Instance string_marker: StringMarker string := mk_string_marker string.
 
-  #[export] Instance empty_unicode_marker: UnicodePropertyMarker NoProperty := mk_unicode_property_marker NoProperty.
+  #[export] Instance unicode_marker: UnicodePropertyMarker Property := mk_unicode_property_marker Property.
 
 
   (** ** CharSets *)
@@ -106,11 +91,11 @@ Section LindenParameters.
 
       Parameters.set_class := linden_set_class;
       Parameters.string_class := string_String;
-      Parameters.unicode_property_class := NoPropertyProp;
+      Parameters.unicode_property_class := unicodeProp;
 
       Parameters.character_marker := char_marker;
       Parameters.string_marker := string_marker;
-      Parameters.unicode_property_marker := empty_unicode_marker
+      Parameters.unicode_property_marker := unicode_marker
     |}.
   
 

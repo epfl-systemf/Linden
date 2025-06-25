@@ -17,6 +17,7 @@ Local Open Scope result_flow.
 
 Section EquivMain.
   Context `{characterClass: Character.class}.
+  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
 
   (** ** Some initialization results *)
   Section InitState.

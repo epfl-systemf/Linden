@@ -13,6 +13,7 @@ Local Open Scope result_flow.
 
 Section EquivLemmas.
   Context `{characterClass: Character.class}.
+  Context {unicodeProp: Parameters.Property.class Character}.
 
   (** * Moved from LWEquivTreeLemmas.v; TODO reorganize *)
 

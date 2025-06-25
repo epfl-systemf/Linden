@@ -4,6 +4,7 @@ From Coq Require Import Lia List.
 
 Section ComputeIsTree.
   Context `{characterClass: Character.class}.
+  Context {unicodeProp: Parameters.Property.class Character}.
 
   Lemma lk_succeeds_group_map:
     forall lk treelk gm inp,

@@ -8,6 +8,7 @@ From Warblre Require Import Base Typeclasses.
 
 Section Chars.
   Context `{characterClass: Character.class}.
+  Context {unicodeProp: Parameters.Property.class Character}.
 
   Definition string := list Character.
 
@@ -86,6 +87,7 @@ Section Chars.
   | CdDigits
   | CdWhitespace
   | CdWordChar
+  | CdUnicodeProp (p: Property)
   | CdInv (cd: char_descr)
   | CdRange (l h: Character)
   | CdUnion (cd1 cd2: char_descr).
@@ -100,6 +102,7 @@ Section Chars.
     | CdDigits => inb c Character.digits
     | CdWhitespace => inb c Character.white_spaces || inb c Character.line_terminators
     | CdWordChar => inb c Character.ascii_word_characters (* Temporary; at the end, we'd like to use a rer *)
+    | CdUnicodeProp p => inb c (Property.code_points_for p)
     | CdInv cd' => negb (char_match c cd')
     | CdRange l h => (Character.numeric_value l <=? Character.numeric_value c) && (Character.numeric_value c <=? Character.numeric_value h)
     | CdUnion cd1 cd2 => char_match c cd1 || char_match c cd2
@@ -113,7 +116,7 @@ Section Chars.
   Qed.
 
   Definition char_descr_eq_dec : forall (cd1 cd2: char_descr), { cd1 = cd2 } + { cd1 <> cd2 }.
-  Proof. decide equality; apply Character.eq_dec. Defined.
+  Proof. decide equality; try apply Character.eq_dec. apply Property.unicode_property_eqdec. Defined.
 
 
   (** * Reading Characters in the String *)

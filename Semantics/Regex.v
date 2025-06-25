@@ -41,6 +41,7 @@ Inductive anchor: Type :=
 
 Section Regex.
   Context `{characterClass: Character.class}.
+  Context {unicodeProp: Parameters.Property.class Character}.
   
   (** * Regex Syntax  *)
   Inductive regex : Type :=

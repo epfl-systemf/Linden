@@ -9,6 +9,7 @@ Import Match.
 
 Section EquivDef.
   Context `{characterClass: Character.class}.
+  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
 
   (* Groups that we want to forbid from being defined before matching a regex. *)
   Definition forbidden_groups (reg: regex): list group_id :=

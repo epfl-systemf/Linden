@@ -5,6 +5,7 @@ Import ListNotations.
 
 Section Utilities.
   Context {char: Parameters.Character.class}.
+  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
 
   Definition compute_tr (act: actions) (inp: input) (gm: group_map) (dir: Direction): tree :=
     match compute_tree act inp gm dir (S (actions_fuel act inp dir)) with
@@ -147,7 +148,7 @@ Section Utilities.
     destruct compute_tree; congruence.
   Qed.
 
-  Arguments compute_tree characterClass !act inp gm dir fuel.
+  Arguments compute_tree characterClass unicodeProp !act inp gm dir fuel.
 
   Lemma compute_tr_rw  act inp gm dir:
     compute_tr act inp gm dir = compute_tr_unfold act inp gm dir.

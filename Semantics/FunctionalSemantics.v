@@ -13,6 +13,7 @@ From Coq Require Import Lia DecidableClass.
 
 Section FunctionalSemantics.
   Context `{characterClass: Character.class}.
+  Context {unicodeProp: Parameters.Property.class Character}.
 
 
 

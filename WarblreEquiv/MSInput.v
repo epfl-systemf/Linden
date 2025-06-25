@@ -12,6 +12,7 @@ Local Open Scope result_flow.
 
 Section MSInput.
   Context `{characterClass: Character.class}.
+  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
 
   (* Advance match state by one character *)
   Definition advance_ms (s: MatchState) (dir: Direction): MatchState :=

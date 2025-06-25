@@ -123,6 +123,7 @@ From Warblre Require Import Errors.
 
 Section WarblreLemmas.
   Context `{characterClass: Character.class}.
+  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
 
   Lemma wordCharacters_casesenst:
     forall rer,

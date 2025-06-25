@@ -13,6 +13,7 @@ Local Open Scope bool_scope.
 
 Section LKFactorization.
   Context `{characterClass: Character.class}.
+  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
   
   Definition lkCtx (lkdir: Direction) (pos: bool) :=
     match lkdir, pos with

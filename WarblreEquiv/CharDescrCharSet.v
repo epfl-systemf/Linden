@@ -8,6 +8,7 @@ Local Open Scope result_flow.
 
 Section CharDescrCharSet.
   Context `{characterClass: Character.class}.
+  Context {unicodeProp: Parameters.Property.class Character}.
   
   Definition equiv_cd_charset (cd: char_descr) (charset: CharSet) :=
     forall c: Character, char_match c cd = CharSet.contains charset c.
@@ -95,6 +96,12 @@ Section CharDescrCharSet.
     intros c chr. simpl. symmetry. apply CharSetExt.contains_singleton.
   Qed.
 
+  Lemma equiv_cd_unicodeprop:
+    forall p, equiv_cd_charset (CdUnicodeProp p) (CharSetExt.from_list (Property.code_points_for p)).
+  Proof.
+    intros p c. simpl. now setoid_rewrite CharSetExt.from_list_contains_inb.
+  Qed.
+
   (* Lemma for CharacterClassEscapes *)
   Lemma equiv_cd_CharacterClassEscape:
     forall esc cd rer,
@@ -104,7 +111,7 @@ Section CharDescrCharSet.
              equiv_cd_charset cd a.
   Proof.
     intros esc cd rer Hcasesenst Hequiv.
-    inversion Hequiv as [Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd]; simpl; unfold Coercions.Coercions.wrap_CharSet; eexists; split; try solve[reflexivity].
+    inversion Hequiv as [Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | p Heqesc Heqcd | p Heqesc Heqcd ]; simpl; unfold Coercions.Coercions.wrap_CharSet; eexists; split; try solve[reflexivity].
     - apply equiv_cd_digits.
     - apply equiv_cd_inv. apply equiv_cd_digits.
     - apply equiv_cd_whitespace.
@@ -113,6 +120,8 @@ Section CharDescrCharSet.
       injection H as H. setoid_rewrite H. apply equiv_cd_wordchar.
     - apply equiv_cd_inv. pose proof wordCharacters_casesenst_eq rer Hcasesenst. unfold Semantics.wordCharacters, Coercions.Coercions.wrap_CharSet in H. simpl in H.
       injection H as H. setoid_rewrite H. apply equiv_cd_wordchar.
+    - apply equiv_cd_unicodeprop.
+    - apply equiv_cd_inv. apply equiv_cd_unicodeprop.
   Qed.
 
   (* Lemma for ControlEscapes *)
@@ -133,7 +142,7 @@ Section CharDescrCharSet.
       exists a, Semantics.compileToCharSet_ClassAtom (ClassEsc (CCharacterEsc esc)) rer = Success a /\
              equiv_cd_charset cd a.
   Proof.
-    intros esc cd rer Hequiv. inversion Hequiv as [esc0 cd0 Hequiv' Heqesc Heqcd0 | l cd0 Hequiv' Heqesc Heqcd0 | Heqesc Heqcd | d1 d2 Heqesc Heqcd | c Heqesc Heqcd | head tail Heqesc Heqcd].
+    intros esc cd rer Hequiv. inversion Hequiv as [esc0 cd0 Hequiv' Heqesc Heqcd0 | l cd0 Hequiv' Heqesc Heqcd0 | Heqesc Heqcd | d1 d2 Heqesc Heqcd | c Heqesc Heqcd | head tail Heqesc Heqcd | hex Heqesc Heqcd | c Heqesc Heqcd].
     - apply equiv_cd_ControlEscape. assumption.
     - inversion Hequiv' as [l0 i Heqi Heql0 Heqcd]. subst cd0 l0.
       simpl. rewrite <- Heqi.
@@ -147,6 +156,10 @@ Section CharDescrCharSet.
       unfold Numeric.nat_to_nni. rewrite Character.numeric_pseudo_bij. apply equiv_cd_single.
     - simpl. unfold Coercions.Coercions.wrap_CharSet. eexists. split. 1: reflexivity.
       apply equiv_cd_single.
+    - simpl. unfold Coercions.Coercions.wrap_CharSet. eexists. split. 1: reflexivity.
+      apply equiv_cd_single.
+    - simpl. unfold Coercions.Coercions.wrap_CharSet. eexists. split. 1: reflexivity.
+      unfold Numeric.nat_to_nni. rewrite Character.numeric_pseudo_bij. apply equiv_cd_single.
   Qed.
 
   (* Lemma for ClassEscapes *)
