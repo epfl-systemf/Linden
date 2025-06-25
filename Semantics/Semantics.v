@@ -229,6 +229,9 @@ Section Semantics.
   Definition priotree (r:regex) (str:string) (t:tree): Prop :=
     is_tree [Areg r] (init_input str) GroupMap.empty forward t.
 
+  Definition priotree_inp (r:regex) (inp:input) (t:tree): Prop :=
+    is_tree [Areg r] inp GroupMap.empty forward t.
+
 
   (** * Determinism  *)
   Theorem is_tree_determ:
@@ -292,6 +295,15 @@ Section Semantics.
     unfold priotree. intros r s t1 t2 H H0. eapply is_tree_determ; eauto.
   Qed.
 
+  Corollary priotree_inp_determ:
+    forall r inp t1 t2,
+      priotree_inp r inp t1 ->
+      priotree_inp r inp t2 ->
+      t1 = t2.
+  Proof.
+    unfold priotree_inp. intros r inp t1 t2 H H0. eapply is_tree_determ; eauto.
+  Qed.
+
   (* We could also prove that there always exists a priotree for any regexes and string,
    bu that amounts to proving the termination of the priotree construction. *)
 
@@ -306,6 +318,13 @@ Section Semantics.
       (FIRST: first_branch tree str = res),
       highestprio_result r str res.
 
+  Inductive highestprio_result_inp: regex -> input -> option leaf -> Prop :=
+  | hp_result_inp:
+    forall r inp res tree
+      (TREE: priotree_inp r inp tree)
+      (FIRST: first_leaf tree inp = res),
+      highestprio_result_inp r inp res.
+
   Lemma highestprio_determ:
     forall r str res1 res2,
       highestprio_result r str res1 ->
@@ -313,6 +332,17 @@ Section Semantics.
       res1 = res2.
   Proof.
     intros r str res1 res2 H H0. inversion H. subst.
+    inversion H0. subst.
+    specialize (priotree_determ _ _ _ _ TREE TREE0). intros. subst. auto.
+  Qed.
+
+  Lemma highestprio_inp_determ:
+    forall r inp res1 res2,
+      highestprio_result r inp res1 ->
+      highestprio_result r inp res2 ->
+      res1 = res2.
+  Proof.
+    intros r inp res1 res2 H H0. inversion H. subst.
     inversion H0. subst.
     specialize (priotree_determ _ _ _ _ TREE TREE0). intros. subst. auto.
   Qed.

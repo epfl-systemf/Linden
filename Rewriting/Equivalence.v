@@ -9,6 +9,15 @@ Section Definitions.
   Context {unicodeProp: Parameters.Property.class Parameters.Character}.
 
 
+  (** * Observational equivalence *)
+  Definition observ_equiv (r1 r2: regex): Prop :=
+    forall inp res1 res2
+      (RES1: highestprio_result_inp r1 inp res1)
+      (RES2: highestprio_result_inp r2 inp res2),
+      res1 = res2.
+
+
+  (** ** Preparation for list of leaves equivalence *)
   Definition input_eqb (i1 i2: input): bool :=
     if input_eq_dec i1 i2 then true else false.
 
@@ -810,17 +819,15 @@ Section Congruence.
   (** * Observational Consequence on Backtracking Results  *)
 
   Theorem observe_equivalence:
-    forall r1 r2 str res1 res2
-      (EQUIV: tree_equiv_dir forward r1 r2)
-      (RES1: highestprio_result r1 str res1)
-      (RES2: highestprio_result r2 str res2),
-      res1 = res2.
+    forall r1 r2
+      (EQUIV: tree_equiv_dir forward r1 r2),
+      observ_equiv r1 r2.
   Proof.
-    intros r1 r2 str res1 res2 EQUIV RES1 RES2.
+    intros r1 r2 EQUIV inp res1 res2 RES1 RES2.
     inversion RES1. subst. inversion RES2. subst.
     unfold tree_equiv_dir in EQUIV. destruct EQUIV as [_ EQUIV].
     specialize (EQUIV _ _ _ _ TREE TREE0).
-    unfold first_branch. rewrite first_tree_leaf. rewrite first_tree_leaf.
+    unfold first_leaf. rewrite first_tree_leaf. rewrite first_tree_leaf.
     apply equiv_head. auto.
   Qed.
   (** * BEGIN PLAN *)
