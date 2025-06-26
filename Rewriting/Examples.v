@@ -8,8 +8,27 @@ Section Utilities.
     Sequence r0 (Sequence r1 r2) ≅ Sequence (Sequence r0 r1) r2.
   Proof.
     (* autounfold with tree_equiv; destruct dir; tree_equiv_inv. *)
-    tree_equiv_rw; destruct dir; compute_tr_simpl.
-  Admitted.
+    (*tree_equiv_rw; destruct dir; compute_tr_simpl.*)
+    unfold tree_equiv. intros [].
+    - unfold tree_equiv_dir. split. 1: simpl; apply app_assoc.
+      intros i gm tr1 tr2 TREE1 TREE2. inversion TREE1; subst. inversion TREE2; subst. simpl in *.
+      clear TREE1 TREE2.
+      inversion CONT0; subst. simpl in CONT1.
+      clear CONT0. revert i gm tr1 tr2 CONT CONT1.
+      change (actions_equiv_dir [Areg r0; Areg (Sequence r1 r2)] [Areg r0; Areg r1; Areg r2] forward).
+      apply app_eq_left with (acts := [Areg r0]).
+      unfold actions_equiv_dir. intros inp gm t1 t2 TREE1 TREE2.
+      inversion TREE1; subst. simpl in CONT. replace t2 with t1 by (eapply is_tree_determ; eauto). reflexivity.
+    - unfold tree_equiv_dir. split. 1: simpl; apply app_assoc.
+      intros i gm tr1 tr2 TREE1 TREE2. inversion TREE1; subst. inversion TREE2; subst. simpl in *.
+      clear TREE1 TREE2.
+      inversion CONT; subst. simpl in CONT1.
+      clear CONT. revert i gm tr1 tr2 CONT1 CONT0.
+      change (actions_equiv_dir [Areg r2; Areg r1; Areg r0] [Areg r2; Areg (Sequence r0 r1)] backward).
+      apply app_eq_left with (acts := [Areg r2]).
+      unfold actions_equiv_dir. intros inp gm t1 t2 TREE1 TREE2.
+      inversion TREE2; subst. simpl in CONT. replace t2 with t1 by (eapply is_tree_determ; eauto). reflexivity.
+  Qed.
 
   Hint Constructors is_tree: is_tree.
   Lemma is_tree_skip_epsilon_r a i gm dir tr:
@@ -25,7 +44,29 @@ Section Utilities.
   Qed.
 
   Lemma seq_equiv: forall x x' y y', x ≅ x' -> y ≅ y' -> Sequence x y ≅ Sequence x' y'.
-  Admitted.
+  Proof.
+    intros x x' y y' EQUIV_x EQUIV_y [].
+    - specialize (EQUIV_x forward). specialize (EQUIV_y forward).
+      destruct EQUIV_x as [DEF_GROUPS_x EQUIV_x]. destruct EQUIV_y as [DEF_GROUPS_y EQUIV_y].
+      split. 1: { simpl. rewrite <- DEF_GROUPS_x, DEF_GROUPS_y. reflexivity. }
+      intros i gm tr1 tr2 TREE1 TREE2.
+      inversion TREE1; subst. inversion TREE2; subst. simpl in *. clear TREE1 TREE2.
+      revert i gm tr1 tr2 CONT CONT0.
+      change (actions_equiv_dir [Areg x; Areg y] [Areg x'; Areg y'] forward).
+      change (actions_equiv_dir [Areg x] [Areg x'] forward) in EQUIV_x.
+      change (actions_equiv_dir [Areg y] [Areg y'] forward) in EQUIV_y.
+      apply app_eq_both with (a1 := [Areg x]) (a2 := [Areg x']) (b1 := [Areg y]) (b2 := [Areg y']) (dir := forward); auto.
+    - specialize (EQUIV_x backward). specialize (EQUIV_y backward).
+      destruct EQUIV_x as [DEF_GROUPS_x EQUIV_x]. destruct EQUIV_y as [DEF_GROUPS_y EQUIV_y].
+      split. 1: { simpl. rewrite <- DEF_GROUPS_x, DEF_GROUPS_y. reflexivity. }
+      intros i gm tr1 tr2 TREE1 TREE2.
+      inversion TREE1; subst. inversion TREE2; subst. simpl in *. clear TREE1 TREE2.
+      revert i gm tr1 tr2 CONT CONT0.
+      change (actions_equiv_dir [Areg y; Areg x] [Areg y'; Areg x'] backward).
+      change (actions_equiv_dir [Areg x] [Areg x'] backward) in EQUIV_x.
+      change (actions_equiv_dir [Areg y] [Areg y'] backward) in EQUIV_y.
+      apply app_eq_both with (a1 := [Areg y]) (a2 := [Areg y']) (b1 := [Areg x]) (b2 := [Areg x']); auto.
+  Qed.
 End Utilities.
 
 Section Examples.
@@ -56,22 +97,47 @@ Section Examples.
     reflexivity.
   Qed.
 
-  Lemma quantified_S_equiv n:
+  Lemma quantified_S_equiv_forward n:
     forall delta r,
       def_groups r = [] ->
       (Quantified true (S n) delta r)
-        ≅ (Sequence (Quantified true 1 (NoI.N 0) r) (Quantified true n delta r)).
+        ≅[forward] (Sequence (Quantified true 1 (NoI.N 0) r) (Quantified true n delta r)).
   Proof.
-    induction n; intros.
-    - (*tree_equiv_inv.*)
-      all: admit.
-    -
-      tree_equiv_rw. destruct dir; compute_tr_simpl.
-      all: admit.
-      (* autounfold with tree_equiv; intros * Hf He. *)
-      (* erewrite is_tree_determ with (1 := Hf). *)
-      (* erewrite is_tree_determ with (1 := He). *)
-      (* 2, 3: repeat (econstructor; simpl; rewrite ?app_nil_r; unfold seq_list); *)
-      (* eapply compute_tr_is_tree. *)
-  Admitted.
+    split. 1: { simpl. rewrite H. reflexivity. }
+    intros i gm tr1 tr2 TREE1 TREE2.
+    inversion TREE1; subst. inversion TREE2; subst. simpl in CONT. inversion CONT; subst.
+    clear TREE1 TREE2 CONT.
+    unfold tree_equiv_tr_dir. simpl.
+    remember (GroupMap.reset (def_groups r) gm) as gm'.
+    clear gm Heqgm'.
+    revert i gm' titer titer0 ISTREE1 ISTREE0.
+    change (actions_equiv_dir [Areg r; Areg (Quantified true n delta r)] [Areg r; Areg (Quantified true 0 (NoI.N 0) r); Areg (Quantified true n delta r)] forward).
+    apply app_eq_left with (acts := [Areg r]).
+    unfold actions_equiv_dir. intros inp gm t1 t2 TREE1 TREE2.
+    inversion TREE2; subst.
+    2: { destruct plus; discriminate. }
+    replace t2 with t1 by eauto using is_tree_determ. reflexivity.
+  Qed.
+
+  Lemma quantified_S_equiv_backward n:
+    forall delta r,
+      def_groups r = [] ->
+      (Quantified true (S n) delta r)
+        ≅[backward] (Sequence (Quantified true n delta r) (Quantified true 1 (NoI.N 0) r)).
+  Proof.
+    split. 1: { simpl. rewrite H. reflexivity. }
+    intros i gm tr1 tr2 TREE1 TREE2.
+    inversion TREE1; subst. inversion TREE2; subst. simpl in CONT. inversion CONT; subst.
+    clear TREE1 TREE2 CONT.
+    unfold tree_equiv_tr_dir. simpl.
+    remember (GroupMap.reset (def_groups r) gm) as gm'.
+    clear gm Heqgm'.
+    revert i gm' titer titer0 ISTREE1 ISTREE0.
+    change (actions_equiv_dir [Areg r; Areg (Quantified true n delta r)] [Areg r; Areg (Quantified true 0 (NoI.N 0) r); Areg (Quantified true n delta r)] backward).
+    apply app_eq_left with (acts := [Areg r]).
+    unfold actions_equiv_dir. intros inp gm t1 t2 TREE1 TREE2.
+    inversion TREE2; subst.
+    2: { destruct plus; discriminate. }
+    replace t2 with t1 by eauto using is_tree_determ. reflexivity.
+  Qed.
 End Examples.
