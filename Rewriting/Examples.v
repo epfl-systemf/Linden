@@ -43,11 +43,10 @@ Section Utilities.
       all: eauto with is_tree.
   Qed.
 
-  Lemma seq_equiv: forall x x' y y', x ≅ x' -> y ≅ y' -> Sequence x y ≅ Sequence x' y'.
+  Lemma seq_equiv_dir: forall x x' y y' dir, x ≅[dir] x' -> y ≅[dir] y' -> Sequence x y ≅[dir] Sequence x' y'.
   Proof.
-    intros x x' y y' EQUIV_x EQUIV_y [].
-    - specialize (EQUIV_x forward). specialize (EQUIV_y forward).
-      destruct EQUIV_x as [DEF_GROUPS_x EQUIV_x]. destruct EQUIV_y as [DEF_GROUPS_y EQUIV_y].
+    intros x x' y y' [] EQUIV_x EQUIV_y.
+    - destruct EQUIV_x as [DEF_GROUPS_x EQUIV_x]. destruct EQUIV_y as [DEF_GROUPS_y EQUIV_y].
       split. 1: { simpl. rewrite <- DEF_GROUPS_x, DEF_GROUPS_y. reflexivity. }
       intros i gm tr1 tr2 TREE1 TREE2.
       inversion TREE1; subst. inversion TREE2; subst. simpl in *. clear TREE1 TREE2.
@@ -56,8 +55,7 @@ Section Utilities.
       change (actions_equiv_dir [Areg x] [Areg x'] forward) in EQUIV_x.
       change (actions_equiv_dir [Areg y] [Areg y'] forward) in EQUIV_y.
       apply app_eq_both with (a1 := [Areg x]) (a2 := [Areg x']) (b1 := [Areg y]) (b2 := [Areg y']) (dir := forward); auto.
-    - specialize (EQUIV_x backward). specialize (EQUIV_y backward).
-      destruct EQUIV_x as [DEF_GROUPS_x EQUIV_x]. destruct EQUIV_y as [DEF_GROUPS_y EQUIV_y].
+    - destruct EQUIV_x as [DEF_GROUPS_x EQUIV_x]. destruct EQUIV_y as [DEF_GROUPS_y EQUIV_y].
       split. 1: { simpl. rewrite <- DEF_GROUPS_x, DEF_GROUPS_y. reflexivity. }
       intros i gm tr1 tr2 TREE1 TREE2.
       inversion TREE1; subst. inversion TREE2; subst. simpl in *. clear TREE1 TREE2.
@@ -66,6 +64,12 @@ Section Utilities.
       change (actions_equiv_dir [Areg x] [Areg x'] backward) in EQUIV_x.
       change (actions_equiv_dir [Areg y] [Areg y'] backward) in EQUIV_y.
       apply app_eq_both with (a1 := [Areg y]) (a2 := [Areg y']) (b1 := [Areg x]) (b2 := [Areg x']); auto.
+  Qed.
+
+  Corollary seq_equiv:
+    forall x x' y y', x ≅ x' -> y ≅ y' -> Sequence x y ≅ Sequence x' y'.
+  Proof.
+    intros x x' y y' EQUIV_x EQUIV_y []; auto using seq_equiv_dir.
   Qed.
 End Utilities.
 

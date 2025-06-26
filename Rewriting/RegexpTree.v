@@ -16,10 +16,10 @@ Section RegexpTree.
 |*)
 
   Section BoundedRepetitions.
-    Lemma bounded_util m n delta r:
-      def_groups r = [] -> (* r{m}r{n,n+k} ≅ r{m+n,k}, generalized from regexp_tree *)
+    Lemma bounded_util_fwd m n delta r:
+      def_groups r = [] -> (* r{m}r{n,n+k} ≅[forward] r{m+n,m+n+k}, generalized from regexp_tree *)
       (Sequence (Quantified true m 0 r) (Quantified true n delta r))
-        ≅ Quantified true (m + n) delta r.
+        ≅[forward] Quantified true (m + n) delta r.
     Proof.
       induction m as [ | m' IHm ]; simpl; intros.
       - etransitivity.
@@ -31,38 +31,72 @@ Section RegexpTree.
         apply sequence_epsilon_left_equiv.
         reflexivity.
       - etransitivity.
-        { apply seq_equiv.
-          apply quantified_S_equiv.
+        { apply seq_equiv_dir.
+          apply quantified_S_equiv_forward.
           auto.
           reflexivity. }
         etransitivity; cycle 1.
         { symmetry.
-          eapply quantified_S_equiv.
+          eapply quantified_S_equiv_forward.
           auto. }
         etransitivity.
         { symmetry.
           eapply sequence_assoc_equiv. }
-        eapply seq_equiv.
+        eapply seq_equiv_dir.
         reflexivity.
         auto.
+    Qed.
+
+    Lemma bounded_util_bwd m n delta r:
+      def_groups r = [] -> (* r{n,n+k}r{m} ≅[backward] r{m+n,m+n+k}, generalized from regexp_tree *)
+      (Sequence (Quantified true n delta r) (Quantified true m 0 r))
+        ≅[backward] Quantified true (m + n) delta r.
+    Proof.
+      induction m as [ | m' IHm ]; simpl; intros.
+      - etransitivity.
+        apply seq_equiv_dir.
+        reflexivity.
+        apply quantified_zero_equiv.
+        auto.
+        etransitivity.
+        apply sequence_epsilon_right_equiv.
+        reflexivity.
+      - etransitivity.
+        { apply seq_equiv_dir.
+          reflexivity.
+          apply quantified_S_equiv_backward.
+          auto. }
+        etransitivity; cycle 1.
+        { symmetry.
+          eapply quantified_S_equiv_backward.
+          auto. }
+        etransitivity.
+        { eapply sequence_assoc_equiv. }
+        eapply seq_equiv_dir.
+        auto.
+        reflexivity.
     Qed.
 
     Lemma bounded_bounded_equiv m n r: (* r{m}r{n} ≅ r{m+n} *)
       def_groups r = [] ->
       (Sequence (Quantified true m 0 r) (Quantified true n 0 r))
         ≅ Quantified true (m + n) 0 r.
-    Proof. apply bounded_util. Qed.
+    Proof.
+      intros H [].
+      - apply bounded_util_fwd. auto.
+      - rewrite PeanoNat.Nat.add_comm. apply bounded_util_bwd. auto.
+    Qed.
 
-    Lemma bounded_atmost_equiv m n r: (* r{m}r{0,n} ≅ r{m,m+n} *)
+    Lemma bounded_atmost_equiv m n r: (* r{m}r{0,n} ≅[forward] r{m,m+n} *)
       def_groups r = [] ->
       (Sequence (Quantified true m 0 r) (Quantified true 0 n r))
-        ≅ Quantified true m n r.
-    Proof. intro NO_GROUPS. rewrite bounded_util, PeanoNat.Nat.add_0_r. 1: reflexivity. auto. Qed.
+        ≅[forward] Quantified true m n r.
+    Proof. intro NO_GROUPS. rewrite bounded_util_fwd, PeanoNat.Nat.add_0_r. 1: reflexivity. auto. Qed.
 
-    Lemma bounded_atmost_lazy_equiv (m n: nat) r: (* r{m}r{0,n}? ≅ r{m,m+n}? *)
+    Lemma bounded_atmost_lazy_equiv (m n: nat) r: (* r{m}r{0,n}? ≅[forward] r{m,m+n}? *)
       def_groups r = [] ->
       (Sequence (Quantified true m 0 r) (Quantified false 0 n r))
-        ≅ Quantified false m n r.
+        ≅[forward] Quantified false m n r.
     Proof.
     Admitted.
 
