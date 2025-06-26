@@ -95,17 +95,17 @@ Section Examples.
 
   Lemma quantified_zero_equiv r:
     def_groups r = [] ->
-    Quantified true 0 (NoI.N 0) r ≅ Epsilon.
+    forall greedy, Quantified greedy 0 (NoI.N 0) r ≅ Epsilon.
   Proof.
     tree_equiv_rw; compute_tr_simpl.
     reflexivity.
   Qed.
 
   Lemma quantified_S_equiv_forward n:
-    forall delta r,
+    forall delta r greedy,
       def_groups r = [] ->
-      (Quantified true (S n) delta r)
-        ≅[forward] (Sequence (Quantified true 1 (NoI.N 0) r) (Quantified true n delta r)).
+      (Quantified greedy (S n) delta r)
+        ≅[forward] (Sequence (Quantified greedy 1 (NoI.N 0) r) (Quantified greedy n delta r)).
   Proof.
     split. 1: { simpl. rewrite H. reflexivity. }
     intros i gm tr1 tr2 TREE1 TREE2.
@@ -115,7 +115,7 @@ Section Examples.
     remember (GroupMap.reset (def_groups r) gm) as gm'.
     clear gm Heqgm'.
     revert i gm' titer titer0 ISTREE1 ISTREE0.
-    change (actions_equiv_dir [Areg r; Areg (Quantified true n delta r)] [Areg r; Areg (Quantified true 0 (NoI.N 0) r); Areg (Quantified true n delta r)] forward).
+    change (actions_equiv_dir [Areg r; Areg (Quantified greedy n delta r)] [Areg r; Areg (Quantified greedy 0 (NoI.N 0) r); Areg (Quantified greedy n delta r)] forward).
     apply app_eq_left with (acts := [Areg r]).
     unfold actions_equiv_dir. intros inp gm t1 t2 TREE1 TREE2.
     inversion TREE2; subst.
@@ -124,10 +124,10 @@ Section Examples.
   Qed.
 
   Lemma quantified_S_equiv_backward n:
-    forall delta r,
+    forall delta r greedy,
       def_groups r = [] ->
-      (Quantified true (S n) delta r)
-        ≅[backward] (Sequence (Quantified true n delta r) (Quantified true 1 (NoI.N 0) r)).
+      (Quantified greedy (S n) delta r)
+        ≅[backward] (Sequence (Quantified greedy n delta r) (Quantified greedy 1 (NoI.N 0) r)).
   Proof.
     split. 1: { simpl. rewrite H. reflexivity. }
     intros i gm tr1 tr2 TREE1 TREE2.
@@ -137,11 +137,30 @@ Section Examples.
     remember (GroupMap.reset (def_groups r) gm) as gm'.
     clear gm Heqgm'.
     revert i gm' titer titer0 ISTREE1 ISTREE0.
-    change (actions_equiv_dir [Areg r; Areg (Quantified true n delta r)] [Areg r; Areg (Quantified true 0 (NoI.N 0) r); Areg (Quantified true n delta r)] backward).
+    change (actions_equiv_dir [Areg r; Areg (Quantified greedy n delta r)] [Areg r; Areg (Quantified greedy 0 (NoI.N 0) r); Areg (Quantified greedy n delta r)] backward).
     apply app_eq_left with (acts := [Areg r]).
     unfold actions_equiv_dir. intros inp gm t1 t2 TREE1 TREE2.
     inversion TREE2; subst.
     2: { destruct plus; discriminate. }
     replace t2 with t1 by eauto using is_tree_determ. reflexivity.
+  Qed.
+
+  Lemma quantified_delta0_greedy_irrelevant r:
+    forall n,
+      Quantified true n 0 r ≅ Quantified false n 0 r.
+  Proof.
+    induction n as [|n IHn].
+    - tree_equiv_rw; compute_tr_simpl. reflexivity.
+    - intro dir. specialize (IHn dir).
+      split. 1: reflexivity.
+      intros i gm tr1 tr2 TREE1 TREE2.
+      inversion TREE1; subst. inversion TREE2; subst. clear TREE1 TREE2.
+      unfold tree_equiv_tr_dir. simpl.
+      remember (GroupMap.reset _ gm) as gm'. clear gm Heqgm'.
+      revert i gm' titer titer0 ISTREE1 ISTREE0.
+      change (actions_equiv_dir [Areg r; Areg (Quantified true n 0 r)] [Areg r; Areg (Quantified false n 0 r)] dir).
+      apply app_eq_left with (acts := [Areg r]).
+      unfold actions_equiv_dir. intros inp gm t1 t2 TREE1 TREE2.
+      apply IHn; auto.
   Qed.
 End Examples.

@@ -112,15 +112,51 @@ Section RegexpTree.
         auto.
         reflexivity.
         apply sequence_epsilon_left_equiv.
-      - 
-    Admitted.
+      - etransitivity.
+        { apply seq_equiv_dir.
+          apply quantified_S_equiv_forward.
+          auto.
+          reflexivity. }
+        etransitivity; cycle 1.
+        { symmetry.
+          eapply quantified_S_equiv_forward.
+          auto. }
+        etransitivity.
+        { symmetry.
+          eapply sequence_assoc_equiv. }
+        eapply seq_equiv_dir.
+        apply quantified_delta0_greedy_irrelevant.
+        auto.
+    Qed.
 
     Lemma atmost_bounded_lazy_equiv (m n: nat) r: (* r{0,n}?r{m} ≅[backward] r{m,m+n}? *)
       def_groups r = [] ->
       (Sequence (Quantified false 0 n r) (Quantified true m 0 r))
         ≅[backward] Quantified false m n r.
     Proof.
-    Admitted.
+      intro NO_GROUPS.
+      induction m as [|m IHm]; simpl.
+      - etransitivity.
+        apply seq_equiv_dir.
+        reflexivity.
+        apply quantified_zero_equiv.
+        auto.
+        apply sequence_epsilon_right_equiv.
+      - etransitivity.
+        { apply seq_equiv_dir.
+          reflexivity.
+          apply quantified_S_equiv_backward.
+          auto. }
+        etransitivity; cycle 1.
+        { symmetry.
+          eapply quantified_S_equiv_backward.
+          auto. }
+        etransitivity.
+        { eapply sequence_assoc_equiv. }
+        eapply seq_equiv_dir.
+        auto.
+        apply quantified_delta0_greedy_irrelevant.
+    Qed.
 
     Context (c0 c1 c2: Parameters.Character).
     Context (H01: c0 <> c1) (H12: c0 <> c2) (H02: c1 <> c2) .
