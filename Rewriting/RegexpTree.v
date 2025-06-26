@@ -99,7 +99,7 @@ Section RegexpTree.
         ≅[backward] Quantified true m n r.
     Proof. intro NO_GROUPS. rewrite bounded_util_bwd, PeanoNat.Nat.add_0_r. 1: reflexivity. auto. Qed.
 
-    Lemma bounded_atmost_lazy_equiv (m n: nat) r: (* r{m}r{0,n}? ≅[forward] r{m,m+n}? *)
+    Lemma bounded_atmost_lazy_equiv m n r: (* r{m}r{0,n}? ≅[forward] r{m,m+n}? *)
       def_groups r = [] ->
       (Sequence (Quantified true m 0 r) (Quantified false 0 n r))
         ≅[forward] Quantified false m n r.
@@ -129,7 +129,7 @@ Section RegexpTree.
         auto.
     Qed.
 
-    Lemma atmost_bounded_lazy_equiv (m n: nat) r: (* r{0,n}?r{m} ≅[backward] r{m,m+n}? *)
+    Lemma atmost_bounded_lazy_equiv m n r: (* r{0,n}?r{m} ≅[backward] r{m,m+n}? *)
       def_groups r = [] ->
       (Sequence (Quantified false 0 n r) (Quantified true m 0 r))
         ≅[backward] Quantified false m n r.
