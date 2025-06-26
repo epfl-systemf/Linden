@@ -172,9 +172,136 @@ Section RegexpTree.
       compute_tr_cbv; inversion 1.
     Qed.
 
+    Definition incl {A} (a b: list A) :=
+      forall x, In x a -> In x b.
+
+    Definition funct_incl {A B} (f1 f2: A -> list B -> Prop) :=
+      forall a l1 l2, f1 a l1 -> f2 a l2 -> incl l1 l2.
+
+    Lemma flatmap_incl {A B}:
+      forall (leaves: list A) (f1 f2: A -> list B -> Prop) leaves1 leaves2,
+        FlatMap leaves f1 leaves1 ->
+        FlatMap leaves f2 leaves2 ->
+        funct_incl f1 f2 ->
+        incl leaves1 leaves2.
+    Proof.
+      intros leaves f1 f2 leaves1 leaves2 FM1 FM2 INCL.
+      generalize dependent leaves2.
+      induction FM1.
+      - intros _ _ _ [].
+      - specialize (IHFM1 INCL). intros leaves2 FM2 lf Hin.
+        inversion FM2; subst.
+        specialize (INCL _ _ _ HEAD HEAD0).
+        apply in_app_or in Hin. destruct Hin.
+        + apply in_or_app. left. auto.
+        + apply in_or_app. right. unfold incl in IHFM1. auto.
+    Qed.
+
+    Lemma atmost_leaves_incl' (m d: nat) r:
+      forall inp gm dir tm tn,
+        is_tree [Areg (Quantified true 0 m r)] inp gm dir tm ->
+        is_tree [Areg (Quantified true 0 (m+d) r)] inp gm dir tn ->
+        incl (tree_leaves tm gm inp dir) (tree_leaves tn gm inp dir).
+    Proof.
+      induction m as [|m IHm].
+      - intros inp gm dir tm tn TREE_m TREE_n.
+        inversion TREE_m; subst. 2: { destruct plus; discriminate. }
+        inversion SKIP; subst.
+        inversion TREE_n; subst.
+        + inversion SKIP0; subst. unfold incl. auto.
+        + inversion SKIP0; subst. simpl.
+          intros lf H. destruct H; try solve[inversion H]. subst lf.
+          apply in_or_app. right. left. reflexivity.
+      - intros inp gm dir tm tn TREE_m TREE_n.
+        inversion TREE_m; subst.
+        simpl in TREE_n.
+        inversion TREE_n; subst. clear TREE_m TREE_n.
+        assert (plus = m). { destruct plus; try discriminate. injection H1 as ->. reflexivity. }
+        assert (plus0 = m + d). { destruct plus0; try discriminate. injection H2 as ->. reflexivity. }
+        subst plus plus0. clear H1 H2.
+        inversion SKIP; subst. inversion SKIP0; subst.
+        simpl.
+        assert (TREErcheck: exists trcheck, is_tree [Areg r; Acheck inp] inp (GroupMap.reset (def_groups r) gm) dir trcheck). {
+          eexists. eapply compute_tr_is_tree.
+        }
+        destruct TREErcheck as [trcheck TREErcheck].
+        pose proof leaves_concat _ _ _ [Areg r; Acheck inp] _ _ _ ISTREE1 TREErcheck as CONCAT.
+        pose proof leaves_concat _ _ _ [Areg r; Acheck inp] _ _ _ ISTREE0 TREErcheck as CONCAT0.
+        intros lf Hin.
+        apply in_app_or in Hin. destruct Hin.
+        + apply in_or_app. left. eapply (flatmap_incl _ _ _ _ _ CONCAT CONCAT0); eauto.
+          unfold funct_incl. intros a l1 l2 ACT1 ACT2.
+          inversion ACT1; subst. inversion ACT2; subst. apply IHm; auto.
+        + apply in_or_app. auto. 
+    Qed.
+
+    Corollary atmost_leaves_incl (m n: nat) r:
+      m <= n ->
+      forall inp gm dir tm tn,
+        is_tree [Areg (Quantified true 0 m r)] inp gm dir tm ->
+        is_tree [Areg (Quantified true 0 n r)] inp gm dir tn ->
+        incl (tree_leaves tm gm inp dir) (tree_leaves tn gm inp dir).
+    Proof.
+      intros. apply atmost_leaves_incl' with (m := m) (d := n-m) (r := r) (tm := tm); auto.
+      replace (m + (n - m)) with n by lia. auto.
+    Qed.
+
     Lemma atmost_atmost_equiv (m n: nat) r: (* r{0,m}r{0,n} ≅ r{0,m+n} *)
+      def_groups r = [] ->
       (Sequence (Quantified true 0 m r) (Quantified true 0 n r))
         ≅ Quantified true 0 (m + n) r.
+    Proof.
+      intros NO_GROUPS [].
+      {
+        induction m as [|m IHm].
+        - etransitivity.
+          apply seq_equiv.
+          apply quantified_zero_equiv.
+          auto.
+          reflexivity.
+          apply sequence_epsilon_left_equiv.
+        - split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
+          intros i gm tr1 tr2 TREE1 TREE2. simpl in TREE2.
+          inversion TREE1; subst. rewrite app_nil_r in CONT. inversion TREE2; subst. inversion SKIP; subst.
+          simpl. clear TREE1 TREE2.
+          simpl in CONT.
+          inversion CONT; subst. clear CONT. simpl.
+          assert (plus = m + n). { destruct plus; try discriminate. injection H1 as ->. reflexivity. }
+          assert (plus0 = m). { destruct plus0; try discriminate. injection H2 as ->. reflexivity. }
+          subst plus plus0. clear H1 H2.
+          unfold tree_equiv_tr_dir. simpl.
+          inversion SKIP0; subst; simpl.
+          + inversion SKIP1; subst. simpl. apply leaves_equiv_app. 2: reflexivity.
+            clear SKIP SKIP0 SKIP1.
+            remember i as i' in ISTREE1 at 1, ISTREE0 at 1. clear Heqi'.
+            remember (GroupMap.reset (def_groups r) gm) as gm'. clear gm Heqgm'.
+            revert i gm' titer0 titer ISTREE0 ISTREE1.
+            apply app_eq_left with (acts := [Areg r; Acheck i']).
+            destruct IHm as [_ IHm].
+            unfold actions_equiv_dir. intros inp gm t1 t2 TREE1 TREE2.
+            apply IHm; auto.
+            apply tree_sequence. rewrite app_nil_r. simpl. auto.
+          + inversion SKIP1; subst. simpl.
+            clear SKIP SKIP0 SKIP1.
+            destruct n as [|n]. 1: { destruct plus; discriminate. }
+            assert (plus = n). { destruct plus; try discriminate. now injection H1 as ->. }
+            subst plus. clear H1.
+            assert (INCL: forall lf, In lf (tree_leaves titer1 (GroupMap.reset (def_groups r) gm) i
+              forward) -> In lf (tree_leaves titer (GroupMap.reset (def_groups r) gm) i
+              forward)) by admit.
+            assert (EQUIV: leaves_equiv [] (tree_leaves titer0 (GroupMap.reset (def_groups r) gm) i
+              forward) (tree_leaves titer (GroupMap.reset (def_groups r) gm) i forward)). {
+              clear INCL ISTREE2 titer1.
+              remember (GroupMap.reset (def_groups r) gm) as gm'. clear gm Heqgm'.
+              remember i as i' in ISTREE1 at 1, ISTREE0 at 1. clear Heqi'.
+              revert i gm' titer0 titer ISTREE0 ISTREE1.
+              apply app_eq_left with (acts := [Areg r; Acheck i']).
+              unfold actions_equiv_dir. intros. apply IHm; auto.
+              apply tree_sequence. rewrite app_nil_r. auto.
+            }
+
+      }
+      { admit. }
     Admitted.
 
     (* TODO: Change nequiv to be contextual *)
