@@ -254,13 +254,33 @@ Section RegexpTree.
       intros. apply atmost_leaves_incl' with (m := m) (d := +∞) (r := r) (tm := tm); auto.
     Qed.
 
+    Lemma leaves_equiv_incl':
+      forall a b c: list leaf,
+        leaves_equiv [] a b ->
+        incl c b ->
+        leaves_equiv [] (a ++ c) b.
+    Proof.
+      intros. symmetry. rewrite <- app_nil_r with (l := b).
+      apply leaves_equiv_app2.
+      - now symmetry.
+      - rewrite app_nil_r. induction c.
+        + reflexivity.
+        + destruct a0 as [inp gm]. apply equiv_seen_right.
+          * apply is_seen_spec. unfold incl in H0. apply H0. left. reflexivity.
+          * apply IHc. intros x Hin. apply H0. right. auto.
+    Qed.
+
     Lemma leaves_equiv_incl:
       forall a b c d e: list leaf,
         leaves_equiv [] a b -> leaves_equiv [] d e ->
         incl c b ->
         leaves_equiv [] (a ++ c ++ d) (b ++ e).
     Proof.
-    Admitted.
+      intros. rewrite app_assoc.
+      apply leaves_equiv_app; auto. apply leaves_equiv_incl'; auto.
+    Qed.
+
+    Search leaves_equiv.
 
     Lemma atmost_atmost_equiv_actions_mnat (m: nat) (n: non_neg_integer_or_inf) r:
       forall dir, actions_equiv_dir [Areg (Quantified true 0 m r); Areg (Quantified true 0 n r)]
