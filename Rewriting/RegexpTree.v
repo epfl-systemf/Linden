@@ -246,6 +246,14 @@ Section RegexpTree.
       replace (m + (n - m)) with n by lia. auto.
     Qed.
 
+    Lemma leaves_equiv_incl:
+      forall a b c d e: list leaf,
+        leaves_equiv [] a b -> leaves_equiv [] d e ->
+        incl c b ->
+        leaves_equiv [] (a ++ c ++ d) (b ++ e).
+    Proof.
+    Admitted.
+
     Lemma atmost_atmost_equiv (m n: nat) r: (* r{0,m}r{0,n} ≅ r{0,m+n} *)
       def_groups r = [] ->
       (Sequence (Quantified true 0 m r) (Quantified true 0 n r))
@@ -286,9 +294,19 @@ Section RegexpTree.
             destruct n as [|n]. 1: { destruct plus; discriminate. }
             assert (plus = n). { destruct plus; try discriminate. now injection H1 as ->. }
             subst plus. clear H1.
-            assert (INCL: forall lf, In lf (tree_leaves titer1 (GroupMap.reset (def_groups r) gm) i
-              forward) -> In lf (tree_leaves titer (GroupMap.reset (def_groups r) gm) i
-              forward)) by admit.
+            assert (INCL: incl (tree_leaves titer1 (GroupMap.reset (def_groups r) gm) i
+              forward) (tree_leaves titer (GroupMap.reset (def_groups r) gm) i
+              forward)). {
+              assert (TREErcheck: exists trcheck, is_tree [Areg r; Acheck i] i (GroupMap.reset (def_groups r) gm) forward trcheck)
+                by (eexists; eapply compute_tr_is_tree).
+              destruct TREErcheck as [trcheck TREErcheck].
+              pose proof leaves_concat _ _ _ [Areg r; Acheck i] [Areg (Quantified true 0 n r)] _ _ ISTREE2 TREErcheck as CONCAT2.
+              pose proof leaves_concat _ _ _ [Areg r; Acheck i] [Areg (Quantified true 0 (m + S n) r)] _ _ ISTREE1 TREErcheck as CONCAT1.
+              eapply (flatmap_incl _ _ _ _ _ CONCAT2 CONCAT1); eauto.
+              unfold funct_incl. intros a l1 l2 ACT1 ACT2.
+              inversion ACT1; subst. inversion ACT2; subst.
+              apply atmost_leaves_incl with (m := n) (n := m + S n) (r := r); eauto. lia.
+            }
             assert (EQUIV: leaves_equiv [] (tree_leaves titer0 (GroupMap.reset (def_groups r) gm) i
               forward) (tree_leaves titer (GroupMap.reset (def_groups r) gm) i forward)). {
               clear INCL ISTREE2 titer1.
@@ -299,10 +317,69 @@ Section RegexpTree.
               unfold actions_equiv_dir. intros. apply IHm; auto.
               apply tree_sequence. rewrite app_nil_r. auto.
             }
-
+            apply leaves_equiv_incl; auto. reflexivity.
       }
-      { admit. }
-    Admitted.
+      {
+        induction n as [|n IHn].
+        - etransitivity.
+          apply seq_equiv.
+          reflexivity.
+          apply quantified_zero_equiv.
+          auto.
+          rewrite PeanoNat.Nat.add_0_r.
+          apply sequence_epsilon_right_equiv.
+        - split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
+          intros i gm tr1 tr2 TREE1 TREE2.
+          inversion TREE1; subst. rewrite app_nil_r in CONT. inversion TREE2; subst. 1: lia. inversion SKIP; subst.
+          simpl. clear TREE1 TREE2.
+          simpl in CONT.
+          inversion CONT; subst. clear CONT. simpl.
+          assert (plus = m + n). { destruct plus; try discriminate. injection H1 as H1. f_equal. 2: lia. intros ->. reflexivity. }
+          assert (plus0 = n). { destruct plus0; try discriminate. injection H2 as ->. reflexivity. }
+          subst plus plus0. clear H1 H2.
+          unfold tree_equiv_tr_dir. simpl.
+          inversion SKIP0; subst; simpl.
+          + inversion SKIP1; subst. simpl. apply leaves_equiv_app. 2: reflexivity.
+            clear SKIP SKIP0 SKIP1.
+            remember i as i' in ISTREE1 at 1, ISTREE0 at 1. clear Heqi'.
+            remember (GroupMap.reset (def_groups r) gm) as gm'. clear gm Heqgm'.
+            revert i gm' titer0 titer ISTREE0 ISTREE1.
+            apply app_eq_left with (acts := [Areg r; Acheck i']).
+            destruct IHn as [_ IHn].
+            unfold actions_equiv_dir. intros inp gm t1 t2 TREE1 TREE2.
+            apply IHn; auto.
+            apply tree_sequence. rewrite app_nil_r. simpl. auto.
+          + inversion SKIP1; subst. simpl.
+            clear SKIP SKIP0 SKIP1.
+            destruct m as [|m]. 1: { destruct plus; discriminate. }
+            assert (plus = m). { destruct plus; try discriminate. now injection H1 as ->. }
+            subst plus. clear H1.
+            assert (INCL: incl (tree_leaves titer1 (GroupMap.reset (def_groups r) gm) i
+              backward) (tree_leaves titer (GroupMap.reset (def_groups r) gm) i
+              backward)). {
+              assert (TREErcheck: exists trcheck, is_tree [Areg r; Acheck i] i (GroupMap.reset (def_groups r) gm) backward trcheck)
+                by (eexists; eapply compute_tr_is_tree).
+              destruct TREErcheck as [trcheck TREErcheck].
+              pose proof leaves_concat _ _ _ [Areg r; Acheck i] [Areg (Quantified true 0 m r)] _ _ ISTREE2 TREErcheck as CONCAT2.
+              pose proof leaves_concat _ _ _ [Areg r; Acheck i] [Areg (Quantified true 0 (S m + n) r)] _ _ ISTREE1 TREErcheck as CONCAT1.
+              eapply (flatmap_incl _ _ _ _ _ CONCAT2 CONCAT1); eauto.
+              unfold funct_incl. intros a l1 l2 ACT1 ACT2.
+              inversion ACT1; subst. inversion ACT2; subst.
+              apply atmost_leaves_incl with (m := m) (n := S m + n) (r := r); eauto. lia.
+            }
+            assert (EQUIV: leaves_equiv [] (tree_leaves titer0 (GroupMap.reset (def_groups r) gm) i
+              backward) (tree_leaves titer (GroupMap.reset (def_groups r) gm) i backward)). {
+              clear INCL ISTREE2 titer1.
+              remember (GroupMap.reset (def_groups r) gm) as gm'. clear gm Heqgm'.
+              remember i as i' in ISTREE1 at 1, ISTREE0 at 1. clear Heqi'.
+              revert i gm' titer0 titer ISTREE0 ISTREE1.
+              apply app_eq_left with (acts := [Areg r; Acheck i']).
+              unfold actions_equiv_dir. intros. apply IHn; auto.
+              apply tree_sequence. rewrite app_nil_r. auto.
+            }
+            apply leaves_equiv_incl; auto. reflexivity.
+      }
+    Qed.
 
     (* TODO: Change nequiv to be contextual *)
     Lemma atmost_lazy_atmost_lazy_nequiv: (* r{0,m}?r{0,n}? ≇ r{0,m+n}? *)
