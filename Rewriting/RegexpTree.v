@@ -317,12 +317,108 @@ Section RegexpTree.
           apply leaves_equiv_incl; auto. reflexivity.
     Qed.
 
-    Lemma atmost_atmost_equiv_nat (m n: nat) r: (* r{0,m}r{0,n} ≅ r{0,m+n} *)
+    Lemma atmost_atmost_equiv_actions_minf (n: non_neg_integer_or_inf) r:
+      forall dir, actions_equiv_dir [Areg (Quantified true 0 +∞ r); Areg (Quantified true 0 n r)]
+        [Areg (Quantified true 0 +∞ r)] dir.
+    Proof.
+      unfold actions_equiv_dir.
+      intros dir inp.
+      remember (remaining_length inp dir) as l.
+      assert (Hlength_le: remaining_length inp dir <= l) by lia. clear Heql.
+      generalize dependent inp.
+      induction l as [|l IHl].
+      - (* At end of input; iterating the regex can never succeed because the subsequent
+        check will always fail *)
+        intros inp Hend gm t1 t2 TREE1 TREE2.
+        inversion TREE1; subst. inversion TREE2; subst.
+        inversion SKIP0; subst. simpl.
+        assert (NO_LEAVES: actions_no_leaves [Areg r; Acheck inp; Areg (Quantified true 0 plus r);
+          Areg (Quantified true 0 n r)] dir). {
+          apply actions_no_leaves_add_left with (a := [Areg r]).
+          apply actions_no_leaves_add_right with (a := [Acheck inp]) (b := [Areg (Quantified true 0 plus r);
+            Areg (Quantified true 0 n r)]).
+          apply check_end_no_leaves. lia.
+        }
+        assert (NO_LEAVES0: actions_no_leaves [Areg r; Acheck inp;
+          Areg (Quantified true 0 plus0 r)] dir). {
+          apply actions_no_leaves_add_left with (a := [Areg r]).
+          apply actions_no_leaves_add_right with (a := [Acheck inp]) (b := [Areg (Quantified true 0 plus0 r)]).
+          apply check_end_no_leaves. lia.
+        }
+        unfold actions_no_leaves in NO_LEAVES, NO_LEAVES0.
+        rewrite NO_LEAVES by auto. rewrite NO_LEAVES0 with (gm := GroupMap.reset _ gm) by auto.
+        clear NO_LEAVES NO_LEAVES0 ISTREE1 ISTREE0 SKIP0 TREE1 TREE2.
+        inversion SKIP; subst.
+        + inversion SKIP0; subst. simpl. reflexivity.
+        + inversion SKIP0; subst. simpl.
+          assert (NO_LEAVES1: actions_no_leaves [Areg r; Acheck inp;
+            Areg (Quantified true 0 plus1 r)] dir). {
+            apply actions_no_leaves_add_left with (a := [Areg r]).
+            apply actions_no_leaves_add_right with (a := [Acheck inp]) (b := [Areg (Quantified true 0 plus1 r)]).
+            apply check_end_no_leaves. lia.
+          }
+          rewrite NO_LEAVES1 by auto. reflexivity.
+
+      - (* Not at end of input *)
+        intros inp Hremlength gm t1 t2 TREE1 TREE2.
+        inversion TREE1; subst. inversion TREE2; subst. inversion SKIP0; subst.
+        simpl. clear TREE1 TREE2 SKIP0.
+        assert (plus = +∞). { destruct plus; try discriminate. reflexivity. }
+        assert (plus0 = +∞). { destruct plus0; try discriminate. reflexivity. }
+        subst plus plus0. clear H1 H2.
+        assert (EQUIV: leaves_equiv [] 
+          (tree_leaves titer (GroupMap.reset (def_groups r) gm) inp dir)
+          (tree_leaves titer0 (GroupMap.reset (def_groups r) gm) inp dir)). {
+          apply actions_equiv_interm_prop with
+            (a1 := [Areg r; Acheck inp]) (a2 := [Areg r; Acheck inp])
+            (b1 := [Areg (Quantified true 0 +∞ r); Areg (Quantified true 0 n r)])
+            (b2 := [Areg (Quantified true 0 +∞ r)])
+            (P := fun lf => StrictSuffix.strict_suffix (fst lf) inp dir)
+            (dir := dir).
+          - unfold actions_equiv_dir. intros.
+            replace t2 with t1 by eauto using is_tree_determ. reflexivity.
+          - apply actions_respect_prop_add_left with (a := [Areg r]) (b := [Acheck inp]).
+            apply check_actions_prop.
+          - apply actions_respect_prop_add_left with (a := [Areg r]) (b := [Acheck inp]).
+            apply check_actions_prop.
+          - unfold actions_equiv_dir_cond. intros lf SS t1 t2 TREE1 TREE2.
+            apply IHl; auto. pose proof strict_suffix_remaining_length _ _ _ SS. lia.
+          - auto.
+          - auto.
+        }
+        inversion SKIP; subst; clear SKIP.
+        + inversion SKIP0; subst; clear SKIP0. simpl.
+          apply leaves_equiv_app. 2: reflexivity. auto.
+        + rename plus into n. inversion SKIP0; subst; clear SKIP0. simpl.
+          assert (INCL: incl (tree_leaves titer1 (GroupMap.reset (def_groups r) gm) inp
+            dir) (tree_leaves titer0 (GroupMap.reset (def_groups r) gm) inp
+            dir)). {
+            assert (TREErcheck: exists trcheck, is_tree [Areg r; Acheck inp] inp (GroupMap.reset (def_groups r) gm) dir trcheck)
+              by (eexists; eapply compute_tr_is_tree).
+            destruct TREErcheck as [trcheck TREErcheck].
+            pose proof leaves_concat _ _ _ [Areg r; Acheck inp] [Areg (Quantified true 0 n r)] _ _ ISTREE2 TREErcheck as CONCAT2.
+            pose proof leaves_concat _ _ _ [Areg r; Acheck inp] [Areg (Quantified true 0 +∞ r)] _ _ ISTREE0 TREErcheck as CONCAT0.
+            eapply (flatmap_incl _ _ _ _ _ CONCAT2 CONCAT0); eauto.
+            unfold funct_incl. intros a l1 l2 ACT1 ACT2.
+            inversion ACT1; subst. inversion ACT2; subst.
+            destruct n as [n|].
+            - apply atmost_leaves_incl_infty with (m := n) (r := r); auto.
+            - replace t0 with t by eauto using is_tree_determ. unfold incl. auto.
+          }
+          apply leaves_equiv_incl; auto. reflexivity.
+    Qed.
+
+
+
+    Lemma atmost_atmost_equiv (m n: non_neg_integer_or_inf) r: (* r{0,m}r{0,n} ≅ r{0,m+n} *)
       def_groups r = [] ->
       (Sequence (Quantified true 0 m r) (Quantified true 0 n r))
-        ≅ Quantified true 0 (m + n) r.
+        ≅ Quantified true 0 (m + n)%NoI r.
     Proof.
-      intros NO_GROUPS [].
+      destruct m as [m|]; destruct n as [n|]; intros NO_GROUPS [].
+      (* For each of the subsections, we prove the forward then the backward direction *)
+
+      (* m and n are finite *)
       {
         split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
         intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
@@ -333,8 +429,50 @@ Section RegexpTree.
         split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
         intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
         simpl in CONT. revert i gm tr1 tr2 CONT.
-        rewrite PeanoNat.Nat.add_comm.
+        simpl. rewrite PeanoNat.Nat.add_comm.
         apply atmost_atmost_equiv_actions_mnat.
+      }
+
+      (* m is finite, n is infinite *)
+      {
+        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
+        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
+        simpl in CONT. revert i gm tr1 tr2 CONT.
+        simpl. apply atmost_atmost_equiv_actions_mnat.
+      }
+      {
+        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
+        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
+        simpl in CONT. revert i gm tr1 tr2 CONT.
+        simpl. apply atmost_atmost_equiv_actions_minf.
+      }
+
+      (* m is infinite, n is finite *)
+      {
+        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
+        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
+        simpl in CONT. revert i gm tr1 tr2 CONT.
+        simpl. apply atmost_atmost_equiv_actions_minf.
+      }
+      {
+        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
+        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
+        simpl in CONT. revert i gm tr1 tr2 CONT.
+        simpl. apply atmost_atmost_equiv_actions_mnat.
+      }
+
+      (* Both m and n are infinite *)
+      {
+        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
+        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
+        simpl in CONT. revert i gm tr1 tr2 CONT.
+        simpl. apply atmost_atmost_equiv_actions_minf.
+      }
+      {
+        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
+        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
+        simpl in CONT. revert i gm tr1 tr2 CONT.
+        simpl. apply atmost_atmost_equiv_actions_minf.
       }
     Qed.
 
