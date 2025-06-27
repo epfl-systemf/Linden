@@ -280,8 +280,6 @@ Section RegexpTree.
       apply leaves_equiv_app; auto. apply leaves_equiv_incl'; auto.
     Qed.
 
-    Search leaves_equiv.
-
     Lemma atmost_atmost_equiv_actions_mnat (m: nat) (n: non_neg_integer_or_inf) r:
       forall dir, actions_equiv_dir [Areg (Quantified true 0 m r); Areg (Quantified true 0 n r)]
         [Areg (Quantified true 0 (NoI.add m n) r)] dir.

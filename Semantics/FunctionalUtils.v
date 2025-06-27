@@ -150,10 +150,97 @@ Section Utilities.
 
   Arguments compute_tree characterClass unicodeProp !act inp gm dir fuel.
 
-  Lemma compute_tr_rw  act inp gm dir:
+  Lemma compute_tr_rw act inp gm dir:
     compute_tr act inp gm dir = compute_tr_unfold act inp gm dir.
   Proof.
-  Admitted.
+    unfold compute_tr.
+    pose proof compute_tree_compute_tr act inp gm dir as HnotNone.
+    destruct act as [|act cont]; simpl in *.
+    { reflexivity. }
+    destruct act.
+    - destruct r.
+      + set (treecont_opt := compute_tree cont inp gm dir _) in *.
+        assert (treecont_opt <> None). { destruct treecont_opt; discriminate. }
+        apply compute_tree_None_compute_tr in H. fold treecont_opt in H.
+        rewrite H in *. reflexivity.
+      + destruct read_char as [[c nextinp]|]. 2: reflexivity.
+        set (treecont_opt := compute_tree cont nextinp gm dir _) in *.
+        assert (treecont_opt <> None). { destruct treecont_opt; discriminate. }
+        apply compute_tree_None_compute_tr in H. fold treecont_opt in H.
+        rewrite H in *. reflexivity.
+      + set (t1_opt := compute_tree (Areg r1 :: cont) inp gm dir (regex_fuel (Disjunction r1 r2) inp dir + actions_fuel cont inp dir)) in *.
+        assert (t1_opt <> None). { destruct t1_opt; discriminate. }
+        apply compute_tree_None_compute_tr in H. fold t1_opt in H.
+        rewrite H in *.
+        set (t2_opt := compute_tree (Areg r2 :: cont) inp gm dir (regex_fuel (Disjunction r1 r2) inp dir + actions_fuel cont inp dir)) in *.
+        assert (t2_opt <> None). { destruct t2_opt; discriminate. }
+        apply compute_tree_None_compute_tr in H0. fold t2_opt in H0.
+        rewrite H0 in *. reflexivity.
+      + set (tr_opt := compute_tree _ inp gm dir _) in *.
+        assert (tr_opt <> None). { destruct tr_opt; discriminate. }
+        apply compute_tree_None_compute_tr in H. fold tr_opt in H.
+        rewrite H in *. reflexivity.
+      + destruct min as [|min'].
+        * destruct delta as [[|n']|].
+          -- set (tr_opt := compute_tree cont inp gm dir _) in *.
+             assert (tr_opt <> None). { destruct tr_opt; discriminate. }
+             apply compute_tree_None_compute_tr in H. fold tr_opt in H.
+             rewrite H in *. reflexivity.
+          -- set (titer_opt := compute_tree _ inp _ dir _) in *.
+             assert (titer_opt <> None). { destruct titer_opt; discriminate. }
+             apply compute_tree_None_compute_tr in H. fold titer_opt in H.
+             rewrite H in *.
+             set (tskip_opt := compute_tree cont inp gm dir _) in *.
+             assert (tskip_opt <> None). { destruct tskip_opt; discriminate. }
+             apply compute_tree_None_compute_tr in H0. fold tskip_opt in H0.
+             rewrite H0 in *. reflexivity.
+          -- set (titer_opt := compute_tree _ inp _ dir _) in *.
+             assert (titer_opt <> None). { destruct titer_opt; discriminate. }
+             apply compute_tree_None_compute_tr in H. fold titer_opt in H.
+             rewrite H in *.
+             set (tskip_opt := compute_tree cont inp gm dir _) in *.
+             assert (tskip_opt <> None). { destruct tskip_opt; discriminate. }
+             apply compute_tree_None_compute_tr in H0. fold tskip_opt in H0.
+             rewrite H0 in *. reflexivity.
+        * set (titer_opt := compute_tree _ inp _ dir _) in *.
+          assert (titer_opt <> None). { destruct titer_opt; discriminate. }
+          apply compute_tree_None_compute_tr in H. fold titer_opt in H.
+          rewrite H in *. reflexivity.
+      + set (treelk_opt := compute_tree [Areg r] inp gm _ _) in *.
+        assert (treelk_opt <> None). { destruct treelk_opt; discriminate. }
+        apply compute_tree_None_compute_tr in H. fold treelk_opt in H.
+        rewrite H in *.
+        destruct lk_succeeds. 2: reflexivity.
+        destruct lk_group_map as [gmlk|]. 2: reflexivity.
+        set (treecont_opt := compute_tree cont inp gmlk dir _) in *.
+        assert (treecont_opt <> None). { destruct treecont_opt; discriminate. }
+        apply compute_tree_None_compute_tr in H0. fold treecont_opt in H0.
+        rewrite H0 in *. reflexivity.
+      + set (treecont_opt := compute_tree _ inp _ dir _) in *.
+        assert (treecont_opt <> None). { destruct treecont_opt; discriminate. }
+        apply compute_tree_None_compute_tr in H. fold treecont_opt in H.
+        rewrite H in *. reflexivity.
+      + destruct anchor_satisfied. 2: reflexivity.
+        set (treecont_opt := compute_tree cont inp gm dir _) in *.
+        assert (treecont_opt <> None). { destruct treecont_opt; discriminate. }
+        apply compute_tree_None_compute_tr in H. fold treecont_opt in H.
+        rewrite H in *. reflexivity.
+      + destruct read_backref as [[br_str nextinp]|]. 2: reflexivity.
+        set (tcont_opt := compute_tree cont nextinp gm dir _) in *.
+        assert (tcont_opt <> None). { destruct tcont_opt; discriminate. }
+        apply compute_tree_None_compute_tr in H. fold tcont_opt in H.
+        rewrite H in *. reflexivity.
+    - set (treecont_opt := compute_tree cont inp gm dir _) in *.
+      destruct StrictSuffix.is_strict_suffix.
+      2: reflexivity.
+      assert (treecont_opt <> None). { destruct treecont_opt; discriminate. }
+      apply compute_tree_None_compute_tr in H. fold treecont_opt in H.
+      rewrite H in *. reflexivity.
+    - set (treecont_opt := compute_tree cont inp _ dir _) in *.
+      assert (treecont_opt <> None). { destruct treecont_opt; discriminate. }
+      apply compute_tree_None_compute_tr in H. fold treecont_opt in H.
+      rewrite H in *. reflexivity.
+  Qed.
 
   Definition compute_tr_dep (act: actions) (inp: input) (gm: group_map) (dir: Direction): tree :=
     let fuel := S (actions_fuel act inp dir) in
