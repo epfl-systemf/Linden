@@ -308,14 +308,14 @@ Section StrictSuffix.
   Qed.
 
   Theorem read_char_suffix:
-    forall inp dir nextinp cd c,
-      read_char cd inp dir = Some (c, nextinp) ->
+    forall inp dir nextinp cd c rer,
+      read_char rer cd inp dir = Some (c, nextinp) ->
       strict_suffix nextinp inp dir.
   Proof.
-    intros [next pref] dir nextinp cd c H.  destruct dir; simpl in H.
-    - destruct next; inversion H. destruct (char_match t cd); inversion H; subst.
+    intros [next pref] dir nextinp cd c rer H. destruct dir; simpl in H.
+    - destruct next; inversion H. destruct (char_match rer t cd); inversion H; subst.
       apply read_suffix. simpl. auto.
-    - destruct pref; inversion H. destruct (char_match t cd); inversion H; subst.
+    - destruct pref; inversion H. destruct (char_match rer t cd); inversion H; subst.
       apply read_suffix. simpl. auto.
   Qed.
 

@@ -6,7 +6,7 @@ From Linden Require Import Tree.
 From Linden Require Import NumericLemmas.
 From Linden Require Import Groups Semantics.
 From Linden Require Import StrictSuffix.
-From Warblre Require Import Numeric Base.
+From Warblre Require Import Numeric Base RegExpRecord.
 
 From Coq Require Import Lia DecidableClass.
 (* From Coq Require Import Program. *)
@@ -14,7 +14,7 @@ From Coq Require Import Lia DecidableClass.
 Section FunctionalSemantics.
   Context `{characterClass: Character.class}.
   Context {unicodeProp: Parameters.Property.class Character}.
-
+  Context (rer: RegExpRecord).
 
 
 
@@ -221,7 +221,7 @@ Section FunctionalSemantics.
 
   Lemma character_termination:
     forall cont inp dir cd c nextinp,
-      read_char cd inp dir = Some (c, nextinp) ->
+      read_char rer cd inp dir = Some (c, nextinp) ->
       actions_fuel cont nextinp dir < actions_fuel (Areg (Regex.Character cd) :: cont) inp dir.
   Proof.
     intros cont inp dir cd c nextinp H. apply read_char_suffix in H. simpl.
@@ -427,7 +427,7 @@ Section FunctionalSemantics.
 
   Lemma backref_suffix:
     forall gm gid inp dir br_str nextinp,
-      read_backref gm gid inp dir = Some (br_str, nextinp) ->
+      read_backref rer gm gid inp dir = Some (br_str, nextinp) ->
       nextinp = inp \/ strict_suffix nextinp inp dir.
   Proof.
     intros ? ? [next pref] ? ? ? ?. unfold read_backref in H.
@@ -449,7 +449,7 @@ Section FunctionalSemantics.
 
   Lemma backref_termination:
     forall cont inp dir gid gm br_str nextinp,
-      read_backref gm gid inp dir = Some (br_str, nextinp) ->
+      read_backref rer gm gid inp dir = Some (br_str, nextinp) ->
       actions_fuel cont nextinp dir < actions_fuel (Areg (Backreference gid)::cont) inp dir.
   Proof.
     intros. simpl. apply backref_suffix in H.
@@ -504,7 +504,7 @@ Section FunctionalSemantics.
         | Areg Epsilon::cont => compute_tree cont inp gm dir fuel
         (* tree_char, tree_char_fail *)
         | Areg (Regex.Character cd)::cont =>
-            match read_char cd inp dir with
+            match read_char rer cd inp dir with
             | Some (c, nextinp) =>
                 match (compute_tree cont nextinp gm dir fuel) with
                 | Some treecont => Some (Read c treecont)
@@ -562,7 +562,7 @@ Section FunctionalSemantics.
             end
         (* tree_anchor, tree_anchor_fail *)
         | Areg (Anchor a)::cont =>
-          if anchor_satisfied a inp then
+          if anchor_satisfied rer a inp then
             let treecont := compute_tree cont inp gm dir fuel in
             match treecont with None => None | Some treecont =>
               Some (AnchorPass a treecont)
@@ -571,7 +571,7 @@ Section FunctionalSemantics.
             Some Mismatch
         (* tree_backref, tree_backref_fail *)
         | Areg (Backreference gid)::cont =>
-          match read_backref gm gid inp dir with
+          match read_backref rer gm gid inp dir with
           | Some (br_str, nextinp) =>
             let tcont := compute_tree cont nextinp gm dir fuel in
             match tcont with None => None | Some tcont =>
@@ -620,7 +620,7 @@ Section FunctionalSemantics.
         apply IHfuel with (gm:=gm) in ENOUGH.
         destruct (compute_tree act inp gm dir fuel); try contradiction.
         apply somenone.
-      + simpl. destruct (read_char cd inp dir) eqn:READ; try apply somenone.
+      + simpl. destruct (read_char rer cd inp dir) eqn:READ; try apply somenone.
         destruct p as [c nextinp].
         generalize (character_termination act inp dir cd c nextinp READ). intros.
         assert (ENOUGH: fuel > actions_fuel act nextinp dir) by lia.

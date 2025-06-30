@@ -2,13 +2,14 @@ Require Import List Lia.
 Import ListNotations.
 From Linden Require Import Utils.
 Import Utils.List.
-From Warblre Require Import Base Typeclasses.
+From Warblre Require Import Base Typeclasses RegExpRecord.
 
 (** * Characters and Strings  *)
 
 Section Chars.
   Context `{characterClass: Character.class}.
   Context {unicodeProp: Parameters.Property.class Character}.
+  Context (rer: RegExpRecord).
 
   Definition string := list Character.
 
@@ -62,9 +63,11 @@ Section Chars.
   Inductive input_compat: input -> string -> Prop :=
   | Input_compat: forall next pref str0, List.rev pref ++ next = str0 -> input_compat (Input next pref) str0.
 
+  Definition inb_canonicalized (c: Character) (l: list Character) :=
+    inb (Character.canonicalize rer c) (List.map (Character.canonicalize rer) l).
 
   (* Deciding whether a character is a word character, to check for word boundaries and for character classes \w and \W *)
-  Definition word_char c := inb c Character.ascii_word_characters.
+  Definition word_char c := inb_canonicalized c Character.ascii_word_characters.
 
   (* Axiom specifying that char_all contains all characters. TODO Do we want that? *)
   Axiom char_all_in: forall c, In c Character.all.
@@ -91,26 +94,32 @@ Section Chars.
   | CdInv (cd: char_descr)
   | CdRange (l h: Character)
   | CdUnion (cd1 cd2: char_descr).
-
   
   Fixpoint char_match (c: Character) (cd: char_descr): bool :=
     match cd with
     | CdEmpty => false
-    | CdDot => true (* Temporary; at the end, we'd like to take the multiline flag into account *)
+    | CdDot => 
+        if RegExpRecord.dotAll rer then
+          true
+        else
+          negb (inb_canonicalized c Character.line_terminators)
     | CdAll => true
-    | CdSingle c' => c == c'
-    | CdDigits => inb c Character.digits
-    | CdWhitespace => inb c Character.white_spaces || inb c Character.line_terminators
-    | CdWordChar => inb c Character.ascii_word_characters (* Temporary; at the end, we'd like to use a rer *)
-    | CdUnicodeProp p => inb c (Property.code_points_for p)
+    | CdSingle c' => Character.canonicalize rer c == Character.canonicalize rer c'
+    | CdDigits => inb_canonicalized c Character.digits
+    | CdWhitespace => inb_canonicalized c Character.white_spaces || inb_canonicalized c Character.line_terminators
+    | CdWordChar => inb_canonicalized c Character.ascii_word_characters (* Temporary; at the end, we'd like to use a rer *)
+    | CdUnicodeProp p => inb_canonicalized c (Property.code_points_for p)
     | CdInv cd' => negb (char_match c cd')
-    | CdRange l h => (Character.numeric_value l <=? Character.numeric_value c) && (Character.numeric_value c <=? Character.numeric_value h)
+    | CdRange l h => 
+        let valueSet := List.seq (Character.numeric_value l) (Character.numeric_value h - Character.numeric_value l) in
+        let charSet := List.map Character.from_numeric_value valueSet in
+        inb_canonicalized c charSet
     | CdUnion cd1 cd2 => char_match c cd1 || char_match c cd2
     end.
 
 
   Lemma single_match:
-    forall c1 c2, char_match c1 (CdSingle c2) = true <-> c1 = c2.
+    forall c1 c2, char_match c1 (CdSingle c2) = true <-> Character.canonicalize rer c1 = Character.canonicalize rer c2.
   Proof.
     intros c1 c2. simpl. apply EqDec.inversion_true.
   Qed.
