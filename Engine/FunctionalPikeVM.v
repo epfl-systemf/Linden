@@ -198,3 +198,60 @@ Proof.
   unfold pike_vm_match, getres. rewrite compile_nq. rewrite fuel_nq. rewrite init_nq.
   do 37 one_step.
 Qed.
+
+(** * Example from the paper  *)
+(* regex (a*|a)b on string "ab" *)
+
+From Linden Require Import FunctionalUtils FunctionalSemantics.
+
+Example paper_regex : regex := Sequence (Group 1 (Disjunction (greedy_star a_char) a_char)) b_char.
+
+Example paper_bytecode := [SetRegOpen 1; Fork 2 8; Fork 3 7; BeginLoop; ResetRegs []; Consume (CdSingle a);
+                           EndLoop 2; Jmp 9; Consume (CdSingle a); SetRegClose 1; Consume (CdSingle b); Accept].
+
+Lemma compile_paper: compilation paper_regex = paper_bytecode.
+Proof. auto. Qed.
+
+Example paper_input := Input [a;b] [].
+
+Example paper_tree: tree :=
+  GroupAction (Open 1) (
+      Choice
+        (Choice (
+             GroupAction (Reset []) (Read a (Progress (
+                                                 Choice (GroupAction (Reset []) Mismatch)
+                                                   (GroupAction (Close 1) (Read b Match)))
+               ))
+           ) (GroupAction (Close 1) Mismatch))
+        (Read a (GroupAction (Close 1) (Read b Match)))).
+
+Lemma paper_is_tree:
+  is_tree [Areg paper_regex] paper_input GroupMap.empty forward paper_tree.
+Proof.
+  unfold paper_input.
+  repeat (econstructor; simpl; try rewrite EqDec.reflb).
+  unfold greedy_star. replace +∞ with (NoI.N 1 + +∞)%NoI by auto.
+  econstructor; simpl; eauto.
+  2: { repeat (constructor; simpl). rewrite neq_ab. auto. }
+  repeat (econstructor; simpl; try rewrite EqDec.reflb); simpl.
+  unfold greedy_star. replace +∞ with (NoI.N 1 + +∞)%NoI by auto.
+  repeat (econstructor; simpl; auto).
+  { rewrite neq_ba. auto. }
+  rewrite EqDec.reflb. auto.
+Qed.
+
+Example final_gm : GroupMap.t :=
+  GroupMap.close 1 1 (GroupMap.open 0 1 GroupMap.empty).
+
+Lemma paper_fuel: bytecode_fuel paper_bytecode paper_input = 208.
+Proof. auto. Qed.
+
+Lemma paper_init: pike_vm_seen_initial_state paper_input = PVSS paper_input [(0,GroupMap.empty,CanExit)] None [] initial_seenpcs.
+Proof. auto. Qed.
+
+Lemma paper_pikevm_exec:
+  pike_vm_match paper_regex paper_input = Finished (Some (Input [] [b;a], final_gm)).
+Proof. 
+  unfold pike_vm_match, getres, final_gm. rewrite compile_paper. rewrite paper_fuel. rewrite paper_init.
+  do 24 one_step. auto.
+Qed.
