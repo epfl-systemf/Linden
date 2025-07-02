@@ -65,6 +65,26 @@ Section Chars.
   Definition inb_canonicalized (c: Character) (l: list Character) :=
     inb (Character.canonicalize rer c) (List.map (Character.canonicalize rer) l).
 
+  Lemma map_canonicalize_casesenst:
+    RegExpRecord.ignoreCase rer = false ->
+    forall l, List.map (Character.canonicalize rer) l = l.
+  Proof.
+    intro Hcasesenst.
+    induction l; simpl; auto.
+    rewrite canonicalize_casesenst, IHl by auto. auto.
+  Qed.
+
+  Lemma inb_canonicalized_casesenst:
+    RegExpRecord.ignoreCase rer = false ->
+    forall c l, inb_canonicalized c l = inb c l.
+  Proof.
+    intros Hcasesenst c l. unfold inb_canonicalized.
+    rewrite canonicalize_casesenst by assumption.
+    rewrite map_canonicalize_casesenst by assumption.
+    reflexivity.
+  Qed.
+
+
   (* Deciding whether a character is a word character, to check for word boundaries and for character classes \w and \W *)
   Definition word_char c := inb_canonicalized c Character.ascii_word_characters.
 
@@ -106,9 +126,8 @@ Section Chars.
     | CdWordChar => inb_canonicalized c Character.ascii_word_characters (* Temporary; at the end, we'd like to use a rer *)
     | CdUnicodeProp p => inb_canonicalized c (Property.code_points_for p)
     | CdInv cd' => negb (char_match c cd')
-    | CdRange l h => 
-        let valueSet := List.seq (Character.numeric_value l) (Character.numeric_value h - Character.numeric_value l) in
-        let charSet := List.map Character.from_numeric_value valueSet in
+    | CdRange l h =>
+        let charSet := List.filter (fun x => (Character.numeric_value l <=? Character.numeric_value x) && (Character.numeric_value x <=? Character.numeric_value h))%bool Character.all in
         inb_canonicalized c charSet
     | CdUnion cd1 cd2 => char_match c cd1 || char_match c cd2
     end.
