@@ -1,6 +1,7 @@
-From Linden Require Import Regex GroupMapMS LindenParameters Groups Tree Chars Semantics
+From Linden Require Import Regex GroupMapMS LWParameters Groups Tree Chars Semantics
   MSInput EquivDef Utils RegexpTranslation FunctionalSemantics WarblreLemmas
-  GroupMapLemmas Tactics CharDescrCharSet CharSet LKFactorization StrictSuffix.
+  GroupMapLemmas Tactics CharDescrCharSet CharSet LKFactorization StrictSuffix
+  Parameters.
 From Warblre Require Import Parameters List Notation Result Typeclasses Base Errors RegExpRecord StaticSemantics Semantics Base.
 From Coq Require Import List ZArith Lia DecidableClass ClassicalFacts.
 Import ListNotations.
@@ -12,8 +13,7 @@ Local Open Scope bool_scope.
 Local Open Scope result_flow.
 
 Section EquivLemmas.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Character}.
+  Context {params: LindenParameters}.
 
   (** * Moved from LWEquivTreeLemmas.v; TODO reorganize *)
 

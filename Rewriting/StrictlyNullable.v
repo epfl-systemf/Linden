@@ -5,8 +5,7 @@ From Linden.Rewriting Require Import ProofSetup.
 From Linden Require Import ExampleRegexes FailRegex.
 
 Section StrictlyNullable.
-  Context {char: Parameters.Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+  Context {params: LindenParameters}.
 
   (* The following function is a static under-approximation  of when is a regex striclty nullable. *)
   (* this definition is adapted from the warblre definition *)

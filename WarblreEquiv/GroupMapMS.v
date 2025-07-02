@@ -1,12 +1,12 @@
 From Coq Require Import ZArith List.
-From Linden Require Import Chars Groups Tree LindenParameters.
+From Linden Require Import Chars Groups Tree LWParameters Parameters.
 From Warblre Require Import Notation Result Errors Parameters Base Patterns.
 Import Notation.
 
 (** * Equivalence between Linden group maps and Warblre MatchStates *)
 
 Section GroupMapMS.
-  Context `{characterClass: Character.class}.
+  Context {params: LindenParameters}.
 
   (* Expresses equivalence of a GroupMap.range and a CaptureRange. *)
   Inductive equiv_ranges: GroupMap.range -> CaptureRange -> Prop :=

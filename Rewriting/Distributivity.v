@@ -2,8 +2,7 @@ From Linden.Rewriting Require Import ProofSetup.
 
 Module Right.
   Section EquivalenceProof.
-    Context {char: Parameters.Character.class}.
-    Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+    Context {params: LindenParameters}.
 
     Context (x0 x1 y: regex).
     Context (NO_GROUPS_IN_Y: def_groups y = []).
@@ -35,8 +34,7 @@ End Right.
 
 Module LeftBackward.
   Section EquivalenceProof.
-    Context {char: Parameters.Character.class}.
-    Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+    Context {params: LindenParameters}.
 
     Context (x y0 y1: regex).
     Context (NO_GROUPS_IN_X: def_groups x = []).
@@ -68,8 +66,7 @@ End LeftBackward.
 
 Module LeftForward.
   Section Counterexample.
-    Context {char: Parameters.Character.class}.
-    Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+    Context {params: LindenParameters}.
     Context (c: Parameters.Character).
 
     Let capture n := Group n (Character (CdSingle c)).

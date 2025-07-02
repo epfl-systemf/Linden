@@ -3,12 +3,12 @@ Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics.
+From Linden Require Import Parameters.
 From Warblre Require Import Numeric Base.
 
 (* The subset of regexes supported by the PikeVM engine *)
 
-Context `{characterClass: Character.class}.
-Context {unicodeProp: Parameters.Property.class Character}.
+Context {params: LindenParameters}.
 
 
 (** * PikeVM supported subset  *)

@@ -1,7 +1,7 @@
 Require Import List.
 Import ListNotations.
 
-From Linden Require Import Regex Chars Groups.
+From Linden Require Import Regex Chars Groups Parameters.
 From Coq Require Import PeanoNat.
 From Warblre Require Import Typeclasses Parameters Base.
 
@@ -56,7 +56,7 @@ Proof. intros. unfold seqop. destruct o1; destruct o2; auto. Qed.
 
 
 Section Tree.
-  Context `{characterClass: Character.class}.
+  Context {params: LindenParameters}.
   
   Inductive tree : Type :=
   | Mismatch

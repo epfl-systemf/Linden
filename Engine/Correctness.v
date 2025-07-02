@@ -109,7 +109,7 @@ Proof.
 Qed.
 
 Local Open Scope result_flow.
-From Linden Require Import LindenParameters.
+From Linden Require Import LWParameters.
 
 Theorem pike_vm_same_warblre:
   forall lr wr str0 rer,

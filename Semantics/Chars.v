@@ -1,14 +1,13 @@
 Require Import List Lia.
 Import ListNotations.
-From Linden Require Import Utils.
+From Linden Require Import Utils Parameters.
 Import Utils.List.
 From Warblre Require Import Base Typeclasses RegExpRecord.
 
 (** * Characters and Strings  *)
 
 Section Chars.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Character}.
+  Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
 
   Definition string := list Character.
@@ -68,9 +67,6 @@ Section Chars.
 
   (* Deciding whether a character is a word character, to check for word boundaries and for character classes \w and \W *)
   Definition word_char c := inb_canonicalized c Character.ascii_word_characters.
-
-  (* Axiom specifying that char_all contains all characters. TODO Do we want that? *)
-  Axiom char_all_in: forall c, In c Character.all.
 
   (* Lemma for boolean version of In *)
   Lemma char_all_inb: forall c, inb c Character.all = true.

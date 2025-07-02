@@ -6,14 +6,14 @@ From Linden Require Import Tree.
 From Linden Require Import NumericLemmas.
 From Linden Require Import Groups Semantics.
 From Linden Require Import StrictSuffix.
+From Linden Require Import Parameters.
 From Warblre Require Import Numeric Base RegExpRecord.
 
 From Coq Require Import Lia DecidableClass.
 (* From Coq Require Import Program. *)
 
 Section FunctionalSemantics.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Character}.
+  Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
 
 

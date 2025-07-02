@@ -1,7 +1,7 @@
-From Linden Require Import EquivDef RegexpTranslation Regex LindenParameters
+From Linden Require Import EquivDef RegexpTranslation Regex LWParameters
   Semantics FunctionalSemantics CharDescrCharSet Tactics
   NumericLemmas MSInput Chars Groups EquivLemmas Utils CharSet GroupMapLemmas
-  LKFactorization StrictSuffix.
+  LKFactorization StrictSuffix Parameters.
 From Warblre Require Import Parameters Semantics RegExpRecord Patterns
   Node Result Notation Typeclasses List Base Node Match.
 Import Patterns.
@@ -14,8 +14,7 @@ From Coq Require Import ZArith PeanoNat Lia RelationClasses.
 Local Open Scope result_flow.
 
 Section Equiv.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Character}.
+  Context {params: LindenParameters}.
 
   (* The identity continuation *)
   Definition id_mcont: MatcherContinuation :=

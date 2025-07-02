@@ -1,10 +1,9 @@
-From Linden Require Import Semantics FunctionalSemantics Chars StrictSuffix.
+From Linden Require Import Semantics FunctionalSemantics Chars StrictSuffix Parameters.
 From Warblre Require Import Parameters Base RegExpRecord.
 From Coq Require Import Lia List.
 
 Section ComputeIsTree.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Character}.
+  Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
 
   Lemma lk_succeeds_group_map:

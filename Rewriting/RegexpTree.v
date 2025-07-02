@@ -8,8 +8,7 @@ Coercion nat_to_N (n: nat) := NoI.N n.
 |*)
 
 Section RegexpTree.
-  Context {char: Parameters.Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+  Context {params: LindenParameters}.
 
 (*|
 ## Bounded repetitions

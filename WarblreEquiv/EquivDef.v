@@ -1,6 +1,6 @@
 From Linden Require Import Semantics FunctionalSemantics Tree Groups Regex Chars.
 From Linden Require Import GroupMapMS MSInput GroupMapLemmas.
-From Linden Require Import LindenParameters.
+From Linden Require Import LWParameters Parameters.
 From Linden Require Import Utils.
 From Warblre Require Import Parameters Notation Base Result Match RegExpRecord.
 From Coq Require Import ZArith List.
@@ -8,8 +8,7 @@ Import Notation.
 Import Match.
 
 Section EquivDef.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+  Context {params: LindenParameters}.
 
   (* Groups that we want to forbid from being defined before matching a regex. *)
   Definition forbidden_groups (reg: regex): list group_id :=

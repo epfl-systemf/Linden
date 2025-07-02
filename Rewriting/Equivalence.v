@@ -1,12 +1,11 @@
 From Coq Require Export List Equivalence Lia.
 From Warblre Require Import Base.
-From Linden Require Import Regex Chars Groups Tree Semantics FunctionalSemantics FunctionalUtils ComputeIsTree.
+From Linden Require Import Regex Chars Groups Tree Semantics FunctionalSemantics FunctionalUtils ComputeIsTree Parameters.
 
 Export ListNotations.
 
 Section Definitions.
-  Context {char: Parameters.Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+  Context {params: LindenParameters}.
 
 
   (** * Observational equivalence *)
@@ -639,8 +638,7 @@ Ltac leaves_equiv_t :=
   first [ reflexivity | repeat leaves_equiv_step ].
 
 Section Relation.
-  Context {char: Parameters.Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+  Context {params: LindenParameters}.
 
   Ltac eqv := repeat red; tree_equiv_rw; solve [congruence | intuition | firstorder].
 
@@ -813,8 +811,7 @@ Notation "r1 ≇ r2" := (tree_nequiv r1 r2) (at level 70, format "r1  ≇  r2").
 
 
 Section Congruence.
-  Context {char: Parameters.Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+  Context {params: LindenParameters}.
 
   (** * Observational Consequence on Backtracking Results  *)
 

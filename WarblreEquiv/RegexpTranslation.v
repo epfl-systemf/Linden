@@ -1,6 +1,6 @@
 From Warblre Require Import Patterns Result Errors Coercions Notation Base StaticSemantics.
 From Warblre Require Characters.
-From Linden Require Import Regex LindenParameters Chars Groups.
+From Linden Require Import Regex LWParameters Parameters Chars Groups.
 Import Notation.
 Import Result.
 Import Result.Notations.
@@ -9,8 +9,7 @@ Local Open Scope result_flow.
 (** * Relation defining equivalence between Warblre regexes and Linden regexes *)
 
 Section RegexpTranslation.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+  Context {params: LindenParameters}.
   
   (* Computes the number of capture groups of the regex r. *)
   Fixpoint num_groups (r: regex): nat := (* actually len (def_groups r); TODO replace later or prove lemma *)

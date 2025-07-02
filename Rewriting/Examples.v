@@ -1,8 +1,7 @@
 From Linden Require Import ProofSetup.
 
 Section Utilities.
-  Context {char: Parameters.Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+  Context {params: LindenParameters}.
 
   Lemma sequence_assoc_equiv r0 r1 r2:
     Sequence r0 (Sequence r1 r2) ≅ Sequence (Sequence r0 r1) r2.
@@ -74,8 +73,7 @@ Section Utilities.
 End Utilities.
 
 Section Examples.
-  Context {char: Parameters.Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+  Context {params: LindenParameters}.
 
   Lemma sequence_epsilon_left_equiv r:
     Sequence Epsilon r ≅ r.

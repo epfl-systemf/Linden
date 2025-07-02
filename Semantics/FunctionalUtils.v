@@ -1,11 +1,10 @@
 From Coq Require Import List.
 From Warblre Require Import Base RegExpRecord.
-From Linden Require Import Regex Chars Groups Tree Semantics FunctionalSemantics ComputeIsTree.
+From Linden Require Import Regex Chars Groups Tree Semantics FunctionalSemantics ComputeIsTree Parameters.
 Import ListNotations.
 
 Section Utilities.
-  Context {char: Parameters.Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+  Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
 
   Definition compute_tr (act: actions) (inp: input) (gm: group_map) (dir: Direction): tree :=
@@ -149,7 +148,7 @@ Section Utilities.
     destruct compute_tree; congruence.
   Qed.
 
-  Arguments compute_tree characterClass unicodeProp rer !act inp gm dir fuel.
+  Arguments compute_tree params rer !act inp gm dir fuel.
 
   Lemma compute_tr_rw act inp gm dir:
     compute_tr act inp gm dir = compute_tr_unfold act inp gm dir.

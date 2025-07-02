@@ -6,8 +6,7 @@ From Linden.Rewriting Require Import ProofSetup.
 
 
 Section Duplicate.
-    Context {char: Parameters.Character.class}.
-    Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+    Context {params: LindenParameters}.
 
     Lemma cons_monotony:
       forall a seen,

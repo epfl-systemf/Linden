@@ -1,12 +1,11 @@
-From Linden Require Import Chars.
+From Linden Require Import Chars Parameters.
 From Warblre Require Import Base Parameters.
 From Coq Require Import List Lia.
 Import ListNotations.
 
 
 Section StrictSuffix.
-  Context `{char: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Character}.
+  Context {params: LindenParameters}.
 
   (** * Suffixes  *)
 

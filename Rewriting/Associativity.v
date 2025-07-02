@@ -4,8 +4,7 @@ From Linden.Rewriting Require Import ProofSetup.
 
 
 Section DisjAssoc.
-    Context {char: Parameters.Character.class}.
-    Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+    Context {params: LindenParameters}.
 
     Theorem disj_assoc:
       forall r1 r2 r3,
@@ -21,8 +20,7 @@ Section DisjAssoc.
 End DisjAssoc.
 
 Section SeqAssoc.
-    Context {char: Parameters.Character.class}.
-    Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+    Context {params: LindenParameters}.
 
     Theorem seq_assoc_actions_fwd:
       forall r1 r2 r3,

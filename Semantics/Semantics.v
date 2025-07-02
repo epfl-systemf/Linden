@@ -7,14 +7,14 @@ From Linden Require Import NumericLemmas.
 From Warblre Require Import Numeric Base RegExpRecord.
 From Linden Require Import Groups.
 From Linden Require Import StrictSuffix.
+From Linden Require Import Parameters.
 From Coq Require Import Lia.
 
 (* This relates a regex and a string to their backtracking tree *)
 
 
 Section Semantics.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Character}.
+  Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
 
   (* Reading a substring from a group map *)

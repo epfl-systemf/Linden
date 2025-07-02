@@ -1,6 +1,7 @@
-From Linden Require Import Equiv EquivDef LindenParameters RegexpTranslation
+From Linden Require Import Equiv EquivDef LWParameters RegexpTranslation
   Chars Tree Semantics FunctionalSemantics Groups GroupMapMS Regex
-  EquivLemmas Utils MSInput Tactics ComputeIsTree GroupMapLemmas FunctionalUtils.
+  EquivLemmas Utils MSInput Tactics ComputeIsTree GroupMapLemmas FunctionalUtils
+  Parameters.
 From Warblre Require Import Patterns RegExpRecord Parameters Semantics
   Result Base Notation Match.
 From Coq Require Import List Lia PeanoNat ZArith DecidableClass.
@@ -16,8 +17,7 @@ Local Open Scope result_flow.
 (** * Main equivalence theorems, linking everything together *)
 
 Section EquivMain.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+  Context {params: LindenParameters}.
 
   (** ** Some initialization results *)
   Section InitState.

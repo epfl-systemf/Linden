@@ -1,5 +1,5 @@
-From Linden Require Import Chars LindenParameters RegexpTranslation WarblreLemmas CharSet.
-From Warblre Require Import Parameters Semantics Result Patterns RegExpRecord.
+From Linden Require Import Chars LWParameters Parameters RegexpTranslation WarblreLemmas CharSet.
+From Warblre Require Import Parameters Semantics Result Patterns RegExpRecord Typeclasses.
 Import Result.Notations.
 Import Patterns.
 From Coq Require Import Lia.
@@ -7,8 +7,8 @@ From Coq Require Import Lia.
 Local Open Scope result_flow.
 
 Section CharDescrCharSet.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Character}.
+  Context {params: LindenParameters}.
+  Context (rer: RegExpRecord).
   
   Definition equiv_cd_charset (cd: char_descr) (charset: CharSet) :=
     forall c: Character, char_match c cd = CharSet.contains charset c.

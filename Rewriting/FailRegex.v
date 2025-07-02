@@ -2,8 +2,7 @@ From Linden Require Import ProofSetup.
 From Linden Require Import ExampleRegexes.
 
 Section FailRegex.
-  Context {char: Parameters.Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+  Context {params: LindenParameters}.
 
   Lemma fail_regex_fail:
     forall inp gm dir t,
