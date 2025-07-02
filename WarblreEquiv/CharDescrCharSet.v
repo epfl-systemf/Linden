@@ -9,9 +9,21 @@ Local Open Scope result_flow.
 Section CharDescrCharSet.
   Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
+
+  (* In CharSet equivalences, we do not want to ignore case. This is so that
+  each character descriptor is made equivalent to the CharSet passed to
+  Semantics.characterSetMatcher for the corresponding Warblre character
+  descriptor. *)
+  Definition rer_noi : RegExpRecord := {|
+    RegExpRecord.ignoreCase := false;
+    RegExpRecord.multiline := RegExpRecord.multiline rer;
+    RegExpRecord.dotAll := RegExpRecord.dotAll rer;
+    RegExpRecord.unicode := tt;
+    RegExpRecord.capturingGroupsCount := RegExpRecord.capturingGroupsCount rer
+  |}.
   
   Definition equiv_cd_charset (cd: char_descr) (charset: CharSet) :=
-    forall c: Character, char_match c cd = CharSet.contains charset c.
+    forall c: Character, char_match rer_noi c cd = CharSet.contains charset c.
 
   (* Lemma for character descriptor inversion *)
   Lemma equiv_cd_inv:
@@ -40,6 +52,7 @@ Section CharDescrCharSet.
   Proof.
     intros c s Hequiv chr.
     specialize (Hequiv chr). simpl in Hequiv.
+    do 2 rewrite canonicalize_casesenst in Hequiv by reflexivity.
     apply Bool.eq_iff_eq_true in Hequiv.
     rewrite CharSetExt.contains_spec in Hequiv.
     rewrite Typeclasses.EqDec.inversion_true in Hequiv.
@@ -56,19 +69,22 @@ Section CharDescrCharSet.
   Lemma equiv_cd_digits:
     equiv_cd_charset CdDigits Characters.digits.
   Proof.
-    intro c. simpl. unfold Characters.digits. now setoid_rewrite CharSetExt.from_list_contains_inb.
+    intro c. simpl. rewrite inb_canonicalized_casesenst by reflexivity.
+    unfold Characters.digits. now setoid_rewrite CharSetExt.from_list_contains_inb.
   Qed.
 
   Lemma equiv_cd_whitespace:
     equiv_cd_charset CdWhitespace (CharSet.union Characters.white_spaces Characters.line_terminators).
   Proof.
-    intro c. simpl. unfold Characters.white_spaces, Characters.line_terminators. setoid_rewrite CharSetExt.union_contains. now setoid_rewrite CharSetExt.from_list_contains_inb.
+    intro c. simpl. do 2 rewrite inb_canonicalized_casesenst by reflexivity.
+    unfold Characters.white_spaces, Characters.line_terminators. setoid_rewrite CharSetExt.union_contains. now setoid_rewrite CharSetExt.from_list_contains_inb.
   Qed.
 
   Lemma equiv_cd_wordchar:
     equiv_cd_charset CdWordChar Characters.ascii_word_characters.
   Proof.
-    intro c. simpl. unfold Characters.ascii_word_characters. now setoid_rewrite CharSetExt.from_list_contains_inb.
+    intro c. simpl. rewrite inb_canonicalized_casesenst by reflexivity.
+    unfold Characters.ascii_word_characters. now setoid_rewrite CharSetExt.from_list_contains_inb.
   Qed.
 
   Lemma equiv_cd_range:
@@ -77,29 +93,43 @@ Section CharDescrCharSet.
       equiv_cd_charset (CdRange cl ch) (CharSet.range cl ch).
   Proof.
     intros cl ch Hle c. simpl.
+    rewrite inb_canonicalized_casesenst by reflexivity.
     apply Bool.eq_true_iff_eq.
-    rewrite CharSetExt.contains_spec, CharSetExt.range_spec.
-    rewrite Bool.andb_true_iff. do 2 rewrite PeanoNat.Nat.leb_le.
-    reflexivity.
+    rewrite Utils.List.inb_spec, CharSetExt.contains_spec, CharSetExt.range_spec.
+    rewrite List.filter_In, Bool.andb_true_iff, PeanoNat.Nat.leb_le, PeanoNat.Nat.leb_le.
+    pose proof char_all_in c. tauto.
   Qed.
 
-  (* TODO Take dotAll flag into account *)
-  Lemma equiv_cd_dot:
+  Lemma equiv_cd_dot_dotAll:
+    RegExpRecord.dotAll rer = true ->
     equiv_cd_charset CdDot Characters.all.
   Proof.
-    intro c. simpl. symmetry. apply contains_all.
+    intros HdotAll c. simpl. rewrite HdotAll. symmetry. apply contains_all.
   Qed.
 
+  Lemma equiv_cd_dot_noDotAll:
+    RegExpRecord.dotAll rer = false ->
+    equiv_cd_charset CdDot (CharSet.remove_all Characters.all Characters.line_terminators).
+  Proof.
+    intros HnoDotAll c. simpl. rewrite HnoDotAll.
+    rewrite inb_canonicalized_casesenst by reflexivity.
+    apply Bool.eq_true_iff_eq.
+    rewrite CharSetExt.remove_all_contains. 
+    setoid_rewrite contains_all. simpl.
+    unfold Characters.line_terminators. setoid_rewrite CharSetExt.from_list_contains_inb.
+    reflexivity.
+  Qed.
+    
   Lemma equiv_cd_single:
     forall c, equiv_cd_charset (CdSingle c) (CharSet.singleton c).
   Proof.
-    intros c chr. simpl. symmetry. apply CharSetExt.contains_singleton.
+    intros c chr. simpl. do 2 rewrite canonicalize_casesenst by reflexivity. symmetry. apply CharSetExt.contains_singleton.
   Qed.
 
   Lemma equiv_cd_unicodeprop:
     forall p, equiv_cd_charset (CdUnicodeProp p) (CharSetExt.from_list (Property.code_points_for p)).
   Proof.
-    intros p c. simpl. now setoid_rewrite CharSetExt.from_list_contains_inb.
+    intros p c. simpl. rewrite inb_canonicalized_casesenst by reflexivity. now setoid_rewrite CharSetExt.from_list_contains_inb.
   Qed.
 
   (* Lemma for CharacterClassEscapes *)
