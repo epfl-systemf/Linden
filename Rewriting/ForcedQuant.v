@@ -1,4 +1,4 @@
-(** * Forced quantifier greedyness *)
+(** * Forced quantifier greediness *)
 (* r{n} is equivalent to r{n}? *)
 
 From Linden.Rewriting Require Import ProofSetup.
@@ -8,13 +8,14 @@ From Linden Require Import Equivalence.
 
 Section ForcedQuant.
   Context {params: LindenParameters}.
+  Context (rer: RegExpRecord).
 
   (* TODO: I'm not sure this is how we should proceed. *)
   (* Or if this is, we are lacking better lemmas to relate actions_equiv_dir to tree_equiv *)
 
   Theorem forced_actions:
     forall r n dir,
-      actions_equiv_dir [Areg (Quantified true n (NoI.N 0) r)] [Areg (Quantified false n (NoI.N 0) r)] dir.
+      actions_equiv_dir rer [Areg (Quantified true n (NoI.N 0) r)] [Areg (Quantified false n (NoI.N 0) r)] dir.
   Proof.
     intros r n dir.
     induction n.
@@ -31,7 +32,7 @@ Section ForcedQuant.
 
   Theorem forced_equiv:
     forall r n,
-      (Quantified true n (NoI.N 0) r) ≅ (Quantified false n (NoI.N 0) r).
+      (Quantified true n (NoI.N 0) r) ≅[rer] (Quantified false n (NoI.N 0) r).
   Proof.
     unfold tree_equiv, tree_equiv_dir. intros. split; auto. intros.
     pose proof (forced_actions r n dir). unfold actions_equiv_dir in H1.

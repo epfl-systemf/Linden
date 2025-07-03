@@ -7,6 +7,7 @@ From Linden.Rewriting Require Import ProofSetup.
 
 Section Duplicate.
     Context {params: LindenParameters}.
+    Context (rer: RegExpRecord).
 
     Lemma cons_monotony:
       forall a seen,
@@ -47,7 +48,7 @@ Qed.
 
     Theorem duplicate_elim:
       forall r, def_groups r = [] ->
-           Disjunction r r ≅ r.
+           Disjunction r r ≅[rer] r.
     Proof.
       unfold tree_equiv, tree_equiv_dir, tree_equiv_tr_dir. intros r NOG. split; intros.
       { simpl. rewrite NOG. auto. }

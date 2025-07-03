@@ -177,12 +177,12 @@ Ltac in_subset :=
 
 (* prove that one can only construct pike subtrees from pike regexes *)
 Lemma pike_actions_pike_tree:
-  forall cont inp gm dir t,
+  forall rer cont inp gm dir t,
     pike_actions cont ->
-    is_tree cont inp gm dir t ->
+    is_tree rer cont inp gm dir t ->
     pike_subtree t.
 Proof.
-  intros cont inp gm dir t PIKE ISTREE.
+  intros rer cont inp gm dir t PIKE ISTREE.
   induction ISTREE; try apply IHISTREE; pike_subset; auto.
   - apply IHISTREE1. pike_subset. 
   - apply IHISTREE2. pike_subset.

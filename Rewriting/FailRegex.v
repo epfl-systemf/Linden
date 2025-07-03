@@ -3,10 +3,13 @@ From Linden Require Import ExampleRegexes.
 
 Section FailRegex.
   Context {params: LindenParameters}.
+  Context (rer: RegExpRecord).
+
+  (* TODO Broken because the example regex uses dot *)
 
   Lemma fail_regex_fail:
     forall inp gm dir t,
-      is_tree [Areg fail_regex] inp gm dir t ->
+      is_tree rer [Areg fail_regex] inp gm dir t ->
       tree_leaves t gm inp dir = [].
   Proof.
     intros inp gm dir t TREE.
