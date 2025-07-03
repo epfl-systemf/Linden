@@ -15,6 +15,7 @@ Local Open Scope result_flow.
 
 Section Equiv.
   Context {params: LindenParameters}.
+  Context (rer: RegExpRecord).
 
   (* The identity continuation *)
   Definition id_mcont: MatcherContinuation :=
@@ -22,8 +23,8 @@ Section Equiv.
 
   (* The identity continuation is equivalent to the empty list of actions with any list of forbidden groups and any list of open groups *)
   Lemma id_equiv:
-    forall gl forbgroups dir str0 rer,
-      equiv_cont id_mcont gl forbgroups nil dir str0 rer.
+    forall gl forbgroups dir str0,
+      equiv_cont rer id_mcont gl forbgroups nil dir str0.
   Proof.
     intros. unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden; simpl; try discriminate.
     unfold id_mcont. intro H. injection H as <-. intro H. injection H as <-.
@@ -32,15 +33,15 @@ Section Equiv.
 
   (* Case when the repeat matcher is done iterating the regex because min = max = 0. *)
   Lemma repeatMatcher'_done_equiv:
-    forall greedy parenIndex parenCount rer,
+    forall greedy parenIndex parenCount,
     forall (m: Matcher) (lreg: regex) (dir: Direction),
-      equiv_matcher m lreg rer dir ->
+      equiv_matcher rer m lreg dir ->
       def_groups lreg = List.seq (parenIndex + 1) parenCount ->
-      forall fuel, equiv_matcher
+      forall fuel, equiv_matcher rer
         (fun ms mc => Semantics.repeatMatcher' m 0 (NoI.N 0) greedy ms mc parenIndex parenCount fuel)
-        (Regex.Quantified greedy 0 (NoI.N 0) lreg) rer dir.
+        (Regex.Quantified greedy 0 (NoI.N 0) lreg) dir.
   Proof.
-    intros greedy parenIndex parenCount rer m lreg dir Hequiv Hgroupsvalid fuel.
+    intros greedy parenIndex parenCount m lreg dir Hequiv Hgroupsvalid fuel.
     unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
     unfold equiv_cont. intros gm ms inp res [|treefuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hmsvalidchecks Hgmvalid Hnoforbidden; simpl; try discriminate.
     destruct fuel as [|fuel]; simpl; try discriminate.
@@ -49,16 +50,16 @@ Section Equiv.
 
   (* Case when the repeat matcher can choose between iterating the sub-regexp and exiting the quantifier because min = 0 but max != 0. *)
   Lemma repeatMatcher'_free_equiv:
-    forall greedy parenIndex parenCount rer,
+    forall greedy parenIndex parenCount,
     forall (m: Matcher) (lreg: regex) (dir: Direction),
-      equiv_matcher m lreg rer dir ->
+      equiv_matcher rer m lreg dir ->
       def_groups lreg = List.seq (parenIndex + 1) parenCount ->
-      forall fuel delta, equiv_matcher
+      forall fuel delta, equiv_matcher rer
         (fun ms mc => Semantics.repeatMatcher' m 0 delta greedy ms mc parenIndex parenCount fuel)
-        (Regex.Quantified greedy 0 delta lreg) rer dir.
+        (Regex.Quantified greedy 0 delta lreg) dir.
     Proof.
       (* We perform induction on the fuel. The case fuel = 0 is immediate. *)
-      intros greedy parenIndex parenCount rer m lreg dir Hequiv Hgroupsvalid fuel.
+      intros greedy parenIndex parenCount m lreg dir Hequiv Hgroupsvalid fuel.
       induction fuel as [|fuel IHfuel]. 1: discriminate.
 
       (* For delta = 0, we apply repeatMatcher'_done_equiv. *)
@@ -77,7 +78,7 @@ Section Equiv.
       set (mcloop := fun y: MatchState => if (_ =? _)%Z then _ else _).
       set (msreset := match_state _ _ cap').
       (* We characterize mcloop. *)
-      assert (Hmcloopequiv: equiv_cont mcloop gl forbgroups (Acheck inp::Areg (Regex.Quantified greedy 0 (delta - 1)%NoI lreg)::act)%list dir str0 rer). {
+      assert (Hmcloopequiv: equiv_cont rer mcloop gl forbgroups (Acheck inp::Areg (Regex.Quantified greedy 0 (delta - 1)%NoI lreg)::act)%list dir str0). {
         unfold equiv_cont. intros gm' ms' inp' res' fueltree' t' Hinp'compat Hgm'ms' Hgm'gl Hms'inp' Hms'checks Hgm'valid Hnoforbidden'.
         unfold mcloop.
         destruct (_ =? _)%Z eqn:Heqcheck.
@@ -122,8 +123,8 @@ Section Equiv.
           intro H. injection H as <-.
           destruct delta as [[|delta']|]; simpl in *; try discriminate.
           * (* delta is finite *)
-            destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
-            destruct (compute_tree act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            destruct (compute_tree rer _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree rer act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
             intro H. injection H as <-.
             replace (delta' - 0) with delta' in * by lia.
             specialize (Hequiv titer Hinpcompat).
@@ -138,8 +139,8 @@ Section Equiv.
             specialize (Hequiv eq_refl Htitersucc).
             inversion Hequiv. simpl. unfold gmreset in H. rewrite <- H. simpl. constructor; assumption.
           * (* delta is infinite; copy-pasting and removing one line *)
-            destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
-            destruct (compute_tree act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            destruct (compute_tree rer _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree rer act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
             intro H. injection H as <-.
             specialize (Hequiv titer Hinpcompat).
             specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
@@ -153,8 +154,8 @@ Section Equiv.
         + (* resloop is None *)
           intro Hcontsucc. destruct delta as [[|delta']|]; simpl in *; try discriminate.
           * (* delta is finite *)
-            destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
-            destruct (compute_tree act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            destruct (compute_tree rer _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree rer act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
             intro H. injection H as <-.
             replace (delta' - 0) with delta' in * by lia.
             specialize (Hequiv titer Hinpcompat).
@@ -167,8 +168,8 @@ Section Equiv.
             specialize (Hequiv eq_refl Htitersucc).
             inversion Hequiv. simpl. unfold gmreset in H0. rewrite <- H0. simpl. eapply Hequivcont; eauto using ms_valid_wrt_checks_tail.
           * (* delta is infinite; copy-pasting and removing one line *)
-            destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
-            destruct (compute_tree act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            destruct (compute_tree rer _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree rer act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
             intro H. injection H as <-.
             specialize (Hequiv titer Hinpcompat).
             specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
@@ -188,8 +189,8 @@ Section Equiv.
           intro H. injection H as <-.
           destruct delta as [[|delta']|]; simpl in *; try discriminate.
           * (* delta is finite *)
-            destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
-            destruct (compute_tree act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            destruct (compute_tree rer _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree rer act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
             intro H. injection H as <-.
             replace (delta' - 0) with delta' in * by lia.
             specialize (Hequivcont tskip Hinpcompat Hgmms Hgmgl Hmsinp).
@@ -197,8 +198,8 @@ Section Equiv.
             specialize (Hequivcont Hgmvalid Hnoforbidden eq_refl eq_refl).
             inversion Hequivcont. simpl. rewrite <- H. simpl. constructor; assumption.
           * (* delta is infinite; copy-pasting and removing one line *)
-            destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
-            destruct (compute_tree act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            destruct (compute_tree rer _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree rer act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
             intro H. injection H as <-.
             specialize (Hequivcont tskip Hinpcompat Hgmms Hgmgl Hmsinp).
             specialize_prove Hequivcont. { apply ms_valid_wrt_checks_tail in Hmschecks. auto. }
@@ -207,8 +208,8 @@ Section Equiv.
         + (* resloop is None *)
           intro Hcontsucc. destruct delta as [[|delta']|]; simpl in *; try discriminate.
           * (* delta is finite *)
-            destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
-            destruct (compute_tree act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            destruct (compute_tree rer _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree rer act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
             intro H. injection H as <-.
             replace (delta' - 0) with delta' in * by lia.
             specialize (Hequivcont tskip Hinpcompat Hgmms Hgmgl Hmsinp).
@@ -224,8 +225,8 @@ Section Equiv.
             specialize_prove Hequiv. { eapply noforb_reset; eauto. reflexivity. }
             specialize (Hequiv Hcontsucc Htitersucc). auto.
           * (* delta is infinite; copy-pasting and removing one line *)
-            destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
-            destruct (compute_tree act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+            destruct (compute_tree rer _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+            destruct (compute_tree rer act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
             intro H. injection H as <-.
             specialize (Hequivcont tskip Hinpcompat Hgmms Hgmgl Hmsinp).
             specialize_prove Hequivcont. { apply ms_valid_wrt_checks_tail in Hmschecks. auto. }
@@ -243,15 +244,15 @@ Section Equiv.
 
   (* General case; the proof below mostly deals with the case max > 0 and applies the two above lemmas otherwise *)
   Lemma repeatMatcher'_equiv:
-    forall greedy parenIndex parenCount rer,
+    forall greedy parenIndex parenCount,
     forall (m: Matcher) (lreg: regex) (dir: Direction),
-      equiv_matcher m lreg rer dir ->
+      equiv_matcher rer m lreg dir ->
       def_groups lreg = List.seq (parenIndex + 1) parenCount ->
-      forall fuel min delta, equiv_matcher
+      forall fuel min delta, equiv_matcher rer
         (fun ms mc => Semantics.repeatMatcher' m min (NoI.N min + delta)%NoI greedy ms mc parenIndex parenCount fuel)
-        (Regex.Quantified greedy min delta lreg) rer dir.
+        (Regex.Quantified greedy min delta lreg) dir.
   Proof.
-    intros greedy parenIndex parenCount rer m lreg dir Hequiv Hgroupsvalid fuel.
+    intros greedy parenIndex parenCount m lreg dir Hequiv Hgroupsvalid fuel.
     induction fuel as [|fuel IHfuel]. 1: discriminate.
 
     intros min delta.
@@ -282,7 +283,7 @@ Section Equiv.
     unfold equiv_cont in Hequiv.
     specialize (Hequiv (GroupMap.reset (def_groups lreg) gm) msreset inp res).
     intro Hressucc. destruct fueltree as [|fueltree]; simpl; try discriminate.
-    destruct (compute_tree _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+    destruct (compute_tree rer _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
     intro H. injection H as <-.
     simpl. eapply Hequiv; eauto.
     - eapply equiv_gm_ms_reset; eauto.
@@ -295,15 +296,15 @@ Section Equiv.
   Qed.
 
   Corollary repeatMatcher_equiv:
-    forall greedy parenIndex parenCount rer,
+    forall greedy parenIndex parenCount,
     forall (m: Matcher) (lreg: regex) (dir: Direction),
-      equiv_matcher m lreg rer dir ->
+      equiv_matcher rer m lreg dir ->
       def_groups lreg = List.seq (parenIndex + 1) parenCount ->
-      forall min delta, equiv_matcher
+      forall min delta, equiv_matcher rer
         (fun ms mc => Semantics.repeatMatcher m min (NoI.N min + delta)%NoI greedy ms mc parenIndex parenCount)
-        (Regex.Quantified greedy min delta lreg) rer dir.
+        (Regex.Quantified greedy min delta lreg) dir.
   Proof.
-    intros greedy parenIndex parenCount rer m lreg dir Hequiv Hgroupsvalid min delta.
+    intros greedy parenIndex parenCount m lreg dir Hequiv Hgroupsvalid min delta.
     unfold Semantics.repeatMatcher, equiv_matcher.
     intros. unfold equiv_cont. intros.
     eapply repeatMatcher'_equiv; eauto.
@@ -311,7 +312,7 @@ Section Equiv.
 
 
   (* Linking CharSet.exist_canonicalized and CharSet.contains *)
-  Lemma exist_canonicalized_contains:
+  (*Lemma exist_canonicalized_contains:
     forall rer charset chr,
     RegExpRecord.ignoreCase rer = false ->
     CharSet.exist_canonicalized rer charset (Character.canonicalize rer chr) = CharSet.contains charset chr.
@@ -323,19 +324,18 @@ Section Equiv.
     - intros [c [Hcontains Heq]]. setoid_rewrite canonicalize_casesenst in Heq. 2,3: assumption. rewrite EqDec.inversion_true in Heq. subst c. now apply CharSetExt.contains_spec.
     - intro Hcontains. exists chr. split. 1: now apply CharSetExt.contains_spec.
       apply EqDec.reflb.
-  Qed.
+  Qed.*)
 
 
 
   (* Lemma for character set matchers *)
   Lemma charSetMatcher_noninv_equiv:
     forall charset cd,
-      equiv_cd_charset cd charset ->
-      forall rer dir,
-        RegExpRecord.ignoreCase rer = false ->
-        equiv_matcher (Semantics.characterSetMatcher rer charset false dir) (Regex.Character cd) rer dir.
+      equiv_cd_charset rer cd charset ->
+      forall dir,
+        equiv_matcher rer (Semantics.characterSetMatcher rer charset false dir) (Regex.Character cd) dir.
   Proof.
-    intros charset cd Hequiv rer dir Hcasesenst.
+    intros charset cd Hequiv dir.
     unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
     unfold equiv_cont. intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden.
     unfold Semantics.characterSetMatcher.
@@ -351,7 +351,7 @@ Section Equiv.
       destruct CharSet.CharSetExt.exist_canonicalized eqn:Hexist; simpl.
       * (* Read succeeds *)
         intro Hcontsucc. destruct fuel as [|fuel]; simpl; try discriminate.
-        rewrite (proj1 (read_char_success' ms inp chr _ _ rer dir inp' nextend Hequiv Hcasesenst Hmsinp eq_refl Hgetchr Hexist Hadv)).
+        rewrite (proj1 (read_char_success' rer ms inp chr _ _ dir inp' nextend Hequiv Hmsinp eq_refl Hgetchr Hexist Hadv)).
         destruct compute_tree as [tcont|] eqn:Htcont; simpl; try discriminate.
         intro H. injection H as <-. simpl.
         unfold equiv_cont in Hequivcont.
@@ -368,19 +368,18 @@ Section Equiv.
       * (* Read fails *)
         intro Hcontsucc. injection Hcontsucc as <-.
         destruct fuel as [|fuel]; simpl; try discriminate.
-        rewrite (proj1 (read_char_fail' rer ms chr inp inp' dir _ _ nextend Hequiv Hcasesenst Hmsinp eq_refl Hgetchr Hexist Hadv)).
+        rewrite (proj1 (read_char_fail' rer ms chr inp inp' dir _ _ nextend Hequiv Hmsinp eq_refl Hgetchr Hexist Hadv)).
         intro H. injection H as <-. simpl. constructor.
   Qed.
 
   (* TODO Factorize with non inverted case? *)
   Lemma charSetMatcher_inv_equiv:
     forall charset cd,
-      equiv_cd_charset cd charset ->
-      forall rer dir,
-        RegExpRecord.ignoreCase rer = false ->
-        equiv_matcher (Semantics.characterSetMatcher rer charset true dir) (Regex.Character (CdInv cd)) rer dir.
+      equiv_cd_charset rer cd charset ->
+      forall dir,
+        equiv_matcher rer (Semantics.characterSetMatcher rer charset true dir) (Regex.Character (CdInv cd)) dir.
   Proof.
-    intros charset cd Hequiv rer dir Hcasesenst.
+    intros charset cd Hequiv dir.
     unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
     unfold equiv_cont. intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden.
     unfold Semantics.characterSetMatcher.
@@ -397,11 +396,11 @@ Section Equiv.
       * (* Read succeeds *)
         intro Hcontsucc. injection Hcontsucc as <-.
         destruct fuel as [|fuel]; simpl; try discriminate.
-        rewrite (proj2 (read_char_success' ms inp chr _ _ rer dir inp' nextend Hequiv Hcasesenst Hmsinp eq_refl Hgetchr Hexist Hadv)).
+        rewrite (proj2 (read_char_success' rer ms inp chr _ _ dir inp' nextend Hequiv Hmsinp eq_refl Hgetchr Hexist Hadv)).
         intro H. injection H as <-. simpl. constructor.
       * (* Read fails *)
         intro Hcontsucc. destruct fuel as [|fuel]; simpl; try discriminate.
-        rewrite (proj2 (read_char_fail' rer ms chr inp inp' dir _ _ nextend Hequiv Hcasesenst Hmsinp eq_refl Hgetchr Hexist Hadv)).
+        rewrite (proj2 (read_char_fail' rer ms chr inp inp' dir _ _ nextend Hequiv Hmsinp eq_refl Hgetchr Hexist Hadv)).
         destruct compute_tree as [tcont|] eqn:Htcont; simpl; try discriminate.
         intro H. injection H as <-. simpl.
         unfold equiv_cont in Hequivcont.
@@ -418,20 +417,19 @@ Section Equiv.
   Qed.
 
   Lemma characterClassEscape_equiv:
-    forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
+    forall (lroot: regex) (wroot: Regex)
       (root_equiv: equiv_regex wroot lroot),
-      RegExpRecord.ignoreCase rer = false ->
     forall esc wreg lreg ctx,
       wreg = AtomEsc (ACharacterClassEsc esc) ->
       Root wroot (wreg, ctx) ->
       equiv_regex' wreg lreg (StaticSemantics.countLeftCapturingParensBefore wreg ctx) ->
       forall m dir,
         Semantics.compileSubPattern wreg ctx rer dir = Success m ->
-        equiv_matcher m lreg rer dir.
+        equiv_matcher rer m lreg dir.
   Proof.
-    intros rer lroot wroot root_equiv Hcasesenst esc wreg lreg ctx -> Hroot Hequiv m dir Hcompilesucc.
+    intros lroot wroot root_equiv esc wreg lreg ctx -> Hroot Hequiv m dir Hcompilesucc.
     inversion Hequiv.
-    - subst esc0 lreg. pose proof equiv_cd_CharacterClassEscape esc cd rer Hcasesenst H0 as [a [HcompileCharSet Hequivcdcs]].
+    - subst esc0 lreg. pose proof equiv_cd_CharacterClassEscape rer esc cd H0 as [a [HcompileCharSet Hequivcdcs]].
       unfold Semantics.compileSubPattern, Semantics.compileToCharSet, Coercions.ClassAtom_to_range, Coercions.ClassEscape_to_ClassAtom, Coercions.CharacterClassEscape_to_ClassEscape in Hcompilesucc.
       setoid_rewrite HcompileCharSet in Hcompilesucc. simpl in Hcompilesucc.
       injection Hcompilesucc as <-. apply charSetMatcher_noninv_equiv; auto. rewrite CharSetExt.union_empty. auto.
@@ -440,17 +438,16 @@ Section Equiv.
   Qed.
 
   Lemma characterEscape_equiv:
-    forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
+    forall (lroot: regex) (wroot: Regex)
       (root_equiv: equiv_regex wroot lroot),
-      RegExpRecord.ignoreCase rer = false ->
     forall esc cd ctx,
       Root wroot (AtomEsc (ACharacterEsc esc), ctx) ->
       equiv_CharacterEscape esc cd ->
       forall m dir,
         Semantics.compileSubPattern (AtomEsc (ACharacterEsc esc)) ctx rer dir = Success m ->
-        equiv_matcher m (Regex.Character cd) rer dir.
+        equiv_matcher rer m (Regex.Character cd) dir.
   Proof.
-    intros rer lroot wroot Hequivroot Hcasesenst esc cd ctx Hroot Hequiv m dir.
+    intros lroot wroot Hequivroot esc cd ctx Hroot Hequiv m dir.
     inversion Hequiv as [controlesc cd0 Hequiv'' Heqesc Heqcd0 | l cd0 Hequiv'' Heqesc Heqcd0 | Heqesc Heqcd | d1 d2 Heqesc Heqcd | c Heqesc Heqcd | head tail Heqesc Heqcd | hex Heqesc Heqcd | c Heqesc Heqcd].
     - inversion Hequiv'' as [Heqcontrolesc Heqcd | Heqcontrolesc Heqcd | Heqcontrolesc Heqcd | Heqcontrolesc Heqcd | Heqcontrolesc Heqcd]; simpl; intro H; injection H as <-;
       eapply charSetMatcher_noninv_equiv; eauto; unfold nat_to_nni; rewrite Character.numeric_pseudo_bij; apply equiv_cd_single.
@@ -466,33 +463,29 @@ Section Equiv.
   Qed.
 
   Lemma characterClass_equiv:
-    forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
+    forall (lroot: regex) (wroot: Regex)
       (root_equiv: equiv_regex wroot lroot),
-      RegExpRecord.ignoreCase rer = false ->
       forall cc cd ctx,
         Root wroot (CharacterClass cc, ctx) ->
         equiv_CharClass cc cd ->
         forall m dir,
           Semantics.compileSubPattern (CharacterClass cc) ctx rer dir = Success m ->
-          equiv_matcher m (Regex.Character cd) rer dir.
+          equiv_matcher rer m (Regex.Character cd) dir.
   Proof.
-    intros rer lroot wroot root_equiv Hcasesenst cc cd ctx Hroot Hequiv' m dir.
+    intros lroot wroot root_equiv cc cd ctx Hroot Hequiv' m dir.
     inversion Hequiv' as [crs cd0 Hequiv'' Heqcc' Heqcd0 | crs cd0 Hequiv'' Heqcc' Heqcd0]; simpl.
-    - pose proof equiv_cd_ClassRanges crs cd rer Hcasesenst Hequiv'' as [a [Heqa Hequiva]]. setoid_rewrite Heqa. simpl.
+    - pose proof equiv_cd_ClassRanges rer crs cd Hequiv'' as [a [Heqa Hequiva]]. setoid_rewrite Heqa. simpl.
       intro H. injection H as <-. eapply charSetMatcher_noninv_equiv; eauto.
-    - subst cd. pose proof equiv_cd_ClassRanges crs cd0 rer Hcasesenst Hequiv'' as [a [Heqa Hequiva]]. setoid_rewrite Heqa. simpl.
+    - subst cd. pose proof equiv_cd_ClassRanges rer crs cd0 Hequiv'' as [a [Heqa Hequiva]]. setoid_rewrite Heqa. simpl.
       intro H. injection H as <-. eapply charSetMatcher_inv_equiv; eauto.
   Qed.
 
 
   (* Lemma for backreferences *)
   Lemma backref_equiv:
-    forall gid rer dir
-      (Hcasesenst: RegExpRecord.ignoreCase rer = false)
-      (Hnomultiline: RegExpRecord.multiline rer = false)
-      (Hdotall: RegExpRecord.dotAll rer = true),
-      equiv_matcher (Semantics.backreferenceMatcher rer gid dir)
-        (Backreference (positive_to_nat gid)) rer dir.
+    forall gid dir,
+      equiv_matcher rer (Semantics.backreferenceMatcher rer gid dir)
+        (Backreference (positive_to_nat gid)) dir.
   Proof.
     intros. unfold equiv_matcher.
     intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
@@ -523,7 +516,7 @@ Section Equiv.
           intros H1 H2. injection H1 as <-. injection H2 as <-. constructor.
         * (* In bounds *)
           destruct List.Exists.exist as [existsdiff|] eqn:Hexistsdiffres; simpl; try discriminate.
-          assert (Hexistsdiffiff : existsdiff = true <-> (List.firstn (Z.to_nat rlen) next ==? substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = false) by eauto using exists_diff_iff.
+          assert (Hexistsdiffiff : existsdiff = true <-> (List.map (Character.canonicalize rer) (List.firstn (Z.to_nat rlen) next) ==? List.map (Character.canonicalize rer) (substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx)))%wt = false) by eauto using exists_diff_iff.
           rewrite Bool.negb_involutive_reverse with (b := existsdiff) in Hexistsdiffiff.
           rewrite Bool.negb_true_iff in Hexistsdiffiff.
           destruct existsdiff.
@@ -531,8 +524,8 @@ Section Equiv.
              destruct Hexistsdiffiff as [Hexistsdiffiff _]. rewrite Hexistsdiffiff by reflexivity.
              intros H1 H2. injection H1 as <-. injection H2 as <-. constructor.
           -- (* No character is different *)
-             assert (Hfirstn_next_substr: (List.firstn (Z.to_nat rlen) next ==?
-               substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = true). {
+             assert (Hfirstn_next_substr: (List.map (Character.canonicalize rer) (List.firstn (Z.to_nat rlen) next) ==?
+               List.map (Character.canonicalize rer) (substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx)))%wt = true). {
                symmetry. destruct EqDec.eqb; try reflexivity.
                destruct Hexistsdiffiff. discriminate (H0 eq_refl).
              }
@@ -544,7 +537,7 @@ Section Equiv.
              destruct compute_tree as [tcont|] eqn:Htcont; try discriminate.
              intro H. injection H as <-. simpl.
              unfold equiv_cont in Hequivcont.
-             rewrite <- Hfirstn_next_substr.
+             (*rewrite <- Hfirstn_next_substr.*)
              replace (length (List.firstn _ next)) with (Z.to_nat rlen).
              2: { symmetry in Hoobiff. rewrite Nat.leb_gt in Hoobiff. rewrite List.firstn_length. lia. }
              fold inp'.
@@ -580,7 +573,7 @@ Section Equiv.
             destruct List.Indexing.Int.indexing as [gi|] eqn:Hindexingfirst in Hexistsdiffres; simpl in *; try discriminate.
             apply List.Indexing.Int.success_bounds in Hindexingfirst. lia.
           }
-          assert (Hexistsdiffiff : existsdiff = true <-> (List.rev (List.firstn (Z.to_nat rlen) pref) ==? substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = false) by
+          assert (Hexistsdiffiff : existsdiff = true <-> (List.map (Character.canonicalize rer) (List.rev (List.firstn (Z.to_nat rlen) pref)) ==? List.map (Character.canonicalize rer) (substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx)))%wt = false) by
             eauto using exists_diff_iff_bwd.
           rewrite Bool.negb_involutive_reverse with (b := existsdiff) in Hexistsdiffiff.
           rewrite Bool.negb_true_iff in Hexistsdiffiff.
@@ -589,8 +582,8 @@ Section Equiv.
              destruct Hexistsdiffiff as [Hexistsdiffiff _]. rewrite Hexistsdiffiff by reflexivity.
              intros H1 H2. injection H1 as <-. injection H2 as <-. constructor.
           -- (* No character is different *)
-             assert (Hfirstn_pref_substr: (List.rev (List.firstn (Z.to_nat rlen) pref) ==?
-               substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = true). {
+             assert (Hfirstn_pref_substr: (List.map (Character.canonicalize rer) (List.rev (List.firstn (Z.to_nat rlen) pref)) ==?
+               List.map (Character.canonicalize rer) (substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx)))%wt = true). {
                symmetry. destruct EqDec.eqb; try reflexivity.
                destruct Hexistsdiffiff. discriminate (H0 eq_refl).
              }
@@ -602,7 +595,6 @@ Section Equiv.
              destruct compute_tree as [tcont|] eqn:Htcont; try discriminate.
              intro H. injection H as <-. simpl.
              unfold equiv_cont in Hequivcont.
-             rewrite <- Hfirstn_pref_substr.
              replace (length (List.rev _)) with (Z.to_nat rlen).
              2: { symmetry in Hoobiff. rewrite Nat.leb_gt in Hoobiff. rewrite List.rev_length, List.firstn_length. lia. }
              fold inp'.
@@ -636,13 +628,7 @@ Section Equiv.
 
   (* Main equivalence theorem: *)
   Theorem equiv:
-    forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
-      (* Assume that we do not ignore case, *)
-      (Hcasesenst: RegExpRecord.ignoreCase rer = false)
-      (* that we do not consider line ends and starts to be input ends and starts, respectively, *)
-      (Hnomultiline: RegExpRecord.multiline rer = false)
-      (* and that dot matches all characters. *)
-      (Hdotall: RegExpRecord.dotAll rer = true)
+    forall (lroot: regex) (wroot: Regex)
       (* Let lroot and wroot be a pair of equivalent regexes. *)
       (root_equiv: equiv_regex wroot lroot),
       (* Then for any sub-regex wreg of the root Warblre regex, *)
@@ -654,9 +640,9 @@ Section Equiv.
         (* if compileSubPattern with direction dir yields a Matcher for regex wreg, *)
         (Hcompsucc: Semantics.compileSubPattern wreg ctx rer dir = Success m),
         (* then this Matcher is equivalent to the regex lreg and direction dir. *)
-        equiv_matcher m lreg rer dir.
+        equiv_matcher rer m lreg dir.
   Proof.
-    do 12 intro.
+    do 8 intro.
     remember (StaticSemantics.countLeftCapturingParensBefore _ _) as n in Hequiv.
     revert ctx Hroot Heqn.
     induction Hequiv as [
@@ -693,7 +679,9 @@ Section Equiv.
     - (* Dot *)
       intros ctx Hroot Heqn m dir Hcompsucc.
       injection Hcompsucc as <-.
-      apply charSetMatcher_noninv_equiv; auto. rewrite Hdotall. apply equiv_cd_dot.
+      apply charSetMatcher_noninv_equiv; auto. destruct (RegExpRecord.dotAll rer) eqn:HdotAll.
+      + apply equiv_cd_dot_dotAll. auto.
+      + apply equiv_cd_dot_noDotAll. auto.
 
     - (* Backreference *)
       intros ctx Hroot Heqn m dir. simpl.
@@ -745,7 +733,7 @@ Section Equiv.
       destruct fuel as [|fuel]; simpl; try discriminate.
       destruct m1 as [res1|] eqn:Hres1; simpl; try discriminate.
       destruct compute_tree as [t1|] eqn:Ht1; simpl; try discriminate.
-      destruct (compute_tree (Areg lr2 :: act)%list _ _ _ _) as [t2|] eqn:Ht2; simpl; try discriminate.
+      destruct (compute_tree rer (Areg lr2 :: act)%list _ _ _ _) as [t2|] eqn:Ht2; simpl; try discriminate.
       specialize (IH1 gm ms inp res1 fuel t1 Hinpcompat Hgmms Hgmgl Hmsinp).
       specialize_prove IH1. { apply ms_valid_wrt_checks_Areg. eauto using ms_valid_wrt_checks_tail. }
       specialize (IH1 Hgmvalid).
@@ -791,7 +779,7 @@ Section Equiv.
         unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
         unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden; try discriminate; simpl.
         set (mc2 := fun s => _).
-        assert (Hequivcont2: equiv_cont mc2 gl (forbidden_groups lr2 ++ forbgroups) (Areg lr2 :: act)%list forward str0 rer). {
+        assert (Hequivcont2: equiv_cont rer mc2 gl (forbidden_groups lr2 ++ forbgroups) (Areg lr2 :: act)%list forward str0). {
           unfold equiv_cont. clear gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden.
           intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hnoforbidden. unfold mc2.
           intros Hres Ht. eapply IH2; eauto.
@@ -808,7 +796,7 @@ Section Equiv.
         unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
         unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden; try discriminate; simpl.
         set (mc1 := fun s => _).
-        assert (Hequivcont1: equiv_cont mc1 gl (forbidden_groups lr1 ++ forbgroups) (Areg lr1 :: act)%list backward str0 rer). {
+        assert (Hequivcont1: equiv_cont rer mc1 gl (forbidden_groups lr1 ++ forbgroups) (Areg lr1 :: act)%list backward str0). {
           unfold equiv_cont. clear gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden.
           intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hnoforbidden. unfold mc1.
           intros Hres Ht. eapply IH1; eauto.
@@ -859,7 +847,7 @@ Section Equiv.
       unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
       unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden; simpl; try discriminate.
       set (mcclose := fun (y: MatchState) => _).
-      assert (Hequivmcclose: equiv_cont mcclose ((S n, idx inp)::gl)%list forbgroups (Aclose (S n)::act)%list dir str0 rer). {
+      assert (Hequivmcclose: equiv_cont rer mcclose ((S n, idx inp)::gl)%list forbgroups (Aclose (S n)::act)%list dir str0). {
         unfold equiv_cont. intros gm' ms' inp' res' [|fuel'] t' Hinp'compat Hgm'ms' Hgm'gl' Hms'inp' Hms'checks Hgm'valid Hnoforbidden'; simpl; try discriminate.
         destruct compute_tree as [treecont|] eqn:Htreecont; simpl; try discriminate.
         unfold mcclose.
@@ -929,7 +917,7 @@ Section Equiv.
           }
           set (msafterlk := match_state _ _ _).
           unfold equiv_cont in Hequivcont. specialize (Hequivcont gmafterlk msafterlk inp res fuel).
-          destruct (compute_tree act inp gmafterlk dir fuel) as [treecont|] eqn:Heqtreecont; simpl; try discriminate.
+          destruct (compute_tree rer act inp gmafterlk dir fuel) as [treecont|] eqn:Heqtreecont; simpl; try discriminate.
           specialize (Hequivcont treecont Hinpcompat).
           specialize_prove Hequivcont by eauto using equiv_gmafterlk_msafterlk. (* Only depends on captures, follows from Hequivafterlk *)
           specialize_prove Hequivcont by eauto using equiv_open_groups_lk. (* Follows from Hgmgl, Heqgmafterlk, Htlk and Hnoforbidden; see paper reasoning (non-trivial, but should not depend on compileSubPattern) *)
@@ -997,7 +985,7 @@ Section Equiv.
             symmetry in Htreeresnone. apply Tree.res_group_map_indep with (gm2 := GroupMap.empty) (inp2 := init_input nil) (dir2 := forward) in Htreeresnone. setoid_rewrite Htreeresnone in Hreslk. discriminate.
           }
           unfold equiv_cont in Hequivcont. specialize (Hequivcont gm ms inp res fuel).
-          destruct (compute_tree act inp gm dir fuel) as [treecont|] eqn:Heqtreecont; simpl; try discriminate.
+          destruct (compute_tree rer act inp gm dir fuel) as [treecont|] eqn:Heqtreecont; simpl; try discriminate.
           specialize (Hequivcont treecont Hinpcompat).
           specialize_prove Hequivcont by eauto using equiv_gmafterlk_msafterlk. (* Only depends on captures, follows from Hequivafterlk *)
           specialize_prove Hequivcont by eauto using equiv_open_groups_lk. (* Follows from Hgmgl, Heqgmafterlk, Htlk and Hnoforbidden; see paper reasoning (non-trivial, but should not depend on compileSubPattern) *)
@@ -1046,7 +1034,7 @@ Section Equiv.
           }
           set (msafterlk := match_state _ _ _).
           unfold equiv_cont in Hequivcont. specialize (Hequivcont gmafterlk msafterlk inp res fuel).
-          destruct (compute_tree act inp gmafterlk dir fuel) as [treecont|] eqn:Heqtreecont; simpl; try discriminate.
+          destruct (compute_tree rer act inp gmafterlk dir fuel) as [treecont|] eqn:Heqtreecont; simpl; try discriminate.
           specialize (Hequivcont treecont Hinpcompat).
           specialize_prove Hequivcont by eauto using equiv_gmafterlk_msafterlk. (* Only depends on captures, follows from Hequivafterlk *)
           specialize_prove Hequivcont by eauto using equiv_open_groups_lk. (* Follows from Hgmgl, Heqgmafterlk, Htlk and Hnoforbidden; see paper reasoning (non-trivial, but should not depend on compileSubPattern) *)
@@ -1116,7 +1104,7 @@ Section Equiv.
             setoid_rewrite Htreeresnone in Hreslk. discriminate.
           }
           unfold equiv_cont in Hequivcont. specialize (Hequivcont gm ms inp res fuel).
-          destruct (compute_tree act inp gm dir fuel) as [treecont|] eqn:Heqtreecont; simpl; try discriminate.
+          destruct (compute_tree rer act inp gm dir fuel) as [treecont|] eqn:Heqtreecont; simpl; try discriminate.
           specialize (Hequivcont treecont Hinpcompat).
           specialize_prove Hequivcont by eauto using equiv_gmafterlk_msafterlk. (* Only depends on captures, follows from Hequivafterlk *)
           specialize_prove Hequivcont by eauto using equiv_open_groups_lk. (* Follows from Hgmgl, Heqgmafterlk, Htlk and Hnoforbidden; see paper reasoning (non-trivial, but should not depend on compileSubPattern) *)
@@ -1146,11 +1134,15 @@ Section Equiv.
           specialize (Hequivcont Hgmvalid Hnoforb).
           intro Hres. specialize (Hequivcont Hres eq_refl). intro H. injection H as <-.
           simpl in *. auto.
-        * rewrite Hnomultiline. simpl. intro H. injection H as <-.
-          unfold anchor_satisfied.
+        * unfold anchor_satisfied.
           rewrite Z.eqb_neq in Hatbegin.
           pose proof begin_input_pref_nonempty _ _ Hatbegin Hmsinp as Hprefnotnil. destruct Hprefnotnil as [next [x [pref ->]]].
-          intro H. injection H as <-. simpl. constructor.
+          destruct RegExpRecord.multiline; simpl.
+          -- (* Multiline *)
+             replace (List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms - 1)) with (Success (F := Errors.MatchError.type) x) by admit.
+             simpl.
+             admit.
+          -- intro H. injection H as <-. intro H. injection H as <-. simpl. constructor.
       
       + (* Input end *)
         simpl. intro H. injection H as <-.
@@ -1164,11 +1156,14 @@ Section Equiv.
           pose proof end_input_next_empty _ _ Hatend Hmsinp as Hnextnil. destruct Hnextnil as [pref ->].
           destruct compute_tree as [treecont|]; try discriminate.
           intro H. injection H as <-. simpl. apply Hequivcont; auto. apply ms_valid_wrt_checks_tail in Hmschecks. auto.
-        * rewrite Z.eqb_neq in Hatend. rewrite Hnomultiline. simpl.
-          intro H. injection H as <-.
+        * rewrite Z.eqb_neq in Hatend.
           unfold anchor_satisfied.
           pose proof end_input_next_nonempty _ _ Hatend Hmsinp as Hnextnotnil. destruct Hnextnotnil as [pref [x [next ->]]].
-          intro H. injection H as <-. simpl. constructor.
+          destruct RegExpRecord.multiline; simpl.
+          -- replace (List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms)) with (Success (F := Errors.MatchError.type) x) by admit.
+             simpl.
+             admit.
+          -- intro H. injection H as <-. intro H. injection H as <-. simpl. constructor.
         
       + (* Word boundary *)
         simpl. intro H. injection H as <-.
@@ -1177,7 +1172,7 @@ Section Equiv.
         destruct fuel as [|fuel]; simpl; try discriminate.
         destruct Semantics.isWordChar as [a|] eqn:Hwca; simpl in *. 2: discriminate.
         destruct (Semantics.isWordChar rer (_ ms) (MatchState.endIndex ms)) as [b|] eqn:Hwcb; simpl in *. 2: discriminate.
-        rewrite ifthenelse_xorb. pose proof is_boundary_xorb _ _ _ _ _ Hcasesenst Hmsinp Hwca Hwcb as Hisboundary.
+        rewrite ifthenelse_xorb. pose proof is_boundary_xorb _ _ _ _ _ Hmsinp Hwca Hwcb as Hisboundary.
         destruct xorb.
         * (* We are on a boundary *)
           intro Hres.
@@ -1188,7 +1183,7 @@ Section Equiv.
           intro H. injection H as <-. simpl. apply Hequivcont; auto. apply ms_valid_wrt_checks_tail in Hmschecks. auto.
         * (* We are not *)
           intro Hres. injection Hres as <-.
-          unfold anchor_satisfied. destruct inp as [next pref]; unfold LindenParameters in *; simpl in *.
+          unfold anchor_satisfied. destruct inp as [next pref].
           setoid_rewrite <- Hisboundary. intro H. injection H as <-. simpl. constructor.
         
       + (* Non word boundary *)
@@ -1198,7 +1193,7 @@ Section Equiv.
         destruct fuel as [|fuel]; simpl; try discriminate.
         destruct Semantics.isWordChar as [a|] eqn:Hwca; simpl in *. 2: discriminate.
         destruct (Semantics.isWordChar rer (_ ms) (MatchState.endIndex ms)) as [b|] eqn:Hwcb; simpl in *. 2: discriminate.
-        rewrite ifthenelse_negb_xorb. pose proof is_boundary_xorb _ _ _ _ _ Hcasesenst Hmsinp Hwca Hwcb as Hisboundary.
+        rewrite ifthenelse_negb_xorb. pose proof is_boundary_xorb _ _ _ _ _ Hmsinp Hwca Hwcb as Hisboundary.
         destruct xorb.
         * (* We are on a boundary *)
           simpl. intro Hres. injection Hres as <-.
@@ -1212,5 +1207,5 @@ Section Equiv.
           destruct compute_tree as [treecont|]; try discriminate.
           intro H. injection H as <-. simpl. apply Hequivcont; auto. apply ms_valid_wrt_checks_tail in Hmschecks. auto.
 
-  Qed.
+  Admitted.
 End Equiv.

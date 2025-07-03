@@ -57,13 +57,13 @@ Section RegexpTranslation.
   (* CharacterClassEscape *)
   Inductive equiv_CharacterClassEscape: Patterns.CharacterClassEscape -> char_descr -> Prop :=
   | Equiv_esc_d: equiv_CharacterClassEscape Patterns.esc_d CdDigits
-  | Equiv_esc_D: equiv_CharacterClassEscape Patterns.esc_D (CdInv CdDigits)
+  | Equiv_esc_D: equiv_CharacterClassEscape Patterns.esc_D CdNonDigits
   | Equiv_esc_s: equiv_CharacterClassEscape Patterns.esc_s CdWhitespace
-  | Equiv_esc_S: equiv_CharacterClassEscape Patterns.esc_S (CdInv CdWhitespace)
+  | Equiv_esc_S: equiv_CharacterClassEscape Patterns.esc_S CdNonWhitespace
   | Equiv_esc_w: equiv_CharacterClassEscape Patterns.esc_w CdWordChar
-  | Equiv_esc_W: equiv_CharacterClassEscape Patterns.esc_W (CdInv CdWordChar)
+  | Equiv_esc_W: equiv_CharacterClassEscape Patterns.esc_W CdNonWordChar
   | Equiv_UnicodeProp: forall p, equiv_CharacterClassEscape (Patterns.UnicodeProp p) (CdUnicodeProp p)
-  | Equiv_UnicodePropNeg: forall p, equiv_CharacterClassEscape (Patterns.UnicodePropNeg p) (CdInv (CdUnicodeProp p))
+  | Equiv_UnicodePropNeg: forall p, equiv_CharacterClassEscape (Patterns.UnicodePropNeg p) (CdNonUnicodeProp p)
   .
 
   (* ControlEscape *)
@@ -347,7 +347,7 @@ Section RegexpTranslation.
 
   End WarblreToLinden.
 
-  Section LindenToWarblre.
+  (*Section LindenToWarblre.
 
     Definition cd_to_warblre (cd: char_descr): option Patterns.Regex :=
       match cd with
@@ -641,6 +641,6 @@ Section RegexpTranslation.
         intro H. injection H as <-. constructor; auto; constructor.
     Qed.
 
-  End TranslationSoundness.
+  End TranslationSoundness.*)
 
 End RegexpTranslation.

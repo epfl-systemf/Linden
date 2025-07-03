@@ -1,7 +1,7 @@
 Require Import List.
 Import ListNotations.
 
-From Linden Require Import Regex Chars Groups Parameters.
+From Linden Require Import Regex Chars Groups Parameters LWParameters.
 From Coq Require Import PeanoNat.
 From Warblre Require Import Typeclasses Parameters Base.
 

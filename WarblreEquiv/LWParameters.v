@@ -1,5 +1,5 @@
 From Warblre Require Import Parameters Typeclasses RegExpRecord Patterns Result Errors.
-From Linden Require Import Parameters Utils Chars CharSet.
+From Linden Require Import Parameters Utils CharSet.
 From Coq Require Import List.
 Import ListNotations.
 Import Result.Notations.
@@ -14,6 +14,13 @@ Section LWParameters.
   Context {params: LindenParameters}.
 
   (** ** Strings *)
+  Definition string := list Character.
+
+  Definition string_eq_dec : forall (x y : string), { x = y } + { x <> y }.
+  Proof.
+    decide equality. apply Character.eq_dec.
+  Defined.
+  #[export] Instance string_EqDec: EqDec string := EqDec.make string string_eq_dec.
 
   (* Adapted from String.substring: returns the substring of s starting at index n and of length m (or less if the string is not long enough). *)
   Fixpoint substring (s: string) (n m: nat): string :=

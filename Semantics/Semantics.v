@@ -7,7 +7,7 @@ From Linden Require Import NumericLemmas.
 From Warblre Require Import Numeric Base RegExpRecord.
 From Linden Require Import Groups.
 From Linden Require Import StrictSuffix.
-From Linden Require Import Parameters.
+From Linden Require Import Parameters LWParameters.
 From Coq Require Import Lia.
 
 (* This relates a regex and a string to their backtracking tree *)
@@ -84,21 +84,22 @@ Section Semantics.
         end
     end.
 
+  (* Checks whether the string is at an input boundary, i.e. start/end of input or line terminator if multiline *)
+  Definition is_input_boundary (multiline: bool) (str: string): bool :=
+    match str with
+    | [] => true
+    | x::q => multiline && Utils.List.inb x Character.line_terminators
+    end.
+
   (* independent of the direction *)
   Definition anchor_satisfied (a:anchor) (i:input) : bool :=
     match i with
     | Input next pref =>
         match a with
         | BeginInput =>
-            match pref with
-            | [] => true
-            | x::q => RegExpRecord.multiline rer && Utils.List.inb x Character.line_terminators
-            end
+            is_input_boundary (RegExpRecord.multiline rer) pref
         | EndInput =>
-            match next with
-            | [] => true
-            | x::q => RegExpRecord.multiline rer && Utils.List.inb x Character.line_terminators
-            end
+            is_input_boundary (RegExpRecord.multiline rer) next
         | WordBoundary =>
             is_boundary i
         | NonWordBoundary =>
