@@ -1,4 +1,4 @@
-From Coq Require Export List Equivalence Lia.
+From Coq Require Export Bool Arith List Equivalence Lia.
 From Warblre Require Import Base RegExpRecord.
 From Linden Require Import Regex Chars Groups Tree Semantics
   FunctionalSemantics FunctionalUtils ComputeIsTree Parameters
@@ -634,6 +634,28 @@ Ltac leaves_equiv_step :=
 
 Ltac leaves_equiv_t :=
   first [ reflexivity | repeat leaves_equiv_step ].
+
+Hint Rewrite
+  @CharSet.CharSetExt.exist_canonicalized_equiv
+  @CharSet.CharSetExt.exist_spec
+  @CharSet.CharSetExt.exist_false_iff
+  @CharSet.CharSetExt.contains_spec
+  @CharSet.CharSetExt.contains_false_iff
+  @CharSet.CharSetExt.range_spec
+  EqDec.inversion_false
+  EqDec.inversion_true
+  Bool.andb_true_iff
+  Bool.andb_false_iff
+  Bool.orb_true_iff
+  Bool.orb_false_iff
+  Bool.negb_true_iff
+  Bool.negb_false_iff
+  : charset.
+
+Hint Unfold CharSet.CharSetExt.Exists
+  : charset.
+
+Hint Extern 1 => lia : lia.
 
 Section Relation.
   Context {params: LindenParameters}.

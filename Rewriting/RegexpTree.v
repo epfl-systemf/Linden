@@ -159,9 +159,10 @@ Section RegexpTree.
     Qed.
 
     Context (c0 c1 c2: Parameters.Character).
-    Context (H01: Character.canonicalize rer c0 <> Character.canonicalize rer c1)
-      (H12: Character.canonicalize rer c0 <> Character.canonicalize rer c2)
-      (H02: Character.canonicalize rer c1 <> Character.canonicalize rer c2).
+
+    Hypothesis H01: Character.canonicalize rer c1 <> Character.canonicalize rer c0.
+    Hypothesis H12: Character.canonicalize rer c0 <> Character.canonicalize rer c2.
+    Hypothesis H02: Character.canonicalize rer c1 <> Character.canonicalize rer c2.
 
     Lemma atmost_bounded_nequiv: (* r{0,m}r{n} ≅ r{n,n+m} *)
       exists m n r,
@@ -171,7 +172,8 @@ Section RegexpTree.
       exists 1, 1, (Disjunction c0 (Sequence c0 c1)).
       tree_equiv_rw.
       exists forward, (init_input [c0; c1; c0]), GroupMap.empty.
-      compute_tr_cbv. inversion 1.
+      compute_tr_cbv.
+      inversion 1.
     Qed.
 
     Definition incl {A} (a b: list A) :=
@@ -519,36 +521,55 @@ Section RegexpTree.
 Illustrative examples taken from https://github.com/DmitrySoshnikov/regexp-tree/tree/master/src/optimizer (not complete).
 |*)
 
+  Section Ranges.
+    Variables c0 c1 c2: Parameters.Character.
+    Hypothesis H01: Character.numeric_value c0 <= Character.numeric_value c1.
+    Hypothesis H12: Character.numeric_value c1 <= Character.numeric_value c2.
+
+    Lemma char_match_range_split c:
+      char_match rer c (CdRange c0 c2) =
+        char_match rer c (CdUnion (CdRange c0 c1) (CdRange c1 c2)).
+    Proof.
+      unfold char_match; simpl; apply Bool.eq_iff_eq_true.
+      rewrite !Character.numeric_pseudo_bij.
+      autorewrite with charset in *; autounfold with charset.
+      setoid_rewrite CharSet.CharSetExt.range_spec.
+      setoid_rewrite EqDec.inversion_true.
+      split; intros H; [ | destruct H ].
+      all: destruct H as (c' & ?Hle & <-).
+      1: destruct (le_ge_dec (Character.numeric_value c') (Character.numeric_value c1)).
+      all: firstorder eauto with lia.
+    Qed.
+
+    Hint Rewrite char_match_range_split : tree_equiv_symbex.
+
+    Lemma range_range_equiv: (* [a-de-f] -> [a-f] *)
+      Character (CdUnion (CdRange c0 c1) (CdRange c1 c2)) ≅[rer]
+        Character (CdRange c0 c2).
+    Proof.
+      tree_equiv_rw; tree_equiv_symbex; leaves_equiv_t.
+    Qed.
+  End Ranges.
+
   Section CharacterClasses.
+    Hint Unfold char_match : tree_equiv_symbex.
+
     Lemma class_union_equiv cd0 cd1:
       Disjunction (Character cd0) (Character cd1) ≅[rer] Character (CdUnion cd0 cd1).
     Proof.
-      tree_equiv_rw. tree_equiv_symbex.
-      all: leaves_equiv_t.
+      tree_equiv_rw; tree_equiv_symbex; leaves_equiv_t.
     Qed.
-
-    Lemma range_range_equiv c0 c1 c2: (* [a-de-f] -> [a-f] *)
-      Character.numeric_value c0 <= Character.numeric_value c1 ->
-      Character.numeric_value c1 <= Character.numeric_value c2 ->
-      Character (CdUnion (CdRange c0 c1) (CdRange c1 c2)) ≅[rer] Character (CdRange c0 c2).
-    Proof.
-      tree_equiv_rw; tree_equiv_symbex.
-      (* TODO: BROKEN *)
-      (*all: lia || reflexivity.*)
-      all: try reflexivity.
-    Admitted.
 
     Lemma class_single_left_equiv c0:
       Character (CdUnion (CdSingle c0) CdEmpty) ≅[rer] Character (CdSingle c0).
     Proof.
-      tree_equiv_rw; tree_equiv_symbex; reflexivity.
+      tree_equiv_rw; tree_equiv_symbex; leaves_equiv_t.
     Qed.
 
     Lemma class_single_right_equiv c0:
       Character (CdUnion CdEmpty (CdSingle c0)) ≅[rer] Character (CdSingle c0).
     Proof.
-      (* TODO: BROKEN *)
-      tree_equiv_rw; tree_equiv_symbex; reflexivity.
+      tree_equiv_rw; tree_equiv_symbex; leaves_equiv_t.
     Qed.
   End CharacterClasses.
 End RegexpTree.
