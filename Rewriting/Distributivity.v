@@ -86,6 +86,8 @@ Module LeftForward.
 
     Definition input := init_input [c].
 
+    Arguments char_match {params} rer c !cd /.
+
     Theorem factored_expanded_left_nequiv:
       factored ≇[rer] expanded.
     Proof.
