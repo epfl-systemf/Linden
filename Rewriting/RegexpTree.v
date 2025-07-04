@@ -159,7 +159,9 @@ Section RegexpTree.
     Qed.
 
     Context (c0 c1 c2: Parameters.Character).
-    Context (H01: c0 <> c1) (H12: c0 <> c2) (H02: c1 <> c2) .
+    Context (H01: Character.canonicalize rer c0 <> Character.canonicalize rer c1)
+      (H12: Character.canonicalize rer c0 <> Character.canonicalize rer c2)
+      (H02: Character.canonicalize rer c1 <> Character.canonicalize rer c2).
 
     Lemma atmost_bounded_nequiv: (* r{0,m}r{n} ≅ r{n,n+m} *)
       exists m n r,
@@ -169,9 +171,8 @@ Section RegexpTree.
       exists 1, 1, (Disjunction c0 (Sequence c0 c1)).
       tree_equiv_rw.
       exists forward, (init_input [c0; c1; c0]), GroupMap.empty.
-      compute_tr_cbv; inversion 1.
-      (* TODO: BROKEN *)
-    Admitted.
+      compute_tr_cbv. inversion 1.
+    Qed.
 
     Definition incl {A} (a b: list A) :=
       forall x, In x a -> In x b.
@@ -524,8 +525,7 @@ Illustrative examples taken from https://github.com/DmitrySoshnikov/regexp-tree/
     Proof.
       tree_equiv_rw. tree_equiv_symbex.
       all: leaves_equiv_t.
-      (* TODO: BROKEN *)
-    Admitted.
+    Qed.
 
     Lemma range_range_equiv c0 c1 c2: (* [a-de-f] -> [a-f] *)
       Character.numeric_value c0 <= Character.numeric_value c1 ->
@@ -541,15 +541,14 @@ Illustrative examples taken from https://github.com/DmitrySoshnikov/regexp-tree/
     Lemma class_single_left_equiv c0:
       Character (CdUnion (CdSingle c0) CdEmpty) ≅[rer] Character (CdSingle c0).
     Proof.
-      (* TODO: BROKEN *)
-      (*tree_equiv_rw; tree_equiv_symbex; reflexivity.*)
-    Admitted.
+      tree_equiv_rw; tree_equiv_symbex; reflexivity.
+    Qed.
 
     Lemma class_single_right_equiv c0:
       Character (CdUnion CdEmpty (CdSingle c0)) ≅[rer] Character (CdSingle c0).
     Proof.
       (* TODO: BROKEN *)
-      (*tree_equiv_rw; tree_equiv_symbex; reflexivity.*)
-    Admitted.
+      tree_equiv_rw; tree_equiv_symbex; reflexivity.
+    Qed.
   End CharacterClasses.
 End RegexpTree.

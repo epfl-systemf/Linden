@@ -590,6 +590,7 @@ Hint Unfold
      is_boundary
      read_char
      word_char
+     char_match
      andb orb negb xorb
   : tree_equiv_symbex.
 

@@ -291,4 +291,4 @@ Proof. apply EqDec.inversion_false. Qed.
 
 Ltac compute_tr_cbv :=
   unfold compute_tr;
-  repeat (simpl; try ((rewrite EqDec_eqb + rewrite EqDec_neqb); [ | congruence ])).
+  repeat (simpl; unfold char_match; simpl; try ((rewrite EqDec_eqb + rewrite EqDec_neqb); [ | congruence ])).

@@ -93,7 +93,6 @@ Module LeftForward.
       exists forward, input, GroupMap.empty.
       compute_tr_cbv.
       inversion 1.
-      (* TODO: BROKEN *)
-    Admitted.
+    Qed.
   End Counterexample.
 End LeftForward.
