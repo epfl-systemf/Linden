@@ -6,9 +6,11 @@ From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeTreeSeen PikeVMSeen.
 From Linden Require Import PikeEquiv PikeSubset.
-From Warblre Require Import Base.
+From Warblre Require Import Base RegExpRecord.
 
 
+Section TreeRep.
+  Context (rer: RegExpRecord).
 (** * Tree Rep Predicate  *)
 (* A predicate showing that a tree is represented at a given point in the code *)
 (* For a given input and boolean *)
@@ -38,7 +40,7 @@ Inductive tree_rep: tree -> code -> label -> input -> LoopBool -> Prop :=
 | tr_read:
   forall code pc inp nextinp b cd c t
     (CONSUME: get_pc code pc = Some (Consume cd))
-    (READ: read_char cd inp forward = Some (c, nextinp))
+    (READ: read_char rer cd inp forward = Some (c, nextinp))
     (TR: tree_rep t code (S pc) nextinp CanExit),
     tree_rep (Read c t) code pc inp b
 | tr_progress:
@@ -64,7 +66,7 @@ Inductive tree_rep: tree -> code -> label -> input -> LoopBool -> Prop :=
 | tr_readfail:
   forall code pc inp b cd
     (CONSUME: get_pc code pc = Some (Consume cd))
-    (READ: read_char cd inp forward = None),
+    (READ: read_char rer cd inp forward = None),
     tree_rep Mismatch code pc inp b
 | tr_progressfail:
   forall code pc nextpc inp
@@ -132,7 +134,7 @@ Theorem actions_tree_rep:
   forall actions code pc n inp b t
     (SUBSET: pike_actions actions)
     (ACT: actions_rep actions code pc n)
-    (TREE: bool_tree actions inp b t),
+    (TREE: bool_tree rer actions inp b t),
     tree_rep t code pc inp b.
 Proof.
   intros actions code pc n inp b t SUBSET ACT TREE.
@@ -267,11 +269,13 @@ Lemma actions_rep_unicity:
     pike_actions a2 ->
     actions_rep a1 code pc n1 ->
     actions_rep a2 code pc n2 ->
-    bool_tree a1 inp b t1 ->
-    bool_tree a2 inp b t2 ->
+    bool_tree rer a1 inp b t1 ->
+    bool_tree rer a2 inp b t2 ->
     t1 = t2.
 Proof.
   intros. eapply actions_tree_rep in H1; eauto.
   eapply actions_tree_rep in H2; eauto.
   eapply tree_rep_determ; eauto.
 Qed.
+
+End TreeRep.

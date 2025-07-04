@@ -9,8 +9,11 @@ From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeTreeSeen PikeVMSeen.
 From Linden Require Import PikeEquiv PikeSeenEquiv PikeSubset.
 From Linden Require Import EquivMain RegexpTranslation GroupMapMS.
-From Warblre Require Import Base Semantics Result.
+From Warblre Require Import Base Semantics Result RegExpRecord.
 Import Result.Notations.
+
+Local Open Scope result_flow.
+From Linden Require Import LWParameters.
 
 (** * Transitive Reflexive Closure of Small-step semantics  *)
 
@@ -31,17 +34,20 @@ Proof.
 Qed.
 
 
+Section Correctness.
+  Context (rer: RegExpRecord).
+
 Definition trc_pike_tree := @trc pike_tree_seen_state pike_tree_seen_step.
-Definition trc_pike_vm (c:code) := @trc pike_vm_seen_state (pike_vm_seen_step c).
+Definition trc_pike_vm (c:code) := @trc pike_vm_seen_state (pike_vm_seen_step rer c).
 
 
 (* The Pike invariant is preserved through the TRC *)
 Lemma vm_to_tree:
   forall svm1 st1 svm2 code n1
-    (STWF: stutter_wf code)
-    (INVARIANT: pike_inv code st1 svm1 n1)
+    (STWF: stutter_wf rer code)
+    (INVARIANT: pike_inv rer code st1 svm1 n1)
     (TRCVM: trc_pike_vm code svm1 svm2),
-    exists st2 n2, trc_pike_tree st1 st2 /\ pike_inv code st2 svm2 n2.
+    exists st2 n2, trc_pike_tree st1 st2 /\ pike_inv rer code st2 svm2 n2.
 Proof.
   intros svm1 st1 svm2 code n1 STWF INVARIANT TRCVM.
   generalize dependent st1. generalize dependent n1.
@@ -59,12 +65,12 @@ Qed.
 Theorem pike_vm_to_pike_tree:
   forall r inp tree result,
     pike_regex r -> 
-    bool_tree [Areg r] inp CanExit tree ->
+    bool_tree rer [Areg r] inp CanExit tree ->
     trc_pike_vm (compilation r) (pike_vm_seen_initial_state inp) (PVSS_final result) ->
     trc_pike_tree (pike_tree_seen_initial_state tree inp) (PTSS_final result).
 Proof.
   intros r inp tree result SUBSET TREE TRCVM.
-  generalize (initial_pike_inv r inp tree (compilation r) TREE (@eq_refl _ _) SUBSET).
+  generalize (initial_pike_inv rer r inp tree (compilation r) TREE (@eq_refl _ _) SUBSET).
   intros INIT.
   eapply vm_to_tree in TRCVM as [vmfinal [nfinal [TRCTREE INV]]]; eauto.
   - inversion INV; subst. auto.
@@ -91,7 +97,7 @@ Theorem pike_vm_correct:
     (* the regex `r` is in the supported subset *)
     pike_regex r ->
     (* `tree` is the tree of the regex `r` for the input `inp` *)
-    is_tree [Areg r] inp GroupMap.empty forward tree ->
+    is_tree rer [Areg r] inp GroupMap.empty forward tree ->
     (* the result of the PikeVM is `result` *)
     trc_pike_vm (compilation r) (pike_vm_seen_initial_state inp) (PVSS_final result) ->
     (* This `result` is the priority result of the `tree` *)
@@ -108,14 +114,11 @@ Proof.
   inversion FINALINV. subst. unfold first_branch. auto.
 Qed.
 
-Local Open Scope result_flow.
-From Linden Require Import LWParameters.
-
 Theorem pike_vm_same_warblre:
-  forall lr wr str0 rer,
+  forall lr wr str0,
     pike_regex lr ->
     equiv_regex wr lr ->
-    rer = computeRer wr ->
+    RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wr nil ->
     EarlyErrors.Pass_Regex wr nil ->
     exists m res,
       Semantics.compilePattern wr rer = Success m /\
@@ -124,14 +127,16 @@ Theorem pike_vm_same_warblre:
         trc_pike_vm (compilation lr) (pike_vm_seen_initial_state (init_input str0)) (PVSS_final result) ->
         EquivDef.equiv_res result res.
 Proof.
-  intros lr wr str0 rer Hpike Hequiv Heqrer HearlyErrors.
-  pose proof equiv_main wr lr rer str0 Hequiv Heqrer HearlyErrors as HequivMain.
+  intros lr wr str0 Hpike Hequiv Hcapcount HearlyErrors.
+  pose proof equiv_main wr lr rer str0 Hequiv Hcapcount HearlyErrors as HequivMain.
   destruct HequivMain as [m [res [Hcompsucc [Hexecsucc Hsameresult]]]].
   exists m. exists res. split; [|split]; auto.
-  set (tree := FunctionalUtils.compute_tr [Areg lr] (init_input str0) GroupMap.empty forward).
+  set (tree := FunctionalUtils.compute_tr rer [Areg lr] (init_input str0) GroupMap.empty forward).
   specialize (Hsameresult tree eq_refl). destruct Hsameresult as [His_tree Hsameresult].
   intros result Hpikeresult.
   pose proof pike_vm_correct lr (init_input str0) tree result Hpike His_tree Hpikeresult as Hsameresult'.
   rewrite Hsameresult'. assumption.
 Qed.
+
+End Correctness.
 
