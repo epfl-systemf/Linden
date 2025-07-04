@@ -1141,7 +1141,16 @@ Section Equiv.
           -- (* Multiline *)
              replace (List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms - 1)) with (Success (F := Errors.MatchError.type) x) by admit.
              simpl.
-             admit.
+             unfold Characters.line_terminators. setoid_rewrite CharSetExt.from_list_contains_inb.
+             destruct List.inb.
+             ++ unfold equiv_cont in Hequivcont. specialize (Hequivcont gm ms (Input next (x::pref)%list) res fuel).
+                destruct compute_tree as [treecont|]; try discriminate.
+                specialize (Hequivcont treecont Hinpcompat Hgmms Hgmgl Hmsinp).
+                specialize_prove Hequivcont. { apply ms_valid_wrt_checks_tail in Hmschecks. auto. }
+                specialize (Hequivcont Hgmvalid Hnoforb).
+                intro Hres. specialize (Hequivcont Hres eq_refl). intro H. injection H as <-.
+                simpl in *. auto. (* Copy-pasted... *)
+             ++ intros H H0. injection H as <-. injection H0 as <-. simpl. constructor.
           -- intro H. injection H as <-. intro H. injection H as <-. simpl. constructor.
       
       + (* Input end *)
@@ -1162,7 +1171,16 @@ Section Equiv.
           destruct RegExpRecord.multiline; simpl.
           -- replace (List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms)) with (Success (F := Errors.MatchError.type) x) by admit.
              simpl.
-             admit.
+             unfold Characters.line_terminators. setoid_rewrite CharSetExt.from_list_contains_inb.
+             destruct List.inb.
+             ++ unfold equiv_cont in Hequivcont. specialize (Hequivcont gm ms (Input (x::next)%list pref) res fuel).
+                destruct compute_tree as [treecont|]; try discriminate.
+                specialize (Hequivcont treecont Hinpcompat Hgmms Hgmgl Hmsinp).
+                specialize_prove Hequivcont. { apply ms_valid_wrt_checks_tail in Hmschecks. auto. }
+                specialize (Hequivcont Hgmvalid Hnoforb).
+                intro Hres. specialize (Hequivcont Hres eq_refl). intro H. injection H as <-.
+                simpl in *. auto. (* Copy-pasted... *)
+             ++ intros H H0. injection H as <-. injection H0 as <-. simpl. constructor.
           -- intro H. injection H as <-. intro H. injection H as <-. simpl. constructor.
         
       + (* Word boundary *)
