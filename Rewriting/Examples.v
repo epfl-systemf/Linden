@@ -81,21 +81,17 @@ Section Examples.
     Sequence Epsilon r ≅[rer] r.
   Proof.
     red; destruct dir; tree_equiv_inv.
-    all: try apply (is_tree_skip_epsilon_r [Areg r]); eauto using compute_tr_is_tree.
-    1: reflexivity.
-    (* TODO: BROKEN *)
-    admit.
-  Admitted.
+    all: try apply (is_tree_skip_epsilon_r rer [Areg r]); eauto using compute_tr_is_tree.
+    all: reflexivity.
+  Qed.
 
   Lemma sequence_epsilon_right_equiv r:
     Sequence r Epsilon ≅[rer] r.
   Proof.
     red; destruct dir; tree_equiv_inv.
-    all: try apply (is_tree_skip_epsilon_r [Areg r]); eauto using compute_tr_is_tree.
-    2: reflexivity.
-    (* TODO: BROKEN *)
-    admit.
-  Admitted.
+    all: try apply (is_tree_skip_epsilon_r rer [Areg r]); eauto using compute_tr_is_tree.
+    all: reflexivity.
+  Qed.
 
   Lemma quantified_zero_equiv r:
     def_groups r = [] ->
