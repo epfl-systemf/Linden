@@ -14,6 +14,15 @@ Module List.
     - split. + discriminate. + contradiction.
   Qed.
 
+  Lemma inb_cons {A} `{EqDec A}:
+    forall (x a: A) (l: list A),
+      inb x (a :: l) = orb (EqDec.eqb x a) (inb x l).
+  Proof.
+    intros; apply Bool.eq_iff_eq_true.
+    rewrite Bool.orb_true_iff, !inb_spec, EqDec.inversion_true.
+    firstorder.
+  Qed.
+
   Definition Disjoint {A} (l1 l2: list A): Prop :=
     forall x: A, In x l1 -> ~In x l2.
 

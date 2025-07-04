@@ -586,10 +586,8 @@ Ltac tree_equiv_inv :=
 
 Hint Unfold
      compute_tr
-     anchor_satisfied
-     is_boundary
-     read_char
-     word_char
+     anchor_satisfied is_boundary is_input_boundary
+     read_char word_char
      andb orb negb xorb
   : tree_equiv_symbex.
 
@@ -600,6 +598,8 @@ Hint Rewrite
 
 Ltac tree_equiv_symbex_step :=
   match goal with
+  | _ => progress autorewrite with tree_equiv_symbex in *
+  | _ => progress autounfold with tree_equiv_symbex
   | _ => progress simpl
   | [  |- context[match ?x with _ => _ end] ] =>
       lazymatch x with
@@ -608,13 +608,8 @@ Ltac tree_equiv_symbex_step :=
       end
   end.
 
-Ltac tree_equiv_symbex_prepare :=
-  repeat (autounfold with tree_equiv_symbex; simpl).
-
 Ltac tree_equiv_symbex :=
-  repeat tree_equiv_symbex_prepare;
-  repeat tree_equiv_symbex_step;
-  autorewrite with tree_equiv_symbex in *.
+  repeat tree_equiv_symbex_step.
 
 Lemma equiv_cons'
   {params: LindenParameters}
