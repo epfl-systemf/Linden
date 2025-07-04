@@ -71,6 +71,7 @@ Section Anchors.
   (* FIXME why do I need this? *)
   Instance: Parameters := (@LWParameters.LWParameters params).
 
+  (* FIXME move closer to definition *)
   Lemma wordCharacters_spec c:
     CharSet.CharSetExt.In c (wordCharacters rer) <->
       CharSet.CharSetExt.In c Characters.ascii_word_characters \/
