@@ -116,21 +116,6 @@ Section Anchors.
 
   Hint Rewrite char_match_line_terminators char_match_word_char : tree_equiv_symbex.
 
-  Lemma exist_canonicalized_casesenst:
-    forall cset c,
-      CharSet.CharSetExt.exist_canonicalized rer cset (Character.canonicalize rer c) =
-      CharSet.CharSetExt.contains cset c.
-  Proof.
-    intros cset c.
-    rewrite CharSet.CharSetExt.exist_canonicalized_equiv.
-    rewrite canonicalize_casesenst by auto.
-    apply Bool.eq_iff_eq_true.
-    rewrite CharSet.CharSetExt.exist_iff. setoid_rewrite canonicalize_casesenst; auto.
-    split.
-    - intros [c0 [Hcontains Heq]]. rewrite EqDec.inversion_true in Heq. subst c0. auto.
-    - intro Hcontains. exists c. split; auto. apply EqDec.reflb.
-  Qed.
-
   Theorem desugar_anchor_correct (a: anchor):
     Anchor a ≅[rer] desugar_anchor a.
   Proof.
