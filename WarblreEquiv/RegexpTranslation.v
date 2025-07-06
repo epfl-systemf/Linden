@@ -5,12 +5,43 @@ Import Notation.
 Import Result.
 Import Result.Notations.
 Local Open Scope result_flow.
+Require Import List.
+Import ListNotations.
 
 (** * Relation defining equivalence between Warblre regexes and Linden regexes *)
 
 Section RegexpTranslation.
   Context `{characterClass: Character.class}.
   Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+
+  (* NamedMap: relating named groups to indices  *)
+
+  Definition patname_eq_dec : forall (x y : Patterns.GroupName), { x = y } + { x <> y }.
+  Proof. decide equality. apply Character.eq_dec. Qed.
+  Definition patname_eqb (n1 n2:Patterns.GroupName) : bool :=
+    if patname_eq_dec n1 n2 then true else false.
+
+  Definition namedmap : Type := list (Patterns.GroupName * nat).
+  Definition nameidx (nm:namedmap) (name:Patterns.GroupName) : option nat :=
+    SetoidList.findA (fun n => patname_eqb n name) nm.
+
+  (* Computing the named map of a Warblre regex *)
+  Fixpoint buildnm' (wr:Patterns.Regex) (nm:namedmap) (n:nat) : namedmap * nat :=
+    match wr with
+    | Patterns.Empty | Patterns.Char _ | Patterns.Dot | Patterns.AtomEsc _ | Patterns.CharacterClass _
+    | Patterns.InputStart | Patterns.InputEnd | Patterns.WordBoundary | Patterns.NotWordBoundary => (nm,n)
+    | Patterns.Disjunction wr1 wr2 | Patterns.Seq wr1 wr2 =>
+                                       let (nm1,n1) := buildnm' wr1 nm n in
+                                       buildnm' wr2 nm1 n1
+    | Patterns.Lookahead wr1 | Patterns.NegativeLookahead wr1
+    | Patterns.Lookbehind wr1 | Patterns.NegativeLookbehind wr1
+    | Patterns.Quantified wr1 _ => buildnm' wr1 nm n
+    | Patterns.Group None wr1 => buildnm' wr1 nm (S n)
+    | Patterns.Group (Some name) wr1 => buildnm' wr1 ((name,S n)::nm) (S n)
+    end.
+
+  Definition buildnm (wr:Patterns.Regex) : namedmap :=
+    fst (buildnm' wr [] 0).
   
   (* Computes the number of capture groups of the regex r. *)
   Fixpoint num_groups (r: regex): nat := (* actually len (def_groups r); TODO replace later or prove lemma *)
@@ -133,43 +164,52 @@ Section RegexpTranslation.
 
 
   (* equiv_regex' wreg lreg n means that the two regexes wreg and lreg are equivalent, where the number of left capturing parentheses before wreg/lreg is n. *)
-  Inductive equiv_regex': Patterns.Regex -> regex -> nat -> Prop :=
-  | Equiv_empty: forall n: nat, equiv_regex' Patterns.Empty Epsilon n
-  | Equiv_char: forall (n: nat) (c: Parameters.Character), equiv_regex' (Patterns.Char c) (Character (Chars.CdSingle c)) n
-  | Equiv_dot: forall n: nat, equiv_regex' Patterns.Dot (Character Chars.CdDot) n
-  | Equiv_backref: forall (n: nat) (gid: positive_integer),
-      equiv_regex' (Patterns.AtomEsc (Patterns.DecimalEsc gid)) (Backreference (positive_to_nat gid)) n
+  Inductive equiv_regex': Patterns.Regex -> regex -> nat -> namedmap -> Prop :=
+  | Equiv_empty: forall (n: nat) nm, equiv_regex' Patterns.Empty Epsilon n nm
+  | Equiv_char: forall (n: nat) (c: Parameters.Character) nm, equiv_regex' (Patterns.Char c) (Character (Chars.CdSingle c)) n nm
+  | Equiv_dot: forall (n: nat) nm, equiv_regex' Patterns.Dot (Character Chars.CdDot) n nm
+  | Equiv_backref: forall (n: nat) (gid: positive_integer) nm,
+      equiv_regex' (Patterns.AtomEsc (Patterns.DecimalEsc gid)) (Backreference (positive_to_nat gid)) n nm
+  | Equiv_named_backref: forall n nm name gid,
+      nameidx nm name = Some gid -> 
+      equiv_regex' (Patterns.AtomEsc (Patterns.GroupEsc name)) (Backreference gid) n nm
   | Equiv_atom_CharacterClassEscape:
-    forall (esc: Patterns.CharacterClassEscape) (cd: char_descr) (n: nat),
+    forall (esc: Patterns.CharacterClassEscape) (cd: char_descr) (n: nat) nm,
       equiv_CharacterClassEscape esc cd ->
-      equiv_regex' (Patterns.AtomEsc (Patterns.ACharacterClassEsc esc)) (Character cd) n
+      equiv_regex' (Patterns.AtomEsc (Patterns.ACharacterClassEsc esc)) (Character cd) n nm
   | Equiv_atom_CharacterEscape:
-    forall (esc: Patterns.CharacterEscape) (cd: char_descr) (n: nat),
+    forall (esc: Patterns.CharacterEscape) (cd: char_descr) (n: nat) nm,
       equiv_CharacterEscape esc cd ->
-      equiv_regex' (Patterns.AtomEsc (Patterns.ACharacterEsc esc)) (Character cd) n
+      equiv_regex' (Patterns.AtomEsc (Patterns.ACharacterEsc esc)) (Character cd) n nm
   | Equiv_CharacterClass:
-    forall (cc: Patterns.CharClass) (cd: char_descr) (n: nat),
+    forall (cc: Patterns.CharClass) (cd: char_descr) (n: nat) nm,
       equiv_CharClass cc cd ->
-      equiv_regex' (Patterns.CharacterClass cc) (Character cd) n
-  | Equiv_disj: forall n wr1 wr2 lr1 lr2,
-      equiv_regex' wr1 lr1 n -> equiv_regex' wr2 lr2 (num_groups lr1 + n) ->
-      equiv_regex' (Patterns.Disjunction wr1 wr2) (Disjunction lr1 lr2) n
-  | Equiv_seq: forall n wr1 wr2 lr1 lr2,
-      equiv_regex' wr1 lr1 n -> equiv_regex' wr2 lr2 (num_groups lr1 + n) ->
-      equiv_regex' (Patterns.Seq wr1 wr2) (Sequence lr1 lr2) n
+      equiv_regex' (Patterns.CharacterClass cc) (Character cd) n nm
+  | Equiv_disj: forall n wr1 wr2 lr1 lr2 nm,
+      equiv_regex' wr1 lr1 n nm -> equiv_regex' wr2 lr2 (num_groups lr1 + n) nm ->
+      equiv_regex' (Patterns.Disjunction wr1 wr2) (Disjunction lr1 lr2) n nm
+  | Equiv_seq: forall n wr1 wr2 lr1 lr2 nm,
+      equiv_regex' wr1 lr1 n nm -> equiv_regex' wr2 lr2 (num_groups lr1 + n) nm ->
+      equiv_regex' (Patterns.Seq wr1 wr2) (Sequence lr1 lr2) n nm
   | Equiv_quant:
-    forall n wr lr wquant lquant wgreedylazy greedy,
-      equiv_regex' wr lr n ->
+    forall n wr lr wquant lquant wgreedylazy greedy nm,
+      equiv_regex' wr lr n nm ->
       equiv_quantifier wquant lquant -> equiv_greedylazy wgreedylazy greedy ->
-      equiv_regex' (Patterns.Quantified wr (wgreedylazy wquant)) (lquant greedy lr) n
-  | Equiv_group: forall name n wr lr, equiv_regex' wr lr (S n) -> equiv_regex' (Patterns.Group name wr) (Group (S n) lr) n
-  | Equiv_lk: forall n wr lr wlk llk, equiv_regex' wr lr n -> equiv_lookaround wlk llk -> equiv_regex' (wlk wr) (Lookaround llk lr) n
-  | Equiv_anchor: forall n wr lanchor, equiv_anchor wr lanchor -> equiv_regex' wr (Anchor lanchor) n
+      equiv_regex' (Patterns.Quantified wr (wgreedylazy wquant)) (lquant greedy lr) n nm
+  | Equiv_group: forall n wr lr nm,
+      equiv_regex' wr lr (S n) nm ->
+      equiv_regex' (Patterns.Group None wr) (Group (S n) lr) n nm
+  | Equiv_named_group: forall name n wr lr nm,
+      nameidx nm name = Some (S n) ->
+      equiv_regex' wr lr (S n) nm ->
+      equiv_regex' (Patterns.Group (Some name) wr) (Group (S n) lr) n nm
+  | Equiv_lk: forall n wr lr wlk llk nm, equiv_regex' wr lr n nm -> equiv_lookaround wlk llk -> equiv_regex' (wlk wr) (Lookaround llk lr) n nm
+  | Equiv_anchor: forall n wr lanchor nm, equiv_anchor wr lanchor -> equiv_regex' wr (Anchor lanchor) n nm
   .
 
 
   (* Equivalence of root regexes. *)
-  Definition equiv_regex (wreg: Patterns.Regex) (lreg: regex) := equiv_regex' wreg lreg 0.
+  Definition equiv_regex (wreg: Patterns.Regex) (lreg: regex) := equiv_regex' wreg lreg 0 (buildnm wreg).
 
 
   (* Translation function from Warblre to Linden. *)
@@ -220,7 +260,7 @@ Section RegexpTranslation.
       let! c =<< characterEscape_singleCharacter esc in
       Success (CdSingle c).
 
-    Definition atomesc_to_linden (ae: Patterns.AtomEscape): Result regex wl_transl_error :=
+    Definition atomesc_to_linden (ae: Patterns.AtomEscape) (nm:namedmap): Result regex wl_transl_error :=
       match ae with
       | Patterns.DecimalEsc gid => Success (Backreference (positive_to_nat gid))
       | Patterns.ACharacterClassEsc esc => 
@@ -229,7 +269,11 @@ Section RegexpTranslation.
       | Patterns.ACharacterEsc esc => 
           let! cd =<< characterEscape_to_linden esc in
           Success (Character cd)
-      | Patterns.GroupEsc gn => Error WlUnsupported (* TODO *)
+      | Patterns.GroupEsc gn =>
+          match nameidx nm gn with
+          | None => Error WlUnsupported
+          | Some gid => Success (Backreference gid)
+          end
       end.
 
     Definition classEscape_to_linden (esc: Patterns.ClassEscape): Result char_descr wl_transl_error :=
@@ -299,50 +343,62 @@ Section RegexpTranslation.
             Error WlMalformed
       end.
 
+    (* checking that we get the expected index *)
+    Definition assert_idx_eq (i1 i2:nat) : Result unit wl_transl_error :=
+      if (Nat.eqb i1 i2) then Success tt else Error WlMalformed.
+
     (* First option for unsupported features, second option for invalid regexes *)
-    Fixpoint warblre_to_linden (wr: Patterns.Regex) (n: nat): Result regex wl_transl_error :=
+    Fixpoint warblre_to_linden (wr: Patterns.Regex) (n: nat) (nm:namedmap): Result regex wl_transl_error :=
       match wr with
       | Patterns.Empty => Success Epsilon
       | Patterns.Char chr => Success (Character (CdSingle chr))
       | Patterns.Dot => Success (Character CdDot)
-      | Patterns.AtomEsc ae => atomesc_to_linden ae
+      | Patterns.AtomEsc ae => atomesc_to_linden ae nm
       | Patterns.CharacterClass cc => 
           let! cd =<< charclass_to_linden cc in
           Success (Character cd)
       | Patterns.Disjunction wr1 wr2 =>
-          let! lr1 =<< warblre_to_linden wr1 n in
-          let! lr2 =<< warblre_to_linden wr2 (num_groups lr1 + n) in
+          let! lr1 =<< warblre_to_linden wr1 n nm in
+          let! lr2 =<< warblre_to_linden wr2 (num_groups lr1 + n) nm in
           Success (Disjunction lr1 lr2)
       | Patterns.Quantified wr (Patterns.Greedy qp) =>
           let! quant =<< wquantpref_to_linden qp in
-          let! lr =<< warblre_to_linden wr n in
+          let! lr =<< warblre_to_linden wr n nm in
           Success (quant true lr)
       | Patterns.Quantified wr (Patterns.Lazy qp) =>
           let! quant =<< wquantpref_to_linden qp in
-          let! lr =<< warblre_to_linden wr n in
+          let! lr =<< warblre_to_linden wr n nm in
           Success (quant false lr)
       | Patterns.Seq wr1 wr2 =>
-          let! lr1 =<< warblre_to_linden wr1 n in
-          let! lr2 =<< warblre_to_linden wr2 (num_groups lr1 + n) in
+          let! lr1 =<< warblre_to_linden wr1 n nm in
+          let! lr2 =<< warblre_to_linden wr2 (num_groups lr1 + n) nm in
           Success (Sequence lr1 lr2)
-      | Patterns.Group _ wr =>
-          let! lr =<< warblre_to_linden wr (S n) in
+      | Patterns.Group None wr =>
+          let! lr =<< warblre_to_linden wr (S n) nm in
           Success (Group (S n) lr)
+      | Patterns.Group (Some name) wr =>
+          match (nameidx nm name) with
+          | Some idx =>
+              let! _ =<< assert_idx_eq idx (S n) in
+              let! lr =<< warblre_to_linden wr (S n) nm in
+              Success (Group (S n) lr)
+          | _ => Error WlMalformed
+          end
       | Patterns.InputStart => Success (Anchor BeginInput)
       | Patterns.InputEnd => Success (Anchor EndInput)
       | Patterns.WordBoundary => Success (Anchor WordBoundary)
       | Patterns.NotWordBoundary => Success (Anchor NonWordBoundary)
       | Patterns.Lookahead wr =>
-          let! lr =<< warblre_to_linden wr n in
+          let! lr =<< warblre_to_linden wr n nm in
           Success (Lookaround LookAhead lr)
       | Patterns.NegativeLookahead wr =>
-          let! lr =<< warblre_to_linden wr n in
+          let! lr =<< warblre_to_linden wr n nm in
           Success (Lookaround NegLookAhead lr)
       | Patterns.Lookbehind wr =>
-          let! lr =<< warblre_to_linden wr n in
+          let! lr =<< warblre_to_linden wr n nm in
           Success (Lookaround LookBehind lr)
       | Patterns.NegativeLookbehind wr =>
-          let! lr =<< warblre_to_linden wr n in
+          let! lr =<< warblre_to_linden wr n nm in
           Success (Lookaround NegLookBehind lr)
       end.
 
@@ -474,19 +530,20 @@ Section RegexpTranslation.
     Qed.
 
     Lemma atomesc_to_linden_sound:
-      forall ae lr n,
-        atomesc_to_linden ae = Success lr ->
-        equiv_regex' (Patterns.AtomEsc ae) lr n.
+      forall ae lr n nm,
+        atomesc_to_linden ae nm = Success lr ->
+        equiv_regex' (Patterns.AtomEsc ae) lr n nm.
     Proof.
       intro ae. destruct ae.
-      - simpl. intros lr gid H. injection H as <-. constructor.
-      - simpl. intros lr n.
+      - simpl. intros lr gid nm H. injection H as <-. constructor.
+      - simpl. intros lr n nm.
         destruct characterClassEsc_to_linden as [cd|] eqn:Hcd; try discriminate. simpl.
         intro H. injection H as <-. constructor. apply characterClassEsc_to_linden_sound. auto.
-      - simpl. intros lr n.
+      - simpl. intros lr n nm.
         destruct characterEscape_to_linden as [cd|] eqn:Hcd; try discriminate. simpl.
         intro H. injection H as <-. constructor. apply characterEscape_to_linden_sound. auto.
-      - discriminate.
+      - simpl. intros lr n nm H. destruct (nameidx nm id) eqn:NAME; [|discriminate].
+        inversion H. subst. constructor. auto.
     Qed.
 
     Lemma wquantpref_to_linden_sound:
@@ -588,24 +645,24 @@ Section RegexpTranslation.
     Qed.
 
     Lemma warblre_to_linden_sound:
-      forall wr lr n,
-        warblre_to_linden wr n = Success lr ->
-        equiv_regex' wr lr n.
+      forall wr lr n nm,
+        warblre_to_linden wr n nm = Success lr ->
+        equiv_regex' wr lr n nm.
     Proof.
       intro wr. induction wr.
-      - simpl. intros lr n H. injection H as <-. apply Equiv_empty.
-      - simpl. intros lr n H. injection H as <-. apply Equiv_char.
-      - simpl. intros lr n H. injection H as <-. apply Equiv_dot.
-      - simpl. intros lr n H. apply atomesc_to_linden_sound. auto.
-      - simpl. intros lr n.
+      - simpl. intros lr n nm H. injection H as <-. apply Equiv_empty.
+      - simpl. intros lr n nm H. injection H as <-. apply Equiv_char.
+      - simpl. intros lr n nm H. injection H as <-. apply Equiv_dot.
+      - simpl. intros lr n nm H. apply atomesc_to_linden_sound. auto.
+      - simpl. intros lr n nm.
         destruct charclass_to_linden as [cd|] eqn:Hcd; simpl; try discriminate.
         intro H. injection H as <-. constructor. apply charclass_to_linden_sound. auto.
-      - simpl. intros lr n.
+      - simpl. intros lr n nm.
         destruct warblre_to_linden as [lr1|] eqn:Hwl1; try discriminate. simpl.
         destruct (warblre_to_linden wr2 _) as [lr2|] eqn:Hwl2; try discriminate. simpl.
         intro H. injection H as <-.
         apply Equiv_disj; auto.
-      - simpl. intros lr n.
+      - simpl. intros lr n nm.
         destruct q as [qp|qp].
         + destruct wquantpref_to_linden as [quant|] eqn:Hquant; try discriminate. simpl.
           destruct warblre_to_linden as [lrsub|] eqn:Hwl; try discriminate. simpl.
@@ -617,27 +674,33 @@ Section RegexpTranslation.
           intro H. injection H as <-.
           apply Equiv_quant; auto. 2: constructor.
           apply wquantpref_to_linden_sound. auto.
-      - simpl. intros lr n.
+      - simpl. intros lr n nm.
         destruct warblre_to_linden as [lr1|] eqn:Hwl1; try discriminate. simpl.
         destruct (warblre_to_linden wr2 _) as [lr2|] eqn:Hwl2; try discriminate. simpl.
         intro H. injection H as <-. constructor; auto.
-      - simpl. intros lr n.
-        destruct warblre_to_linden as [lrsub|] eqn:Hwl; try discriminate. simpl.
-        intro H. injection H as <-. constructor. auto.
-      - simpl. intros lr n H. injection H as <-. constructor. constructor.
-      - simpl. intros lr n H. injection H as <-. constructor. constructor.
-      - simpl. intros lr n H. injection H as <-. constructor. constructor.
-      - simpl. intros lr n H. injection H as <-. constructor. constructor.
-      - simpl. intros lr n.
+      - simpl. intros lr n nm.
+        destruct name as [name|]; simpl.
+        2: { destruct warblre_to_linden as [lrsub|] eqn:Hwl; try discriminate.
+             simpl. inversion 1. constructor. auto. }
+        destruct (nameidx nm name) eqn:NAME; [|inversion 1].
+        unfold assert_idx_eq. simpl. destruct (Nat.eqb n0 (S n)) eqn:IDX; [|inversion 1].
+        apply PeanoNat.Nat.eqb_eq in IDX.
+        destruct warblre_to_linden as [lrsub|] eqn:Hwl; [|inversion 1].
+        simpl. inversion 1. subst. constructor; auto.
+      - simpl. intros lr n nm H. injection H as <-. constructor. constructor.
+      - simpl. intros lr n nm H. injection H as <-. constructor. constructor.
+      - simpl. intros lr n nm H. injection H as <-. constructor. constructor.
+      - simpl. intros lr n nm H. injection H as <-. constructor. constructor.
+      - simpl. intros lr n nm.
         destruct warblre_to_linden as [lrsub|] eqn:Hwl; try discriminate. simpl.
         intro H. injection H as <-. constructor; auto; constructor.
-      - simpl. intros lr n.
+      - simpl. intros lr n nm.
         destruct warblre_to_linden as [lrsub|] eqn:Hwl; try discriminate. simpl.
         intro H. injection H as <-. constructor; auto; constructor.
-      - simpl. intros lr n.
+      - simpl. intros lr n nm.
         destruct warblre_to_linden as [lrsub|] eqn:Hwl; try discriminate. simpl.
         intro H. injection H as <-. constructor; auto; constructor.
-      - simpl. intros lr n.
+      - simpl. intros lr n nm.
         destruct warblre_to_linden as [lrsub|] eqn:Hwl; try discriminate. simpl.
         intro H. injection H as <-. constructor; auto; constructor.
     Qed.

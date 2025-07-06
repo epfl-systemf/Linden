@@ -19,14 +19,15 @@ Section EquivLemmas.
 
   (* Two equivalent regexes have the same number of capturing groups. *)
   Lemma num_groups_equiv:
-    forall wreg lreg n,
-      equiv_regex' wreg lreg n ->
+    forall wreg lreg n nm,
+      equiv_regex' wreg lreg n nm ->
       num_groups lreg = countLeftCapturingParensWithin_impl wreg.
   Proof.
-    intros wreg lreg n Hequiv.
+    intros wreg lreg n nm Hequiv.
     induction Hequiv as [
       n |
       n c |
+        n |
         n |
         n |
         esc cd n Hequivesc |
@@ -35,9 +36,10 @@ Section EquivLemmas.
         n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
       n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
       n wr lr wquant lquant wgreedylazy greedy Hequiv IH Hequivquant Hequivgreedy |
-      name n wr lr Hequiv IH |
-      n wr lr wlk llk Hequiv IH Hequivlk |
-      n wr lanchor Hanchequiv]; simpl; try lia; try reflexivity.
+        name n wr lr Hequiv IH |
+        name n wr lr Hequiv IH |
+      n nm wr lr wlk llk Hequiv IH Hequivlk |
+      n nm wr lanchor Hanchequiv]; simpl; try lia; try reflexivity.
     - inversion Hequivquant; inversion Hequivgreedy; auto.
     - inversion Hequivlk; auto.
     - inversion Hanchequiv; auto.
@@ -46,30 +48,34 @@ Section EquivLemmas.
 
   (* Lemma to determine the list of defined groups of a Linden regex. *)
   Lemma equiv_def_groups:
-    forall wr lr n parenCount ctx,
+    forall wr lr n nm parenCount ctx,
       (* If wr and lr are equivalent with n left capturing parentheses before them, *)
-      equiv_regex' wr lr n ->
+      equiv_regex' wr lr n nm ->
       (* and if wr contains parenCount left capturing parentheses, *)
       parenCount = StaticSemantics.countLeftCapturingParensWithin wr ctx ->
       (* then the groups defined by lr are exactly the groups n+1, n+2, ..., n+parenCount. *)
       def_groups lr = List.seq (n+1) parenCount.
   Proof.
-    intros wr lr n parenCount ctx Hequiv.
+    intros wr lr n nm parenCount ctx Hequiv.
     revert parenCount ctx.
     induction Hequiv as [
       n |
       n c |
         n |
         n |
-        esc cd n Hequivesc |
-        esc cd n Hequivesc |
-        cc cd n Hequivcc |
-      n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
-      n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
-      n wr lr wquant lquant wgreedylazy greedy Hequiv IH Hequivquant Hequivgreedy |
-      name n wr lr Hequiv IH |
-      n wr lr wlk llk Hequiv IH Hequivlk |
-      n wr lanchor Hanchequiv].
+        n |
+        esc cd n nm Hequivesc |
+        esc cd n nm Hequivesc |
+        cc cd n nm Hequivcc |
+      n wr1 wr2 lr1 lr2 nm Hequiv1 IH1 Hequiv2 IH2 |
+      n wr1 wr2 lr1 lr2 nm Hequiv1 IH1 Hequiv2 IH2 |
+      n wr lr wquant lquant wgreedylazy greedy nm Hequiv IH Hequivquant Hequivgreedy |
+        n wr lr nm Hequiv IH |
+        name n wr lr nm CHKNAME Hequiv IH |
+      n wr lr wlk llk nm Hequiv IH Hequivlk |
+      n wr lanchor nm Hanchequiv].
+    - intros parenCount ctx Hcount.
+      simpl in *. subst parenCount. reflexivity.
     - intros parenCount ctx Hcount.
       simpl in *. subst parenCount. reflexivity.
     - intros parenCount ctx Hcount.
@@ -89,7 +95,7 @@ Section EquivLemmas.
       specialize (IH2 (countLeftCapturingParensWithin wr2 ctx) ctx eq_refl).
       rewrite IH1, IH2.
       unfold countLeftCapturingParensWithin in *.
-      rewrite num_groups_equiv with (wreg := wr1) (n := n). 2: assumption.
+      rewrite num_groups_equiv with (wreg := wr1) (n := n) (nm:=nm). 2: assumption.
       subst parenCount.
       symmetry.
       replace (countLeftCapturingParensWithin_impl _ + n + 1) with ((n + 1) + countLeftCapturingParensWithin_impl wr1) by lia.
@@ -100,7 +106,7 @@ Section EquivLemmas.
       specialize (IH2 (countLeftCapturingParensWithin wr2 ctx) ctx eq_refl).
       rewrite IH1, IH2.
       unfold countLeftCapturingParensWithin in *.
-      rewrite num_groups_equiv with (wreg := wr1) (n := n). 2: assumption.
+      rewrite num_groups_equiv with (wreg := wr1) (n := n) (nm:=nm). 2: assumption.
       subst parenCount.
       symmetry.
       replace (countLeftCapturingParensWithin_impl _ + n + 1) with ((n + 1) + countLeftCapturingParensWithin_impl wr1) by lia.
@@ -112,20 +118,24 @@ Section EquivLemmas.
       subst parenCount.
       replace (n + 1) with (S n) by lia.
       apply List.cons_seq.
+    - intros parenCount ctx Hcount. simpl in *.
+      specialize (IH (countLeftCapturingParensWithin wr ctx) ctx eq_refl). rewrite IH.
+      subst parenCount. replace (n + 1) with (S n) by lia.
+      apply List.cons_seq.
     - intros parenCount ctx. inversion Hequivlk; simpl in *; eapply IH; eauto.
     - intros parenCount ctx. inversion Hanchequiv; simpl in *; intro; subst parenCount; auto.
   Qed.
 
   Corollary equiv_def_groups':
-    forall wr lr n,
+    forall wr lr n nm,
       (* If wr and lr are equivalent with n left capturing parentheses before them, *)
-      equiv_regex' wr lr n ->
+      equiv_regex' wr lr n nm ->
       (* then the groups defined by lr are exactly the groups n+1, n+2, ..., n+num_groups lr. *)
       def_groups lr = List.seq (n+1) (num_groups lr).
   Proof.
-    intros wr lr n Hequiv.
-    pose proof num_groups_equiv wr lr n Hequiv as Hnum_groups.
-    exact (equiv_def_groups _ _ _ _ nil Hequiv Hnum_groups).
+    intros wr lr n nm Hequiv.
+    pose proof num_groups_equiv wr lr n nm Hequiv as Hnum_groups.
+    exact (equiv_def_groups _ _ _ _ _ nil Hequiv Hnum_groups).
   Qed.
 
 
@@ -1421,13 +1431,13 @@ Section EquivLemmas.
 
   (* Used when opening a group *)
   Lemma open_groups_disjoint_open_group:
-    forall n wr lr idx gl,
+    forall n nm wr lr idx gl,
       open_groups_disjoint gl (def_groups (Regex.Group (S n) lr)) ->
-      equiv_regex' wr lr (S n) ->
+      equiv_regex' wr lr (S n) nm ->
       open_groups_disjoint ((S n, idx)::gl) (def_groups lr).
   Proof.
-    intros n wr lr idx gl Hgldisj Hequiv.
-    pose proof equiv_def_groups' _ _ _ Hequiv as Hdefgroups.
+    intros n nm wr lr idx gl Hgldisj Hequiv.
+    pose proof equiv_def_groups' _ _ _ _ Hequiv as Hdefgroups.
     simpl in Hgldisj.
     unfold open_groups_disjoint. intros gid idx' Hin.
     destruct Hin.
@@ -1496,13 +1506,13 @@ Section EquivLemmas.
   Qed.
 
   Lemma disj_forbidden_seq:
-    forall n wr1 lr1 wr2 lr2 forbgroups,
-      equiv_regex' wr1 lr1 n ->
-      equiv_regex' wr2 lr2 (num_groups lr1 + n) ->
+    forall n nm wr1 lr1 wr2 lr2 forbgroups,
+      equiv_regex' wr1 lr1 n nm ->
+      equiv_regex' wr2 lr2 (num_groups lr1 + n) nm ->
       List.Disjoint (def_groups (Sequence lr1 lr2)) forbgroups ->
       List.Disjoint (def_groups lr1) (forbidden_groups lr2 ++ forbgroups).
   Proof.
-    intros n wr1 lr1 wr2 lr2 forbgroups Hequiv1 Hequiv2 Hdisj.
+    intros n nm wr1 lr1 wr2 lr2 forbgroups Hequiv1 Hequiv2 Hdisj.
     unfold List.Disjoint. intros gid Hin1.
     rewrite in_app_iff. intro Habs. destruct Habs as [Habs | Habs].
     - apply equiv_def_groups' in Hequiv1, Hequiv2. rewrite Hequiv1, in_seq in Hin1.
@@ -1511,13 +1521,13 @@ Section EquivLemmas.
   Qed.
 
   Lemma disj_forbidden_seq_bwd:
-    forall n wr1 lr1 wr2 lr2 forbgroups,
-      equiv_regex' wr1 lr1 n ->
-      equiv_regex' wr2 lr2 (num_groups lr1 + n) ->
+    forall n nm wr1 lr1 wr2 lr2 forbgroups,
+      equiv_regex' wr1 lr1 n nm ->
+      equiv_regex' wr2 lr2 (num_groups lr1 + n) nm ->
       List.Disjoint (def_groups (Sequence lr1 lr2)) forbgroups ->
       List.Disjoint (def_groups lr2) (forbidden_groups lr1 ++ forbgroups).
   Proof.
-    intros n wr1 lr1 wr2 lr2 forbgroups Hequiv1 Hequiv2 Hdisj gid Hin2 Habs.
+    intros n nm wr1 lr1 wr2 lr2 forbgroups Hequiv1 Hequiv2 Hdisj gid Hin2 Habs.
     rewrite in_app_iff in Habs. destruct Habs as [Habs | Habs].
     - apply equiv_def_groups' in Hequiv1, Hequiv2. rewrite Hequiv2, in_seq in Hin2.
       apply in_forb_implies_in_def in Habs. rewrite Hequiv1, in_seq in Habs. lia.
@@ -1536,13 +1546,13 @@ Section EquivLemmas.
 
   (* Lemma used when opening a group *)
   Lemma noforb_open_group:
-    forall n wr lr gm idx forbgroups,
+    forall n nm wr lr gm idx forbgroups,
       no_forbidden_groups gm (forbidden_groups (Regex.Group (S n) lr) ++ forbgroups) ->
       List.Disjoint (def_groups (Regex.Group (S n) lr)) forbgroups ->
-      equiv_regex' wr lr (S n) ->
+      equiv_regex' wr lr (S n) nm ->
       no_forbidden_groups (GroupMap.open idx (S n) gm) (forbidden_groups lr ++ forbgroups).
   Proof.
-    intros n wr lr gm idx forbgroups Hnoforb Hdef_forbid_disj Hequiv.
+    intros n nm wr lr gm idx forbgroups Hnoforb Hdef_forbid_disj Hequiv.
     unfold no_forbidden_groups. intros gid Hin. rewrite in_app_iff in Hin. destruct Hin as [Hin | Hin].
     - apply in_forb_implies_in_def in Hin. apply equiv_def_groups' in Hequiv. rewrite Hequiv, in_seq in Hin.
       assert (Hgid_not_Sn: gid <> S n) by lia. rewrite group_map_open_find_other. 2: congruence.
