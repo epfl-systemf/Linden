@@ -707,7 +707,6 @@ Section Equiv.
 
     - (* Named Backreference *)
       intros ctx Hroot Heqn m dir. simpl.
-      (* we'll need early errors for that. each backref must refer to exactly one group *)
       admit.
     
     - (* AtomEsc (ACharacterClassEsc esc); idem *)
