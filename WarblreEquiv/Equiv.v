@@ -419,18 +419,18 @@ Section Equiv.
   Qed.
 
   Lemma characterClassEscape_equiv:
-    forall (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
+    forall (nm:namedmap) (rer: RegExpRecord) (lroot: regex) (wroot: Regex)
       (root_equiv: equiv_regex wroot lroot),
       RegExpRecord.ignoreCase rer = false ->
     forall esc wreg lreg ctx,
       wreg = AtomEsc (ACharacterClassEsc esc) ->
       Root wroot (wreg, ctx) ->
-      equiv_regex' wreg lreg (StaticSemantics.countLeftCapturingParensBefore wreg ctx) ->
+      equiv_regex' wreg lreg (StaticSemantics.countLeftCapturingParensBefore wreg ctx) nm ->
       forall m dir,
         Semantics.compileSubPattern wreg ctx rer dir = Success m ->
         equiv_matcher m lreg rer dir.
   Proof.
-    intros rer lroot wroot root_equiv Hcasesenst esc wreg lreg ctx -> Hroot Hequiv m dir Hcompilesucc.
+    intros nm rer lroot wroot root_equiv Hcasesenst esc wreg lreg ctx -> Hroot Hequiv m dir Hcompilesucc.
     inversion Hequiv.
     - subst esc0 lreg. pose proof equiv_cd_CharacterClassEscape esc cd rer Hcasesenst H0 as [a [HcompileCharSet Hequivcdcs]].
       unfold Semantics.compileSubPattern, Semantics.compileToCharSet, Coercions.ClassAtom_to_range, Coercions.ClassEscape_to_ClassAtom, Coercions.CharacterClassEscape_to_ClassEscape in Hcompilesucc.
@@ -650,7 +650,7 @@ Section Equiv.
     forall (wreg: Regex) (lreg: regex) ctx
       (Hroot: Root wroot (wreg, ctx))
       (* and any Linden regex lreg that is equivalent to this sub-regex with the right number of left capturing parentheses before, *)
-      (Hequiv: equiv_regex' wreg lreg (StaticSemantics.countLeftCapturingParensBefore wreg ctx)),
+      (Hequiv: equiv_regex' wreg lreg (StaticSemantics.countLeftCapturingParensBefore wreg ctx) (buildnm wreg)),
       forall m dir
         (* if compileSubPattern with direction dir yields a Matcher for regex wreg, *)
         (Hcompsucc: Semantics.compileSubPattern wreg ctx rer dir = Success m),
@@ -659,21 +659,24 @@ Section Equiv.
   Proof.
     do 12 intro.
     remember (StaticSemantics.countLeftCapturingParensBefore _ _) as n in Hequiv.
+    (* remember (buildnm wreg) as nm. *)
     revert ctx Hroot Heqn.
     induction Hequiv as [
-        n |
-        n c |
-        n |
-        n |
-        esc cd n Hequivesc |
-        esc cd n Hequivesc |
-        cc cd n Hequivcc |
-        n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
-        n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
-        n wr lr wquant lquant wgreedylazy greedy Hequiv IH Hequivquant Hequivgreedy |
-        name n wr lr Hequiv IH |
-        n wr lr wlk llk Hequiv IH Hequivlk |
-        n wr lanchor Hanchequiv
+        n nm |
+        n c nm |
+        n nm |
+        n gid nm |
+        n nm name gid NAME |
+        esc cd n nm Hequivesc |
+        esc cd n nm Hequivesc |
+        cc cd n nm Hequivcc |
+        n wr1 wr2 lr1 lr2 nm Hequiv1 IH1 Hequiv2 IH2 |
+        n wr1 wr2 lr1 lr2 nm Hequiv1 IH1 Hequiv2 IH2 |
+        n wr lr wquant lquant wgreedylazy greedy nm Hequiv IH Hequivquant Hequivgreedy |
+        n wr lr nm Hequiv IH |
+        name n wr lr nm Hequiv IH |
+        n wr lr wlk llk nm Hequiv IH Hequivlk |
+        n wr lanchor nm Hanchequiv
     ].
 
     - (* Epsilon *)
@@ -701,6 +704,11 @@ Section Equiv.
       destruct Nat.leb eqn:Hgidinbounds; try discriminate. simpl.
       intro H. injection H as <-.
       auto using backref_equiv.
+
+    - (* Named Backreference *)
+      intros ctx Hroot Heqn m dir. simpl.
+      (* we'll need early errors for that. each backref must refer to exactly one group *)
+      admit.
     
     - (* AtomEsc (ACharacterClassEsc esc); idem *)
       intros ctx Hroot Heqn m dir Hcompsucc.
@@ -839,7 +847,7 @@ Section Equiv.
       destruct (min <=? max)%NoI eqn:Hmini_le_maxi; simpl; try discriminate.
       intro H. injection H as <-.
       rewrite <- noi_add_diff with (x := min) (y := max) by assumption.
-      pose proof equiv_def_groups wr lr n parenCount (Quantified_inner (wgreedylazy wquant) :: ctx)%list Hequiv eq_refl as Hgroupsvalid.
+      pose proof equiv_def_groups wr lr n nm parenCount (Quantified_inner (wgreedylazy wquant) :: ctx)%list Hequiv eq_refl as Hgroupsvalid.
       rewrite Heqn in Hgroupsvalid. replace (StaticSemantics.countLeftCapturingParensBefore _ _) with parenIndex in Hgroupsvalid. 2: {
         unfold parenIndex, StaticSemantics.countLeftCapturingParensBefore. reflexivity.
       }
@@ -889,6 +897,9 @@ Section Equiv.
       + apply ms_valid_wrt_checks_Areg, ms_valid_wrt_checks_Aclose. eauto using ms_valid_wrt_checks_tail.
       + auto using gm_open_valid.
       + eauto using noforb_open_group. (* Follows from Hnoforbidden (groups other than S n), Hdef_forbid_disj and Hequiv (S n) *)
+
+    (* named group *)
+    - admit.
 
     - (* Lookaround *)
       intros ctx Hroot Heqn m dir.
@@ -1213,5 +1224,5 @@ Section Equiv.
           destruct compute_tree as [treecont|]; try discriminate.
           intro H. injection H as <-. simpl. apply Hequivcont; auto. apply ms_valid_wrt_checks_tail in Hmschecks. auto.
 
-  Qed.
+  Admitted.
 End Equiv.
