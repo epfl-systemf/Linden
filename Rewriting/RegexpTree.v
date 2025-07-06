@@ -499,20 +499,12 @@ Section RegexpTree.
       }
     Qed.
 
-    (* TODO: Change nequiv to be contextual *)
-    Lemma atmost_lazy_atmost_lazy_nequiv: (* r{0,m}?r{0,n}? ≇ r{0,m+n}? *)
+    (*
+    Definition atmost_lazy_atmost_lazy_nequiv: (* r{0,m}?r{0,n}? ≇ r{0,m+n}? *)
       exists (m n: nat) r,
         (Sequence (Quantified false 0 m r) (Quantified false 0 n r))
           ≇[rer] Quantified false 0 (m + n) r.
-    Proof.
-      exists 1, 1.
-      exists (Sequence
-           (Disjunction (Sequence c0 c1) (Sequence c0 (Sequence c1 c0)))
-           (Disjunction c1 c2)).
-      tree_equiv_rw.
-      exists forward, (init_input [c0; c1; c0; c1; c2]), GroupMap.empty.
-      compute_tr_cbv; inversion 1.
-    Admitted.
+    *)
   End BoundedRepetitions.
 
 (*|
