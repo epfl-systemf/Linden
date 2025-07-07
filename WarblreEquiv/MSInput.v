@@ -285,4 +285,20 @@ Section MSInput.
 
     simpl in *. now injection Hgetchr.
   Qed.
+
+  Lemma ms_matches_inp_prevchar2 {F} `{Ferr: Result.AssertionError F}:
+    forall ms next pref x,
+      ms_matches_inp ms (Input next (x::pref)) ->
+      List.List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms - 1) = Success x.
+  Proof.
+    intros ms next pref x Hmsinp.
+    inversion Hmsinp as [str0 end_ind cap next' pref0 Hlenpref Hstr0 Heqms]. subst next' pref0.
+    simpl in *.
+    replace (Z.of_nat end_ind - 1)%Z with (Z.of_nat (length pref)) by lia.
+    rewrite List.List.Indexing.Int.of_nat.
+    unfold List.List.Indexing.Nat.indexing. rewrite <- Hstr0.
+    rewrite nth_error_app1. 2: { rewrite app_length, rev_length. simpl. lia. }
+    rewrite nth_error_app2. 2: { rewrite rev_length. reflexivity. }
+    rewrite rev_length, Nat.sub_diag. reflexivity.
+  Qed.
 End MSInput.

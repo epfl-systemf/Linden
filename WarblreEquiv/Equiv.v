@@ -698,7 +698,7 @@ Section Equiv.
     
     - (* AtomEsc (ACharacterClassEsc esc); idem *)
       intros ctx Hroot Heqn Heqnm m dir Hcompsucc.
-      eapply characterClassEscape_equiv; eauto. constructor. assumption.
+      eapply characterClassEscape_equiv with (nm := nm); eauto. constructor. assumption.
     
     - (* AtomEsc (ACharacterEsc esc); idem *)
       intros ctx Hroot Heqn Heqnm m dir Hcompsucc.
@@ -1149,7 +1149,7 @@ Section Equiv.
           pose proof begin_input_pref_nonempty _ _ Hatbegin Hmsinp as Hprefnotnil. destruct Hprefnotnil as [next [x [pref ->]]].
           destruct RegExpRecord.multiline; simpl.
           -- (* Multiline *)
-             replace (List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms - 1)) with (Success (F := Errors.MatchError.type) x) by admit.
+             rewrite ms_matches_inp_prevchar2 with (next := next) (pref := pref) (x := x) by auto.
              simpl.
              unfold Characters.line_terminators. setoid_rewrite CharSetExt.from_list_contains_inb.
              destruct List.inb.
@@ -1179,7 +1179,7 @@ Section Equiv.
           unfold anchor_satisfied.
           pose proof end_input_next_nonempty _ _ Hatend Hmsinp as Hnextnotnil. destruct Hnextnotnil as [pref [x [next ->]]].
           destruct RegExpRecord.multiline; simpl.
-          -- replace (List.Indexing.Int.indexing (MatchState.input ms) (MatchState.endIndex ms)) with (Success (F := Errors.MatchError.type) x) by admit.
+          -- rewrite (proj2 (ms_matches_inp_currchar2 ms _ _ _ _ Hmsinp eq_refl)).
              simpl.
              unfold Characters.line_terminators. setoid_rewrite CharSetExt.from_list_contains_inb.
              destruct List.inb.
