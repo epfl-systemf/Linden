@@ -8,7 +8,7 @@ From Linden Require Import Tree Semantics NFA.
 From Linden Require Import BooleanSemantics PikeSubset.
 From Linden Require Import PikeVM PikeVMSeen Correctness.
 From Warblre Require Import Base RegExpRecord.
-
+From Linden Require Import FunctionalUtils FunctionalSemantics.
 
 Section FunctionalPikeVM.
   Context (rer: RegExpRecord).
@@ -149,14 +149,22 @@ Proof. auto. Qed.
 (* Nullable Quantifier Example *)
 (* Matching ((a|epsilon)(epsilon|b))* on string "ab" matches "ab", a specificity of Javascript semantics *)
 
+(* we assume the existence of two characters *)
 Parameter a : Character.type.
 Parameter b : Character.type.
 
 Example a_char : regex := Regex.Character (CdSingle a).
 Example b_char : regex := Regex.Character (CdSingle b).
-Axiom neq_ab: (a ==? b)%wt = false.
-Corollary neq_ba : (b ==? a)%wt = false.
-Proof. rewrite EqDec.inversion_false. symmetry. rewrite <- EqDec.inversion_false. apply neq_ab. Qed.
+Lemma charmatch_same:
+  forall c, char_match rer c (CdSingle c) = true.
+Proof. unfold char_match, char_match'. intros. apply EqDec.reflb. Qed.
+(* we assume that these characters cannot match, regardless of the flags *)
+Axiom charmatch_ab:
+  char_match rer a (CdSingle b) = false.
+Axiom charmatch_ba:
+  char_match rer b (CdSingle a) = false.
+
+
 
 Example nq_regex: regex :=
   greedy_star(Sequence
@@ -176,6 +184,7 @@ Proof. auto. Qed.
 Lemma init_nq: pike_vm_seen_initial_state nq_inp = PVSS nq_inp [(0,GroupMap.empty,CanExit)] None [] initial_seenpcs.
 Proof. auto. Qed.
 
+
 Ltac simpl_step:=
    match goal with
    | [ |- context[VMS.lblbool_eqb ?l1 ?l2] ] => unfold VMS.lblbool_eqb
@@ -186,9 +195,9 @@ Ltac simpl_step:=
    | [ |- context[orb false ?b] ] => simpl orb
    | [ |- context[orb ?b false] ] => simpl orb
    | [ |- context[if false then ?x else ?y] ] => replace (if false then x else y) with y by auto
-   | [ |- context[(?x ==? ?x)%wt] ] => rewrite EqDec.reflb
-   | [ |- context[(a ==? b)%wt] ] => rewrite neq_ab
-   | [ |- context[(b ==? a)%wt] ] => rewrite neq_ba
+   | [ |- context[char_match _ ?x (CdSingle ?x)] ] => rewrite charmatch_same
+   | [ |- context[char_match rer a (CdSingle b)] ] => rewrite charmatch_ab
+   | [ |- context[char_match rer b (CdSingle a)] ] => rewrite charmatch_ba
    | [ |- context[EpsDead] ] => unfold EpsDead
   end.
 
@@ -199,13 +208,11 @@ Lemma nullable_quant:
   pike_vm_match nq_regex nq_inp = Finished (Some (Input [] [b;a], GroupMap.empty)).
 Proof. 
   unfold pike_vm_match, getres. rewrite compile_nq. rewrite fuel_nq. rewrite init_nq.
-  do 37 one_step.
+  do 37 one_step. 
 Qed.
 
 (** * Example from the paper  *)
 (* regex (a*|a)b on string "ab" *)
-
-From Linden Require Import FunctionalUtils FunctionalSemantics.
 
 Example paper_regex : regex := Sequence (Group 1 (Disjunction (greedy_star a_char) a_char)) b_char.
 
@@ -229,18 +236,18 @@ Example paper_tree: tree :=
         (Read a (GroupAction (Close 1) (Read b Match)))).
 
 Lemma paper_is_tree:
-  is_tree [Areg paper_regex] paper_input GroupMap.empty forward paper_tree.
+  is_tree rer [Areg paper_regex] paper_input GroupMap.empty forward paper_tree.
 Proof.
   unfold paper_input.
-  repeat (econstructor; simpl; try rewrite EqDec.reflb).
+  repeat (econstructor; simpl; try rewrite charmatch_same).
   unfold greedy_star. replace +∞ with (NoI.N 1 + +∞)%NoI by auto.
   econstructor; simpl; eauto.
-  2: { repeat (constructor; simpl). rewrite neq_ab. auto. }
-  repeat (econstructor; simpl; try rewrite EqDec.reflb); simpl.
+  2: { repeat (constructor; simpl). rewrite charmatch_ab. auto. }
+  repeat (econstructor; simpl; try rewrite charmatch_same); simpl.
   unfold greedy_star. replace +∞ with (NoI.N 1 + +∞)%NoI by auto.
   repeat (econstructor; simpl; auto).
-  { rewrite neq_ba. auto. }
-  rewrite EqDec.reflb. auto.
+  { rewrite charmatch_ba. auto. }
+  rewrite charmatch_same. auto.
 Qed.
 
 Example final_gm : GroupMap.t :=
@@ -258,3 +265,5 @@ Proof.
   unfold pike_vm_match, getres, final_gm. rewrite compile_paper. rewrite paper_fuel. rewrite paper_init.
   do 24 one_step. auto.
 Qed.
+
+End FunctionalPikeVM.
