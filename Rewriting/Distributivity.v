@@ -2,8 +2,8 @@ From Linden.Rewriting Require Import ProofSetup.
 
 Module Right.
   Section EquivalenceProof.
-    Context {char: Parameters.Character.class}.
-    Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+    Context {params: LindenParameters}.
+    Context (rer: RegExpRecord).
 
     Context (x0 x1 y: regex).
     Context (NO_GROUPS_IN_Y: def_groups y = []).
@@ -17,14 +17,14 @@ Module Right.
     Hint Rewrite NO_GROUPS_IN_Y : tree_equiv.
 
     Theorem factored_expanded_right_equiv: (* Proof using inversion on the is_tree predicate *)
-      factored ≅[forward] expanded.
+      factored ≅[rer][forward] expanded.
     Proof.
       tree_equiv_inv; eauto using compute_tr_is_tree.
       reflexivity.
     Qed.
 
     Theorem factored_expanded_right_equiv_symb: (* Proof using symbolic evaluation *)
-      factored ≅[forward] expanded.
+      factored ≅[rer][forward] expanded.
     Proof.
       tree_equiv_rw.
       compute_tr_simpl.
@@ -35,8 +35,8 @@ End Right.
 
 Module LeftBackward.
   Section EquivalenceProof.
-    Context {char: Parameters.Character.class}.
-    Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+    Context {params: LindenParameters}.
+    Context (rer: RegExpRecord).
 
     Context (x y0 y1: regex).
     Context (NO_GROUPS_IN_X: def_groups x = []).
@@ -50,14 +50,14 @@ Module LeftBackward.
     Hint Rewrite NO_GROUPS_IN_X : tree_equiv.
 
     Theorem factored_expanded_left_equiv: (* Proof using inversion on the is_tree predicate *)
-      factored ≅[backward] expanded.
+      factored ≅[rer][backward] expanded.
     Proof.
       tree_equiv_inv; eauto using compute_tr_is_tree.
       reflexivity.
     Qed.
 
     Theorem factored_expanded_left_equiv_symb: (* Proof using symbolic evaluation *)
-      factored ≅[backward] expanded.
+      factored ≅[rer][backward] expanded.
     Proof.
       tree_equiv_rw.
       compute_tr_simpl.
@@ -68,8 +68,8 @@ End LeftBackward.
 
 Module LeftForward.
   Section Counterexample.
-    Context {char: Parameters.Character.class}.
-    Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+    Context {params: LindenParameters}.
+    Context (rer: RegExpRecord).
     Context (c: Parameters.Character).
 
     Let capture n := Group n (Character (CdSingle c)).
@@ -86,8 +86,10 @@ Module LeftForward.
 
     Definition input := init_input [c].
 
+    Arguments char_match {params} rer c !cd /.
+
     Theorem factored_expanded_left_nequiv:
-      factored ≇ expanded.
+      factored ≇[rer] expanded.
     Proof.
       tree_equiv_rw.
       exists forward, input, GroupMap.empty.

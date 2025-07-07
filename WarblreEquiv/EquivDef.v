@@ -1,6 +1,6 @@
 From Linden Require Import Semantics FunctionalSemantics Tree Groups Regex Chars.
 From Linden Require Import GroupMapMS MSInput GroupMapLemmas.
-From Linden Require Import LindenParameters.
+From Linden Require Import LWParameters Parameters.
 From Linden Require Import Utils.
 From Warblre Require Import Parameters Notation Base Result Match RegExpRecord.
 From Coq Require Import ZArith List.
@@ -8,8 +8,8 @@ Import Notation.
 Import Match.
 
 Section EquivDef.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+  Context {params: LindenParameters}.
+  Context (rer: RegExpRecord).
 
   (* Groups that we want to forbid from being defined before matching a regex. *)
   Definition forbidden_groups (reg: regex): list group_id :=
@@ -47,7 +47,7 @@ Section EquivDef.
   (* Definition of when a MatcherContinuation performs a given list of actions. *)
   (* A MatcherContinuation mc, working on input string str0 and with the open group list gl,
   performs the actions described in act in the direction dir when: *)
-  Definition equiv_cont (mc: MatcherContinuation) (gl: open_groups) (forbgroups: list group_id) (act: actions) (dir: Direction) (str0: string) (rer: RegExpRecord): Prop :=
+  Definition equiv_cont (mc: MatcherContinuation) (gl: open_groups) (forbgroups: list group_id) (act: actions) (dir: Direction) (str0: string): Prop :=
     forall (gm: group_map) (ms: MatchState) (inp: input) (res: option MatchState) (fuel: nat) (t: tree),
       (* for all corresponding tuples of a MatchState ms, an input inp, a group map gm 
       and a list of open groups gl that use the input string str0, *)
@@ -63,22 +63,22 @@ Section EquivDef.
       (* if the continuation mc called on ms yields the result res, *)
       mc ms = Success res ->
       (* then letting t be the tree corresponding to the actions in act on the input inp with group map gm and direction dir, *)
-      compute_tree act inp gm dir fuel = Some t ->
+      compute_tree rer act inp gm dir fuel = Some t ->
       (* the first branch of t is equivalent to the result res. *)
       equiv_res (tree_res t gm inp dir) res.
 
   (* Definition of when a Matcher recognizes a regex in a given direction. *)
   (* A Matcher m is said to recognize a regex reg in direction dir when: *)
-  Definition equiv_matcher (m: Matcher) (reg: regex) (rer: RegExpRecord) (dir: Direction): Prop :=
+  Definition equiv_matcher (m: Matcher) (reg: regex) (dir: Direction): Prop :=
     (* for any input string str0, *)
     forall (str0: string) (mc: MatcherContinuation) (gl: open_groups) (forbgroups: list group_id) (act: actions),
     (* for any MatcherContinuation mc working with the list of open groups gl on the string str0 performing the actions act, *)
-    equiv_cont mc gl forbgroups act dir str0 rer ->
+    equiv_cont mc gl forbgroups act dir str0 ->
     (* if the open groups do not contain any of the groups defined by reg, *)
     open_groups_disjoint gl (def_groups reg) ->
     (* and the continuation does not forbid defining any group defined by the regex, *)
     List.Disjoint (def_groups reg) forbgroups ->
     (* plugging the continuation mc into the matcher m yields a continuation that performs the actions Areg reg :: act. *)
-    equiv_cont (fun ms => m ms mc) gl (forbidden_groups reg ++ forbgroups) (Areg reg :: act)%list dir str0 rer.
+    equiv_cont (fun ms => m ms mc) gl (forbidden_groups reg ++ forbgroups) (Areg reg :: act)%list dir str0.
 
 End EquivDef.

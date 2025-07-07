@@ -4,24 +4,25 @@ Import ListNotations.
 From Linden Require Import Regex Chars.
 From Linden Require Import Tree.
 From Linden Require Import NumericLemmas.
-From Warblre Require Import Numeric Base.
+From Warblre Require Import Numeric Base RegExpRecord.
 From Linden Require Import Groups.
 From Linden Require Import StrictSuffix.
+From Linden Require Import Parameters LWParameters.
 From Coq Require Import Lia.
 
 (* This relates a regex and a string to their backtracking tree *)
 
 
 Section Semantics.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Character}.
+  Context {params: LindenParameters}.
+  Context (rer: RegExpRecord).
 
   (* Reading a substring from a group map *)
   Definition read_backref (gm: group_map) (gid: group_id) (inp: input) (dir: Direction): option (string * input) :=
     match GroupMap.find gid gm with
     | None | Some (GroupMap.Range _ None) => Some ([], inp)
     | Some (GroupMap.Range startIdx (Some endIdx)) =>
-      let sub := substr inp startIdx endIdx in
+      let sub_can := List.map (Character.canonicalize rer) (substr inp startIdx endIdx) in
       let len := endIdx - startIdx in
       match inp with
       | Input next pref =>
@@ -30,16 +31,18 @@ Section Semantics.
           if len >? List.length next then
             None
           else
-            if (List.firstn len next ==? sub)%wt then
-              Some (sub, advance_input_n inp len forward)
+            let firstn := List.firstn len next in
+            if (List.map (Character.canonicalize rer) firstn ==? sub_can)%wt then
+              Some (firstn, advance_input_n inp len forward)
             else
               None
         | backward =>
           if len >? List.length pref then
             None
           else
-            if (List.rev (List.firstn len pref) ==? sub)%wt then
-              Some (sub, advance_input_n inp len backward)
+            let rev_firstn := List.rev (List.firstn len pref) in
+            if (List.map (Character.canonicalize rer) rev_firstn ==? sub_can)%wt then
+              Some (rev_firstn, advance_input_n inp len backward)
             else
               None
         end
@@ -74,11 +77,18 @@ Section Semantics.
     | Input next pref =>
         match next, pref with
         | [], [] => false
-        | [], c::p' => word_char c
-        | c::n', [] => word_char c
+        | [], c::p' => word_char rer c
+        | c::n', [] => word_char rer c
         | c1::n', c2::p' =>
-            xorb (word_char c1) (word_char c2)
+            xorb (word_char rer c1) (word_char rer c2)
         end
+    end.
+
+  (* Checks whether the string is at an input boundary, i.e. start/end of input or line terminator if multiline *)
+  Definition is_input_boundary (multiline: bool) (str: string): bool :=
+    match str with
+    | [] => true
+    | x::q => multiline && Utils.List.inb x Character.line_terminators
     end.
 
   (* independent of the direction *)
@@ -87,9 +97,9 @@ Section Semantics.
     | Input next pref =>
         match a with
         | BeginInput =>
-            match pref with | [] => true | _ => false end
+            is_input_boundary (RegExpRecord.multiline rer) pref
         | EndInput =>
-            match next with | [] => true | _ => false end
+            is_input_boundary (RegExpRecord.multiline rer) next
         | WordBoundary =>
             is_boundary i
         | NonWordBoundary =>
@@ -145,12 +155,12 @@ Section Semantics.
       is_tree ((Areg Epsilon)::cont) inp gm dir tcont
   | tree_char:
     forall c cd inp gm nextinp dir cont tcont
-      (READ: read_char cd inp dir = Some (c, nextinp))
+      (READ: read_char rer cd inp dir = Some (c, nextinp))
       (TREECONT: is_tree cont nextinp gm dir tcont),
       is_tree (Areg (Regex.Character cd) :: cont) inp gm dir (Read c tcont)
   | tree_char_fail:
     forall cd inp gm dir cont
-      (READ: read_char cd inp dir = None),
+      (READ: read_char rer cd inp dir = None),
       is_tree (Areg (Regex.Character cd) :: cont) inp gm dir Mismatch
   | tree_disj:
     forall r1 r2 cont t1 t2 inp gm dir

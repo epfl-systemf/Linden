@@ -1,6 +1,7 @@
-From Linden Require Import Regex GroupMapMS LindenParameters Groups Tree Chars Semantics
+From Linden Require Import Regex GroupMapMS LWParameters Groups Tree Chars Semantics
   MSInput EquivDef Utils RegexpTranslation FunctionalSemantics WarblreLemmas
-  GroupMapLemmas Tactics CharDescrCharSet CharSet LKFactorization StrictSuffix.
+  GroupMapLemmas Tactics CharDescrCharSet CharSet LKFactorization StrictSuffix
+  Parameters.
 From Warblre Require Import Parameters List Notation Result Typeclasses Base Errors RegExpRecord StaticSemantics Semantics Base.
 From Coq Require Import List ZArith Lia DecidableClass ClassicalFacts.
 Import ListNotations.
@@ -12,8 +13,8 @@ Local Open Scope bool_scope.
 Local Open Scope result_flow.
 
 Section EquivLemmas.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Character}.
+  Context {params: LindenParameters}.
+  Context (rer: RegExpRecord).
 
   (** * Moved from LWEquivTreeLemmas.v; TODO reorganize *)
 
@@ -141,50 +142,40 @@ Section EquivLemmas.
 
   (* Lemma linking the character matching conditions of Linden and Warblre. *)
   Lemma char_match_warblre:
-    forall rer chr cd charset,
+    forall chr cd charset,
       (* Let cd and charset be equivalent. *)
-      equiv_cd_charset cd charset ->
-      (* If we do not ignore case, *)
-      RegExpRecord.ignoreCase rer = false ->
-      (* and chr corresponds to charset in the Warblre sense, *)
+      equiv_cd_charset rer cd charset ->
+      (* If chr corresponds to charset in the Warblre sense, *)
       CharSet.exist_canonicalized rer charset (Character.canonicalize rer chr) = true ->
       (* then chr corresponds to cd in the Linden sense. *)
-      char_match chr cd = true.
+      char_match rer chr cd = true.
   Proof.
-    intros rer chr cd charset Hequiv Hcasesenst Hexist_canon.
-    rewrite CharSet.exist_canonicalized_equiv in Hexist_canon.
-    setoid_rewrite CharSetExt.exist_spec in Hexist_canon. destruct Hexist_canon as [c [Hcontains Heq]].
-    do 2 rewrite canonicalize_casesenst in Heq by assumption.
-    rewrite Typeclasses.EqDec.inversion_true in Heq. subst c.
-    unfold equiv_cd_charset in Hequiv. specialize (Hequiv chr). unfold LindenParameters in *. simpl in *.
-    rewrite <- CharSetExt.contains_spec in Hcontains. congruence.
+    intros chr cd charset Hequiv Hexist_canon.
+    unfold equiv_cd_charset in Hequiv. rewrite Hequiv. assumption.
   Qed.
 
   (* Same, but for inverted character descriptors. *)
   Lemma char_match_warblre_inv:
-    forall rer chr cd charset,
+    forall chr cd charset,
       (* Let cd and charset be equivalent. *)
-      equiv_cd_charset cd charset ->
-      (* If we do not ignore case, *)
-      RegExpRecord.ignoreCase rer = false ->
-      (* and chr corresponds to charset in the Warblre sense, *)
+      equiv_cd_charset rer cd charset ->
+      (* If chr corresponds to charset in the Warblre sense, *)
       CharSet.exist_canonicalized rer charset (Character.canonicalize rer chr) = true ->
       (* then chr does not correspond to CdInv cd in the Linden sense. *)
-      char_match chr (CdInv cd) = false.
+      char_match rer chr (CdInv cd) = false.
   Proof.
-    intros rer chr cd charset Hequiv Hcasesenst Hexist_canon. simpl.
+    intros chr cd charset Hequiv Hexist_canon.
+    unfold char_match. simpl.
     apply <- Bool.negb_false_iff. eapply char_match_warblre; eauto.
   Qed.
 
 
   (* If reading a character succeeds in the Warblre sense, then it succeeds in the Linden sense as well. *)
   Lemma read_char_success:
-    forall ms inp chr cd charset rer dir inp_adv,
+    forall ms inp chr cd charset dir inp_adv,
       (* Let cd and charset be equivalent. *)
-      equiv_cd_charset cd charset ->
-      (* If we do not ignore case, *)
-      RegExpRecord.ignoreCase rer = false ->
-      (* then for any match state and corresponding Linden input, *)
+      equiv_cd_charset rer cd charset ->
+      (* Then for any match state and corresponding Linden input, *)
       ms_matches_inp ms inp ->
       (* if reading character c succeeds in the Warblre sense, *)
       List.Indexing.Int.indexing (MatchState.input ms) (
@@ -192,10 +183,10 @@ Section EquivLemmas.
       CharSet.exist_canonicalized rer charset (Character.canonicalize rer chr) = true ->
       (* then reading character c succeeds in the Linden sense. *)
       advance_input inp dir = Some inp_adv ->
-      read_char cd inp dir = Some (chr, inp_adv) /\
-        read_char (CdInv cd) inp dir = None.
+      read_char rer cd inp dir = Some (chr, inp_adv) /\
+        read_char rer (CdInv cd) inp dir = None.
   Proof.
-    intros ms inp chr cd charset rer dir inp_adv Hequiv Hcasesenst Hms_inp Hreadsuccess Hcharcorresp Hadv.
+    intros ms inp chr cd charset dir inp_adv Hequiv Hms_inp Hreadsuccess Hcharcorresp Hadv.
     destruct inp as [next pref].
     destruct dir.
     - destruct next as [|x next']. 1: discriminate.
@@ -209,7 +200,8 @@ Section EquivLemmas.
       rewrite List.rev_length in Hreadsuccess.
       replace (end_ind - length pref) with 0 in Hreadsuccess by lia.
       injection Hreadsuccess as <-.
-      now setoid_rewrite char_match_warblre with (rer := rer).
+      unfold char_match. simpl.
+      setoid_rewrite char_match_warblre with (chr := chr) (cd := cd) (charset := charset); auto.
     - destruct pref as [|x pref']. 1: discriminate.
       injection Hadv as <-. simpl.
       inversion Hms_inp as [str0 end_ind cap next2 pref2 Hlenpref Heqstr0 Heqms Heqnext2].
@@ -225,17 +217,16 @@ Section EquivLemmas.
       rewrite List.nth_error_app2 in Hreadsuccess. 2: { rewrite List.rev_length. reflexivity. }
       rewrite List.rev_length, Nat.sub_diag in Hreadsuccess.
       injection Hreadsuccess as <-.
-      now setoid_rewrite char_match_warblre with (rer := rer).
+      unfold char_match. simpl.
+      setoid_rewrite char_match_warblre with (chr := chr) (cd := cd) (charset := charset); auto.
   Qed.
 
   (* Same as above, but with another definition of the next end index. *)
   Lemma read_char_success':
-    forall ms inp chr cd charset rer dir inp_adv nextend,
+    forall ms inp chr cd charset dir inp_adv nextend,
       (* Let cd and charset be equivalent. *)
-      equiv_cd_charset cd charset ->
-      (* If we do not ignore case, *)
-      RegExpRecord.ignoreCase rer = false ->
-      (* then for any match state and corresponding Linden input, *)
+      equiv_cd_charset rer cd charset ->
+      (* Then for any match state and corresponding Linden input, *)
       ms_matches_inp ms inp ->
       nextend = (if (dir ==? forward)%wt then (MatchState.endIndex ms + 1)%Z else (MatchState.endIndex ms - 1)%Z) ->
       (* if reading character c succeeds in the Warblre sense, *)
@@ -243,10 +234,10 @@ Section EquivLemmas.
       CharSet.exist_canonicalized rer charset (Character.canonicalize rer chr) = true ->
       (* then reading character c succeeds in the Linden sense. *)
       advance_input inp dir = Some inp_adv ->
-      read_char cd inp dir = Some (chr, inp_adv) /\
-        read_char (CdInv cd) inp dir = None.
+      read_char rer cd inp dir = Some (chr, inp_adv) /\
+        read_char rer (CdInv cd) inp dir = None.
   Proof.
-    intros ms inp chr cd charset rer dir inp_adv nextend Hequivcd Hcasesenst Hmsinp Heqnextend Hreadsuccess Hexist_canon Hinp_adv. destruct dir; simpl in *.
+    intros ms inp chr cd charset dir inp_adv nextend Hequivcd Hmsinp Heqnextend Hreadsuccess Hexist_canon Hinp_adv. destruct dir; simpl in *.
     - replace (Z.min (MatchState.endIndex ms) nextend) with (MatchState.endIndex ms) in Hreadsuccess by lia. eapply read_char_success; eauto.
     - replace (Z.min (MatchState.endIndex ms) nextend) with nextend in Hreadsuccess by lia. eapply read_char_success; eauto. subst nextend. apply Hreadsuccess.
   Qed.
@@ -254,30 +245,23 @@ Section EquivLemmas.
 
   (* Same as char_match_warblre, but in the mismatching case. *)
   Lemma char_mismatch_warblre:
-    forall rer chr cd charset,
-      equiv_cd_charset cd charset ->
-      RegExpRecord.ignoreCase rer = false ->
+    forall chr cd charset,
+      equiv_cd_charset rer cd charset ->
       CharSet.exist_canonicalized rer charset (Character.canonicalize rer chr) = false ->
-      char_match chr cd = false.
+      char_match rer chr cd = false.
   Proof.
-    intros rer chr cd charset Hequiv Hcasesenst Hexist_false.
-    rewrite CharSet.exist_canonicalized_equiv in Hexist_false.
-    setoid_rewrite CharSetExt.exist_false_iff in Hexist_false. specialize (Hexist_false chr).
-    unfold LindenParameters in *. simpl in *. rewrite canonicalize_casesenst in Hexist_false by assumption.
-    destruct Hexist_false.
-    2: { rewrite EqDec.inversion_false in H. contradiction. }
-    specialize (Hequiv chr). unfold LindenParameters in *. simpl in *. congruence.
+    intros chr cd charset Hequiv Hexist_false.
+    specialize (Hequiv chr). congruence.
   Qed.
 
   (* Same as above, but with inverted character descriptors. *)
   Lemma char_mismatch_warblre_inv:
-    forall rer chr cd charset,
-      equiv_cd_charset cd charset ->
-      RegExpRecord.ignoreCase rer = false ->
+    forall chr cd charset,
+      equiv_cd_charset rer cd charset ->
       CharSet.exist_canonicalized rer charset (Character.canonicalize rer chr) = false ->
-      char_match chr (CdInv cd) = true.
+      char_match rer chr (CdInv cd) = true.
   Proof.
-    intros rer chr cd charset Hequiv Hcasesenst Hexist_false. simpl.
+    intros chr cd charset Hequiv Hexist_false. simpl.
     apply <- Bool.negb_true_iff. eapply char_mismatch_warblre; eauto.
   Qed.
 
@@ -285,18 +269,17 @@ Section EquivLemmas.
 
   (* Same as read_char_success, but in the mismatching case. *)
   Lemma read_char_fail:
-    forall rer ms chr inp inp_adv dir cd charset,
-      equiv_cd_charset cd charset ->
-      RegExpRecord.ignoreCase rer = false ->
+    forall ms chr inp inp_adv dir cd charset,
+      equiv_cd_charset rer cd charset ->
       ms_matches_inp ms inp ->
       List.Indexing.Int.indexing (MatchState.input ms) (
           match dir with forward => MatchState.endIndex ms | backward => MatchState.endIndex ms - 1 end) = Success chr ->
       CharSet.exist_canonicalized rer charset (Character.canonicalize rer chr) = false ->
       advance_input inp dir = Some inp_adv ->
-      read_char cd inp dir = None /\
-        read_char (CdInv cd) inp dir = Some (chr, inp_adv).
+      read_char rer cd inp dir = None /\
+        read_char rer (CdInv cd) inp dir = Some (chr, inp_adv).
   Proof.
-    intros rer ms chr inp inp_adv dir cd charset Hequiv Hcasesenst Hms_inp Hreadsuccess Hnocorresp Hadv.
+    intros ms chr inp inp_adv dir cd charset Hequiv Hms_inp Hreadsuccess Hnocorresp Hadv.
     destruct inp as [next pref].
     destruct ms as [str0 endInd cap].
     inversion Hms_inp as [s end_ind cap0 next0 pref0 Hlenpref Hmatches Heqs Heqend_ind].
@@ -312,7 +295,8 @@ Section EquivLemmas.
       rewrite List.rev_length in Hreadsuccess.
       replace (length pref - length pref) with 0 in Hreadsuccess by lia.
       injection Hreadsuccess as <-.
-      now setoid_rewrite char_mismatch_warblre with (rer := rer).
+      unfold char_match. simpl.
+      now setoid_rewrite char_mismatch_warblre with (chr := chr) (cd := cd) (charset := charset).
     - destruct pref as [|x pref']. 1: discriminate.
       injection Hadv as <-.
       destruct end_ind as [|end_indm1]. 1: discriminate.
@@ -326,23 +310,23 @@ Section EquivLemmas.
       rewrite List.nth_error_app2 in Hreadsuccess. 2: { rewrite List.rev_length. reflexivity. }
       rewrite List.rev_length, Nat.sub_diag in Hreadsuccess.
       injection Hreadsuccess as <-.
-      now setoid_rewrite char_mismatch_warblre with (rer := rer).
+      unfold char_match. simpl.
+      now setoid_rewrite char_mismatch_warblre.
   Qed.
 
   (* Same as read_char_fail, but with another definition of the next end index. *)
   Lemma read_char_fail':
-    forall rer ms chr inp inp_adv dir cd charset nextend,
-      equiv_cd_charset cd charset ->
-      RegExpRecord.ignoreCase rer = false ->
+    forall ms chr inp inp_adv dir cd charset nextend,
+      equiv_cd_charset rer cd charset ->
       ms_matches_inp ms inp ->
       nextend = (if (dir ==? forward)%wt then (MatchState.endIndex ms + 1)%Z else (MatchState.endIndex ms - 1)%Z) ->
       List.Indexing.Int.indexing (MatchState.input ms) (Z.min (MatchState.endIndex ms) nextend) = Success chr ->
       CharSet.exist_canonicalized rer charset (Character.canonicalize rer chr) = false ->
       advance_input inp dir = Some inp_adv ->
-      read_char cd inp dir = None /\
-        read_char (CdInv cd) inp dir = Some (chr, inp_adv).
+      read_char rer cd inp dir = None /\
+        read_char rer (CdInv cd) inp dir = Some (chr, inp_adv).
   Proof.
-    intros rer ms chr inp inp_adv dir cd charset nextend Hequivcd Hcasesenst Hmsinp Heqnextend Hgetchr Hexist_canon Hinp_adv.
+    intros ms chr inp inp_adv dir cd charset nextend Hequivcd Hmsinp Heqnextend Hgetchr Hexist_canon Hinp_adv.
     destruct dir; simpl in *.
     - replace (Z.min (MatchState.endIndex ms) nextend) with (MatchState.endIndex ms) in Hgetchr by lia. eauto using read_char_fail.
     - replace (Z.min (MatchState.endIndex ms) nextend) with nextend in Hgetchr by lia. subst nextend. eauto using read_char_fail.
@@ -591,7 +575,7 @@ Section EquivLemmas.
     forall (ms: MatchState) (inp: Chars.input),
       ms_matches_inp ms inp ->
       ((MatchState.endIndex ms + 1 <? 0)%Z || (MatchState.endIndex ms + 1 >? Z.of_nat (length (MatchState.input ms)))%Z)%bool = true ->
-      forall cd: char_descr, read_char cd inp forward = None.
+      forall cd: char_descr, read_char rer cd inp forward = None.
   Proof.
     intros ms inp Hmatches Hoob.
     apply Bool.orb_true_elim in Hoob.
@@ -608,7 +592,7 @@ Section EquivLemmas.
     forall (ms: MatchState) (inp: Chars.input),
       ms_matches_inp ms inp ->
       ((MatchState.endIndex ms - 1 <? 0)%Z || (MatchState.endIndex ms - 1 >? Z.of_nat (length (MatchState.input ms)))%Z)%bool = true ->
-      forall cd: char_descr, read_char cd inp backward = None.
+      forall cd: char_descr, read_char rer cd inp backward = None.
   Proof.
     intros ms inp Hmatches Hoob.
     apply Bool.orb_true_elim in Hoob.
@@ -625,7 +609,7 @@ Section EquivLemmas.
       ms_matches_inp ms inp ->
       nextend = (if (dir ==? forward)%wt then (MatchState.endIndex ms + 1)%Z else (MatchState.endIndex ms - 1)%Z) ->
       ((nextend <? 0)%Z || (nextend >? Z.of_nat (length (MatchState.input ms)))%Z)%bool = true ->
-      forall cd: char_descr, read_char cd inp dir = None.
+      forall cd: char_descr, read_char rer cd inp dir = None.
   Proof.
     intros ms inp dir nextend Hmsinp -> Hoob.
     destruct dir; simpl in *; eauto using read_oob_fail_begin_bool, read_oob_fail_end_bool.
@@ -689,28 +673,24 @@ Section EquivLemmas.
     now intros [].
   Qed.
 
-  Lemma word_char_warblre:
+  (*Lemma word_char_warblre:
     forall c, word_char c = CharSet.contains Characters.ascii_word_characters c.
   Proof.
     intro c. unfold Characters.ascii_word_characters.
     apply Bool.eq_true_iff_eq.
     setoid_rewrite CharSetExt.from_list_contains. unfold word_char.
     apply Utils.List.inb_spec.
-  Qed.
+  Qed.*)
 
   Lemma is_boundary_xorb:
-    forall inp ms a b rer,
-      RegExpRecord.ignoreCase rer = false ->
+    forall inp ms a b,
       ms_matches_inp ms inp ->
       Semantics.isWordChar rer (MatchState.input ms) (MatchState.endIndex ms - 1)%Z = Success a ->
       Semantics.isWordChar rer (MatchState.input ms) (MatchState.endIndex ms) = Success b ->
-      xorb a b = Semantics.is_boundary inp.
+      xorb a b = Semantics.is_boundary rer inp.
   Proof.
-    intros inp ms a b rer Hcasesenst Hmatches Ha Hb.
-    unfold Semantics.isWordChar in *.
-    pose proof wordCharacters_casesenst rer Hcasesenst as [s [Heqs HEqual]].
-    rewrite <- CharSetExt.canonicity in HEqual. subst s.
-    rewrite Heqs in * by assumption. simpl in *.
+    intros inp ms a b Hmatches Ha Hb.
+    unfold Semantics.isWordChar in *. simpl in *.
     inversion Hmatches as [str0 end_ind cap next pref Hlenpref Hstr0 Heqms Heqinp].
     subst ms inp. simpl in *.
     destruct (Z.of_nat end_ind - 1 =? -1)%Z eqn:Hbegin; destruct (Z.of_nat end_ind =? Z.of_nat (length _))%Z eqn:Hend; simpl in *.
@@ -728,7 +708,7 @@ Section EquivLemmas.
       pose proof ms_matches_inp_currchar _ _ _ Hmatches Hgetchr as [_ [pref [next' Hinput]]].
       injection Hinput as Heqpref Heqnext. subst next str0.
       rewrite unwrap_bool in Hb. injection Hb as <-. injection Ha as <-. simpl.
-      symmetry. apply word_char_warblre.
+      symmetry. reflexivity.
 
     - (* At end but not at begin *)
       rewrite Bool.orb_true_r in Hb. simpl in Hb.
@@ -740,7 +720,7 @@ Section EquivLemmas.
         symmetry. apply length_zero_iff_nil. apply (f_equal (@length Character)) in Hstr0. rewrite app_length, rev_length in Hstr0. lia.
       }
       injection Hb as <-. rewrite unwrap_bool in Ha. injection Ha as <-.
-      rewrite Bool.xorb_false_r. symmetry. apply word_char_warblre.
+      rewrite Bool.xorb_false_r. symmetry. reflexivity.
 
     - (* Neither at begin, nor at end *)
       replace (Z.of_nat _ =? -1)%Z with false in Hb by lia. simpl in Hb.
@@ -752,7 +732,7 @@ Section EquivLemmas.
       pose proof ms_matches_inp_prevchar _ _ _ Hmatches Hcl as [pref' [next0 Heqinpl]].
       injection Heqinpr as Heqnext _. injection Heqinpl as _ Heqpref. subst next pref. clear pref0 next0.
       rewrite unwrap_bool in Hb, Ha. injection Hb as <-. injection Ha as <-.
-      rewrite Bool.xorb_comm. f_equal; symmetry; apply word_char_warblre.
+      rewrite Bool.xorb_comm. f_equal.
   Qed.
 
   (* Linking advance_idx with advance_input *)
@@ -784,7 +764,7 @@ Section EquivLemmas.
   (* Lemma for a list of actions *)
   Lemma actions_tree_no_outside_groups:
     forall acts gm0 inp0 dir0 fuel t,
-      compute_tree acts inp0 gm0 dir0 fuel = Some t ->
+      compute_tree rer acts inp0 gm0 dir0 fuel = Some t ->
       forall gm1 gm2 inp1 inp2 dir,
         Tree.tree_res t gm1 inp1 dir = Some (inp2, gm2) ->
         forall gid, ~In gid (actions_def_groups acts) -> GroupMap.find gid gm2 = GroupMap.find gid gm1.
@@ -814,7 +794,7 @@ Section EquivLemmas.
       
       + (* Disjunction *)
         destruct compute_tree as [t1|] eqn:Heqt1; simpl; try discriminate.
-        destruct (compute_tree (Areg r2 :: acts) _ _ _ _) as [t2|] eqn:Heqt2; simpl; try discriminate.
+        destruct (compute_tree rer (Areg r2 :: acts) _ _ _ _) as [t2|] eqn:Heqt2; simpl; try discriminate.
         intro H. injection H as <-. simpl.
         intros gm1 gm2 inp1 inp2 dir Hres gid Hnotin.
         do 2 rewrite in_app_iff in Hnotin.
@@ -840,8 +820,8 @@ Section EquivLemmas.
           simpl. intros. eapply IHfuel; eauto. rewrite in_app_iff in H1. tauto.
         * (* Free, finite delta *)
           simpl. replace (ndelta' - 0) with ndelta' by lia.
-          destruct (compute_tree (Areg r :: Acheck inp0 :: _ :: acts) inp0 _ dir0 fuel) as [titer|] eqn:Hiter; simpl; try discriminate.
-          destruct (compute_tree acts inp0 gm0 dir0 fuel) as [tskip|] eqn:Hskip; simpl; try discriminate.
+          destruct (compute_tree rer (Areg r :: Acheck inp0 :: _ :: acts) inp0 _ dir0 fuel) as [titer|] eqn:Hiter; simpl; try discriminate.
+          destruct (compute_tree rer acts inp0 gm0 dir0 fuel) as [tskip|] eqn:Hskip; simpl; try discriminate.
           intro H. injection H as <-.
           intros gm1 gm2 inp1 inp2 dir.
           pose proof IHfuel _ _ _ _ _ Hiter (GroupMap.reset (def_groups r) gm1) as IHiter.
@@ -871,8 +851,8 @@ Section EquivLemmas.
         * (* Free, infinite delta *)
           simpl.
           (* Copy-pasting from above!! *)
-          destruct (compute_tree (Areg r :: Acheck inp0 :: _ :: acts) inp0 _ dir0 fuel) as [titer|] eqn:Hiter; simpl; try discriminate.
-          destruct (compute_tree acts inp0 gm0 dir0 fuel) as [tskip|] eqn:Hskip; simpl; try discriminate.
+          destruct (compute_tree rer (Areg r :: Acheck inp0 :: _ :: acts) inp0 _ dir0 fuel) as [titer|] eqn:Hiter; simpl; try discriminate.
+          destruct (compute_tree rer acts inp0 gm0 dir0 fuel) as [tskip|] eqn:Hskip; simpl; try discriminate.
           intro H. injection H as <-.
           intros gm1 gm2 inp1 inp2 dir.
           pose proof IHfuel _ _ _ _ _ Hiter (GroupMap.reset (def_groups r) gm1) as IHiter.
@@ -912,7 +892,7 @@ Section EquivLemmas.
         destruct lk_succeeds eqn:Hlksucc.
         * (* Lookaround succeeds *)
           destruct lk_group_map as [gmlk|] eqn:Heqgmlk.
-          -- destruct (compute_tree acts inp0 gmlk dir0 fuel) as [treecont|] eqn:Htreecont; try discriminate.
+          -- destruct (compute_tree rer acts inp0 gmlk dir0 fuel) as [treecont|] eqn:Htreecont; try discriminate.
              intro H. injection H as <-.
              simpl. destruct positivity.
              ++ intros gm1 gm2 inp1 inp2 dir. destruct tree_res as [[inpafterlk gmafterlk]|] eqn:Heqgmafterlk; try discriminate.
@@ -978,7 +958,7 @@ Section EquivLemmas.
 
   Corollary reg_tree_no_outside_groups:
     forall reg gm0 inp0 dir0 fuel t,
-      compute_tree [Areg reg] inp0 gm0 dir0 fuel = Some t ->
+      compute_tree rer [Areg reg] inp0 gm0 dir0 fuel = Some t ->
       forall gm1 gm2 inp1 inp2 dir,
         Tree.tree_res t gm1 inp1 dir = Some (inp2, gm2) ->
         forall gid, ~In gid (def_groups reg) -> GroupMap.find gid gm2 = GroupMap.find gid gm1.
@@ -1008,7 +988,7 @@ Section EquivLemmas.
 
   Lemma actions_tree_no_open_groups:
     forall acts gm0 inp0 dir0 fuel t,
-      compute_tree acts inp0 gm0 dir0 fuel = Some t ->
+      compute_tree rer acts inp0 gm0 dir0 fuel = Some t ->
       forall gm1 gm2 inp1 inp2 dir,
         Tree.tree_res t gm1 inp1 dir = Some (inp2, gm2) ->
         forall gid idx,
@@ -1044,7 +1024,7 @@ Section EquivLemmas.
     - (* Disjunction *)
       simpl. intros gm0 inp dir0 t.
       destruct compute_tree as [t1|] eqn:Hcompute1; try discriminate.
-      destruct (compute_tree (Areg r2 :: acts) inp gm0 dir0 fuel) as [t2|] eqn:Hcompute2; try discriminate.
+      destruct (compute_tree rer (Areg r2 :: acts) inp gm0 dir0 fuel) as [t2|] eqn:Hcompute2; try discriminate.
       intro H. injection H as <-.
       intros gm1 gm2 inp1 inp2 dir. simpl.
       destruct (tree_res t1 gm1 inp1 dir) as [[inpres1 res1]|] eqn:Hres1; simpl.
@@ -1074,7 +1054,7 @@ Section EquivLemmas.
         rewrite Areg_Aclose_disappear. eauto using IHfuel.
       + (* Free, finite delta *)
         destruct compute_tree as [titer|] eqn:Htiter; try discriminate.
-        destruct (compute_tree acts inp gm0 dir0 fuel) as [tskip|] eqn:Htskip; try discriminate.
+        destruct (compute_tree rer acts inp gm0 dir0 fuel) as [tskip|] eqn:Htskip; try discriminate.
         intro H. injection H as <-.
         intros gm1 gm2 inp1 inp2 dir. destruct greedy; simpl.
         * (* Greedy *)
@@ -1106,7 +1086,7 @@ Section EquivLemmas.
              ++ rewrite gm_reset_find_other in H by assumption. auto.
       + (* Free, infinite delta: copy-pasting!! *)
         destruct compute_tree as [titer|] eqn:Htiter; try discriminate.
-        destruct (compute_tree acts inp gm0 dir0 fuel) as [tskip|] eqn:Htskip; try discriminate.
+        destruct (compute_tree rer acts inp gm0 dir0 fuel) as [tskip|] eqn:Htskip; try discriminate.
         intro H. injection H as <-.
         intros gm1 gm2 inp1 inp2 dir. destruct greedy; simpl.
         * (* Greedy *)
@@ -1154,7 +1134,7 @@ Section EquivLemmas.
       + (* Lookaround succeeds *)
         destruct lk_group_map as [gmlk|] eqn:Hgmlk.
         * (* Only valid case *)
-          destruct (compute_tree acts inp gmlk dir0 fuel) as [treecont|] eqn:Htreecont; try discriminate.
+          destruct (compute_tree rer acts inp gmlk dir0 fuel) as [treecont|] eqn:Htreecont; try discriminate.
           intro H. injection H as <-. intros gm1 gm2 inp1 inp2 dir.
           simpl.
           destruct positivity.
@@ -1598,7 +1578,7 @@ Section EquivLemmas.
   Lemma noforb_lk:
     forall lr gm gmafterlk forbgroups tlk inp inpafterlk fuel dir,
       no_forbidden_groups gm (forbidden_groups (Lookaround (LKFactorization.to_lookaround dir true) lr) ++ forbgroups) ->
-      compute_tree [Areg lr] inp gm dir fuel = Some tlk ->
+      compute_tree rer [Areg lr] inp gm dir fuel = Some tlk ->
       tree_res tlk gm inp dir = Some (inpafterlk, gmafterlk) ->
       List.Disjoint (def_groups (Lookaround LookAhead lr)) forbgroups ->
       no_forbidden_groups gmafterlk forbgroups.
@@ -1688,7 +1668,7 @@ Section EquivLemmas.
   Lemma equiv_open_groups_lk:
     forall gm gl gmafterlk lr inp inpafterlk fuel tlk forbgroups dir,
       group_map_equiv_open_groups gm gl ->
-      compute_tree [Areg lr] inp gm dir fuel = Some tlk ->
+      compute_tree rer [Areg lr] inp gm dir fuel = Some tlk ->
       tree_res tlk gm inp dir = Some (inpafterlk, gmafterlk) ->
       no_forbidden_groups gm (forbidden_groups (Lookaround LookAhead lr) ++ forbgroups) ->
       group_map_equiv_open_groups gmafterlk gl.
@@ -2216,8 +2196,7 @@ Section EquivLemmas.
 
   (* The lemmas *)
   Lemma exists_diff_iff:
-    forall ms next pref startIdx endIdx endMatch rlen existsdiff rer,
-      RegExpRecord.ignoreCase rer = false ->
+    forall ms next pref startIdx endIdx endMatch rlen existsdiff,
       (rlen >= 0)%Z ->
       endMatch = (MatchState.endIndex ms + rlen)%Z ->
       ms_matches_inp ms (Input next pref) ->
@@ -2228,9 +2207,9 @@ Section EquivLemmas.
           let! rsi =<< List.Indexing.Int.indexing (MatchState.input ms) (startIdx + i) in
           let! gi =<< List.Indexing.Int.indexing (MatchState.input ms) (Z.min (MatchState.endIndex ms) endMatch + i) in
           Coercions.wrap_bool Errors.MatchError.type (Character.canonicalize rer rsi !=? Character.canonicalize rer gi)%wt) = Success existsdiff ->
-      existsdiff = true <-> (List.firstn (Z.to_nat rlen) next ==? substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = false.
+      existsdiff = true <-> (List.map (Character.canonicalize rer) (List.firstn (Z.to_nat rlen) next) ==? List.map (Character.canonicalize rer) (substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx)))%wt = false.
   Proof.
-    intros ms next pref startIdx endIdx endMatch rlen existsdiff rer Hcasesenst Hrlennneg HeqendMatch Hmsinp Heqrlen HstartIdxnneg HendIdxnneg Heqexistsdiff.
+    intros ms next pref startIdx endIdx endMatch rlen existsdiff Hrlennneg HeqendMatch Hmsinp Heqrlen HstartIdxnneg HendIdxnneg Heqexistsdiff.
     destruct existsdiff.
     - (* There exists some different character *)
       apply List.Exists.true_to_prop in Heqexistsdiff.
@@ -2241,9 +2220,10 @@ Section EquivLemmas.
       replace (Z.min _ endMatch) with (MatchState.endIndex ms) in Hdiff by lia.
       destruct List.Indexing.Int.indexing as [rsi|] eqn:Heqrsi in Hdiff; try discriminate.
       destruct List.Indexing.Int.indexing as [gi|] eqn:Hgi in Hdiff; try discriminate.
-      simpl in Hdiff. do 2 rewrite canonicalize_casesenst in Hdiff by assumption.
+      simpl in Hdiff.
       split; try reflexivity; intros _.
       apply string_diff_iff. exists i.
+      do 2 rewrite nth_error_map.
       replace (nth_error (firstn _ _) i) with (Some gi) by (symmetry; eauto using backref_get_next).
       replace (nth_error (substr _ _ _) i) with (Some rsi) by (symmetry; eauto using backref_get_ref).
       injection Hdiff as Hdiff. intro H. injection H as H.
@@ -2260,23 +2240,23 @@ Section EquivLemmas.
         replace (Z.min _ endMatch) with (MatchState.endIndex ms) in Heqexistsdiff by lia.
         destruct List.Indexing.Int.indexing as [rsi|] eqn:Heqrsi in Heqexistsdiff; try discriminate.
         destruct List.Indexing.Int.indexing as [gi|] eqn:Hgi in Heqexistsdiff; try discriminate.
-        simpl in Heqexistsdiff. do 2 rewrite canonicalize_casesenst in Heqexistsdiff by assumption.
+        simpl in Heqexistsdiff.
         injection Heqexistsdiff as Hdiff.
+        do 2 rewrite nth_error_map.
         replace (nth_error (firstn _ _) i) with (Some gi) by (symmetry; eauto using backref_get_next).
         replace (nth_error (substr _ _ _) i) with (Some rsi) by (symmetry; eauto using backref_get_ref).
-        rewrite neqb_eq in Hdiff. congruence.
+        rewrite neqb_eq in Hdiff. simpl. f_equal. congruence.
       + replace (nth_error _ i) with (None (A := Character)).
-        2: { symmetry. apply nth_error_None. rewrite firstn_length. lia. }
+        2: { symmetry. apply nth_error_None. rewrite map_length, firstn_length. lia. }
         replace (nth_error _ i) with (None (A := Character)).
         2: { symmetry. apply nth_error_None. transitivity (Z.to_nat endIdx - Z.to_nat startIdx). 2: lia.
-          apply substr_len. }
+          rewrite map_length. apply substr_len. }
         reflexivity.
   Qed.
   
   (* Backward direction; mostly copy-pasting forward proof *)
   Lemma exists_diff_iff_bwd:
-    forall ms next pref startIdx endIdx beginMatch rlen existsdiff rer,
-      RegExpRecord.ignoreCase rer = false ->
+    forall ms next pref startIdx endIdx beginMatch rlen existsdiff,
       (rlen >= 0)%Z ->
       beginMatch = (MatchState.endIndex ms - rlen)%Z ->
       (beginMatch >= 0)%Z ->
@@ -2288,10 +2268,10 @@ Section EquivLemmas.
           let! rsi =<< List.Indexing.Int.indexing (MatchState.input ms) (startIdx + i) in
           let! gi =<< List.Indexing.Int.indexing (MatchState.input ms) (Z.min (MatchState.endIndex ms) beginMatch + i) in
           Coercions.wrap_bool Errors.MatchError.type (Character.canonicalize rer rsi !=? Character.canonicalize rer gi)%wt) = Success existsdiff ->
-      existsdiff = true <-> (List.rev (List.firstn (Z.to_nat rlen) pref) ==? substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx))%wt = false.
+      existsdiff = true <-> (List.map (Character.canonicalize rer) (List.rev (List.firstn (Z.to_nat rlen) pref)) ==? List.map (Character.canonicalize rer) (substr (Input next pref) (Z.to_nat startIdx) (Z.to_nat endIdx)))%wt = false.
   Proof.
-    intros ms next pref startIdx endIdx beginMatch rlen existsdiff rer
-      Hcasesenst Hrlennneg HeqbeginMatch HbeginMatchinb Hmsinp Heqrlen
+    intros ms next pref startIdx endIdx beginMatch rlen existsdiff
+      Hrlennneg HeqbeginMatch HbeginMatchinb Hmsinp Heqrlen
       HstartIdxnneg HendIdxnneg Heqexistsdiff.
     destruct existsdiff.
     - (* There exists some different character *)
@@ -2303,9 +2283,10 @@ Section EquivLemmas.
       replace (Z.min _ beginMatch) with (MatchState.endIndex ms - rlen)%Z in Hdiff by lia.
       destruct List.Indexing.Int.indexing as [rsi|] eqn:Heqrsi in Hdiff; try discriminate.
       destruct List.Indexing.Int.indexing as [gi|] eqn:Hgi in Hdiff; try discriminate.
-      simpl in Hdiff. do 2 rewrite canonicalize_casesenst in Hdiff by assumption.
+      simpl in Hdiff.
       split; try reflexivity; intros _.
       apply string_diff_iff. exists i.
+      do 2 rewrite nth_error_map.
       replace (nth_error (rev (firstn _ _)) i) with (Some gi). 2: { symmetry; eapply backref_get_pref; eauto. lia. }
       replace (nth_error (substr _ _ _) i) with (Some rsi) by (symmetry; eauto using backref_get_ref).
       injection Hdiff as Hdiff. intro H. injection H as H.
@@ -2322,16 +2303,17 @@ Section EquivLemmas.
         replace (Z.min _ beginMatch) with (MatchState.endIndex ms - rlen)%Z in Heqexistsdiff by lia.
         destruct List.Indexing.Int.indexing as [rsi|] eqn:Heqrsi in Heqexistsdiff; try discriminate.
         destruct List.Indexing.Int.indexing as [gi|] eqn:Hgi in Heqexistsdiff; try discriminate.
-        simpl in Heqexistsdiff. do 2 rewrite canonicalize_casesenst in Heqexistsdiff by assumption.
+        simpl in Heqexistsdiff.
         injection Heqexistsdiff as Hdiff.
+        do 2 rewrite nth_error_map.
         replace (nth_error (rev (firstn _ _)) i) with (Some gi). 2: { symmetry; eapply backref_get_pref; eauto. lia. }
         replace (nth_error (substr _ _ _) i) with (Some rsi) by (symmetry; eauto using backref_get_ref).
-        rewrite neqb_eq in Hdiff. congruence.
+        rewrite neqb_eq in Hdiff. simpl. f_equal. congruence.
       + replace (nth_error _ i) with (None (A := Character)).
-        2: { symmetry. apply nth_error_None. rewrite rev_length, firstn_length. lia. }
+        2: { symmetry. apply nth_error_None. rewrite map_length, rev_length, firstn_length. lia. }
         replace (nth_error _ i) with (None (A := Character)).
         2: { symmetry. apply nth_error_None. transitivity (Z.to_nat endIdx - Z.to_nat startIdx). 2: lia.
-          apply substr_len. }
+          rewrite map_length. apply substr_len. }
         reflexivity.
   Qed.
 

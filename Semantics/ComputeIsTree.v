@@ -1,10 +1,10 @@
-From Linden Require Import Semantics FunctionalSemantics Chars StrictSuffix.
-From Warblre Require Import Parameters Base.
+From Linden Require Import Semantics FunctionalSemantics Chars StrictSuffix Parameters.
+From Warblre Require Import Parameters Base RegExpRecord.
 From Coq Require Import Lia List.
 
 Section ComputeIsTree.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Character}.
+  Context {params: LindenParameters}.
+  Context (rer: RegExpRecord).
 
   Lemma lk_succeeds_group_map:
     forall lk treelk gm inp,
@@ -38,8 +38,8 @@ Section ComputeIsTree.
 
   Theorem compute_is_tree:
     forall act inp gm dir fuel t,
-      compute_tree act inp gm dir fuel = Some t ->
-      is_tree act inp gm dir t.
+      compute_tree rer act inp gm dir fuel = Some t ->
+      is_tree rer act inp gm dir t.
   Proof.
     intros act inp gm dir fuel. revert act inp gm dir. induction fuel as [|fuel IHfuel]; try discriminate.
 
@@ -56,7 +56,7 @@ Section ComputeIsTree.
     
     - (* Char *)
       destruct Chars.read_char as [[c nextinp]|] eqn:Hreadchar.
-      + destruct (compute_tree acts nextinp gm dir fuel) as [treecont|] eqn:Hcomputecont; try discriminate.
+      + destruct (compute_tree rer acts nextinp gm dir fuel) as [treecont|] eqn:Hcomputecont; try discriminate.
         intros H. injection H as <-.
         apply tree_char with (nextinp := nextinp); auto.
       + intros H. injection H as <-.
@@ -64,7 +64,7 @@ Section ComputeIsTree.
     
     - (* Disjunction *)
       destruct compute_tree as [t1|] eqn:Hcompute1; try discriminate.
-      destruct (compute_tree (Areg r2 :: acts)%list inp gm dir fuel) as [t2|] eqn:Hcompute2; try discriminate.
+      destruct (compute_tree rer (Areg r2 :: acts)%list inp gm dir fuel) as [t2|] eqn:Hcompute2; try discriminate.
       intros H. injection H as <-.
       apply tree_disj; apply IHfuel; auto.
     
@@ -78,7 +78,7 @@ Section ComputeIsTree.
         intros Hcomputesucc. apply tree_quant_done; apply IHfuel; auto.
       + (* Free, finite delta *)
         destruct compute_tree as [titer|] eqn:Hiter; simpl; try discriminate.
-        destruct (compute_tree acts inp gm dir fuel) as [tskip|] eqn:Hskip; simpl; try discriminate.
+        destruct (compute_tree rer acts inp gm dir fuel) as [tskip|] eqn:Hskip; simpl; try discriminate.
         intros H. injection H as <-.
         change (Numeric.NoI.N (S n')) with (Numeric.NoI.add (Numeric.NoI.N 1) (Numeric.NoI.N n')).
         eapply tree_quant_free with (titer := titer) (tskip := tskip).
@@ -89,7 +89,7 @@ Section ComputeIsTree.
         * reflexivity.
       + (* Free, infinite delta *)
         destruct compute_tree as [titer|] eqn:Hiter; simpl; try discriminate.
-        destruct (compute_tree acts inp gm dir fuel) as [tskip|] eqn:Hskip; simpl; try discriminate.
+        destruct (compute_tree rer acts inp gm dir fuel) as [tskip|] eqn:Hskip; simpl; try discriminate.
         intros H. injection H as <-.
         change Numeric.NoI.Inf with (Numeric.NoI.add (Numeric.NoI.N 1) Numeric.NoI.Inf).
         eapply tree_quant_free with (titer := titer) (tskip := tskip).
@@ -108,7 +108,7 @@ Section ComputeIsTree.
       + (* Lookaround succeds *)
         pose proof lk_succeeds_group_map lk treelk gm inp Hlksucc as Hlkgm_not_None.
         destruct lk_group_map as [gmlk|] eqn:Hgmlk; try contradiction.
-        destruct (compute_tree acts inp gmlk dir fuel) as [treecont|] eqn:Hcomputecont; try discriminate.
+        destruct (compute_tree rer acts inp gmlk dir fuel) as [treecont|] eqn:Hcomputecont; try discriminate.
         intros H. injection H as <-.
         apply tree_lk with (gmlk := gmlk); auto.
         now apply lk_succeeds_result.

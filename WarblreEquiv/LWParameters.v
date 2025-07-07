@@ -1,5 +1,5 @@
 From Warblre Require Import Parameters Typeclasses RegExpRecord Patterns Result Errors.
-From Linden Require Import Chars Utils CharSet.
+From Linden Require Import Parameters Utils CharSet.
 From Coq Require Import List.
 Import ListNotations.
 Import Result.Notations.
@@ -10,16 +10,17 @@ Local Open Scope bool_scope.
 
 (** * Instantiation of Warblre typeclasses String, Property (Unicode) *)
 
-Section LindenParameters.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
-  
-
-  (* As per the ECMA specification (22.2.2.7.3 Canonicalize ( rer, ch )), when we do not ignore case, canonicalization is the identity function. *)
-  Axiom canonicalize_casesenst: forall rer chr, RegExpRecord.ignoreCase rer = false -> Character.canonicalize rer chr = chr.
-
+Section LWParameters.
+  Context {params: LindenParameters}.
 
   (** ** Strings *)
+  Definition string := list Character.
+
+  Definition string_eq_dec : forall (x y : string), { x = y } + { x <> y }.
+  Proof.
+    decide equality. apply Character.eq_dec.
+  Defined.
+  #[export] Instance string_EqDec: EqDec string := EqDec.make string string_eq_dec.
 
   (* Adapted from String.substring: returns the substring of s starting at index n and of length m (or less if the string is not long enough). *)
   Fixpoint substring (s: string) (n m: nat): string :=
@@ -57,7 +58,6 @@ Section LindenParameters.
 
 
   (** ** CharSets *)
-  Parameter charsetext_class: @CharSetExt.class characterClass.
   #[export] Instance charsetext_classinst: CharSetExt.class := charsetext_class.
 
   #[export,refine] Instance linden_set_class: CharSet.class :=
@@ -86,8 +86,8 @@ Section LindenParameters.
 
   (** ** Parameters class *)
 
-  #[export] Instance LindenParameters: Parameters := {|
-      Parameters.character_class := characterClass;
+  #[export] Instance LWParameters: Parameters := {|
+      Parameters.character_class := char;
 
       Parameters.set_class := linden_set_class;
       Parameters.string_class := string_String;
@@ -106,4 +106,4 @@ Section LindenParameters.
     intro c. setoid_rewrite CharSetExt.contains_spec. setoid_rewrite CharSetExt.from_list_spec. apply char_all_in.
   Qed.
 
-End LindenParameters.
+End LWParameters.

@@ -3,6 +3,7 @@ Import ListNotations.
 
 From Linden Require Import Chars.
 From Linden Require Import Groups.
+From Linden Require Import Parameters.
 From Warblre Require Import Base.
 
 (* The subset of JavaScript regexes supported by this development. *)
@@ -40,8 +41,7 @@ Inductive anchor: Type :=
 
 
 Section Regex.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Character}.
+  Context {params: LindenParameters}.
   
   (** * Regex Syntax  *)
   Inductive regex : Type :=

@@ -3,12 +3,12 @@ Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics.
+From Linden Require Import Parameters.
 From Warblre Require Import Numeric Base.
 
 (* The subset of regexes supported by the PikeVM engine *)
 
-Context `{characterClass: Character.class}.
-Context {unicodeProp: Parameters.Property.class Character}.
+Context {params: LindenParameters}.
 
 
 (** * PikeVM supported subset  *)
@@ -177,12 +177,12 @@ Ltac in_subset :=
 
 (* prove that one can only construct pike subtrees from pike regexes *)
 Lemma pike_actions_pike_tree:
-  forall cont inp gm dir t,
+  forall rer cont inp gm dir t,
     pike_actions cont ->
-    is_tree cont inp gm dir t ->
+    is_tree rer cont inp gm dir t ->
     pike_subtree t.
 Proof.
-  intros cont inp gm dir t PIKE ISTREE.
+  intros rer cont inp gm dir t PIKE ISTREE.
   induction ISTREE; try apply IHISTREE; pike_subset; auto.
   - apply IHISTREE1. pike_subset. 
   - apply IHISTREE2. pike_subset.

@@ -3,7 +3,7 @@ From Warblre Require Import Notation Parameters Match Base Result Typeclasses.
 Import Notation.
 Import Match.
 Import Result.Notations.
-From Linden Require Import Chars LindenParameters FunctionalSemantics StrictSuffix.
+From Linden Require Import Chars LWParameters FunctionalSemantics StrictSuffix Parameters.
 
 Local Open Scope result_flow.
 
@@ -11,8 +11,7 @@ Local Open Scope result_flow.
 (** * Definitions and lemmas linking Warblre MatchStates with Linden inputs *)
 
 Section MSInput.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+  Context {params: LindenParameters}.
 
   (* Advance match state by one character *)
   Definition advance_ms (s: MatchState) (dir: Direction): MatchState :=

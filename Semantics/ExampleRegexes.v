@@ -1,9 +1,9 @@
-From Linden Require Import Regex Chars.
+From Linden Require Import Regex Chars Parameters.
 
 Section ExampleRegexes.
-  Context {char: Parameters.Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+  Context {params: LindenParameters}.
 
+  (* TODO Possibly broken *)
   Definition fail_regex := Sequence
     (Lookaround NegLookAhead (Character CdDot))
     (Character CdDot).

@@ -4,12 +4,12 @@ From Linden.Rewriting Require Import ProofSetup.
 
 
 Section DisjAssoc.
-    Context {char: Parameters.Character.class}.
-    Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+    Context {params: LindenParameters}.
+    Context (rer: RegExpRecord).
 
     Theorem disj_assoc:
       forall r1 r2 r3,
-        Disjunction r1 (Disjunction r2 r3) ≅ Disjunction (Disjunction r1 r2) r3.
+        Disjunction r1 (Disjunction r2 r3) ≅[rer] Disjunction (Disjunction r1 r2) r3.
     Proof.
       unfold tree_equiv, tree_equiv_dir, tree_equiv_tr_dir. intros r1 r2 r3 dir. split; intros.
       { simpl. rewrite app_assoc. auto. }
@@ -21,12 +21,12 @@ Section DisjAssoc.
 End DisjAssoc.
 
 Section SeqAssoc.
-    Context {char: Parameters.Character.class}.
-    Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+    Context {params: LindenParameters}.
+    Context (rer: RegExpRecord).
 
     Theorem seq_assoc_actions_fwd:
       forall r1 r2 r3,
-        actions_equiv_dir [Areg r1; Areg (Sequence r2 r3)] [Areg r1; Areg r2; Areg r3] forward.
+        actions_equiv_dir rer [Areg r1; Areg (Sequence r2 r3)] [Areg r1; Areg r2; Areg r3] forward.
     Proof.
       intros r1 r2 r3. rewrite app_cons. rewrite app_cons with (l:=[Areg r2; Areg r3]). apply app_eq_left.
       unfold actions_equiv_dir. intros. inversion TREE1; subst. simpl in CONT.
@@ -35,7 +35,7 @@ Section SeqAssoc.
 
     Theorem seq_assoc_actions_bwd:
       forall r1 r2 r3,
-        actions_equiv_dir [Areg r3; Areg r2; Areg r1] [Areg r3; Areg (Sequence r1 r2)] backward.
+        actions_equiv_dir rer [Areg r3; Areg r2; Areg r1] [Areg r3; Areg (Sequence r1 r2)] backward.
     Proof.
       intros r1 r2 r3. rewrite app_cons. rewrite app_cons with (l:=[Areg (Sequence r1 r2)]). apply app_eq_left.
       unfold actions_equiv_dir. intros. inversion TREE2; subst. simpl in CONT.
@@ -44,7 +44,7 @@ Section SeqAssoc.
     
     Theorem seq_assoc:
       forall r1 r2 r3,
-        Sequence r1 (Sequence r2 r3) ≅ Sequence (Sequence r1 r2) r3.
+        Sequence r1 (Sequence r2 r3) ≅[rer] Sequence (Sequence r1 r2) r3.
     Proof.
       unfold tree_equiv, tree_equiv_dir, tree_equiv_tr_dir. intros r1 r2 r3 dir. split; intros.
       { simpl. rewrite app_assoc. auto. }

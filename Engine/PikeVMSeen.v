@@ -8,7 +8,7 @@ From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics NFA.
 From Linden Require Import BooleanSemantics PikeSubset.
 From Linden Require Import PikeVM.
-From Warblre Require Import Base.
+From Warblre Require Import Base RegExpRecord.
 
 (** * Sets of seen pcs *)
 
@@ -88,6 +88,9 @@ Inductive pike_vm_seen_state : Type :=
 Definition pike_vm_seen_initial_state (inp:input) : pike_vm_seen_state :=
   PVSS inp [(0,GroupMap.empty,CanExit)] None [] initial_seenpcs.
 
+Section PikeVMSeen.
+  Context (rer: RegExpRecord).
+
 (* small-tep semantics for the PikeVM algorithm *)
 Inductive pike_vm_seen_step (c:code): pike_vm_seen_state -> pike_vm_seen_state -> Prop :=
 | pvss_final:
@@ -114,19 +117,19 @@ Inductive pike_vm_seen_step (c:code): pike_vm_seen_state -> pike_vm_seen_state -
   (* generated new active threads: add them in front of the low-priority ones *)
   forall inp t active best blocked seen nextactive
     (UNSEEN: seen_thread seen t = false)
-    (STEP: epsilon_step t c inp = EpsActive nextactive),
+    (STEP: epsilon_step rer t c inp = EpsActive nextactive),
     pike_vm_seen_step c (PVSS inp (t::active) best blocked seen) (PVSS inp (nextactive++active) best blocked (add_thread seen t))
 | pvss_match:
   (* a match is found, discard remaining low-priority active threads *)
   forall inp t active best blocked seen
     (UNSEEN: seen_thread seen t = false)
-    (STEP: epsilon_step t c inp = EpsMatch),
+    (STEP: epsilon_step rer t c inp = EpsMatch),
     pike_vm_seen_step c (PVSS inp (t::active) best blocked seen) (PVSS inp [] (Some (inp,gm_of t)) blocked (add_thread seen t))
 | pvss_blocked:
   (* add the new blocked thread after the previous ones *)
   forall inp t active best blocked seen newt
     (UNSEEN: seen_thread seen t = false)
-    (STEP: epsilon_step t c inp = EpsBlocked newt),
+    (STEP: epsilon_step rer t c inp = EpsBlocked newt),
     pike_vm_seen_step c (PVSS inp (t::active) best blocked seen) (PVSS inp active best (blocked ++ [newt]) (add_thread seen t)).
 
 (** * PikeVM properties  *)
@@ -167,9 +170,11 @@ Proof.
       * eexists. apply pvss_end. eauto.
   - destruct (seen_thread seen (pc,gm,b)) eqn:SEEN.
     { eexists. apply pvss_skip. auto. }
-    destruct (epsilon_step (pc,gm,b) c inp) eqn:EPS.
+    destruct (epsilon_step rer (pc,gm,b) c inp) eqn:EPS.
     + eexists. apply pvss_active; eauto.
     + eexists. apply pvss_match; eauto.
     + eexists. apply pvss_blocked; eauto.
 Qed.
+
+End PikeVMSeen.
     

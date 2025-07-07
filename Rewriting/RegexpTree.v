@@ -8,8 +8,8 @@ Coercion nat_to_N (n: nat) := NoI.N n.
 |*)
 
 Section RegexpTree.
-  Context {char: Parameters.Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+  Context {params: LindenParameters}.
+  Context (rer: RegExpRecord).
 
 (*|
 ## Bounded repetitions
@@ -19,7 +19,7 @@ Section RegexpTree.
     Lemma bounded_util_fwd m n delta r:
       def_groups r = [] -> (* r{m}r{n,n+k} ≅[forward] r{m+n,m+n+k}, generalized from regexp_tree *)
       (Sequence (Quantified true m 0 r) (Quantified true n delta r))
-        ≅[forward] Quantified true (m + n) delta r.
+        ≅[rer][forward] Quantified true (m + n) delta r.
     Proof.
       induction m as [ | m' IHm ]; simpl; intros.
       - etransitivity.
@@ -50,7 +50,7 @@ Section RegexpTree.
     Lemma bounded_util_bwd m n delta r:
       def_groups r = [] -> (* r{n,n+k}r{m} ≅[backward] r{m+n,m+n+k}, generalized from regexp_tree *)
       (Sequence (Quantified true n delta r) (Quantified true m 0 r))
-        ≅[backward] Quantified true (m + n) delta r.
+        ≅[rer][backward] Quantified true (m + n) delta r.
     Proof.
       induction m as [ | m' IHm ]; simpl; intros.
       - etransitivity.
@@ -80,7 +80,7 @@ Section RegexpTree.
     Lemma bounded_bounded_equiv m n r: (* r{m}r{n} ≅ r{m+n} *)
       def_groups r = [] ->
       (Sequence (Quantified true m 0 r) (Quantified true n 0 r))
-        ≅ Quantified true (m + n) 0 r.
+        ≅[rer] Quantified true (m + n) 0 r.
     Proof.
       intros H [].
       - apply bounded_util_fwd. auto.
@@ -90,19 +90,19 @@ Section RegexpTree.
     Lemma bounded_atmost_equiv m n r: (* r{m}r{0,n} ≅[forward] r{m,m+n} *)
       def_groups r = [] ->
       (Sequence (Quantified true m 0 r) (Quantified true 0 n r))
-        ≅[forward] Quantified true m n r.
+        ≅[rer][forward] Quantified true m n r.
     Proof. intro NO_GROUPS. rewrite bounded_util_fwd, PeanoNat.Nat.add_0_r. 1: reflexivity. auto. Qed.
 
     Lemma atmost_bounded_equiv m n r: (* r{0,n}r{m} ≅[backward] r{m,m+n} *)
       def_groups r = [] ->
       (Sequence (Quantified true 0 n r) (Quantified true m 0 r))
-        ≅[backward] Quantified true m n r.
+        ≅[rer][backward] Quantified true m n r.
     Proof. intro NO_GROUPS. rewrite bounded_util_bwd, PeanoNat.Nat.add_0_r. 1: reflexivity. auto. Qed.
 
     Lemma bounded_atmost_lazy_equiv m n r: (* r{m}r{0,n}? ≅[forward] r{m,m+n}? *)
       def_groups r = [] ->
       (Sequence (Quantified true m 0 r) (Quantified false 0 n r))
-        ≅[forward] Quantified false m n r.
+        ≅[rer][forward] Quantified false m n r.
     Proof.
       intro NO_GROUPS.
       induction m as [|m IHm]; simpl.
@@ -132,7 +132,7 @@ Section RegexpTree.
     Lemma atmost_bounded_lazy_equiv m n r: (* r{0,n}?r{m} ≅[backward] r{m,m+n}? *)
       def_groups r = [] ->
       (Sequence (Quantified false 0 n r) (Quantified true m 0 r))
-        ≅[backward] Quantified false m n r.
+        ≅[rer][backward] Quantified false m n r.
     Proof.
       intro NO_GROUPS.
       induction m as [|m IHm]; simpl.
@@ -159,17 +159,21 @@ Section RegexpTree.
     Qed.
 
     Context (c0 c1 c2: Parameters.Character).
-    Context (H01: c0 <> c1) (H12: c0 <> c2) (H02: c1 <> c2) .
+
+    Hypothesis H01: Character.canonicalize rer c1 <> Character.canonicalize rer c0.
+    Hypothesis H12: Character.canonicalize rer c0 <> Character.canonicalize rer c2.
+    Hypothesis H02: Character.canonicalize rer c1 <> Character.canonicalize rer c2.
 
     Lemma atmost_bounded_nequiv: (* r{0,m}r{n} ≅ r{n,n+m} *)
       exists m n r,
         (Sequence (Quantified true 0 m r) (Quantified true n 0 r))
-          ≇ Quantified true n m r.
+          ≇[rer] Quantified true n m r.
     Proof.
       exists 1, 1, (Disjunction c0 (Sequence c0 c1)).
       tree_equiv_rw.
       exists forward, (init_input [c0; c1; c0]), GroupMap.empty.
-      compute_tr_cbv; inversion 1.
+      compute_tr_cbv.
+      inversion 1.
     Qed.
 
     Definition incl {A} (a b: list A) :=
@@ -199,8 +203,8 @@ Section RegexpTree.
 
     Lemma atmost_leaves_incl' (m: nat) (d: non_neg_integer_or_inf) r:
       forall inp gm dir tm tn,
-        is_tree [Areg (Quantified true 0 m r)] inp gm dir tm ->
-        is_tree [Areg (Quantified true 0 (m+d)%NoI r)] inp gm dir tn ->
+        is_tree rer [Areg (Quantified true 0 m r)] inp gm dir tm ->
+        is_tree rer [Areg (Quantified true 0 (m+d)%NoI r)] inp gm dir tn ->
         incl (tree_leaves tm gm inp dir) (tree_leaves tn gm inp dir).
     Proof.
       induction m as [|m IHm].
@@ -220,12 +224,12 @@ Section RegexpTree.
         subst plus plus0. clear H1 H2.
         inversion SKIP; subst. inversion SKIP0; subst.
         simpl.
-        assert (TREErcheck: exists trcheck, is_tree [Areg r; Acheck inp] inp (GroupMap.reset (def_groups r) gm) dir trcheck). {
+        assert (TREErcheck: exists trcheck, is_tree rer [Areg r; Acheck inp] inp (GroupMap.reset (def_groups r) gm) dir trcheck). {
           eexists. eapply compute_tr_is_tree.
         }
         destruct TREErcheck as [trcheck TREErcheck].
-        pose proof leaves_concat _ _ _ [Areg r; Acheck inp] _ _ _ ISTREE1 TREErcheck as CONCAT.
-        pose proof leaves_concat _ _ _ [Areg r; Acheck inp] _ _ _ ISTREE0 TREErcheck as CONCAT0.
+        pose proof leaves_concat rer _ _ _ [Areg r; Acheck inp] _ _ _ ISTREE1 TREErcheck as CONCAT.
+        pose proof leaves_concat rer _ _ _ [Areg r; Acheck inp] _ _ _ ISTREE0 TREErcheck as CONCAT0.
         intros lf Hin.
         apply in_app_or in Hin. destruct Hin.
         + apply in_or_app. left. eapply (flatmap_incl _ _ _ _ _ CONCAT CONCAT0); eauto.
@@ -237,8 +241,8 @@ Section RegexpTree.
     Corollary atmost_leaves_incl_nat (m n: nat) r:
       m <= n ->
       forall inp gm dir tm tn,
-        is_tree [Areg (Quantified true 0 m r)] inp gm dir tm ->
-        is_tree [Areg (Quantified true 0 n r)] inp gm dir tn ->
+        is_tree rer [Areg (Quantified true 0 m r)] inp gm dir tm ->
+        is_tree rer [Areg (Quantified true 0 n r)] inp gm dir tn ->
         incl (tree_leaves tm gm inp dir) (tree_leaves tn gm inp dir).
     Proof.
       intros. apply atmost_leaves_incl' with (m := m) (d := n-m) (r := r) (tm := tm); auto.
@@ -247,8 +251,8 @@ Section RegexpTree.
 
     Corollary atmost_leaves_incl_infty (m: nat) r:
       forall inp gm dir tm tn,
-        is_tree [Areg (Quantified true 0 m r)] inp gm dir tm ->
-        is_tree [Areg (Quantified true 0 +∞ r)] inp gm dir tn ->
+        is_tree rer [Areg (Quantified true 0 m r)] inp gm dir tm ->
+        is_tree rer [Areg (Quantified true 0 +∞ r)] inp gm dir tn ->
         incl (tree_leaves tm gm inp dir) (tree_leaves tn gm inp dir).
     Proof.
       intros. apply atmost_leaves_incl' with (m := m) (d := +∞) (r := r) (tm := tm); auto.
@@ -281,7 +285,7 @@ Section RegexpTree.
     Qed.
 
     Lemma atmost_atmost_equiv_actions_mnat (m: nat) (n: non_neg_integer_or_inf) r:
-      forall dir, actions_equiv_dir [Areg (Quantified true 0 m r); Areg (Quantified true 0 n r)]
+      forall dir, actions_equiv_dir rer [Areg (Quantified true 0 m r); Areg (Quantified true 0 n r)]
         [Areg (Quantified true 0 (NoI.add m n) r)] dir.
     Proof.
       induction m as [|m IHm].
@@ -312,11 +316,11 @@ Section RegexpTree.
           assert (INCL: incl (tree_leaves titer1 (GroupMap.reset (def_groups r) gm) i
             dir) (tree_leaves titer0 (GroupMap.reset (def_groups r) gm) i
             dir)). {
-            assert (TREErcheck: exists trcheck, is_tree [Areg r; Acheck i] i (GroupMap.reset (def_groups r) gm) dir trcheck)
+            assert (TREErcheck: exists trcheck, is_tree rer [Areg r; Acheck i] i (GroupMap.reset (def_groups r) gm) dir trcheck)
               by (eexists; eapply compute_tr_is_tree).
             destruct TREErcheck as [trcheck TREErcheck].
-            pose proof leaves_concat _ _ _ [Areg r; Acheck i] [Areg (Quantified true 0 n r)] _ _ ISTREE2 TREErcheck as CONCAT2.
-            pose proof leaves_concat _ _ _ [Areg r; Acheck i] [Areg (Quantified true 0 (m + (1 + n))%NoI r)] _ _ ISTREE0 TREErcheck as CONCAT0.
+            pose proof leaves_concat rer _ _ _ [Areg r; Acheck i] [Areg (Quantified true 0 n r)] _ _ ISTREE2 TREErcheck as CONCAT2.
+            pose proof leaves_concat rer _ _ _ [Areg r; Acheck i] [Areg (Quantified true 0 (m + (1 + n))%NoI r)] _ _ ISTREE0 TREErcheck as CONCAT0.
             eapply (flatmap_incl _ _ _ _ _ CONCAT2 CONCAT0); eauto.
             unfold funct_incl. intros a l1 l2 ACT1 ACT2.
             inversion ACT1; subst. inversion ACT2; subst.
@@ -336,7 +340,7 @@ Section RegexpTree.
     Qed.
 
     Lemma atmost_atmost_equiv_actions_minf (n: non_neg_integer_or_inf) r:
-      forall dir, actions_equiv_dir [Areg (Quantified true 0 +∞ r); Areg (Quantified true 0 n r)]
+      forall dir, actions_equiv_dir rer [Areg (Quantified true 0 +∞ r); Areg (Quantified true 0 n r)]
         [Areg (Quantified true 0 +∞ r)] dir.
     Proof.
       unfold actions_equiv_dir.
@@ -350,14 +354,14 @@ Section RegexpTree.
         intros inp Hend gm t1 t2 TREE1 TREE2.
         inversion TREE1; subst. inversion TREE2; subst.
         inversion SKIP0; subst. simpl.
-        assert (NO_LEAVES: actions_no_leaves [Areg r; Acheck inp; Areg (Quantified true 0 plus r);
+        assert (NO_LEAVES: actions_no_leaves rer [Areg r; Acheck inp; Areg (Quantified true 0 plus r);
           Areg (Quantified true 0 n r)] dir). {
           apply actions_no_leaves_add_left with (a := [Areg r]).
           apply actions_no_leaves_add_right with (a := [Acheck inp]) (b := [Areg (Quantified true 0 plus r);
             Areg (Quantified true 0 n r)]).
           apply check_end_no_leaves. lia.
         }
-        assert (NO_LEAVES0: actions_no_leaves [Areg r; Acheck inp;
+        assert (NO_LEAVES0: actions_no_leaves rer [Areg r; Acheck inp;
           Areg (Quantified true 0 plus0 r)] dir). {
           apply actions_no_leaves_add_left with (a := [Areg r]).
           apply actions_no_leaves_add_right with (a := [Acheck inp]) (b := [Areg (Quantified true 0 plus0 r)]).
@@ -369,7 +373,7 @@ Section RegexpTree.
         inversion SKIP; subst.
         + inversion SKIP0; subst. simpl. reflexivity.
         + inversion SKIP0; subst. simpl.
-          assert (NO_LEAVES1: actions_no_leaves [Areg r; Acheck inp;
+          assert (NO_LEAVES1: actions_no_leaves rer [Areg r; Acheck inp;
             Areg (Quantified true 0 plus1 r)] dir). {
             apply actions_no_leaves_add_left with (a := [Areg r]).
             apply actions_no_leaves_add_right with (a := [Acheck inp]) (b := [Areg (Quantified true 0 plus1 r)]).
@@ -388,6 +392,7 @@ Section RegexpTree.
           (tree_leaves titer (GroupMap.reset (def_groups r) gm) inp dir)
           (tree_leaves titer0 (GroupMap.reset (def_groups r) gm) inp dir)). {
           apply actions_equiv_interm_prop with
+            (rer := rer)
             (a1 := [Areg r; Acheck inp]) (a2 := [Areg r; Acheck inp])
             (b1 := [Areg (Quantified true 0 +∞ r); Areg (Quantified true 0 n r)])
             (b2 := [Areg (Quantified true 0 +∞ r)])
@@ -411,11 +416,11 @@ Section RegexpTree.
           assert (INCL: incl (tree_leaves titer1 (GroupMap.reset (def_groups r) gm) inp
             dir) (tree_leaves titer0 (GroupMap.reset (def_groups r) gm) inp
             dir)). {
-            assert (TREErcheck: exists trcheck, is_tree [Areg r; Acheck inp] inp (GroupMap.reset (def_groups r) gm) dir trcheck)
+            assert (TREErcheck: exists trcheck, is_tree rer [Areg r; Acheck inp] inp (GroupMap.reset (def_groups r) gm) dir trcheck)
               by (eexists; eapply compute_tr_is_tree).
             destruct TREErcheck as [trcheck TREErcheck].
-            pose proof leaves_concat _ _ _ [Areg r; Acheck inp] [Areg (Quantified true 0 n r)] _ _ ISTREE2 TREErcheck as CONCAT2.
-            pose proof leaves_concat _ _ _ [Areg r; Acheck inp] [Areg (Quantified true 0 +∞ r)] _ _ ISTREE0 TREErcheck as CONCAT0.
+            pose proof leaves_concat rer _ _ _ [Areg r; Acheck inp] [Areg (Quantified true 0 n r)] _ _ ISTREE2 TREErcheck as CONCAT2.
+            pose proof leaves_concat rer _ _ _ [Areg r; Acheck inp] [Areg (Quantified true 0 +∞ r)] _ _ ISTREE0 TREErcheck as CONCAT0.
             eapply (flatmap_incl _ _ _ _ _ CONCAT2 CONCAT0); eauto.
             unfold funct_incl. intros a l1 l2 ACT1 ACT2.
             inversion ACT1; subst. inversion ACT2; subst.
@@ -431,7 +436,7 @@ Section RegexpTree.
     Lemma atmost_atmost_equiv (m n: non_neg_integer_or_inf) r: (* r{0,m}r{0,n} ≅ r{0,m+n} *)
       def_groups r = [] ->
       (Sequence (Quantified true 0 m r) (Quantified true 0 n r))
-        ≅ Quantified true 0 (m + n)%NoI r.
+        ≅[rer] Quantified true 0 (m + n)%NoI r.
     Proof.
       destruct m as [m|]; destruct n as [n|]; intros NO_GROUPS [].
       (* For each of the subsections, we prove the forward then the backward direction *)
@@ -494,20 +499,12 @@ Section RegexpTree.
       }
     Qed.
 
-    (* TODO: Change nequiv to be contextual *)
-    Lemma atmost_lazy_atmost_lazy_nequiv: (* r{0,m}?r{0,n}? ≇ r{0,m+n}? *)
+    (*
+    Definition atmost_lazy_atmost_lazy_nequiv: (* r{0,m}?r{0,n}? ≇ r{0,m+n}? *)
       exists (m n: nat) r,
         (Sequence (Quantified false 0 m r) (Quantified false 0 n r))
-          ≇ Quantified false 0 (m + n) r.
-    Proof.
-      exists 1, 1.
-      exists (Sequence
-           (Disjunction (Sequence c0 c1) (Sequence c0 (Sequence c1 c0)))
-           (Disjunction c1 c2)).
-      tree_equiv_rw.
-      exists forward, (init_input [c0; c1; c0; c1; c2]), GroupMap.empty.
-      compute_tr_cbv; inversion 1.
-    Admitted.
+          ≇[rer] Quantified false 0 (m + n) r.
+    *)
   End BoundedRepetitions.
 
 (*|
@@ -516,33 +513,55 @@ Section RegexpTree.
 Illustrative examples taken from https://github.com/DmitrySoshnikov/regexp-tree/tree/master/src/optimizer (not complete).
 |*)
 
-  Section CharacterClasses.
-    Lemma class_union_equiv cd0 cd1:
-      Disjunction (Character cd0) (Character cd1) ≅ Character (CdUnion cd0 cd1).
+  Section Ranges.
+    Variables c0 c1 c2: Parameters.Character.
+    Hypothesis H01: Character.numeric_value c0 <= Character.numeric_value c1.
+    Hypothesis H12: Character.numeric_value c1 <= Character.numeric_value c2.
+
+    Lemma char_match_range_split c:
+      char_match rer c (CdRange c0 c2) =
+        char_match rer c (CdUnion (CdRange c0 c1) (CdRange c1 c2)).
     Proof.
-      tree_equiv_rw. tree_equiv_symbex.
-      all: leaves_equiv_t.
+      unfold char_match; simpl; apply Bool.eq_iff_eq_true.
+      rewrite !Character.numeric_pseudo_bij.
+      autorewrite with charset in *; autounfold with charset.
+      setoid_rewrite CharSet.CharSetExt.range_spec.
+      setoid_rewrite EqDec.inversion_true.
+      split; intros H; [ | destruct H ].
+      all: destruct H as (c' & ?Hle & <-).
+      1: destruct (le_ge_dec (Character.numeric_value c') (Character.numeric_value c1)).
+      all: firstorder eauto with lia.
     Qed.
 
-    Lemma range_range_equiv c0 c1 c2: (* [a-de-f] -> [a-f] *)
-      Character.numeric_value c0 <= Character.numeric_value c1 ->
-      Character.numeric_value c1 <= Character.numeric_value c2 ->
-      Character (CdUnion (CdRange c0 c1) (CdRange c1 c2)) ≅ Character (CdRange c0 c2).
+    Hint Rewrite char_match_range_split : tree_equiv_symbex.
+
+    Lemma range_range_equiv: (* [a-de-f] -> [a-f] *)
+      Character (CdUnion (CdRange c0 c1) (CdRange c1 c2)) ≅[rer]
+        Character (CdRange c0 c2).
     Proof.
-      tree_equiv_rw; tree_equiv_symbex.
-      all: lia || reflexivity.
+      tree_equiv_rw; tree_equiv_symbex; leaves_equiv_t.
+    Qed.
+  End Ranges.
+
+  Section CharacterClasses.
+    Hint Unfold char_match : tree_equiv_symbex.
+
+    Lemma class_union_equiv cd0 cd1:
+      Disjunction (Character cd0) (Character cd1) ≅[rer] Character (CdUnion cd0 cd1).
+    Proof.
+      tree_equiv_rw; tree_equiv_symbex; leaves_equiv_t.
     Qed.
 
     Lemma class_single_left_equiv c0:
-      Character (CdUnion (CdSingle c0) CdEmpty) ≅ Character (CdSingle c0).
+      Character (CdUnion (CdSingle c0) CdEmpty) ≅[rer] Character (CdSingle c0).
     Proof.
-      tree_equiv_rw; tree_equiv_symbex; reflexivity.
+      tree_equiv_rw; tree_equiv_symbex; leaves_equiv_t.
     Qed.
 
     Lemma class_single_right_equiv c0:
-      Character (CdUnion CdEmpty (CdSingle c0)) ≅ Character (CdSingle c0).
+      Character (CdUnion CdEmpty (CdSingle c0)) ≅[rer] Character (CdSingle c0).
     Proof.
-      tree_equiv_rw; tree_equiv_symbex; reflexivity.
+      tree_equiv_rw; tree_equiv_symbex; leaves_equiv_t.
     Qed.
   End CharacterClasses.
 End RegexpTree.

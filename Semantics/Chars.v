@@ -1,27 +1,19 @@
 Require Import List Lia.
 Import ListNotations.
-From Linden Require Import Utils.
+From Linden Require Import Utils Parameters LWParameters CharSet.
 Import Utils.List.
-From Warblre Require Import Base Typeclasses.
+From Warblre Require Import Base Typeclasses RegExpRecord Semantics Result Errors.
 
 (** * Characters and Strings  *)
 
 Section Chars.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Character}.
-
-  Definition string := list Character.
+  Context {params: LindenParameters}.
+  Context (rer: RegExpRecord).
 
   (* In the semantics, the input string is represented with both the next characters to read
    and the reversed list of previously read characters (in case we change direction for a lookbehind) *)
   Inductive input : Type :=
   | Input (next: string) (pref: string).
-
-  Definition string_eq_dec : forall (x y : string), { x = y } + { x <> y }.
-  Proof.
-    decide equality. apply Character.eq_dec.
-  Defined.
-  #[export] Instance string_EqDec: EqDec string := EqDec.make string string_eq_dec.
 
   Definition input_eq_dec: forall (i1 i2: input), { i1 = i2 } + { i1 <> i2 }.
   Proof. decide equality; apply string_eq_dec. Defined.
@@ -62,12 +54,37 @@ Section Chars.
   Inductive input_compat: input -> string -> Prop :=
   | Input_compat: forall next pref str0, List.rev pref ++ next = str0 -> input_compat (Input next pref) str0.
 
+  Definition inb_canonicalized (c: Character) (l: list Character) :=
+    inb (Character.canonicalize rer c) (List.map (Character.canonicalize rer) l).
+
+  Lemma map_canonicalize_casesenst:
+    RegExpRecord.ignoreCase rer = false ->
+    forall l, List.map (Character.canonicalize rer) l = l.
+  Proof.
+    intro Hcasesenst.
+    induction l; simpl; auto.
+    rewrite canonicalize_casesenst, IHl by auto. auto.
+  Qed.
+
+  Lemma inb_canonicalized_casesenst:
+    RegExpRecord.ignoreCase rer = false ->
+    forall c l, inb_canonicalized c l = inb c l.
+  Proof.
+    intros Hcasesenst c l. unfold inb_canonicalized.
+    rewrite canonicalize_casesenst by assumption.
+    rewrite map_canonicalize_casesenst by assumption.
+    reflexivity.
+  Qed.
+
+
+  Definition wordCharacters (rer: RegExpRecord): CharSet :=
+    match Semantics.wordCharacters rer with
+    | Success cs => cs
+    | Error _ => Characters.ascii_word_characters
+    end.
 
   (* Deciding whether a character is a word character, to check for word boundaries and for character classes \w and \W *)
-  Definition word_char c := inb c Character.ascii_word_characters.
-
-  (* Axiom specifying that char_all contains all characters. TODO Do we want that? *)
-  Axiom char_all_in: forall c, In c Character.all.
+  Definition word_char c := CharSet.contains (wordCharacters rer) c.
 
   (* Lemma for boolean version of In *)
   Lemma char_all_inb: forall c, inb c Character.all = true.
@@ -85,38 +102,60 @@ Section Chars.
   | CdAll
   | CdSingle (c: Character)
   | CdDigits
+  | CdNonDigits
   | CdWhitespace
+  | CdNonWhitespace
   | CdWordChar
+  | CdNonWordChar
   | CdUnicodeProp (p: Property)
+  | CdNonUnicodeProp (p: Property)
   | CdInv (cd: char_descr)
   | CdRange (l h: Character)
   | CdUnion (cd1 cd2: char_descr).
 
+  (* Whether dot matches a character *)
+  Definition dot_matches (dotAll: bool) (c: Character): bool :=
+    if dotAll then
+      true
+    else
+      CharSetExt.exist_canonicalized rer (CharSetExt.remove_all Characters.all Characters.line_terminators) c.
   
-  Fixpoint char_match (c: Character) (cd: char_descr): bool :=
+  Fixpoint char_match' (ccan: Character) (cd: char_descr): bool :=
     match cd with
     | CdEmpty => false
-    | CdDot => true (* Temporary; at the end, we'd like to take the multiline flag into account *)
+    | CdDot => 
+        dot_matches (RegExpRecord.dotAll rer) ccan
     | CdAll => true
-    | CdSingle c' => c == c'
-    | CdDigits => inb c Character.digits
-    | CdWhitespace => inb c Character.white_spaces || inb c Character.line_terminators
-    | CdWordChar => inb c Character.ascii_word_characters (* Temporary; at the end, we'd like to use a rer *)
-    | CdUnicodeProp p => inb c (Property.code_points_for p)
-    | CdInv cd' => negb (char_match c cd')
-    | CdRange l h => (Character.numeric_value l <=? Character.numeric_value c) && (Character.numeric_value c <=? Character.numeric_value h)
-    | CdUnion cd1 cd2 => char_match c cd1 || char_match c cd2
+    | CdSingle c' => ccan == Character.canonicalize rer c'
+    | CdDigits => CharSetExt.exist_canonicalized rer Characters.digits ccan
+    | CdNonDigits => CharSetExt.exist_canonicalized rer (CharSetExt.remove_all Characters.all Characters.digits) ccan
+    | CdWhitespace => CharSetExt.exist_canonicalized rer (CharSet.union Characters.white_spaces Characters.line_terminators) ccan
+    | CdNonWhitespace => CharSetExt.exist_canonicalized rer (CharSetExt.remove_all Characters.all (CharSet.union Characters.white_spaces Characters.line_terminators)) ccan
+    | CdWordChar => CharSetExt.exist_canonicalized rer (wordCharacters rer) ccan
+    | CdNonWordChar => CharSetExt.exist_canonicalized rer (CharSetExt.remove_all Characters.all (wordCharacters rer)) ccan
+    | CdUnicodeProp p => CharSetExt.exist_canonicalized rer (CharSetExt.from_list (Property.code_points_for p)) ccan
+    | CdNonUnicodeProp p => CharSetExt.exist_canonicalized rer (CharSetExt.remove_all Characters.all (CharSetExt.from_list (Property.code_points_for p))) ccan
+    | CdInv cd' => negb (char_match' ccan cd')
+    | CdRange l h =>
+        let i := Character.numeric_value l in
+        let j := Character.numeric_value h in
+        let charSet := CharSetExt.range (Character.from_numeric_value i) (Character.from_numeric_value j) in
+        CharSetExt.exist_canonicalized rer charSet ccan
+    | CdUnion cd1 cd2 => char_match' ccan cd1 || char_match' ccan cd2
     end.
+
+  Definition char_match (c: Character) (cd: char_descr) :=
+    char_match' (Character.canonicalize rer c) cd.
 
 
   Lemma single_match:
-    forall c1 c2, char_match c1 (CdSingle c2) = true <-> c1 = c2.
+    forall c1 c2, char_match c1 (CdSingle c2) = true <-> Character.canonicalize rer c1 = Character.canonicalize rer c2.
   Proof.
     intros c1 c2. simpl. apply EqDec.inversion_true.
   Qed.
 
   Definition char_descr_eq_dec : forall (cd1 cd2: char_descr), { cd1 = cd2 } + { cd1 <> cd2 }.
-  Proof. decide equality; try apply Character.eq_dec. apply Property.unicode_property_eqdec. Defined.
+  Proof. decide equality; try apply Character.eq_dec; try apply Property.unicode_property_eqdec. Defined.
 
 
   (** * Reading Characters in the String *)

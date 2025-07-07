@@ -3,8 +3,10 @@ Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics PikeSubset.
-From Warblre Require Import Base.
+From Warblre Require Import Base RegExpRecord.
 From Linden Require Import StrictSuffix.
+From Linden Require Import FunctionalSemantics.
+From Linden Require Import ComputeIsTree.
 
 
 (* An alternate definition of the semantics, using a boolean to know if one can exit a loop *)
@@ -21,8 +23,11 @@ Inductive LoopBool : Type :=
 | CannotExit.
 
 
-(** * Boolean Semantics  *)
-(* where checks consult the boolean instead of actually comparing strings *)
+Section BooleanSemantics.
+  Context (rer: RegExpRecord).
+
+  (** * Boolean Semantics  *)
+  (* where checks consult the boolean instead of actually comparing strings *)
 
   Inductive bool_tree: actions -> input -> LoopBool -> tree -> Prop :=
   | tree_done:
@@ -50,13 +55,13 @@ Inductive LoopBool : Type :=
       bool_tree ((Areg Epsilon)::cont) inp b tcont
   | tree_char:
     forall c cd inp b nextinp cont tcont
-      (READ: read_char cd inp forward = Some (c, nextinp))
+      (READ: read_char rer cd inp forward = Some (c, nextinp))
       (* NEW: changes the boolean to CanExit *)
       (TREECONT: bool_tree cont nextinp CanExit tcont),
       bool_tree (Areg (Regex.Character cd) :: cont) inp b (Read c tcont)
   | tree_char_fail:
     forall cd inp b cont
-      (READ: read_char cd inp forward = None),
+      (READ: read_char rer cd inp forward = None),
       bool_tree (Areg (Regex.Character cd) :: cont) inp b Mismatch
   | tree_disj:
     forall r1 r2 cont t1 t2 inp b
@@ -99,12 +104,12 @@ Inductive LoopBool : Type :=
       bool_tree (Areg (Group gid r1) :: cont) inp b (GroupAction (Open gid) treecont)
   | tree_anchor:
     forall a cont treecont inp b
-      (ANCHOR: anchor_satisfied a inp = true)
+      (ANCHOR: anchor_satisfied rer a inp = true)
       (TREECONT: bool_tree cont inp b treecont),
       bool_tree (Areg (Anchor a) :: cont) inp b (AnchorPass a treecont)
   | tree_anchor_fail:
     forall a cont inp b
-      (ANCHOR: anchor_satisfied a inp = false),
+      (ANCHOR: anchor_satisfied rer a inp = false),
       bool_tree (Areg (Anchor a) :: cont) inp b Mismatch.
 
 
@@ -235,7 +240,7 @@ Theorem encode_equal:
   forall inp cont b t gm
     (PIKE: pike_actions cont)
     (ENCODE: bool_encoding b inp cont)
-    (TREE: is_tree cont inp gm forward t),
+    (TREE: is_tree rer cont inp gm forward t),
     bool_tree cont inp b t.
 Proof.
   intros inp cont b t gm PIKE ENCODE TREE.
@@ -261,7 +266,7 @@ Proof.
   - apply encode_next in ENCODE.
     subst. econstructor; eauto. apply IHTREE; auto.
     destruct nextinp. destruct inp. simpl in READ.
-    destruct next0; inversion READ. destruct (char_match t cd); inversion READ; subst.
+    destruct next0; inversion READ. destruct (char_match rer t cd); inversion READ; subst.
     eapply true_encoding; eauto.
   - apply encode_next in ENCODE. inversion H1. inversion H0. subst. constructor.
     + apply IHTREE1; auto.
@@ -291,7 +296,7 @@ Qed.
 Corollary boolean_correct:
   forall r inp t,
     pike_regex r ->
-    is_tree [Areg r] inp GroupMap.empty forward t ->
+    is_tree rer [Areg r] inp GroupMap.empty forward t ->
     bool_tree [Areg r] inp CanExit t.
 Proof.
   intros r str t PIKE H.
@@ -354,19 +359,17 @@ Qed.
 (* the other direction of implication is obtained using only determinism and productivity *)
 (* but in our engine proofs we don't actually need this direction *)
 
-  From Linden Require Import FunctionalSemantics.
-  From Linden Require Import ComputeIsTree.
 
   Theorem bool_to_istree:
   forall r inp t,
     pike_regex r ->
     bool_tree [Areg r] inp CanExit t ->
-    is_tree [Areg r] inp GroupMap.empty forward t.
+    is_tree rer [Areg r] inp GroupMap.empty forward t.
   Proof.
     intros r inp t H H0.
     (* productivity *)
-    assert (exists t', is_tree [Areg r] inp GroupMap.empty forward t') as [t' ISTREE].
-    { destruct (compute_tree [Areg r] inp  GroupMap.empty forward (S (actions_fuel [Areg r] inp forward))) eqn:PROD.
+    assert (exists t', is_tree rer [Areg r] inp GroupMap.empty forward t') as [t' ISTREE].
+    { destruct (compute_tree rer [Areg r] inp  GroupMap.empty forward (S (actions_fuel [Areg r] inp forward))) eqn:PROD.
       2: { generalize functional_terminates. intros H1. apply H1 in PROD; auto; lia. }
       exists t0. eapply compute_is_tree; eauto. }
     (* deprecated: when we had to prove valid checks *)
@@ -380,9 +383,11 @@ Qed.
     forall r inp t,
       pike_regex r ->
       bool_tree [Areg r] inp CanExit t <->
-      is_tree [Areg r] inp GroupMap.empty forward t.
+      is_tree rer [Areg r] inp GroupMap.empty forward t.
   Proof.
     intros r inp t SUBSET. split.
     - apply bool_to_istree; auto.
     - apply boolean_correct; auto.
   Qed.
+
+End BooleanSemantics.

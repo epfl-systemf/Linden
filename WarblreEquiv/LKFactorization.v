@@ -1,5 +1,5 @@
 From Warblre Require Import Patterns Semantics RegExpRecord Notation Result Base Node Errors.
-From Linden Require Import LindenParameters Regex.
+From Linden Require Import LWParameters Parameters Regex.
 Import Notation.
 Import Result.Notations.
 Import Patterns.
@@ -12,8 +12,7 @@ Local Open Scope bool_scope.
 (* We factorize lookarounds as a pair of a Direction and a boolean (positivity). *)
 
 Section LKFactorization.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+  Context {params: LindenParameters}.
   
   Definition lkCtx (lkdir: Direction) (pos: bool) :=
     match lkdir, pos with

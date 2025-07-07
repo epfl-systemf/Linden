@@ -118,12 +118,11 @@ Proof.
     - destruct x. now simpl in *.
 Qed.
 
-From Linden Require Import LindenParameters.
+From Linden Require Import LWParameters Parameters.
 From Warblre Require Import Errors.
 
 Section WarblreLemmas.
-  Context `{characterClass: Character.class}.
-  Context {unicodeProp: Parameters.Property.class Parameters.Character}.
+  Context {params: LindenParameters}.
 
   Lemma wordCharacters_casesenst:
     forall rer,
