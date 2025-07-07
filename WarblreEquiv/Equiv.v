@@ -635,7 +635,7 @@ Section Equiv.
     forall (wreg: Regex) (lreg: regex) ctx
       (Hroot: Root wroot (wreg, ctx))
       (* and any Linden regex lreg that is equivalent to this sub-regex with the right number of left capturing parentheses before, *)
-      (Hequiv: equiv_regex' wreg lreg (StaticSemantics.countLeftCapturingParensBefore wreg ctx) (buildnm wreg)),
+      (Hequiv: equiv_regex' wreg lreg (StaticSemantics.countLeftCapturingParensBefore wreg ctx) (buildnm wroot)),
       forall m dir
         (* if compileSubPattern with direction dir yields a Matcher for regex wreg, *)
         (Hcompsucc: Semantics.compileSubPattern wreg ctx rer dir = Success m),
@@ -644,8 +644,8 @@ Section Equiv.
   Proof.
     do 8 intro.
     remember (StaticSemantics.countLeftCapturingParensBefore _ _) as n in Hequiv.
-    (* remember (buildnm wreg) as nm. *)
-    revert ctx Hroot Heqn.
+    remember (buildnm wroot) as nm in Hequiv.
+    revert ctx Hroot Heqn Heqnm.
     induction Hequiv as [
         n nm |
         n c nm |
@@ -665,7 +665,7 @@ Section Equiv.
     ].
 
     - (* Epsilon *)
-      intros ctx _ _ m dir. simpl.
+      intros ctx _ _ _ m dir. simpl.
       intro. injection Hcompsucc as <-.
       unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont _ _.
       unfold equiv_cont. intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden Hmcsucc.
@@ -675,41 +675,41 @@ Section Equiv.
       eapply Hequivcont; eauto using ms_valid_wrt_checks_tail.
   
     - (* Character *)
-      intros ctx Hroot Heqn m dir Hcompsucc.
+      intros ctx Hroot Heqn Heqnm m dir Hcompsucc.
       injection Hcompsucc as <-.
       apply charSetMatcher_noninv_equiv; auto. apply equiv_cd_single.
     
     - (* Dot *)
-      intros ctx Hroot Heqn m dir Hcompsucc.
+      intros ctx Hroot Heqn Heqnm m dir Hcompsucc.
       injection Hcompsucc as <-.
       apply charSetMatcher_noninv_equiv; auto. destruct (RegExpRecord.dotAll rer) eqn:HdotAll.
       + apply equiv_cd_dot_dotAll. auto.
       + apply equiv_cd_dot_noDotAll. auto.
 
     - (* Backreference *)
-      intros ctx Hroot Heqn m dir. simpl.
+      intros ctx Hroot Heqn Heqnm m dir. simpl.
       destruct Nat.leb eqn:Hgidinbounds; try discriminate. simpl.
       intro H. injection H as <-.
       auto using backref_equiv.
 
     - (* Named Backreference *)
-      intros ctx Hroot Heqn m dir. simpl.
+      intros ctx Hroot Heqn Heqnm m dir. simpl.
       admit.
     
     - (* AtomEsc (ACharacterClassEsc esc); idem *)
-      intros ctx Hroot Heqn m dir Hcompsucc.
+      intros ctx Hroot Heqn Heqnm m dir Hcompsucc.
       eapply characterClassEscape_equiv; eauto. constructor. assumption.
     
     - (* AtomEsc (ACharacterEsc esc); idem *)
-      intros ctx Hroot Heqn m dir Hcompsucc.
+      intros ctx Hroot Heqn Heqnm m dir Hcompsucc.
       eapply characterEscape_equiv; eauto.
     
     - (* CharacterClass; idem *)
-      intros ctx Hroot Heqn m dir Hcompsucc.
+      intros ctx Hroot Heqn Heqnm m dir Hcompsucc.
       eapply characterClass_equiv; eauto.
 
     - (* Disjunction *)
-      intros ctx Hroot Heqn m dir.
+      intros ctx Hroot Heqn Heqnm m dir.
       simpl.
       (* Compilation of the two sub-regexes succeeds *)
       destruct Semantics.compileSubPattern as [m1|] eqn:Hcompsucc1; simpl; try discriminate.
@@ -719,11 +719,11 @@ Section Equiv.
       specialize (IH1 (Disjunction_left wr2 :: ctx)%list).
       specialize_prove IH1 by eauto using Down.same_root_down0, Down_Disjunction_left.
       specialize_prove IH1. { simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia. }
-      specialize (IH1 m1 dir Hcompsucc1).
+      specialize (IH1 Heqnm m1 dir Hcompsucc1).
       specialize (IH2 (Disjunction_right wr1 :: ctx)%list).
       specialize_prove IH2 by eauto using Down.same_root_down0, Down_Disjunction_right.
       specialize_prove IH2. { simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. erewrite num_groups_equiv by eauto. lia. }
-      specialize (IH2 m2 dir Hcompsucc2).
+      specialize (IH2 Heqnm m2 dir Hcompsucc2).
       (* Introduce the required variables *)
       unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
       unfold equiv_cont. intros gm ms inp res fuel t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden.
@@ -767,7 +767,7 @@ Section Equiv.
           -- assumption.
 
     - (* Sequence *)
-      intros ctx Hroot Heqn m dir. simpl.
+      intros ctx Hroot Heqn Heqnm m dir. simpl.
       (* Compilation of the two sub-regexes succeeds *)
       destruct Semantics.compileSubPattern as [m1|] eqn:Hcompsucc1; simpl; try discriminate.
       destruct (Semantics.compileSubPattern _ (Seq_right _ :: ctx)%list) as [m2|] eqn:Hcompsucc2; simpl; try discriminate.
@@ -775,11 +775,11 @@ Section Equiv.
       specialize (IH1 (Seq_left wr2 :: ctx)%list).
       specialize_prove IH1 by eauto using Down.same_root_down0, Down_Seq_left.
       specialize_prove IH1. { simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia. }
-      specialize (IH1 m1 dir Hcompsucc1).
+      specialize (IH1 Heqnm m1 dir Hcompsucc1).
       specialize (IH2 (Seq_right wr1 :: ctx)%list).
       specialize_prove IH2 by eauto using Down.same_root_down0, Down_Seq_right.
       specialize_prove IH2. { simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. erewrite num_groups_equiv by eauto. lia. }
-      specialize (IH2 m2 dir Hcompsucc2).
+      specialize (IH2 Heqnm m2 dir Hcompsucc2).
       (* Two similar reasonings for each direction *)
       destruct dir; intro H; injection H as <-.
       + (* Forward *)
@@ -817,14 +817,14 @@ Section Equiv.
         * now apply noforbidden_seq_bwd.
 
     - (* Quantified *)
-      intros ctx Hroot Heqn m dir. simpl.
+      intros ctx Hroot Heqn Heqnm m dir. simpl.
       destruct Semantics.compileSubPattern as [msub|] eqn:Hcompsuccsub; simpl; try discriminate.
       specialize (IH (Quantified_inner (wgreedylazy wquant)::ctx)%list).
       specialize_prove IH by eauto using Down.same_root_down0, Down_Quantified_inner.
       specialize_prove IH. {
         simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia.
       }
-      specialize (IH msub dir Hcompsuccsub).
+      specialize (IH Heqnm msub dir Hcompsuccsub).
       set (min := Semantics.CompiledQuantifier_min _).
       set (max := Semantics.CompiledQuantifier_max _).
       rewrite compilequant_greedy with (lquant := lquant) (greedy := greedy) by assumption.
@@ -848,7 +848,7 @@ Section Equiv.
       all: replace (nrep - min) with 0 by lia; apply repeatMatcher_equiv; auto.
 
     - (* Group *)
-      intros ctx Hroot Heqn m dir. simpl.
+      intros ctx Hroot Heqn Heqnm m dir. simpl.
       destruct Semantics.compileSubPattern as [msub | ] eqn:Hcompsuccsub; simpl; try discriminate.
       intro H. injection H as <-.
       unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
@@ -888,7 +888,7 @@ Section Equiv.
     - admit.
 
     - (* Lookaround *)
-      intros ctx Hroot Heqn m dir.
+      intros ctx Hroot Heqn Heqnm m dir.
       inversion Hequivlk as [Heqwlk Heqllk | Heqwlk Heqllk | Heqwlk Heqllk | Heqwlk Heqllk]; simpl.
       + (* Positive lookahead; need to factorize with other cases later *)
         subst wlk llk.
@@ -896,7 +896,7 @@ Section Equiv.
         specialize (IH (Lookahead_inner :: ctx)%list).
         specialize_prove IH by eauto using Down.same_root_down0, Down_Lookahead_inner.
         specialize_prove IH. { simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia. }
-        specialize (IH msub forward Hcompsuccsub).
+        specialize (IH Heqnm msub forward Hcompsuccsub).
         intro H. injection H as <-.
         unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
         unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden; simpl; try discriminate.
@@ -955,7 +955,7 @@ Section Equiv.
         specialize (IH (NegativeLookahead_inner :: ctx)%list).
         specialize_prove IH by eauto using Down.same_root_down0, Down_NegativeLookahead_inner.
         specialize_prove IH. { simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia. }
-        specialize (IH msub forward Hcompsuccsub).
+        specialize (IH Heqnm msub forward Hcompsuccsub).
         intro H. injection H as <-.
         unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
         unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden; simpl; try discriminate.
@@ -1013,7 +1013,7 @@ Section Equiv.
         specialize (IH (Lookbehind_inner :: ctx)%list).
         specialize_prove IH by eauto using Down.same_root_down0, Down_Lookbehind_inner.
         specialize_prove IH. { simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia. }
-        specialize (IH msub backward Hcompsuccsub).
+        specialize (IH Heqnm msub backward Hcompsuccsub).
         intro H. injection H as <-.
         unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
         unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden; simpl; try discriminate.
@@ -1073,7 +1073,7 @@ Section Equiv.
         specialize (IH (NegativeLookbehind_inner :: ctx)%list).
         specialize_prove IH by eauto using Down.same_root_down0, Down_NegativeLookbehind_inner.
         specialize_prove IH. { simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia. }
-        specialize (IH msub backward Hcompsuccsub).
+        specialize (IH Heqnm msub backward Hcompsuccsub).
         intro H. injection H as <-.
         unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
         unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden; simpl; try discriminate.
@@ -1127,7 +1127,7 @@ Section Equiv.
           simpl. rewrite <- Htreeresnone. assumption.
 
     - (* Anchor *)
-      intros ctx Hroot Heqn m dir. inversion Hanchequiv as [Heqwr Heqlanchor | Heqwr Heqlanchor | Heqwr Heqlanchor | Heqwr Heqlanchor].
+      intros ctx Hroot Heqn Heqnm m dir. inversion Hanchequiv as [Heqwr Heqlanchor | Heqwr Heqlanchor | Heqwr Heqlanchor | Heqwr Heqlanchor].
       
       + (* Input start *)
         simpl. intro H. injection H as <-.
