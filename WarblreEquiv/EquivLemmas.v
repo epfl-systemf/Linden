@@ -2442,7 +2442,40 @@ Section EquivLemmas.
   Proof.
     intros nm wr. revert nm.
     induction wr; simpl; try solve[intros; rewrite Nat.add_0_r; reflexivity].
-  Admitted.
+    - intros nm ctx n Heqn. rewrite IHwr1 with (ctx := Node.Disjunction_left wr2 :: ctx).
+      2: { simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia. }
+      rewrite IHwr2 with (ctx := Node.Disjunction_right wr1 :: ctx).
+      2: { simpl. unfold countLeftCapturingParensWithin, countLeftCapturingParensBefore in *. lia. }
+      f_equal. 2: unfold countLeftCapturingParensWithin; lia.
+      rewrite flat_map_app, rev_app_distr, app_assoc. reflexivity.
+    - intros nm ctx n Heqn. apply IHwr with (ctx := Node.Quantified_inner q :: ctx).
+      simpl. unfold countLeftCapturingParensBefore in *. lia.
+    - intros nm ctx n Heqn. rewrite IHwr1 with (ctx := Node.Seq_left wr2 :: ctx).
+      2: { simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia. }
+      rewrite IHwr2 with (ctx := Node.Seq_right wr1 :: ctx).
+      2: { simpl. unfold countLeftCapturingParensWithin, countLeftCapturingParensBefore in *. lia. }
+      f_equal. 2: unfold countLeftCapturingParensWithin; lia.
+      rewrite flat_map_app, rev_app_distr, app_assoc. reflexivity.
+    - (* Group: interesting case *)
+      intros nm ctx n Heqn. destruct name as [name|].
+      + rewrite IHwr with (ctx := Node.Group_inner (Some name) :: ctx).
+        2: { simpl. unfold countLeftCapturingParensBefore in *. lia. }
+        f_equal.
+        2: { unfold countLeftCapturingParensWithin. lia. }
+        rewrite rev_app_distr. simpl. rewrite <- app_assoc. simpl. f_equal.
+        f_equal. f_equal. setoid_rewrite <- Heqn. lia.
+      + rewrite IHwr with (ctx := Node.Group_inner None :: ctx).
+        2: { simpl. unfold countLeftCapturingParensBefore in *. lia. }
+        f_equal. unfold countLeftCapturingParensWithin in *. lia.
+    - intros nm ctx n Heqn. apply IHwr with (ctx := Node.Lookahead_inner :: ctx).
+      simpl. unfold countLeftCapturingParensBefore in *. lia.
+    - intros nm ctx n Heqn. apply IHwr with (ctx := Node.NegativeLookahead_inner :: ctx).
+      simpl. unfold countLeftCapturingParensBefore in *. lia.
+    - intros nm ctx n Heqn. apply IHwr with (ctx := Node.Lookbehind_inner :: ctx).
+      simpl. unfold countLeftCapturingParensBefore in *. lia.
+    - intros nm ctx n Heqn. apply IHwr with (ctx := Node.NegativeLookbehind_inner :: ctx).
+      simpl. unfold countLeftCapturingParensBefore in *. lia.
+  Qed.
 
   Lemma buildnm_spec:
     forall wr,
@@ -2458,9 +2491,37 @@ Section EquivLemmas.
       l = StaticSemantics.groupSpecifiersThatMatch r ctx name ->
       nm = buildnm (Node.zip r ctx) ->
       forall gid,
-        In (name, gid) nm ->
+        In (name, gid) nm <->
         In gid (List.map (fun '(fst, snd) => StaticSemantics.countLeftCapturingParensBefore fst snd) l).
-  Admitted.
+  Proof.
+    intros l nm r ctx name -> -> gid.
+    rewrite buildnm_spec.
+    rewrite <- In_rev.
+    rewrite in_flat_map.
+    unfold groupSpecifiersThatMatch.
+    rewrite in_map_iff. setoid_rewrite in_flat_map.
+    split.
+    - intros [[regsub ctxsub] [CHILD NMITEM]]. unfold regexnode_nmitem in NMITEM.
+      destruct regsub; try solve[inversion NMITEM].
+      destruct name0; try solve[inversion NMITEM].
+      destruct NMITEM as [NMITEM | NMITEM]; try solve[inversion NMITEM].
+      injection NMITEM as -> Heqgid.
+      exists (regsub, Node.Group_inner (Some name) :: ctxsub).
+      split. 1: { simpl. unfold countLeftCapturingParensBefore in *. lia. }
+      eexists. split. 1: apply CHILD.
+      simpl.
+      destruct (string_eq_dec _ _). 2: contradiction.
+      left. reflexivity.
+    - intros [[reg_inner ctx_inner] [Heqgid [[regsub ctxsub] [CHILD GS]]]].
+      destruct regsub; try solve[inversion GS].
+      destruct name0; try solve[inversion GS].
+      destruct (g ==# capturingGroupName name)%wt; try solve[inversion GS].
+      unfold capturingGroupName in e. subst g.
+      eexists. split. 1: apply CHILD.
+      destruct GS as [GS|GS]; try solve[inversion GS].
+      injection GS as <- <-. simpl.
+      left. f_equal. simpl in Heqgid. unfold countLeftCapturingParensBefore in *. lia.
+  Qed.
 
   Lemma unique_In_eq {A F} `{Ferr: Result.AssertionError F}:
     forall l: list A, length l = 1 ->
@@ -2473,6 +2534,30 @@ Section EquivLemmas.
       f_equal. auto.
   Qed.
 
+  Lemma findA_filter {A B}:
+    forall (f: A -> bool) (l: list (A * B)),
+      SetoidList.findA f l =
+      match List.filter (fun '(a, b) => f a) l with
+      | [] => None
+      | (a, b)::_ => Some b
+      end.
+  Proof.
+    induction l; simpl; auto.
+    destruct a as [a b].
+    destruct (f a); auto.
+  Qed.
+
+  Lemma in_len1_eq {A}:
+    forall (x y: A) (l: list A),
+      length l = 1 -> In x l -> In y l -> x = y.
+  Proof.
+    intros x y [|a []]; try discriminate.
+    intros _ Hxin Hyin.
+    destruct Hxin as [ <- | [] ].
+    destruct Hyin as [ <- | [] ].
+    reflexivity.
+  Qed.
+
   Lemma buildnm_gsmatch_unique {F} `{Ferr: Result.AssertionError F}:
     forall l nm r ctx name gs,
       l = StaticSemantics.groupSpecifiersThatMatch r ctx name ->
@@ -2480,6 +2565,36 @@ Section EquivLemmas.
       nm = buildnm (Node.zip r ctx) ->
       List.Unique.unique l = Success gs ->
       nameidx nm name = Some (StaticSemantics.countLeftCapturingParensBefore (fst gs) (snd gs)).
-  Admitted.
+  Proof.
+    intros l nm r ctx name gs -> Hlen -> Heqgs.
+    unfold nameidx.
+    rewrite findA_filter.
+    rewrite unique_In_eq in Heqgs by auto.
+    apply in_map with (f := fun '(fst, snd) => countLeftCapturingParensBefore fst snd) in Heqgs.
+    destruct gs as [reg_inner ctx_inner]; simpl in *.
+    rewrite <- buildnm_gsmatch in Heqgs. 2: reflexivity. 2: reflexivity.
+    destruct filter eqn:Hfilter.
+    1: {
+      exfalso. assert (In (name, countLeftCapturingParensBefore reg_inner ctx_inner) []). {
+        setoid_rewrite <- Hfilter. apply filter_In. split; auto. unfold patname_eqb.
+        destruct patname_eq_dec; auto.
+      }
+      inversion H.
+    }
+    assert (In p (filter (fun '(a, _) => patname_eqb a name) (buildnm (Node.zip r ctx)))). {
+      rewrite Hfilter. left. reflexivity.
+    }
+    rewrite filter_In in H. destruct p as [name0 gid].
+    destruct H as [Hin H].
+    unfold patname_eqb in H.
+    destruct patname_eq_dec; try discriminate. subst name0.
+    rewrite buildnm_gsmatch in Hin. 3: reflexivity. 2: reflexivity.
+    rewrite buildnm_gsmatch in Heqgs. 3: reflexivity. 2: reflexivity.
+    f_equal.
+    remember ((map (fun '(fst, snd) => countLeftCapturingParensBefore fst snd)
+           (groupSpecifiersThatMatch _ ctx name))) as l0 in *.
+    apply in_len1_eq with (l := l0); auto.
+    rewrite Heql0, map_length. auto.
+  Qed.
 
 End EquivLemmas.
