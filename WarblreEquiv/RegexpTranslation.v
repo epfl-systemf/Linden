@@ -1,5 +1,6 @@
 From Warblre Require Import Patterns Result Errors Coercions Notation Base StaticSemantics.
 From Warblre Require Characters.
+From Warblre Require EarlyErrors.
 From Linden Require Import Regex LWParameters Parameters Chars Groups.
 Import Notation.
 Import Result.
@@ -215,19 +216,18 @@ Section RegexpTranslation.
   Section WarblreToLinden.
 
     Inductive wl_transl_error: Type :=
-      | WlMalformed
-      | WlUnsupported.
+      | WlMalformed.
 
     Definition characterClassEsc_to_linden (esc: Patterns.CharacterClassEscape): Result char_descr wl_transl_error :=
       match esc with
       | Patterns.esc_d => Success CdDigits
-      | Patterns.esc_D => Success (CdInv CdDigits)
+      | Patterns.esc_D => Success CdNonDigits
       | Patterns.esc_s => Success CdWhitespace
-      | Patterns.esc_S => Success (CdInv CdWhitespace)
+      | Patterns.esc_S => Success CdNonWhitespace
       | Patterns.esc_w => Success CdWordChar
-      | Patterns.esc_W => Success (CdInv CdWordChar)
+      | Patterns.esc_W => Success CdNonWordChar
       | Patterns.UnicodeProp p => Success (CdUnicodeProp p)
-      | Patterns.UnicodePropNeg p => Success (CdInv (CdUnicodeProp p))
+      | Patterns.UnicodePropNeg p => Success (CdNonUnicodeProp p)
       end.
 
     Definition controlEsc_singleCharacter (esc: Patterns.ControlEscape): Parameters.Character :=
@@ -270,7 +270,7 @@ Section RegexpTranslation.
           Success (Character cd)
       | Patterns.GroupEsc gn =>
           match nameidx nm gn with
-          | None => Error WlUnsupported
+          | None => Error WlMalformed
           | Some gid => Success (Backreference gid)
           end
       end.
@@ -346,7 +346,6 @@ Section RegexpTranslation.
     Definition assert_idx_eq (i1 i2:nat) : Result unit wl_transl_error :=
       if (Nat.eqb i1 i2) then Success tt else Error WlMalformed.
 
-    (* First option for unsupported features, second option for invalid regexes *)
     Fixpoint warblre_to_linden (wr: Patterns.Regex) (n: nat) (nm:namedmap): Result regex wl_transl_error :=
       match wr with
       | Patterns.Empty => Success Epsilon
@@ -491,7 +490,7 @@ Section RegexpTranslation.
           end
       end.
   
-  End LindenToWarblre.
+  End LindenToWarblre.*)
 
   Section TranslationSoundness.
 
@@ -704,6 +703,35 @@ Section RegexpTranslation.
         intro H. injection H as <-. constructor; auto; constructor.
     Qed.
 
-  End TranslationSoundness.*)
+  End TranslationSoundness.
 
 End RegexpTranslation.
+
+Section SanityCheck.
+  Context {params: LindenParameters}.
+
+  (* Sanity check with regex a(?<a>a)*)
+  Context (a: Parameters.Character).
+
+  Definition wr1 := Patterns.Seq (Patterns.Char a) (Patterns.Group (Some [a]) (Patterns.Char a)).
+  Definition lr1_res := warblre_to_linden wr1 0 (buildnm wr1).
+
+  Lemma lr1_Success: exists lr, lr1_res = Success lr.
+  Proof.
+    compute.
+    destruct patname_eq_dec. 2: contradiction.
+    eexists. reflexivity.
+  Qed.
+
+
+  (* Sanity check with regex (?<a>a)\k<a>*)
+  Definition wr2 := Patterns.Seq (Patterns.Group (Some [a]) (Patterns.Char a)) (Patterns.AtomEsc (Patterns.GroupEsc [a])).
+  Definition lr2_res := warblre_to_linden wr2 0 (buildnm wr2).
+
+  Lemma lr2_Success: exists lr, lr2_res = Success lr.
+  Proof.
+    compute.
+    destruct patname_eq_dec. 2: contradiction.
+    eexists. reflexivity.
+  Qed.
+End SanityCheck.
