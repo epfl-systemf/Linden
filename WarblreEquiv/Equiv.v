@@ -694,7 +694,16 @@ Section Equiv.
 
     - (* Named Backreference *)
       intros ctx Hroot Heqn Heqnm m dir. simpl.
-      admit.
+      destruct (length _ =? 1) eqn:Hnumgs; simpl; try discriminate.
+      rewrite PeanoNat.Nat.eqb_eq in Hnumgs.
+      destruct List.Unique.unique as [gs|err] eqn:Heqgs; try discriminate.
+      unshelve erewrite (buildnm_gsmatch_unique rer _ nm (AtomEsc (GroupEsc name)) ctx name gs eq_refl Hnumgs _ Heqgs) in NAME.
+      1: { rewrite <- Hroot. auto. }
+      simpl. injection NAME as ->.
+      destruct NonNegInt.to_positive as [gid'|] eqn:Hgidpos; try discriminate. simpl.
+      intro H. injection H as <-.
+      rewrite <- (NonNegInt.to_positive_soundness gid gid' Hgidpos).
+      auto using backref_equiv.
     
     - (* AtomEsc (ACharacterClassEsc esc); idem *)
       intros ctx Hroot Heqn Heqnm m dir Hcompsucc.

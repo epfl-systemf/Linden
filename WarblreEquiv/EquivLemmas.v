@@ -2420,4 +2420,66 @@ Section EquivLemmas.
     - discriminate.
   Qed.
 
+
+  (** * Linking name maps and StaticSemantics.groupSpecifiersThatMatch *)
+  (* Function mapping a RegexNode to a possible item in a name map *)
+  Definition regexnode_nmitem (r0: Node.RegexNode) :=
+    let (y, ctx0) := r0 in
+    match y with
+    | Patterns.Group (Some gs) inner =>
+      [(gs, StaticSemantics.countLeftCapturingParensBefore y ctx0 + 1)]
+    | _ => []
+    end.
+
+  Lemma buildnm'_spec:
+    forall nm wr ctx n,
+      n = StaticSemantics.countLeftCapturingParensBefore wr ctx ->
+      buildnm' wr nm n =
+        (List.rev (
+          List.flat_map regexnode_nmitem (NodeProps.Zipper.Walk.walk wr ctx)
+        ) ++ nm,
+        n + StaticSemantics.countLeftCapturingParensWithin wr ctx).
+  Proof.
+    intros nm wr. revert nm.
+    induction wr; simpl; try solve[intros; rewrite Nat.add_0_r; reflexivity].
+  Admitted.
+
+  Lemma buildnm_spec:
+    forall wr,
+      buildnm wr = List.rev (List.flat_map regexnode_nmitem (NodeProps.Zipper.Walk.walk wr nil)).
+  Proof.
+    intro wr. unfold buildnm.
+    rewrite buildnm'_spec with (ctx := []) by reflexivity.
+    rewrite app_nil_r. reflexivity.
+  Qed.
+
+  Lemma buildnm_gsmatch:
+    forall l nm r ctx name,
+      l = StaticSemantics.groupSpecifiersThatMatch r ctx name ->
+      nm = buildnm (Node.zip r ctx) ->
+      forall gid,
+        In (name, gid) nm ->
+        In gid (List.map (fun '(fst, snd) => StaticSemantics.countLeftCapturingParensBefore fst snd) l).
+  Admitted.
+
+  Lemma unique_In_eq {A F} `{Ferr: Result.AssertionError F}:
+    forall l: list A, length l = 1 ->
+      forall x, List.Unique.unique l = Success x <-> In x l.
+  Proof.
+    intros l Hlen x. split; intro H.
+    - rewrite List.Unique.success with (v := x) by auto. left. reflexivity.
+    - destruct l as [|y l]; try discriminate. destruct l; try discriminate.
+      simpl. destruct H. 2: inversion H.
+      f_equal. auto.
+  Qed.
+
+  Lemma buildnm_gsmatch_unique {F} `{Ferr: Result.AssertionError F}:
+    forall l nm r ctx name gs,
+      l = StaticSemantics.groupSpecifiersThatMatch r ctx name ->
+      length l = 1 ->
+      nm = buildnm (Node.zip r ctx) ->
+      List.Unique.unique l = Success gs ->
+      nameidx nm name = Some (StaticSemantics.countLeftCapturingParensBefore (fst gs) (snd gs)).
+  Admitted.
+
 End EquivLemmas.
