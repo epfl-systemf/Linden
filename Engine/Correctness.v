@@ -128,7 +128,7 @@ Theorem pike_vm_same_warblre:
         EquivDef.equiv_res result res.
 Proof.
   intros lr wr str0 Hpike Hequiv Hcapcount HearlyErrors.
-  pose proof equiv_main wr lr rer str0 Hequiv Hcapcount HearlyErrors as HequivMain.
+  pose proof equiv_main_str0 wr lr rer str0 Hequiv Hcapcount HearlyErrors as HequivMain.
   destruct HequivMain as [m [res [Hcompsucc [Hexecsucc Hsameresult]]]].
   exists m. exists res. split; [|split]; auto.
   set (tree := FunctionalUtils.compute_tr rer [Areg lr] (init_input str0) GroupMap.empty forward).
