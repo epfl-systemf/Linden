@@ -6,8 +6,6 @@
 
 (using coq 0.8)
 
-(homepage "https://gitlab.epfl.ch/systemf/regex/linden")
-
 (package
  (name linden)
  (synopsis "An inductive semantics for JavaScript regexes")
