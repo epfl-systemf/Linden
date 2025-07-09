@@ -13,4 +13,6 @@ For a description of the files inside the folders, see the README.md files in th
 
 # Install
 
-Run `install.sh` from the repo directory. Requires Opam.
+Requires Opam.
+
+Run `install.sh` from the repo directory, then `eval $(opam env)`.
