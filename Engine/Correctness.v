@@ -114,28 +114,42 @@ Proof.
   inversion FINALINV. subst. unfold first_branch. auto.
 Qed.
 
+
+(* Equivalence of PikeVM to Warblre backtracking algorithm *)
 Theorem pike_vm_same_warblre:
+  forall lr wr inp,
+    pike_regex lr ->
+    equiv_regex wr lr ->
+    RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wr nil ->
+    EarlyErrors.Pass_Regex wr nil ->
+    forall result,
+      trc_pike_vm (compilation lr) (pike_vm_seen_initial_state inp) (PVSS_final result) ->
+      EquivDef.equiv_res result ((EquivMain.compilePattern wr rer) (input_str inp) (idx inp)).
+Proof.
+  intros lr wr inp Hpike Hequiv Hcapcount HearlyErrors.
+  pose proof equiv_main wr lr rer inp Hequiv Hcapcount HearlyErrors as HequivMain.
+  destruct HequivMain as [m [res [Hcompsucc [Hexecsucc Hsameresult]]]].
+  unfold compilePattern. rewrite Hcompsucc, Hexecsucc.
+  set (tree := FunctionalUtils.compute_tr rer [Areg lr] inp GroupMap.empty forward).
+  specialize (Hsameresult tree eq_refl). destruct Hsameresult as [His_tree Hsameresult].
+  intros result Hpikeresult.
+  pose proof pike_vm_correct lr inp tree result Hpike His_tree Hpikeresult as Hsameresult'.
+  rewrite Hsameresult'. assumption.
+Qed.
+
+(* Same, but with an input that is at the beginning of the input string *)
+Theorem pike_vm_same_warblre_str0:
   forall lr wr str0,
     pike_regex lr ->
     equiv_regex wr lr ->
     RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wr nil ->
     EarlyErrors.Pass_Regex wr nil ->
-    exists m res,
-      Semantics.compilePattern wr rer = Success m /\
-      m str0 0 = Success res /\
-      forall result,
-        trc_pike_vm (compilation lr) (pike_vm_seen_initial_state (init_input str0)) (PVSS_final result) ->
-        EquivDef.equiv_res result res.
+    forall result,
+      trc_pike_vm (compilation lr) (pike_vm_seen_initial_state (init_input str0)) (PVSS_final result) ->
+      EquivDef.equiv_res result ((EquivMain.compilePattern wr rer) str0 0).
 Proof.
   intros lr wr str0 Hpike Hequiv Hcapcount HearlyErrors.
-  pose proof equiv_main_str0 wr lr rer str0 Hequiv Hcapcount HearlyErrors as HequivMain.
-  destruct HequivMain as [m [res [Hcompsucc [Hexecsucc Hsameresult]]]].
-  exists m. exists res. split; [|split]; auto.
-  set (tree := FunctionalUtils.compute_tr rer [Areg lr] (init_input str0) GroupMap.empty forward).
-  specialize (Hsameresult tree eq_refl). destruct Hsameresult as [His_tree Hsameresult].
-  intros result Hpikeresult.
-  pose proof pike_vm_correct lr (init_input str0) tree result Hpike His_tree Hpikeresult as Hsameresult'.
-  rewrite Hsameresult'. assumption.
+  apply pike_vm_same_warblre; auto.
 Qed.
 
 End Correctness.
