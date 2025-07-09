@@ -441,34 +441,33 @@ Section RegexpTranslation.
       | Patterns.UnicodePropNeg p => CdNonUnicodeProp p
       end.
 
-    Definition controlEsc_singleCharacter (esc: Patterns.ControlEscape): Parameters.Character :=
+    Definition controlEsc_singleCharacter_numValue (esc: Patterns.ControlEscape): nat :=
       match esc with
-      | Patterns.esc_f => Characters.FORM_FEED
-      | Patterns.esc_n => Characters.LINE_FEED
-      | Patterns.esc_r => Characters.CARRIAGE_RETURN
-      | Patterns.esc_t => Characters.CHARACTER_TABULATION
-      | Patterns.esc_v => Characters.LINE_TABULATION
+      | Patterns.esc_f => Character.numeric_value Characters.FORM_FEED
+      | Patterns.esc_n => Character.numeric_value Characters.LINE_FEED
+      | Patterns.esc_r => Character.numeric_value Characters.CARRIAGE_RETURN
+      | Patterns.esc_t => Character.numeric_value Characters.CHARACTER_TABULATION
+      | Patterns.esc_v => Character.numeric_value Characters.LINE_TABULATION
       end.
 
-    Definition asciiEsc_singleCharacter (l: AsciiLetter): Parameters.Character :=
-      let n := NonNegInt.modulo (AsciiLetter.numeric_value l) 32 in
-      Character.from_numeric_value n.
+    Definition asciiEsc_singleCharacter_numValue (l: AsciiLetter): nat :=
+      NonNegInt.modulo (AsciiLetter.numeric_value l) 32.
     
-    Definition characterEscape_singleCharacter (esc: Patterns.CharacterEscape): Parameters.Character :=
+    Definition characterEscape_singleCharacter_numValue (esc: Patterns.CharacterEscape): nat :=
       match esc with
-      | Patterns.ControlEsc esc => controlEsc_singleCharacter esc
-      | Patterns.AsciiControlEsc l => asciiEsc_singleCharacter l
-      | Patterns.esc_Zero => Character.from_numeric_value 0
-      | Patterns.HexEscape d1 d2 => Character.from_numeric_value (HexDigit.to_integer_2 d1 d2)
-      | Patterns.UnicodeEsc (Patterns.Pair head tail) => Character.from_numeric_value (unicodeCodePoint head tail)
-      | Patterns.UnicodeEsc (Patterns.Lonely hex) => Character.from_numeric_value (StaticSemantics.characterValue_Hex4Digits hex)
-      | Patterns.UnicodeEsc (Patterns.CodePoint c) => c
-      | Patterns.IdentityEsc c => c
+      | Patterns.ControlEsc esc => controlEsc_singleCharacter_numValue esc
+      | Patterns.AsciiControlEsc l => asciiEsc_singleCharacter_numValue l
+      | Patterns.esc_Zero => Character.numeric_value Characters.NULL
+      | Patterns.HexEscape d1 d2 => HexDigit.to_integer_2 d1 d2
+      | Patterns.UnicodeEsc (Patterns.Pair head tail) => unicodeCodePoint head tail
+      | Patterns.UnicodeEsc (Patterns.Lonely hex) => StaticSemantics.characterValue_Hex4Digits hex
+      | Patterns.UnicodeEsc (Patterns.CodePoint c) => Character.numeric_value c
+      | Patterns.IdentityEsc c => Character.numeric_value c
       end.
 
-    Definition characterEscape_to_linden (esc: Patterns.CharacterEscape): Result char_descr wl_transl_error :=
-      let c := characterEscape_singleCharacter esc in
-      Success (CdSingle c).
+    Definition characterEscape_to_linden (esc: Patterns.CharacterEscape): char_descr :=
+      let c := characterEscape_singleCharacter_numValue esc in
+      CdSingle (Character.from_numeric_value c).
 
     Definition atomesc_to_linden (ae: Patterns.AtomEscape) (nm:namedmap): Result regex wl_transl_error :=
       match ae with
@@ -477,7 +476,7 @@ Section RegexpTranslation.
           let cd := characterClassEsc_to_linden esc in
           Success (Character cd)
       | Patterns.ACharacterEsc esc => 
-          let! cd =<< characterEscape_to_linden esc in
+          let cd := characterEscape_to_linden esc in
           Success (Character cd)
       | Patterns.GroupEsc gn =>
           match nameidx nm gn with
@@ -486,47 +485,47 @@ Section RegexpTranslation.
           end
       end.
 
-    Definition classEscape_to_linden (esc: Patterns.ClassEscape): Result char_descr wl_transl_error :=
+    Definition classEscape_to_linden (esc: Patterns.ClassEscape): char_descr :=
       match esc with
-      | Patterns.esc_b => Success (CdSingle Characters.BACKSPACE)
-      | Patterns.esc_Dash => Success (CdSingle Characters.HYPHEN_MINUS)
-      | Patterns.CCharacterClassEsc esc => Success (characterClassEsc_to_linden esc)
+      | Patterns.esc_b => CdSingle Characters.BACKSPACE
+      | Patterns.esc_Dash => CdSingle Characters.HYPHEN_MINUS
+      | Patterns.CCharacterClassEsc esc => characterClassEsc_to_linden esc
       | Patterns.CCharacterEsc esc => characterEscape_to_linden esc
       end.
 
-    Definition classEscape_singleCharacter (esc: Patterns.ClassEscape): Result Parameters.Character wl_transl_error :=
+    Definition classEscape_singleCharacter_numValue (esc: Patterns.ClassEscape): Result nat wl_transl_error :=
       match esc with
-      | Patterns.esc_b => Success Characters.BACKSPACE
-      | Patterns.esc_Dash => Success Characters.HYPHEN_MINUS
+      | Patterns.esc_b => Success (Character.numeric_value Characters.BACKSPACE)
+      | Patterns.esc_Dash => Success (Character.numeric_value Characters.HYPHEN_MINUS)
       | Patterns.CCharacterClassEsc esc => Error WlMalformed
-      | Patterns.CCharacterEsc esc => Success (characterEscape_singleCharacter esc)
+      | Patterns.CCharacterEsc esc => Success (characterEscape_singleCharacter_numValue esc)
       end.
     
-    Definition classAtom_to_linden (ca: Patterns.ClassAtom): Result char_descr wl_transl_error :=
+    Definition classAtom_to_linden (ca: Patterns.ClassAtom): char_descr :=
       match ca with
-      | Patterns.SourceCharacter c => Success (CdSingle c)
+      | Patterns.SourceCharacter c => CdSingle c
       | Patterns.ClassEsc esc => classEscape_to_linden esc
       end.
 
-    Definition classAtom_singleCharacter (ca: Patterns.ClassAtom): Result Parameters.Character wl_transl_error :=
+    Definition classAtom_singleCharacter_numValue (ca: Patterns.ClassAtom): Result nat wl_transl_error :=
       match ca with
-      | Patterns.SourceCharacter c => Success c
-      | Patterns.ClassEsc esc => classEscape_singleCharacter esc
+      | Patterns.SourceCharacter c => Success (Character.numeric_value c)
+      | Patterns.ClassEsc esc => classEscape_singleCharacter_numValue esc
       end.
 
     Fixpoint classRanges_to_linden (cr: Patterns.ClassRanges): Result char_descr wl_transl_error :=
       match cr with
       | Patterns.EmptyCR => Success CdEmpty
       | Patterns.ClassAtomCR ca t => 
-          let! cda =<< classAtom_to_linden ca in
+          let cda := classAtom_to_linden ca in
           let! cdt =<< classRanges_to_linden t in
           Success (CdUnion cda cdt)
       | Patterns.RangeCR l h t => 
-          let! cl =<< classAtom_singleCharacter l in
-          let! ch =<< classAtom_singleCharacter h in
+          let! cl =<< classAtom_singleCharacter_numValue l in
+          let! ch =<< classAtom_singleCharacter_numValue h in
           let! cdt =<< classRanges_to_linden t in
-          if Character.numeric_value cl <=? Character.numeric_value ch then
-            Success (CdUnion (CdRange cl ch) cdt)
+          if cl <=? ch then
+            Success (CdUnion (CdRange (Character.from_numeric_value cl) (Character.from_numeric_value ch)) cdt)
           else
             Error WlMalformed
       end.
@@ -714,28 +713,28 @@ Section RegexpTranslation.
       all: intros cd <-; constructor.
     Qed.
 
-    Lemma controlEsc_singleCharacter_sound:
-      forall esc, equiv_ControlEscape esc (CdSingle (controlEsc_singleCharacter esc)).
+    Lemma controlEsc_singleCharacter_numValue_sound:
+      forall esc, equiv_ControlEscape esc (CdSingle (Character.from_numeric_value (controlEsc_singleCharacter_numValue esc))).
     Proof.
-      intro esc. destruct esc; simpl; constructor.
+      intro esc. destruct esc; simpl; rewrite Character.numeric_pseudo_bij; constructor.
     Qed.
 
-    Lemma asciiEsc_singleCharacter_sound:
-      forall l, equiv_asciiesc l (CdSingle (asciiEsc_singleCharacter l)).
+    Lemma asciiEsc_singleCharacter_numValue_sound:
+      forall l, equiv_asciiesc l (CdSingle (Character.from_numeric_value (asciiEsc_singleCharacter_numValue l))).
     Proof.
-      intro l. unfold asciiEsc_singleCharacter. constructor. reflexivity.
+      intro l. unfold asciiEsc_singleCharacter_numValue. constructor. reflexivity.
     Qed.
 
     Lemma characterEscape_to_linden_sound:
       forall esc cd,
-        characterEscape_to_linden esc = Success cd ->
+        characterEscape_to_linden esc = cd ->
         equiv_CharacterEscape esc cd.
     Proof.
       intro esc. destruct esc; try discriminate; simpl; unfold characterEscape_to_linden; simpl.
       5: destruct seq; simpl.
-      all: intros cd H; injection H as <-; try constructor.
-      - apply controlEsc_singleCharacter_sound.
-      - apply asciiEsc_singleCharacter_sound.
+      all: intros cd <-; try rewrite Character.numeric_pseudo_bij; try constructor.
+      - apply controlEsc_singleCharacter_numValue_sound.
+      - apply asciiEsc_singleCharacter_numValue_sound.
     Qed.
 
     Lemma atomesc_to_linden_sound:
@@ -765,57 +764,58 @@ Section RegexpTranslation.
 
     Lemma classEscape_to_linden_sound:
       forall esc cda,
-        classEscape_to_linden esc = Success cda ->
+        classEscape_to_linden esc = cda ->
         equiv_ClassEscape esc cda.
     Proof.
       intros esc cda. destruct esc; simpl.
-      - intro H. injection H as <-. constructor.
-      - intro H. injection H as <-. constructor.
-      - intro H. injection H as <-. constructor. apply characterClassEsc_to_linden_sound. auto.
-      - intro H. constructor. apply characterEscape_to_linden_sound. auto.
+      - intros <-. constructor.
+      - intros <-. constructor.
+      - intros <-. constructor. apply characterClassEsc_to_linden_sound. auto.
+      - intros <-. constructor. apply characterEscape_to_linden_sound. auto.
     Qed.
 
     Lemma classAtom_to_linden_sound:
       forall ca cda,
-        classAtom_to_linden ca = Success cda ->
+        classAtom_to_linden ca = cda ->
         equiv_ClassAtom ca cda.
     Proof.
       intro ca. destruct ca.
-      - simpl. intros cda H. injection H as <-. constructor.
-      - simpl. intros cda H. constructor. apply classEscape_to_linden_sound. auto.
+      - simpl. intros cda <-. constructor.
+      - simpl. intros cda <-. constructor. apply classEscape_to_linden_sound. auto.
     Qed.
 
-    Lemma characterEscape_singleCharacter_sound:
+    Lemma characterEscape_singleCharacter_numValue_sound:
       forall esc clh,
-        characterEscape_singleCharacter esc = clh ->
-        equiv_CharacterEscape esc (CdSingle clh).
+        characterEscape_singleCharacter_numValue esc = clh ->
+        equiv_CharacterEscape esc (CdSingle (Character.from_numeric_value clh)).
     Proof.
-      intros esc clh. destruct esc; simpl; try discriminate.
+      intros esc clh. destruct esc; simpl.
       5: destruct seq; simpl.
-      all: intros <-; constructor.
-      - apply controlEsc_singleCharacter_sound.
-      - apply asciiEsc_singleCharacter_sound.
+      all: intros <-; try rewrite Character.numeric_pseudo_bij; constructor.
+      - apply controlEsc_singleCharacter_numValue_sound.
+      - apply asciiEsc_singleCharacter_numValue_sound.
     Qed.
 
-    Lemma classEscape_singleCharacter_sound:
+    Lemma classEscape_singleCharacter_numValue_sound:
       forall esc clh,
-        classEscape_singleCharacter esc = Success clh ->
-        equiv_ClassEscape esc (CdSingle clh).
+        classEscape_singleCharacter_numValue esc = Success clh ->
+        equiv_ClassEscape esc (CdSingle (Character.from_numeric_value clh)).
     Proof.
-      intros esc clh. destruct esc; simpl; try discriminate.
-      - intro H. injection H as <-. constructor.
-      - intro H. injection H as <-. constructor.
-      - intro H. injection H as <-. constructor. apply characterEscape_singleCharacter_sound. auto.
+      intros esc clh. destruct esc; simpl; intro H.
+      - injection H as <-. rewrite Character.numeric_pseudo_bij. constructor.
+      - injection H as <-. rewrite Character.numeric_pseudo_bij. constructor.
+      - discriminate.
+      - injection H as <-. constructor. apply characterEscape_singleCharacter_numValue_sound. auto.
     Qed.
 
-    Lemma classAtom_singleCharacter_sound:
+    Lemma classAtom_singleCharacter_numValue_sound:
       forall lh clh,
-        classAtom_singleCharacter lh = Success clh ->
-        equiv_ClassAtom lh (CdSingle clh).
+        classAtom_singleCharacter_numValue lh = Success clh ->
+        equiv_ClassAtom lh (CdSingle (Character.from_numeric_value clh)).
     Proof.
       intros lh clh. destruct lh.
-      - simpl. intro H. injection H as <-. constructor.
-      - simpl. intro H. constructor. apply classEscape_singleCharacter_sound. auto.
+      - simpl. intro H. injection H as <-. rewrite Character.numeric_pseudo_bij. constructor.
+      - simpl. intro H. constructor. apply classEscape_singleCharacter_numValue_sound. auto.
     Qed.
 
     Lemma classRanges_to_linden_sound:
@@ -826,17 +826,18 @@ Section RegexpTranslation.
       intro crs. induction crs.
       - simpl. intros cd H. injection H as <-. constructor.
       - simpl. intro cd.
-        destruct classAtom_to_linden as [cda|] eqn:Hcda; try discriminate; simpl.
         destruct classRanges_to_linden as [cdt|] eqn:Hcdt; try discriminate; simpl.
         intro H. injection H as <-.
         constructor; auto. apply classAtom_to_linden_sound. auto.
       - simpl. intro cd.
-        destruct classAtom_singleCharacter as [cl|] eqn:Hcl; try discriminate; simpl.
-        destruct (classAtom_singleCharacter h) as [ch|] eqn:Hch; try discriminate; simpl.
+        destruct classAtom_singleCharacter_numValue as [cl|] eqn:Hcl; try discriminate; simpl.
+        destruct (classAtom_singleCharacter_numValue h) as [ch|] eqn:Hch; try discriminate; simpl.
         destruct classRanges_to_linden as [cdt|] eqn:Hcdt; try discriminate; simpl.
         destruct Nat.leb eqn:Hle; try discriminate; simpl.
         apply PeanoNat.Nat.leb_le in Hle.
-        intro H. injection H as <-. constructor; auto; apply classAtom_singleCharacter_sound; auto.
+        intro H. injection H as <-. constructor; auto.
+        1,2: apply classAtom_singleCharacter_numValue_sound; auto.
+        apply Character.numeric_round_trip_order; auto.
     Qed.
 
     Lemma charclass_to_linden_sound:
@@ -850,7 +851,7 @@ Section RegexpTranslation.
         intros cd H. injection H as <-. constructor. apply classRanges_to_linden_sound. auto.
     Qed.
 
-    Lemma warblre_to_linden_sound:
+    Theorem warblre_to_linden_sound:
       forall wr lr n nm,
         warblre_to_linden wr n nm = Success lr ->
         equiv_regex' wr lr n nm.
@@ -911,6 +912,14 @@ Section RegexpTranslation.
         intro H. injection H as <-. constructor; auto; constructor.
     Qed.
 
+    Theorem warblre_to_linden_sound_root:
+      forall wr lr,
+        warblre_to_linden wr 0 (buildnm wr) = Success lr ->
+        equiv_regex wr lr.
+    Proof.
+      intros wr lr. apply warblre_to_linden_sound with (wr := wr) (lr := lr) (n := 0).
+    Qed.
+
   End TranslationSoundness.
 
   Section TranslationCompleteness.
@@ -950,9 +959,53 @@ Section RegexpTranslation.
       apply EarlyErrors_Downstar with (x := (wr, ctx)) (y := (wroot, [])); auto.
     Qed.
 
+    Lemma Walk_Root:
+      forall wroot r ctx,
+        Node.Root wroot (r, ctx) ->
+        In (r, ctx) (NodeProps.Zipper.Walk.walk (Node.zip wroot []) []).
+    Proof.
+      intros wroot r ctx ROOT. unfold Node.zip.
+      apply NodeProps.Zipper.Down.root_is_top, NodeProps.Zipper.Walk.completeness in ROOT.
+      unfold List.List.Exists.ExistValue in ROOT. destruct ROOT as [i INDEXING].
+      unfold List.List.Indexing.Nat.indexing in INDEXING.
+      destruct nth_error eqn:NTH_ERROR; try discriminate.
+      injection INDEXING as ->. eauto using nth_error_In.
+    Qed.
+
+    Lemma earlyErrors_singletonCharacterEscape:
+      forall ce cl,
+        EarlyErrors.SingletonCharacterEscape ce cl ->
+        characterEscape_singleCharacter_numValue ce = cl.
+    Proof.
+      intros ce cl EE. inversion EE; subst; simpl; auto.
+    Qed.
+
+    Lemma earlyErrors_translation_singletonClassAtom:
+      forall l cl,
+        EarlyErrors.SingletonClassAtom l cl ->
+        classAtom_singleCharacter_numValue l = Success cl.
+    Proof.
+      intros l cl EE. inversion EE; subst; simpl; auto.
+      auto using earlyErrors_singletonCharacterEscape.
+    Qed.
+
+    Lemma earlyErrors_pass_translation_crs:
+      forall crs,
+        EarlyErrors.Pass_ClassRanges crs ->
+        exists cd, classRanges_to_linden crs = Success cd.
+    Proof.
+      intros crs EE. induction EE; simpl.
+      - eexists. reflexivity.
+      - destruct IHEE as [cdt IHEE]. rewrite IHEE. eexists. reflexivity.
+      - destruct IHEE as [cdt IHEE]. rewrite IHEE.
+        rewrite earlyErrors_translation_singletonClassAtom with (cl := cl); auto.
+        rewrite earlyErrors_translation_singletonClassAtom with (cl := ch); auto.
+        simpl. apply Nat.leb_le in H1. rewrite H1. eexists. reflexivity.
+    Qed.
+
     Theorem earlyErrors_pass_translation':
       forall wroot: Patterns.Regex,
-        (*EarlyErrors.Pass_Regex wroot nil ->*) (* This does not include the condition on the absence of duplicate groups *)
+        (*EarlyErrors.Pass_Regex wroot nil ->*) (* This does not include the condition on the absence of duplicate groups when there are no backreferences *)
         earlyErrors wroot nil = Success false -> (* This does, and Warblre already proves that earlyErrors can never fail (section Safety in Warblre.props.EarlyErrors) *)
         forall wr ctx,
           Node.Root wroot (wr, ctx) ->
@@ -980,8 +1033,10 @@ Section RegexpTranslation.
       - intros ctx Hroot.
         pose proof EarlyErrors_sub wroot H _ ctx Hroot as EE.
         inversion EE; subst. inversion H1; subst.
-        + simpl. admit.
-        + simpl. admit.
+        + simpl. apply earlyErrors_pass_translation_crs in H0. destruct H0 as [cd CRS_SUCC].
+          rewrite CRS_SUCC. eexists. reflexivity.
+        + simpl. apply earlyErrors_pass_translation_crs in H0. destruct H0 as [cd CRS_SUCC].
+          rewrite CRS_SUCC. eexists. reflexivity.
       - intros ctx Hroot.
         specialize (IHwr1 (Node.Disjunction_left wr2 :: ctx)).
         specialize_prove IHwr1 by eauto using NodeProps.Zipper.Down.same_root_down0, NodeProps.Zipper.Down_Disjunction_left.
@@ -1038,7 +1093,11 @@ Section RegexpTranslation.
           destruct s; try discriminate.
           apply EarlyErrors.groupSpecifiersThatMatch_singleton with (name := name) in Hdup.
           assert (Hpres: In (wr, Node.Group_inner (Some name) :: ctx) (groupSpecifiersThatMatch wroot [] name)). {
-            admit. (* Follows from Hroot; non-trivial *)
+            unfold groupSpecifiersThatMatch. apply in_flat_map.
+            exists (Patterns.Group (Some name) wr, ctx). split.
+            - apply Walk_Root. auto. (* Follows from Hroot *)
+            - unfold capturingGroupName. destruct EqDec.eq_dec; try contradiction.
+            left. reflexivity.
           }
           remember (groupSpecifiersThatMatch wroot [] name) as l in *.
           destruct l as [|gs []].
@@ -1074,8 +1133,27 @@ Section RegexpTranslation.
         specialize_prove IHwr by eauto using NodeProps.Zipper.Down.same_root_down0, NodeProps.Zipper.Down_NegativeLookbehind_inner.
         destruct IHwr as [lrsub IHwr]. simpl in *.
         rewrite Nat.add_0_r in IHwr. setoid_rewrite IHwr. eexists. reflexivity.
-    Admitted.
+    Qed.
     
+    Theorem earlyErrors_pass_translation:
+      forall wr: Patterns.Regex,
+        earlyErrors wr nil = Success false ->
+        exists lr, warblre_to_linden wr 0 (buildnm wr) = Success lr.
+    Proof.
+      intros wr EE. apply earlyErrors_pass_translation' with (wroot := wr) (wr := wr) (ctx := []); auto.
+      reflexivity.
+    Qed.
+
+    Corollary earlyErrors_pass_translation_exists:
+      forall wr: Patterns.Regex,
+        earlyErrors wr nil = Success false ->
+        exists lr, equiv_regex wr lr.
+    Proof.
+      intros wr EE. apply earlyErrors_pass_translation in EE.
+      destruct EE as [lr TRANSLATION].
+      exists lr. apply warblre_to_linden_sound_root. auto.
+    Qed.
+
   End TranslationCompleteness.
 
 End RegexpTranslation.
