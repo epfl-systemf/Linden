@@ -237,7 +237,7 @@ Section EquivMain.
       StaticSemantics.earlyErrors wroot nil = Success false ->
       (* letting lroot be the corresponding Linden regex, *)
       lroot = warblre_to_linden' wroot 0 (buildnm wroot) ->
-      (* and for any input string str0, running m on str0 yields some result res, *)
+      (* Warblre's execution result on string str0 is equivalent to Linden's execution result on string str0. *)
       (compilePattern wroot rer) str0 0 = to_MatchState (linden_result rer lroot str0) (RegExpRecord.capturingGroupsCount rer).
   Proof.
     intros wroot lroot rer str0 CAPTURES EE Heqlroot.
