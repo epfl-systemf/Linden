@@ -157,6 +157,7 @@ Section EquivMain.
     - exact Hequivm.
   Qed.
 
+  (* The same, but with an initial input that is at the beginning of the input string *)
   Corollary equiv_main'_str0:
     forall wroot lroot rer m,
       (* For all pairs of equivalent Warblre and Linden regexes, *)
@@ -216,6 +217,7 @@ Section EquivMain.
     intros t Heqt. eapply equiv_main'; eauto.
   Qed.
 
+  (* Same, but with an input that is at the beginning of the input string *)
   Corollary equiv_main_str0:
     forall wroot lroot rer str0,
       (* For any pair of equivalent Linden and Warblre regexes, *)
@@ -239,10 +241,13 @@ Section EquivMain.
     apply equiv_main with (inp := init_input str0); auto.
   Qed.
 
+  (* Computing the result of matching a regex with the given flags on the given input. *)
   Definition linden_result (rer: RegExpRecord) (r: regex) (inp: input) :=
     let t := compute_tr rer [Areg r] inp GroupMap.empty forward in
     first_leaf t inp.
 
+
+  (* A version of Semantics.compilePattern that returns a dummy function when it fails. *)
   Definition compilePattern (wr: Patterns.Regex) (rer: RegExpRecord): list Character -> non_neg_integer -> option MatchState :=
     match Semantics.compilePattern wr rer with
     | Success m =>
@@ -254,6 +259,9 @@ Section EquivMain.
     | Error _ => (fun _ _ => None)
     end.
 
+  (* Using Warblre's matcher invariant, we show that running the result of compilePattern
+  on an input string yields either None or a MatchState that has a capture list with the
+  right size. *)
   Lemma compilePattern_preserves_groupcount:
     forall wroot rer m str0 i res,
       RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wroot nil ->
@@ -308,6 +316,7 @@ Section EquivMain.
     symmetry. apply to_MatchState_equal; auto. eauto using compilePattern_preserves_groupcount.
   Qed.
 
+  (* The same, but with an input that is at the beginning of the input string. *)
   Corollary equiv_main_reconstruct_str0:
     forall wroot lroot rer str0,
       RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wroot nil ->
