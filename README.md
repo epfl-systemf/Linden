@@ -13,9 +13,4 @@ For a description of the files inside the folders, see the README.md files in th
 
 # Install
 
-Run the following:
-```
-opam switch create linden --empty
-opam pin add warblre.0.1.0 https://github.com/epfl-systemf/Warblre.git#coq-versions
-opam install .
-```
+Run `install.sh` from the repo directory. Requires Opam.
