@@ -1,7 +1,7 @@
 From Linden Require Import Equiv EquivDef LWParameters RegexpTranslation
   Chars Tree Semantics FunctionalSemantics Groups GroupMapMS Regex
   EquivLemmas Utils MSInput Tactics ComputeIsTree GroupMapLemmas FunctionalUtils
-  Parameters.
+  Parameters ResultTranslation.
 From Warblre Require Import Patterns RegExpRecord Parameters Semantics
   Result Base Notation Match.
 From Coq Require Import List Lia PeanoNat ZArith DecidableClass.
@@ -177,6 +177,77 @@ Section EquivMain.
     2,3: contradiction.
     exists res. split; [|split]; auto.
     intros t Heqt. eapply equiv_main'; eauto.
+  Qed.
+
+  Definition linden_result (rer: RegExpRecord) (r: regex) (str0: string) :=
+    let t := compute_tr rer [Areg r] (init_input str0) GroupMap.empty forward in
+    first_branch t str0.
+
+  Definition compilePattern (wr: Patterns.Regex) (rer: RegExpRecord): list Character -> non_neg_integer -> option MatchState :=
+    match Semantics.compilePattern wr rer with
+    | Success m =>
+      fun (str0: list Character) (i: non_neg_integer) =>
+      match m str0 i with
+      | Success res => res
+      | Error _ => None
+      end
+    | Error _ => (fun _ _ => None)
+    end.
+
+  Lemma compilePattern_preserves_groupcount:
+    forall wroot rer m str0 i res,
+      RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wroot nil ->
+      StaticSemantics.earlyErrors wroot [] = Success false ->
+      Semantics.compilePattern wroot rer = Success m ->
+      m str0 i = Success res ->
+      ms_num_groups res (RegExpRecord.capturingGroupsCount rer).
+  Proof.
+    intros wroot rer m str0 i res CAPTURES EE COMP_SUCC EXEC_SUCC.
+    pose proof EarlyErrors.earlyErrors wroot EE as EE_ind.
+    symmetry in CAPTURES.
+    Check MatcherInvariant.compileSubPattern.
+    pose proof MatcherInvariant.compileSubPattern wroot rer CAPTURES EE_ind wroot [] eq_refl forward as MI.
+    unfold Semantics.compilePattern in COMP_SUCC.
+    destruct Semantics.compileSubPattern as [msub|] eqn:COMPSUB_SUCC; try discriminate. simpl in COMP_SUCC.
+    specialize (MI msub eq_refl).
+    injection COMP_SUCC as <-.
+    destruct Nat.leb eqn:IN_BOUNDS; try discriminate. simpl in *.
+    rewrite Nat.leb_le in IN_BOUNDS.
+    Print MatcherInvariant.matcher_invariant.
+    pose proof initialState_validity str0 i rer IN_BOUNDS as INIT_VALID.
+    specialize (MI _ (fun y : MatchState =>
+               Coercions.wrap_option Errors.MatchError.type MatchState
+                 (Coercions.MatchState_or_failure y)) INIT_VALID).
+    simpl in MI.
+    destruct MI as [MI | MI].
+    - (* None *)
+      rewrite MI in EXEC_SUCC. injection EXEC_SUCC as <-. constructor.
+    - (* Some result *)
+      destruct MI as [y [VALID_y [_ MI]]].
+      rewrite <- MI in EXEC_SUCC. injection EXEC_SUCC as <-.
+      unfold MatchState.Valid in VALID_y. constructor. tauto.
+  Qed.
+
+  (* Corollary where we reconstruct Warblre's output MatchState from Linden's output result,
+  and we translate the Warblre regex to Linden. *)
+  Corollary equiv_main_reconstruct:
+    forall wroot lroot rer str0,
+      RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wroot nil ->
+      (* For any Warblre regex that passes the early errors check, *)
+      StaticSemantics.earlyErrors wroot nil = Success false ->
+      (* letting lroot be the corresponding Linden regex, *)
+      lroot = warblre_to_linden' wroot 0 (buildnm wroot) ->
+      (* and for any input string str0, running m on str0 yields some result res, *)
+      (compilePattern wroot rer) str0 0 = to_MatchState (linden_result rer lroot str0) (RegExpRecord.capturingGroupsCount rer).
+  Proof.
+    intros wroot lroot rer str0 CAPTURES EE Heqlroot.
+    pose proof earlyErrors_pass_translation_nomonad wroot EE as EQUIV. rewrite <- Heqlroot in EQUIV.
+    pose proof EarlyErrors.earlyErrors wroot EE as EE_ind.
+    pose proof equiv_main wroot lroot rer str0 EQUIV CAPTURES EE_ind as H.
+    destruct H as [m [res [COMP_SUCC [EXEC_SUCC LW_EQUIV]]]].
+    unfold compilePattern. rewrite COMP_SUCC, EXEC_SUCC.
+    unfold linden_result. specialize (LW_EQUIV _ eq_refl). destruct LW_EQUIV as [_ LW_EQUIV].
+    symmetry. apply to_MatchState_equal; auto. eauto using compilePattern_preserves_groupcount.
   Qed.
 
 End EquivMain.

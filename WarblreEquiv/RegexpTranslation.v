@@ -610,6 +610,13 @@ Section RegexpTranslation.
           Success (Lookaround NegLookBehind lr)
       end.
 
+    (* A version of warblre_to_linden that returns a dummy value in case of failure. *)
+    Definition warblre_to_linden' (wr: Patterns.Regex) (n: nat) (nm: namedmap): regex :=
+      match warblre_to_linden wr n nm with
+      | Success r => r
+      | Error _ => Epsilon
+      end.
+
   End WarblreToLinden.
 
   (*Section LindenToWarblre.
@@ -1152,6 +1159,17 @@ Section RegexpTranslation.
       intros wr EE. apply earlyErrors_pass_translation in EE.
       destruct EE as [lr TRANSLATION].
       exists lr. apply warblre_to_linden_sound_root. auto.
+    Qed.
+
+    Corollary earlyErrors_pass_translation_nomonad:
+      forall wr: Patterns.Regex,
+        earlyErrors wr nil = Success false ->
+        equiv_regex wr (warblre_to_linden' wr 0 (buildnm wr)).
+    Proof.
+      intros wr EE. apply earlyErrors_pass_translation in EE.
+      destruct EE as [lr TRANSLATION].
+      unfold warblre_to_linden'. rewrite TRANSLATION.
+      apply warblre_to_linden_sound_root. auto.
     Qed.
 
   End TranslationCompleteness.
