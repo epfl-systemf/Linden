@@ -1954,15 +1954,21 @@ Section EquivLemmas.
       apply nth_error_ext. auto.
   Qed.
 
-  Axiom EM: excluded_middle.
-
-  Lemma notforalln_existsnnot:
-    forall P: nat -> Prop,
-      ~(forall n, P n) -> (exists n, ~P n).
+  Lemma list_diff_iff {A} `{EqDec A}: forall (l l': list A),
+    l <> l' <->
+      exists i: nat, nth_error l i <> nth_error l' i.
   Proof.
-    intros. destruct (EM (exists n: nat, ~P n)) as [Hexists | Hnotexists]; auto.
-    exfalso. apply H. intro n. destruct (EM (P n)) as [HPn | HnPn]; auto.
-    exfalso. apply Hnotexists. exists n. auto.
+    split.
+    - revert l'; induction l as [|h l]; destruct l' as [|h' l']; simpl; intros.
+      + congruence.
+      + exists 0; inversion 1.
+      + exists 0; inversion 1.
+      + destruct (EqDec.eq_dec h h') as [-> | Hneq].
+        * destruct (EqDec.eq_dec l l') as [-> | Hneq]; [congruence|].
+          destruct (IHl l' Hneq) as [i' Heq].
+          exists (S i'); eassumption.
+        * exists 0; simpl; congruence.
+    - intros [i Hneq] ->; contradiction.
   Qed.
 
   Lemma string_diff_iff:
@@ -1970,12 +1976,8 @@ Section EquivLemmas.
       (s ==? t)%wt = false <->
       exists i: nat, nth_error s i <> nth_error t i.
   Proof.
-    intros s t. split.
-    - intro Hneq.
-      apply notforalln_existsnnot. intro Habs. rewrite <- string_eqb_iff in Habs. congruence.
-    - intro Hexistsdiff. apply Bool.not_true_iff_false. intro Habs.
-      rewrite EqDec.inversion_true in Habs. subst t.
-      destruct Hexistsdiff as [i Hexistsdiff]. contradiction.
+    intros; rewrite EqDec.inversion_false.
+    apply list_diff_iff.
   Qed.
 
   Lemma neqb_neq {A} `{EqDec A}: forall (x y: A),
