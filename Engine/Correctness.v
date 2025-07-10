@@ -152,5 +152,21 @@ Proof.
   apply pike_vm_same_warblre; auto.
 Qed.
 
+Theorem pikevm_warblre:
+  forall wr lr i result,
+    RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wr nil ->
+    StaticSemantics.earlyErrors wr [] = Success false ->
+    lr = warblre_to_linden' wr 0 (buildnm wr) ->
+    pike_regex lr ->
+    trc_pike_vm (compilation lr) (pike_vm_seen_initial_state i) (PVSS_final result) ->
+    EquivDef.equiv_res result ((EquivMain.compilePattern wr rer) (input_str i) (idx i)).
+Proof.
+  intros wr lr i result H H0 H1 H2 H3.
+  eapply pike_vm_same_warblre; eauto. subst.
+  apply earlyErrors_pass_translation_nomonad; auto.
+  apply EarlyErrors.earlyErrors; auto.
+Qed.
+  
+
 End Correctness.
 
