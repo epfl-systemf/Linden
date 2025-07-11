@@ -1,7 +1,7 @@
 From Linden Require Import Equiv EquivDef LWParameters RegexpTranslation
   Chars Tree Semantics FunctionalSemantics Groups GroupMapMS Regex
   EquivLemmas Utils MSInput Tactics ComputeIsTree GroupMapLemmas FunctionalUtils
-  Parameters.
+  Parameters ResultTranslation.
 From Warblre Require Import Patterns RegExpRecord Parameters Semantics
   Result Base Notation Match.
 From Coq Require Import List Lia PeanoNat ZArith DecidableClass.
@@ -54,10 +54,10 @@ Section EquivMain.
     (* The initial input corresponding to a string str0 and the initial match state
        corresponding to str0 and index 0 match each other. *)
     Lemma init_ms_matches_inp:
-      forall str0 rer,
-        ms_matches_inp (init_match_state str0 0 rer) (init_input str0).
+      forall inp rer,
+        ms_matches_inp (init_match_state (input_str inp) (idx inp) rer) inp.
     Proof.
-      intros str0 rer. unfold init_match_state, init_input. constructor; reflexivity.
+      intros inp rer. destruct inp as [next pref]. unfold init_match_state. constructor; reflexivity.
     Qed.
 
   End InitState.
@@ -88,8 +88,77 @@ Section EquivMain.
     - apply List.Disjoint_nil_r.
   Qed.
 
+  Lemma idx_is_inbounds:
+    forall inp,
+      (idx inp <=? length (input_str inp)) = true.
+  Proof.
+    intros [next pref]. apply Nat.leb_le.
+    simpl. rewrite app_length, rev_length. lia.
+  Qed.
+
+  Lemma input_compat_self:
+    forall inp, input_compat inp (input_str inp).
+  Proof.
+    intro inp. destruct inp as [next pref]. constructor. simpl. reflexivity.
+  Qed.
+
   (** ** Corollary assuming that both compiling the regex and matching a string do not yield errors. *)
   Corollary equiv_main':
+    forall wroot lroot rer m,
+      (* For all pairs of equivalent Warblre and Linden regexes, *)
+      equiv_regex wroot lroot ->
+      RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wroot nil ->
+      (* if compiling the Warblre regex into a matcher m succeeds, *)
+      Semantics.compilePattern wroot rer = Success m ->
+      (* then for any input inp, *)
+      forall inp res t,
+        (* if running m on the input successfully yields a result res, *)
+        m (input_str inp) (idx inp) = Success res ->
+        (* then letting t be the priority tree corresponding to matching the Linden regex
+           on the input inp, *)
+        t = compute_tr rer [Areg lroot] inp GroupMap.empty forward ->
+        (* this tree respects the Linden semantics and *)
+        is_tree rer [Areg lroot] inp GroupMap.empty forward t /\
+        (* the result res is equivalent to the first branch of the tree. *)
+        equiv_res (first_leaf t inp) res.
+  Proof.
+    intros wroot lroot rer m Hequiv Hcapcount Hcompsucc inp res t Heqres Heqt.
+    pose proof equiv_matcher_idmcont_compsucc wroot lroot rer as Hequivm.
+    unfold Semantics.compilePattern in Hcompsucc.
+    destruct Semantics.compileSubPattern as [msp|]; simpl in *; try discriminate.
+    injection Hcompsucc as <-.
+    rewrite idx_is_inbounds in Heqres. simpl in *.
+    specialize (Hequivm msp Hequiv Hcapcount eq_refl (input_str inp)).
+    unfold equiv_cont in Hequivm.
+    set (fuel := 1 + actions_fuel [Areg lroot] inp forward).
+    set (ms0 := init_match_state (input_str inp) (idx inp) rer). change (match_state _ _ _) with ms0 in Heqres.
+    change (fun y : MatchState => _) with id_mcont in Heqres.
+    specialize (Hequivm GroupMap.empty ms0 inp res fuel).
+    pose proof functional_terminates rer [Areg lroot] inp GroupMap.empty forward fuel as Hcomputetreesucc.
+    specialize_prove Hcomputetreesucc by lia.
+    specialize (Hequivm t).
+    specialize_prove Hequivm by apply input_compat_self.
+    specialize_prove Hequivm by apply init_ms_equiv_empty.
+    specialize_prove Hequivm by apply empty_gm_equiv_empty_gl.
+    specialize_prove Hequivm by apply init_ms_matches_inp.
+    specialize_prove Hequivm. { apply ms_valid_wrt_checks_Areg, ms_valid_wrt_checks_nil. }
+    specialize_prove Hequivm by apply empty_gm_valid.
+    specialize_prove Hequivm by apply noforb_empty.
+    specialize (Hequivm Heqres).
+    assert (Hcompute: compute_tree rer [Areg lroot] inp GroupMap.empty forward fuel = Some t). {
+      unfold compute_tr in Heqt. unfold Nat.add in fuel. unfold fuel in Hcomputetreesucc.
+      destruct compute_tree.
+      - f_equal. congruence.
+      - contradiction.
+    }
+    specialize (Hequivm Hcompute).
+    split.
+    - apply compute_is_tree with (fuel := fuel); auto.
+    - exact Hequivm.
+  Qed.
+
+  (* The same, but with an initial input that is at the beginning of the input string *)
+  Corollary equiv_main'_str0:
     forall wroot lroot rer m,
       (* For all pairs of equivalent Warblre and Linden regexes, *)
       equiv_regex wroot lroot ->
@@ -108,45 +177,48 @@ Section EquivMain.
         (* the result res is equivalent to the first branch of the tree. *)
         equiv_res (first_branch t str0) res.
   Proof.
-    intros wroot lroot rer m Hequiv Hcapcount Hcompsucc str0 res t Heqres Heqt.
-    pose proof equiv_matcher_idmcont_compsucc wroot lroot rer as Hequivm.
-    unfold Semantics.compilePattern in Hcompsucc.
-    destruct Semantics.compileSubPattern as [msp|]; simpl in *; try discriminate.
-    injection Hcompsucc as <-.
-    replace (0 <=? length str0) with true in Heqres.
-    2: { symmetry. apply Nat.leb_le. lia. }
-    simpl in *.
-    specialize (Hequivm msp Hequiv Hcapcount eq_refl str0).
-    unfold equiv_cont in Hequivm.
-    set (fuel := 1 + actions_fuel [Areg lroot] (init_input str0) forward).
-    set (ms0 := init_match_state str0 0 rer). change (match_state _ _ _) with ms0 in Heqres.
-    change (fun y : MatchState => _) with id_mcont in Heqres.
-    specialize (Hequivm GroupMap.empty ms0 (init_input str0) res fuel).
-    pose proof functional_terminates rer [Areg lroot] (init_input str0) GroupMap.empty forward fuel as Hcomputetreesucc.
-    specialize_prove Hcomputetreesucc by lia.
-    specialize (Hequivm t).
-    specialize_prove Hequivm by apply init_input_compat.
-    specialize_prove Hequivm by apply init_ms_equiv_empty.
-    specialize_prove Hequivm by apply empty_gm_equiv_empty_gl.
-    specialize_prove Hequivm by apply init_ms_matches_inp.
-    specialize_prove Hequivm. { apply ms_valid_wrt_checks_Areg, ms_valid_wrt_checks_nil. }
-    specialize_prove Hequivm by apply empty_gm_valid.
-    specialize_prove Hequivm by apply noforb_empty.
-    specialize (Hequivm Heqres).
-    assert (Hcompute: compute_tree rer [Areg lroot] (init_input str0) GroupMap.empty forward fuel = Some t). {
-      unfold compute_tr in Heqt. unfold Nat.add in fuel. unfold fuel in Hcomputetreesucc.
-      destruct compute_tree.
-      - f_equal. congruence.
-      - contradiction.
-    }
-    specialize (Hequivm Hcompute).
-    split.
-    - apply compute_is_tree with (fuel := fuel); auto.
-    - exact Hequivm.
+    intros wroot lroot rer m EQUIV CAPTURES COMP_SUCC str0 res t EXEC_SUCC Heqt.
+    apply equiv_main' with (wroot := wroot) (m := m); auto.
   Qed.
 
   (** ** Main theorem *)
   Corollary equiv_main:
+    forall wroot lroot rer inp,
+      (* For any pair of equivalent Linden and Warblre regexes, *)
+      equiv_regex wroot lroot ->
+      RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wroot nil ->
+      (* such that the Warblre regex passes the early errors check, *)
+      EarlyErrors.Pass_Regex wroot nil ->
+      exists m res,
+        (* compiling the Warblre regex successfully yields a matcher m, *)
+        Semantics.compilePattern wroot rer = Success m /\
+        (* and for any input inp, running m on the input yields some result res, *)
+        m (input_str inp) (idx inp) = Success res /\
+        (* and letting t be the priority tree corresponding to matching the Linden regex on inp, *)
+        forall t, t = compute_tr rer [Areg lroot] inp GroupMap.empty forward ->
+          (* this tree respects the Linden semantics and *)
+          is_tree rer [Areg lroot] inp GroupMap.empty forward t /\
+          (* the result res is equivalent to the first branch of this tree. *)
+          equiv_res (first_leaf t inp) res.
+  Proof.
+    intros wroot lroot rer inp Hequiv Hcapcount HearlyErrors.
+    symmetry in Hcapcount.
+    pose proof Compile.compilePattern_success wroot rer as Hcompilesucc.
+    specialize (Hcompilesucc Hcapcount HearlyErrors). destruct Hcompilesucc as [m Hcompilesucc].
+    exists m.
+    pose proof Match.no_failure wroot rer (input_str inp) (idx inp) m HearlyErrors Hcapcount Hcompilesucc as Hresnofail.
+    pose proof Match.termination wroot rer (input_str inp) (idx inp) m HearlyErrors Hcapcount Hcompilesucc as Hresterminates.
+    specialize_prove Hresnofail. {
+      apply Nat.leb_le. apply idx_is_inbounds.
+    }
+    destruct (m (input_str inp) (idx inp)) as [res|[]] eqn:Heqres.
+    2,3: contradiction.
+    exists res. split; [|split]; auto.
+    intros t Heqt. eapply equiv_main'; eauto.
+  Qed.
+
+  (* Same, but with an input that is at the beginning of the input string *)
+  Corollary equiv_main_str0:
     forall wroot lroot rer str0,
       (* For any pair of equivalent Linden and Warblre regexes, *)
       equiv_regex wroot lroot ->
@@ -165,18 +237,98 @@ Section EquivMain.
           (* the result res is equivalent to the first branch of this tree. *)
           equiv_res (first_branch t str0) res.
   Proof.
-    intros wroot lroot rer str0 Hequiv Hcapcount HearlyErrors.
-    symmetry in Hcapcount.
-    pose proof Compile.compilePattern_success wroot rer as Hcompilesucc.
-    specialize (Hcompilesucc Hcapcount HearlyErrors). destruct Hcompilesucc as [m Hcompilesucc].
-    exists m.
-    pose proof Match.no_failure wroot rer str0 0 m HearlyErrors Hcapcount Hcompilesucc as Hresnofail.
-    pose proof Match.termination wroot rer str0 0 m HearlyErrors Hcapcount Hcompilesucc as Hresterminates.
-    specialize (Hresnofail ltac:(lia)).
-    destruct (m str0 0) as [res|[]] eqn:Heqres.
-    2,3: contradiction.
-    exists res. split; [|split]; auto.
-    intros t Heqt. eapply equiv_main'; eauto.
+    intros wroot lroot rer str0 EQUIV CAPTURES EE.
+    apply equiv_main with (inp := init_input str0); auto.
+  Qed.
+
+  (* Computing the result of matching a regex with the given flags on the given input. *)
+  Definition linden_result (rer: RegExpRecord) (r: regex) (inp: input) :=
+    let t := compute_tr rer [Areg r] inp GroupMap.empty forward in
+    first_leaf t inp.
+
+
+  (* A version of Semantics.compilePattern that returns a dummy function when it fails. *)
+  Definition compilePattern (wr: Patterns.Regex) (rer: RegExpRecord): list Character -> non_neg_integer -> option MatchState :=
+    match Semantics.compilePattern wr rer with
+    | Success m =>
+      fun (str0: list Character) (i: non_neg_integer) =>
+      match m str0 i with
+      | Success res => res
+      | Error _ => None
+      end
+    | Error _ => (fun _ _ => None)
+    end.
+
+  (* Using Warblre's matcher invariant, we show that running the result of compilePattern
+  on an input string yields either None or a MatchState that has a capture list with the
+  right size. *)
+  Lemma compilePattern_preserves_groupcount:
+    forall wroot rer m str0 i res,
+      RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wroot nil ->
+      StaticSemantics.earlyErrors wroot [] = Success false ->
+      Semantics.compilePattern wroot rer = Success m ->
+      m str0 i = Success res ->
+      ms_num_groups res (RegExpRecord.capturingGroupsCount rer).
+  Proof.
+    intros wroot rer m str0 i res CAPTURES EE COMP_SUCC EXEC_SUCC.
+    pose proof EarlyErrors.earlyErrors wroot EE as EE_ind.
+    symmetry in CAPTURES.
+    pose proof MatcherInvariant.compileSubPattern wroot rer CAPTURES EE_ind wroot [] eq_refl forward as MI.
+    unfold Semantics.compilePattern in COMP_SUCC.
+    destruct Semantics.compileSubPattern as [msub|] eqn:COMPSUB_SUCC; try discriminate. simpl in COMP_SUCC.
+    specialize (MI msub eq_refl).
+    injection COMP_SUCC as <-.
+    destruct Nat.leb eqn:IN_BOUNDS; try discriminate. simpl in *.
+    rewrite Nat.leb_le in IN_BOUNDS.
+    pose proof initialState_validity str0 i rer IN_BOUNDS as INIT_VALID.
+    specialize (MI _ (fun y : MatchState =>
+               Coercions.wrap_option Errors.MatchError.type MatchState
+                 (Coercions.MatchState_or_failure y)) INIT_VALID).
+    simpl in MI.
+    destruct MI as [MI | MI].
+    - (* None *)
+      rewrite MI in EXEC_SUCC. injection EXEC_SUCC as <-. constructor.
+    - (* Some result *)
+      destruct MI as [y [VALID_y [_ MI]]].
+      rewrite <- MI in EXEC_SUCC. injection EXEC_SUCC as <-.
+      unfold MatchState.Valid in VALID_y. constructor. tauto.
+  Qed.
+
+  (* Corollary where we reconstruct Warblre's output MatchState from Linden's output result,
+  and we translate the Warblre regex to Linden. *)
+  Corollary equiv_main_reconstruct:
+    forall wroot lroot rer inp,
+      RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wroot nil ->
+      (* For any Warblre regex that passes the early errors check, *)
+      StaticSemantics.earlyErrors wroot nil = Success false ->
+      (* letting lroot be the corresponding Linden regex, *)
+      lroot = warblre_to_linden' wroot 0 (buildnm wroot) ->
+      (* Warblre's execution result on any input is equivalent to Linden's execution result on that input. *)
+      (compilePattern wroot rer) (input_str inp) (idx inp) = to_MatchState (linden_result rer lroot inp) (RegExpRecord.capturingGroupsCount rer).
+  Proof.
+    intros wroot lroot rer str0 CAPTURES EE Heqlroot.
+    pose proof earlyErrors_pass_translation_nomonad wroot EE as EQUIV. rewrite <- Heqlroot in EQUIV.
+    pose proof EarlyErrors.earlyErrors wroot EE as EE_ind.
+    pose proof equiv_main wroot lroot rer str0 EQUIV CAPTURES EE_ind as H.
+    destruct H as [m [res [COMP_SUCC [EXEC_SUCC LW_EQUIV]]]].
+    unfold compilePattern. rewrite COMP_SUCC, EXEC_SUCC.
+    unfold linden_result. specialize (LW_EQUIV _ eq_refl). destruct LW_EQUIV as [_ LW_EQUIV].
+    symmetry. apply to_MatchState_equal; auto. eauto using compilePattern_preserves_groupcount.
+  Qed.
+
+  (* The same, but with an input that is at the beginning of the input string. *)
+  Corollary equiv_main_reconstruct_str0:
+    forall wroot lroot rer str0,
+      RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wroot nil ->
+      (* For any Warblre regex that passes the early errors check, *)
+      StaticSemantics.earlyErrors wroot nil = Success false ->
+      (* letting lroot be the corresponding Linden regex, *)
+      lroot = warblre_to_linden' wroot 0 (buildnm wroot) ->
+      (* Warblre's execution result on string str0 is equivalent to Linden's execution result on string str0. *)
+      (compilePattern wroot rer) str0 0 = to_MatchState (linden_result rer lroot (init_input str0)) (RegExpRecord.capturingGroupsCount rer).
+  Proof.
+    intros wroot lroot rer str0 CAPTURES EE Heqlroot.
+    apply equiv_main_reconstruct with (inp := init_input str0); auto.
   Qed.
 
 End EquivMain.
