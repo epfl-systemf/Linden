@@ -16,7 +16,6 @@ For a description of the files inside the folders, see the README.md files in th
 Using OPAM:
 
 ```
-opam pin add -y coq 8.18.0
-opam pin add -y warblre.0.1.0 https://github.com/epfl-systemf/Warblre.git#coq-versions
+opam pin add --no-action -y warblre.0.1.0 https://github.com/epfl-systemf/Warblre.git#coq-versions
 opam install -y .
 ```
