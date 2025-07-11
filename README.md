@@ -13,6 +13,11 @@ For a description of the files inside the folders, see the README.md files in th
 
 # Install
 
-Requires Opam.
+Using OPAM:
 
-Run `install.sh` from the repo directory, then `eval $(opam env)`.
+```
+opam pin add -y coq.8.18.0
+opam pin add -y warblre.0.1.0 https://github.com/epfl-systemf/Warblre.git#coq-versions
+opam install -y .
+eval $(opam env)
+```
