@@ -2,7 +2,6 @@
 (* r{n} is equivalent to r{n}? *)
 
 From Linden.Rewriting Require Import ProofSetup.
-From Linden Require Import ExampleRegexes.
 From Linden Require Import Equivalence.
 
 

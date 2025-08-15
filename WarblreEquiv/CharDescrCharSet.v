@@ -130,7 +130,6 @@ Section CharDescrCharSet.
   Qed.
 
   (* Lemma for CharacterClassEscapes *)
-  (* TODO From here *)
   Lemma equiv_cd_CharacterClassEscape:
     forall esc cd,
       equiv_CharacterClassEscape esc cd ->
