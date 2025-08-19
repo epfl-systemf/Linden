@@ -6,11 +6,11 @@
 
 (using coq 0.8)
 
-(homepage "https://gitlab.epfl.ch/systemf/regex/linden")
+(homepage "https://github.com/epfl-systemf/Linden")
 
 (package
  (name linden)
- (synopsis "An inductive semantics for JavaScript regexes")
+ (synopsis "Formal Verification for JavaScript Regular Expressions")
  (depends
   (coq (= 8.18.0))
   (warblre (= 0.1.0))))
