@@ -109,3 +109,29 @@ Proof.
   - rewrite bonus_add. rewrite list_size_app.
     destruct t; inversion STEP; simpl; lia.
 Qed.
+
+Lemma piketree_finishes:
+  forall n pts,
+    pt_measure pts <= n ->
+    exists res, trc_pike_tree pts (PTSS_final res).
+Proof.
+  intros n. induction n; intros.
+  - apply PeanoNat.Nat.le_0_r in H. apply pt_measure_0 in H as [r H].
+    exists r. subst. repeat econstructor.
+  - specialize (piketree_productivity pts) as [[r FINAL]|[next STEP]].
+    { subst. exists r. repeat econstructor. }
+    apply piketree_decreases in STEP as DECR. assert (DEC: pt_measure next <= n) by lia.
+    apply IHn in DEC as [r TRC]. exists r. eapply trc_cons; eauto.
+Qed.
+
+Theorem piketree_termination:
+  forall pts, 
+  exists res, trc_pike_tree pts (PTSS_final res).
+Proof.
+  intros pts. eapply piketree_finishes. eauto.
+Qed.
+
+
+
+
+
