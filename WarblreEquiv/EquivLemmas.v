@@ -721,7 +721,59 @@ Section EquivLemmas.
   Qed.
 
 
+  (** ** About EqDec.neqb *)
+  Lemma neqb_neq {A} `{EqDec A}: forall (x y: A),
+      (x !=? y)%wt = true <-> x <> y.
+  Proof.
+    intros x y. split.
+    - intro H. unfold EqDec.neqb in H.
+      apply (f_equal negb) in H. rewrite Bool.negb_involutive in H. simpl in H. apply EqDec.inversion_false. auto.
+    - intro H. apply EqDec.inversion_false in H. unfold EqDec.neqb. rewrite H. reflexivity.
+  Qed.
+
+  Lemma neqb_eq {A} `{EqDec A}:
+    forall x y: A, (x !=? y)%wt = false <-> x = y.
+  Proof.
+    intros x y. split.
+    - intro H. apply (f_equal negb) in H. unfold EqDec.neqb in H. rewrite Bool.negb_involutive in H. simpl in H.
+      apply EqDec.inversion_true. auto.
+    - intro H. unfold EqDec.neqb. subst y. rewrite EqDec.reflb. reflexivity.
+  Qed.
+
   (** ** For lookarounds *)
+  (* Linking the lookaround success conditions of Warblre and Linden *)
+  (*Lemma wl_lk_success:
+    forall tlk gm inp lkdir rlk pos,
+      equiv_res (Tree.tree_res tlk gm inp lkdir) rlk ->
+      (pos && (rlk ==? None)%wt || negb pos && (rlk !=? None)%wt)%bool =
+      negb (lk_succeeds (to_lookaround lkdir pos) tlk).
+  Proof.
+    intros tlk gm inp lkdir rlk pos EQUIV.
+    unfold lk_succeeds, first_branch. rewrite positivity_to_lookaround.
+    assert (NOT_NONE: (tree_res tlk GroupMap.empty (init_input []) forward is not None) = (rlk !=? None)%wt).
+    {
+      inversion EQUIV; subst.
+      - unfold EqDec.neqb. rewrite EqDec.reflb. simpl. symmetry in H0.
+        erewrite res_group_map_indep by eauto. reflexivity.
+      - symmetry in H. replace (Some ms !=? None)%wt with true.
+        2: { symmetry. destruct EqDec.neqb eqn:NEQB; try reflexivity. rewrite neqb_eq in NEQB. discriminate. }
+        symmetry. destruct (tree_res tlk _ _ forward) eqn:FIRST_BRANCH; try reflexivity.
+        erewrite res_group_map_indep in H by eauto. discriminate.
+    }
+    rewrite NOT_NONE.
+    replace (tree_res tlk _ _ forward is not (Some _)) with (rlk ==? None)%wt.
+    2: {
+      destruct (tree_res tlk _ _ forward); destruct rlk.
+      - apply EqDec.inversion_false. discriminate.
+      - unfold EqDec.neqb in NOT_NONE. rewrite EqDec.reflb in NOT_NONE. discriminate.
+      - symmetry in NOT_NONE. rewrite neqb_eq in NOT_NONE. discriminate.
+      - apply EqDec.reflb.
+    }
+    destruct pos; simpl.
+    - rewrite Bool.orb_false_r. unfold EqDec.neqb. rewrite Bool.negb_involutive. reflexivity.
+    - reflexivity.
+  Qed.*)
+
   (* The following lemmas prove that interpreting a (lookaround) tree corresponding to some regex only affects the groups defined in that regex. *)
 
   (* Definition of groups defined by a list of actions *)
@@ -1177,6 +1229,7 @@ Section EquivLemmas.
   Qed.
 
 
+
   (** ** Lemmas for validity wrt checks *)
 
   (* We always have validity wrt no checks at all *)
@@ -1555,6 +1608,15 @@ Section EquivLemmas.
     - exfalso. unfold List.Disjoint, not in Hdef_forbid_disj. simpl in Hdef_forbid_disj. eauto.
     - rewrite (reg_tree_no_outside_groups _ _ _ _ _ _ Heqtlk _ _ _ _ _ Heqgmafterlk) by assumption.
       unfold no_forbidden_groups in Hnoforb. apply Hnoforb. apply in_or_app. now right.
+  Qed.
+
+  Lemma noforb_tail:
+    forall gm forbgroups_add forbgroups,
+      no_forbidden_groups gm (forbgroups_add ++ forbgroups) ->
+      no_forbidden_groups gm forbgroups.
+  Proof.
+    intros gm forbgroups_add forbgroups H gid IN.
+    apply H, in_or_app. right. auto.
   Qed.
 
 
@@ -1944,24 +2006,6 @@ Section EquivLemmas.
   Proof.
     intros; rewrite EqDec.inversion_false.
     apply list_diff_iff.
-  Qed.
-
-  Lemma neqb_neq {A} `{EqDec A}: forall (x y: A),
-      (x !=? y)%wt = true <-> x <> y.
-  Proof.
-    intros x y. split.
-    - intro H. unfold EqDec.neqb in H.
-      apply (f_equal negb) in H. rewrite Bool.negb_involutive in H. simpl in H. apply EqDec.inversion_false. auto.
-    - intro H. apply EqDec.inversion_false in H. unfold EqDec.neqb. rewrite H. reflexivity.
-  Qed.
-
-  Lemma neqb_eq {A} `{EqDec A}:
-    forall x y: A, (x !=? y)%wt = false <-> x = y.
-  Proof.
-    intros x y. split.
-    - intro H. apply (f_equal negb) in H. unfold EqDec.neqb in H. rewrite Bool.negb_involutive in H. simpl in H.
-      apply EqDec.inversion_true. auto.
-    - intro H. unfold EqDec.neqb. subst y. rewrite EqDec.reflb. reflexivity.
   Qed.
 
   Lemma substr_len:

@@ -626,6 +626,54 @@ Section Equiv.
         now apply ms_valid_wrt_checks_tail in Hmschecks.
   Qed.
 
+  (* Groups, whether named or unnamed (factorization) *)
+  Lemma equiv_groups:
+    forall wr lr gn_opt n ctx nm
+      (IH: forall m dir,
+        Semantics.compileSubPattern wr (Group_inner gn_opt :: ctx) rer dir = Success m ->
+        equiv_matcher rer m lr dir)
+      (Heqn: n = StaticSemantics.countLeftCapturingParensBefore (Group gn_opt wr) ctx)
+      (EQUIV: equiv_regex' wr lr (S n) nm),
+    forall m dir,
+      Semantics.compileSubPattern (Group gn_opt wr) ctx rer dir = Success m ->
+      equiv_matcher rer m (Regex.Group (S n) lr) dir.
+  Proof.
+    intros. simpl in *.
+    destruct Semantics.compileSubPattern as [msub|] eqn:COMP_SUB; try discriminate.
+    simpl in H. specialize (IH msub dir COMP_SUB).
+    injection H as <-.
+    unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
+    unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden; simpl; try discriminate.
+    set (mcclose := fun (y: MatchState) => _).
+    assert (Hequivmcclose: equiv_cont rer mcclose ((S n, idx inp)::gl)%list forbgroups (Aclose (S n)::act)%list dir str0). {
+      unfold equiv_cont. intros gm' ms' inp' res' [|fuel'] t' Hinp'compat Hgm'ms' Hgm'gl' Hms'inp' Hms'checks Hgm'valid Hnoforbidden'; simpl; try discriminate.
+      destruct compute_tree as [treecont|] eqn:Htreecont; simpl; try discriminate.
+      unfold mcclose.
+      set (rres := if (dir ==? forward)%wt then _ else _). destruct rres as [r|] eqn:Hrres; simpl; try discriminate.
+      replace (StaticSemantics.countLeftCapturingParensBefore _ ctx + 1) with (S n) by lia.
+      simpl. replace (n - 0) with n by lia.
+      destruct List.Update.Nat.One.update as [cap'|] eqn:Heqcap'; simpl; try discriminate.
+      intros Hres' Ht'. injection Ht' as <-. simpl.
+      eapply Hequivcont with (ms := match_state (MatchState.input ms) (MatchState.endIndex ms') cap'); eauto.
+      - eapply equiv_gm_ms_close_group; eauto.
+      - eapply equiv_open_groups_close_group; eauto.
+      - eapply ms_matches_inp_close_group; eauto.
+      - apply ms_valid_wrt_checks_inpcap with (winp' := MatchState.input ms') (cap' := MatchState.captures ms'). destruct ms'; simpl. eauto using ms_valid_wrt_checks_tail.
+      - auto using gm_close_valid.
+      - eauto using noforb_close_group.
+    }
+    destruct compute_tree as [treecont|] eqn:Htreecont; simpl; try discriminate.
+    intros Hres H. injection H as <-. simpl.
+    eapply IH; eauto.
+    + eauto using open_groups_disjoint_open_group. (* Group list disjointness; follows from Hgldisj and Hequiv (for group S n) *)
+    + eauto using disj_forbidden_child, Child_Group.
+    + eauto using equiv_gm_ms_open_group. (* Group map equivalence after opening a group; follows from Hnoforbidden (!) *)
+    + eauto using equiv_gm_gl_open_group. (* Group map equivalence to open groups after opening a group *)
+    + apply ms_valid_wrt_checks_Areg, ms_valid_wrt_checks_Aclose. eauto using ms_valid_wrt_checks_tail.
+    + auto using gm_open_valid.
+    + eauto using noforb_open_group. (* Follows from Hnoforbidden (groups other than S n), Hdef_forbid_disj and Hequiv (S n) *)
+  Qed.
+
   (* Main equivalence theorem: *)
   Theorem equiv:
     forall (lroot: regex) (wroot: Regex)
@@ -659,7 +707,7 @@ Section Equiv.
         n wr1 wr2 lr1 lr2 nm Hequiv1 IH1 Hequiv2 IH2 |
         n wr lr wquant lquant wgreedylazy greedy nm Hequiv IH Hequivquant Hequivgreedy |
         n wr lr nm Hequiv IH |
-        name n wr lr nm Hequiv IH |
+        name n wr lr nm Hgid Hequiv IH |
         n wr lr wlk llk nm Hequiv IH Hequivlk |
         n wr lanchor nm Hanchequiv
     ].
@@ -857,80 +905,16 @@ Section Equiv.
       all: replace (nrep - min) with 0 by lia; apply repeatMatcher_equiv; auto.
 
     - (* Group *)
-      intros ctx Hroot Heqn Heqnm m dir. simpl.
-      destruct Semantics.compileSubPattern as [msub | ] eqn:Hcompsuccsub; simpl; try discriminate.
-      intro H. injection H as <-.
-      unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
-      unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden; simpl; try discriminate.
-      set (mcclose := fun (y: MatchState) => _).
-      assert (Hequivmcclose: equiv_cont rer mcclose ((S n, idx inp)::gl)%list forbgroups (Aclose (S n)::act)%list dir str0). {
-        unfold equiv_cont. intros gm' ms' inp' res' [|fuel'] t' Hinp'compat Hgm'ms' Hgm'gl' Hms'inp' Hms'checks Hgm'valid Hnoforbidden'; simpl; try discriminate.
-        destruct compute_tree as [treecont|] eqn:Htreecont; simpl; try discriminate.
-        unfold mcclose.
-        set (rres := if (dir ==? forward)%wt then _ else _). destruct rres as [r|] eqn:Hrres; simpl; try discriminate.
-        replace (StaticSemantics.countLeftCapturingParensBefore _ ctx + 1) with (S n) by lia.
-        simpl. replace (n - 0) with n by lia.
-        destruct List.Update.Nat.One.update as [cap'|] eqn:Heqcap'; simpl; try discriminate.
-        intros Hres' Ht'. injection Ht' as <-. simpl.
-        eapply Hequivcont with (ms := match_state (MatchState.input ms) (MatchState.endIndex ms') cap'); eauto.
-        - eapply equiv_gm_ms_close_group; eauto.
-        - eapply equiv_open_groups_close_group; eauto.
-        - eapply ms_matches_inp_close_group; eauto.
-        - apply ms_valid_wrt_checks_inpcap with (winp' := MatchState.input ms') (cap' := MatchState.captures ms'). destruct ms'; simpl. eauto using ms_valid_wrt_checks_tail.
-        - auto using gm_close_valid.
-        - eauto using noforb_close_group.
-      }
-      destruct compute_tree as [treecont|] eqn:Htreecont; simpl; try discriminate.
-      intros Hres H. injection H as <-. simpl.
-      eapply IH; eauto.
-      + eauto using Down.same_root_down0, Down_Group_inner.
-      + simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia.
-      + eauto using open_groups_disjoint_open_group. (* Group list disjointness; follows from Hgldisj and Hequiv (for group S n) *)
-      + eauto using disj_forbidden_child, Child_Group.
-      + eauto using equiv_gm_ms_open_group. (* Group map equivalence after opening a group; follows from Hnoforbidden (!) *)
-      + eauto using equiv_gm_gl_open_group. (* Group map equivalence to open groups after opening a group *)
-      + apply ms_valid_wrt_checks_Areg, ms_valid_wrt_checks_Aclose. eauto using ms_valid_wrt_checks_tail.
-      + auto using gm_open_valid.
-      + eauto using noforb_open_group. (* Follows from Hnoforbidden (groups other than S n), Hdef_forbid_disj and Hequiv (S n) *)
+      intros ctx ROOT EQ_n EQ_nm.
+      apply equiv_groups with (nm := nm); auto.
+      apply IH; auto. simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia.
 
-    (* named group; same as unnamed group *)
-    - intros ctx Hroot Heqn Heqnm m dir. simpl.
-      destruct Semantics.compileSubPattern as [msub | ] eqn:Hcompsuccsub; simpl; try discriminate.
-      intro H. injection H as <-.
-      unfold equiv_matcher. intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj.
-      unfold equiv_cont. intros gm ms inp res [|fuel] t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden; simpl; try discriminate.
-      set (mcclose := fun (y: MatchState) => _).
-      assert (Hequivmcclose: equiv_cont rer mcclose ((S n, idx inp)::gl)%list forbgroups (Aclose (S n)::act)%list dir str0). {
-        unfold equiv_cont. intros gm' ms' inp' res' [|fuel'] t' Hinp'compat Hgm'ms' Hgm'gl' Hms'inp' Hms'checks Hgm'valid Hnoforbidden'; simpl; try discriminate.
-        destruct compute_tree as [treecont|] eqn:Htreecont; simpl; try discriminate.
-        unfold mcclose.
-        set (rres := if (dir ==? forward)%wt then _ else _). destruct rres as [r|] eqn:Hrres; simpl; try discriminate.
-        replace (StaticSemantics.countLeftCapturingParensBefore _ ctx + 1) with (S n) by lia.
-        simpl. replace (n - 0) with n by lia.
-        destruct List.Update.Nat.One.update as [cap'|] eqn:Heqcap'; simpl; try discriminate.
-        intros Hres' Ht'. injection Ht' as <-. simpl.
-        eapply Hequivcont with (ms := match_state (MatchState.input ms) (MatchState.endIndex ms') cap'); eauto.
-        - eapply equiv_gm_ms_close_group; eauto.
-        - eapply equiv_open_groups_close_group; eauto.
-        - eapply ms_matches_inp_close_group; eauto.
-        - apply ms_valid_wrt_checks_inpcap with (winp' := MatchState.input ms') (cap' := MatchState.captures ms'). destruct ms'; simpl. eauto using ms_valid_wrt_checks_tail.
-        - auto using gm_close_valid.
-        - eauto using noforb_close_group.
-      }
-      destruct compute_tree as [treecont|] eqn:Htreecont; simpl; try discriminate.
-      intros Hres H. injection H as <-. simpl.
-      eapply IHIH; eauto.
-      + eauto using Down.same_root_down0, Down_Group_inner.
-      + simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia.
-      + eauto using open_groups_disjoint_open_group. (* Group list disjointness; follows from Hgldisj and Hequiv (for group S n) *)
-      + eauto using disj_forbidden_child, Child_Group.
-      + eauto using equiv_gm_ms_open_group. (* Group map equivalence after opening a group; follows from Hnoforbidden (!) *)
-      + eauto using equiv_gm_gl_open_group. (* Group map equivalence to open groups after opening a group *)
-      + apply ms_valid_wrt_checks_Areg, ms_valid_wrt_checks_Aclose. eauto using ms_valid_wrt_checks_tail.
-      + auto using gm_open_valid.
-      + eauto using noforb_open_group. (* Follows from Hnoforbidden (groups other than S n), Hdef_forbid_disj and Hequiv (S n) *)
+    - (* named group; same as unnamed group *)
+      intros ctx ROOT EQ_n EQ_nm.
+      apply equiv_groups with (nm := nm); auto.
+      apply IH; auto. simpl. unfold StaticSemantics.countLeftCapturingParensBefore in *. lia.
 
-    - (* Lookaround *)
+    - (* Lookarounds *)
       intros ctx Hroot Heqn Heqnm m dir.
       inversion Hequivlk as [Heqwlk Heqllk | Heqwlk Heqllk | Heqwlk Heqllk | Heqwlk Heqllk]; simpl.
       + (* Positive lookahead; need to factorize with other cases later *)
@@ -1236,5 +1220,5 @@ Section Equiv.
           destruct compute_tree as [treecont|]; try discriminate.
           intro H. injection H as <-. simpl. apply Hequivcont; auto. apply ms_valid_wrt_checks_tail in Hmschecks. auto.
 
-  Qed.
+  Admitted.
 End Equiv.

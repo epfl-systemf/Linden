@@ -1,5 +1,5 @@
 From Warblre Require Import Patterns Semantics RegExpRecord Notation Result Base Node Errors.
-From Linden Require Import LWParameters Parameters Regex.
+From Linden Require Import LWParameters Parameters Regex RegexpTranslation.
 Import Notation.
 Import Result.Notations.
 Import Patterns.
@@ -85,4 +85,52 @@ Section LKFactorization.
     - destruct msub; simpl; auto. rewrite Bool.orb_false_r. reflexivity.
     - destruct msub; simpl; auto. rewrite Bool.orb_false_r. reflexivity.
   Qed.
+
+
+  (** ** Some utility lemmas*)
+
+  Lemma equiv_lookaround_dir_pos:
+    forall wlk llk,
+      equiv_lookaround wlk llk ->
+      exists dir pos,
+        wlk = to_warblre_lookaround dir pos /\
+        llk = to_lookaround dir pos.
+  Proof.
+    intros wlk llk EQUIV. inversion EQUIV.
+    - exists forward. exists true. split; reflexivity.
+    - exists forward. exists false. split; reflexivity.
+    - exists backward. exists true. split; reflexivity.
+    - exists backward. exists false. split; reflexivity.
+  Qed.
+
+  Lemma lk_root_fact:
+    forall wroot lkdir pos wr ctx,
+      Root wroot (to_warblre_lookaround lkdir pos wr, ctx) ->
+      Root wroot (wr, (lkCtx lkdir pos :: ctx)%list).
+  Proof.
+    intros wroot [] [] wr ctx ROOT; simpl;
+    eauto using
+      NodeProps.Zipper.Down.same_root_down0,
+      NodeProps.Zipper.Down_Lookahead_inner,
+      NodeProps.Zipper.Down_NegativeLookahead_inner,
+      NodeProps.Zipper.Down_Lookbehind_inner,
+      NodeProps.Zipper.Down_NegativeLookbehind_inner.
+  Qed.
+
+  Lemma lk_fact_countParens:
+    forall wr lkdir pos ctx,
+      StaticSemantics.countLeftCapturingParensBefore wr (lkCtx lkdir pos :: ctx) =
+      StaticSemantics.countLeftCapturingParensBefore_impl ctx.
+  Proof.
+    intros wr [] [] ctx; simpl; rewrite PeanoNat.Nat.add_0_r; reflexivity.
+  Qed.
+
+  (* Lemma lk_fact_llk:
+    forall lkdir pos llk,
+      equiv_lookaround (to_warblre_lookaround lkdir pos) llk ->
+      llk = to_lookaround lkdir pos.
+  Proof.
+    intros [] [] llk EQUIV; simpl in *; inversion EQUIV; try reflexivity; subst llk.
+    all: apply (f_equal (fun llk => llk Empty)) in H0; discriminate.
+  Qed. *)
 End LKFactorization.
