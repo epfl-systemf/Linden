@@ -5,9 +5,9 @@ Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics BooleanSemantics.
-From Linden Require Import NFA PikeTree PikeVM.
+From Linden Require Import NFA PikeTree PikeVM PikeSubset.
 From Linden Require Import PikeTreeSeen PikeVMSeen.
-From Linden Require Import Correctness.
+From Linden Require Import Correctness PikeSeenEquiv.
 
 (** * Productivity of the PikeTree Algorithm  *)
 (* we prove that the PikeTree algorithm never gets stuck *)
@@ -110,7 +110,7 @@ Proof.
     destruct t; inversion STEP; simpl; lia.
 Qed.
 
-Lemma piketree_finishes:
+Lemma piketree_can_finish:
   forall n pts,
     pt_measure pts <= n ->
     exists res, trc_pike_tree pts (PTSS_final res).
@@ -124,14 +124,94 @@ Proof.
     apply IHn in DEC as [r TRC]. exists r. eapply trc_cons; eauto.
 Qed.
 
-Theorem piketree_termination:
+(* Note that this does not mean that all executions of PikeTree terminate (it is non-deterministic) *)
+(* but that a terminating execution can be started from any state *)
+Theorem piketree_weak_termination:
   forall pts, 
   exists res, trc_pike_tree pts (PTSS_final res).
 Proof.
-  intros pts. eapply piketree_finishes. eauto.
+  intros pts. eapply piketree_can_finish. eauto.
 Qed.
 
 
+(** * Termination of the PikeVM Algorithm  *)
 
+(* This is proved using the fact that the PikeTree measure decreases, and that there is a strictly decreasing measure in the invariant preservation theorem between PikeTree and PikeVM *)
+(* We use a lexicographic order between these two measures *)
 
+(* the first nat is the piketree measure, the second one is from the piketree-pikevm invariant *)
+Definition measure : Type := (nat * nat).
 
+(* lexicographic order *)
+Inductive lt : measure -> measure -> Prop :=
+| lt_left: forall n1 n2 m1 m2, n1 < n2 -> lt (n1, m1) (n2, m2)
+| lt_right: forall n m1 m2, m1 < m2 -> lt (n, m1) (n, m2).
+
+Require Import Init.Wf.
+
+(* it is well-founded because < is well-founded *)
+Lemma wf_lex:
+  well_founded lt.
+Proof.
+  assert (forall x, Acc Peano.lt x -> forall y, Acc Peano.lt y -> Acc lt (x,y)).
+  { intros x LEFT. induction LEFT. intros y RIGHT. induction RIGHT.
+    constructor; intros. inversion H3; subst; auto.
+    apply H0; auto. apply PeanoNat.Nat.lt_wf_0. }
+  unfold well_founded. intros [n m]. apply H; auto;
+    apply PeanoNat.Nat.lt_wf_0.
+Qed.
+
+(* Decreasing lexicographic order on the PikeVM execution *)
+Theorem pikevm_decreases:
+  forall code rer pts1 pvs1 pvs2 m1,
+    stutter_wf rer code -> 
+    pike_inv rer code pts1 pvs1 m1 ->
+    pike_vm_seen_step rer code pvs1 pvs2 ->
+    exists pts2, exists m2,
+      (pike_inv rer code pts2 pvs2 m2 /\
+         lt (pt_measure pts2,m2) (pt_measure pts1,m1)).
+Proof.
+  intros code rer pts1 pvs1 pvs2 m1 H H0 H1.
+  eapply invariant_preservation in H1; eauto.
+  destruct H1 as [[pts2 [m2 [STEP INV]]]|[m2 [INV LESS]]].
+  - exists pts2. exists m2. split; auto.
+    apply piketree_decreases in STEP. apply lt_left; auto.
+  - exists pts1. exists m2. split; auto. apply lt_right; auto.
+Qed.
+
+(* a well-founded induction on the lexicographic measure *)
+Theorem pikevm_finishes:
+  forall code rer pts pvs m,
+    stutter_wf rer code ->
+    pike_inv rer code pts pvs m ->
+    exists res, trc_pike_vm rer code pvs (PVSS_final res).
+Proof.
+  intros code rer pts pvs m ST INV.
+  remember (pt_measure pts,m) as meas. change measure in meas.
+  generalize dependent pts. generalize dependent pvs. generalize dependent m.
+  induction meas using (well_founded_induction wf_lex); intros.
+  destruct pvs.
+  (* already at a final state *)
+  2: { exists best. econstructor. }
+  (* not at a final state: a step is possible *)
+  specialize (pikevm_progress rer code inp active best blocked seen) as [pvs2 STEP].
+  (* the new pikevm state maintains the invariant, while decreasing the measure *)
+  specialize (pikevm_decreases _ _ _ _ _ _ ST INV STEP) as [pts2 [m2 [INV2 LT]]].
+  rewrite <- Heqmeas in LT. apply H with (pts:=pts2) (pvs:=pvs2) (m:=m2) in LT as [res TRC]; auto.
+  exists res. apply trc_cons with (y:=pvs2); auto.
+Qed.
+
+(* for any pike regex and input, the PikeVM, starting from its initial state, reaches a final state *)
+Theorem pike_vm_terminates:
+  forall rer r inp,
+    pike_regex r ->
+    exists result, trc_pike_vm rer (compilation r) (pike_vm_seen_initial_state inp) (PVSS_final result).
+Proof.
+  intros rer r inp H. eapply pikevm_finishes.
+  - eapply compilation_stutter_wf; eauto.
+  - eapply initial_pike_inv; eauto.
+    eapply encode_equal with (gm:=GroupMap.empty); eauto.
+    + pike_subset.
+    + repeat constructor.
+    + eapply FunctionalUtils.compute_tr_is_tree.
+Qed.
