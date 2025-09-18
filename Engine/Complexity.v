@@ -112,6 +112,57 @@ Proof.
   specialize (inpsize_strict inp) as SIZE. lia.
 Qed.
 
+(** * Well-formedness of the code  *)
+
+(* Some bytecode is well-formed if every target label belongs in some range *)
+Definition code_wf (c:code) (size:nat) :=
+  forall pc i next,
+    get_pc c pc = Some i ->
+    In next (next_pcs pc i) ->
+    next < size.
+
+Theorem compiled_wf:
+  forall r, code_wf (compilation r) (size (compilation r)).
+Proof.
+Admitted.
+
+Lemma eps_step_blocked_wf:
+  forall t code inp newt,
+    epsilon_step rer t code inp = EpsBlocked newt ->
+    exists i, get_pc code (fst (fst t)) = Some i /\
+           In (fst (fst newt)) (next_pcs (fst (fst t)) i).
+Proof.
+  unfold epsilon_step. intros [[pc gm]b] code inp newt H.
+  destruct (get_pc code pc) eqn:GET; [|inversion H].
+  destruct b0; inversion H; subst.
+  - destruct (check_read rer c inp forward); inversion H1; subst.
+    simpl; eexists; split; eauto; simpl; auto; lia.
+  - destruct b; inversion H1.
+Qed.
+
+Lemma eps_step_active_wf:
+  forall t code inp next newt,
+    epsilon_step rer t code inp = EpsActive next ->
+    In newt next ->
+    exists i, get_pc code (fst (fst t)) = Some i /\
+           In (fst (fst newt)) (next_pcs (fst (fst t)) i).
+Proof.
+  unfold epsilon_step. intros [[pc gm] b] code inp next newt H IN.
+  destruct (get_pc code pc) eqn:GET.
+  2: { inversion H. subst. inversion IN. }
+  destruct b0; inversion H; subst;
+    try solve[inversion IN; subst; try solve [inversion H0];
+              simpl; eexists; split; eauto; simpl; auto; lia].
+  - destruct (check_read rer c inp forward); inversion H1; subst;
+      inversion IN; subst; try solve [inversion H0];
+      simpl; eexists; split; eauto; simpl; auto; lia.
+  - inversion IN; [|inversion H0]; subst; try solve [inversion H1];
+      simpl; eexists; split; eauto; simpl; auto.
+  - destruct b; subst; inversion H1; subst;
+      inversion IN; subst; try solve [inversion H0];
+      simpl; eexists; split; eauto; simpl; auto; lia.
+Qed.
+
 
 (** * PikeVM measure decreases *)
 
@@ -151,11 +202,12 @@ Qed.
 (* the well-formedness of the seen set is preserved *)
 Theorem pikevm_decreases:
   forall code pvs1 pvs2 m1,
+    code_wf code (size code) ->
     pike_vm_seen_step rer code pvs1 pvs2 ->
     vm_inv code pvs1 m1 ->
     exists m2, vm_inv code pvs2 m2 /\ m2 < m1.
 Proof.
-  intros code pvs1 pvs2 m1 STEP INV. inversion STEP; subst; simpl measure; inversion INV; subst.
+  intros code pvs1 pvs2 m1 CODEWF STEP INV. inversion STEP; subst; simpl measure; inversion INV; subst.
   (* when reaching a final state, we end up with a measure of 0, while the previous measure was strictly positive *)
   - exists 0. split.
     + constructor.
@@ -176,8 +228,9 @@ Proof.
   - assert (RANGE: fst (fst t) < size code).
     { apply ACTIVEWF. left. auto. }
     exists (measure (size code) (S count) (nextactive++active) blocked inp). split; [constructor|]; auto.
-    + intros t0 H. admit.       (* I still need to prove all the targets are in range... *)
-    (* we are mising a property of the code itself and epsilon_step *)
+    + intros t0 H. apply in_app_or in H as [H|H].
+      * eapply eps_step_active_wf in STEP0 as [i [GET IN]]; eauto.
+      * apply ACTIVEWF. right. auto.
     + destruct t as [[pc gm] b]. unfold add_thread. apply wf_new; auto.
     + specialize (free_add seen (size code) count t SEENWF UNSEEN) as FREE.
       apply wf_size in FREE; auto. apply eps_step_active in STEP0.
@@ -195,8 +248,11 @@ Proof.
      { apply ACTIVEWF. left. auto. }
      exists (measure (size code) (S count) active (blocked++[newt]) inp). split; [constructor|]; auto.
      + intros t0 H. apply ACTIVEWF. simpl. right. auto.
-     + intros t0 H. admit.      (* same thing *)
+     + intros t0 H. apply in_app_or in H as [H|H].
+       * eapply BLOCKEDWF; eauto.
+       * inversion H; [|inversion H0]. subst.
+         eapply eps_step_blocked_wf in STEP0 as [i [GET IN]]; eauto.
      + destruct t as [[pc gm] b]. unfold add_thread. apply wf_new; auto.
      + specialize (free_add seen (size code) count t SEENWF UNSEEN RANGE) as FREE.
        apply wf_size in FREE. unfold measure, free. rewrite app_length. simpl. lia.
-Admitted.
+Qed.
