@@ -21,48 +21,117 @@ Context (rer: RegExpRecord).
 
 (* well-formedness of a seen set: it was obtained by applying add to the initial seen set *)
 (* each element that was added is smaller than some `size` constant (size of the bytecode) *)
-(* and `count` is the number of distinct elements  *)
-Inductive wf: seenpcs -> nat -> nat -> Prop :=
+(* and `dist` is the no-duplicate list of distinct elements  *)
+Inductive wf: seenpcs -> nat -> list (nat * LoopBool) -> Prop :=
 | wf_init:
-  forall size, wf initial_seenpcs size 0
+  forall size, wf initial_seenpcs size []
 | wf_new:
-  forall seen size pc b count
+  forall seen size pc b dist
     (RANGE: pc < size)
     (NEW: inseenpc seen pc b = false)
-    (WF: wf seen size count),
-    wf (add_seenpcs seen pc b) size (S count)
+    (WF: wf seen size dist),
+    wf (add_seenpcs seen pc b) size ((pc,b)::dist)
 | wf_seen:
-  forall seen size pc b count
+  forall seen size pc b dist
     (RANGE: pc < size)
     (SEEN: inseenpc seen pc b = true)
-    (WF: wf seen size count),
-    wf (add_seenpcs seen pc b) size count.
+    (WF: wf seen size dist),
+    wf (add_seenpcs seen pc b) size dist.
 
+(* The idea of computing the distinct list is that we want the algorithm to be able to switch between any representation *)
+(* of the seen set, using the quite weak axiomatization VMSeen *)
+(* But we can prove as an invariant that any representation behaves like a ghost no-duplicate list of pairs *)
+(* From this list, it's easy to compute the number of elements, and prove that it's total possible number of element is bounded *)
+Lemma wf_in:
+  forall seen size dist,
+    wf seen size dist ->
+    forall pc b,
+      inseenpc seen pc b = true <-> In (pc, b) dist.
+Proof.
+  intros seen size dist H. induction H; intros. 
+  - rewrite initial_nothing_pc. split; intros; inversion H.
+  - rewrite inpc_add. split; intros; destruct H0; simpl; auto;
+      right; apply IHwf; auto.
+  - rewrite inpc_add. split; intros;
+      try destruct H0; try inversion H0; simpl; auto;
+      try right; apply IHwf; auto.
+Qed.
+
+Lemma wf_nodup:
+  forall seen size dist,
+    wf seen size dist -> NoDup dist.
+Proof.
+  intros seen size dist H. induction H; auto.
+  { constructor. }
+  apply wf_in with (pc:=pc) (b:=b) in H.
+  constructor; auto.
+  rewrite <- H. rewrite NEW. auto.
+Qed.
+
+(* every element is smaller than the size *)
+Lemma wf_small:
+  forall seen size dist pc b,
+    wf seen size dist ->
+    In (pc, b) dist ->
+    pc < size.
+Proof.
+  intros seen size dist pc b WF IN. induction WF; auto.
+  - inversion IN.
+  - destruct IN as [IN|IN]; try inversion IN; subst; auto.
+Qed.
+
+(* We will show the dist list is a subset of the following list of all possible elements in a certain range *)
+Fixpoint possible_elements (size:nat) :=
+  match size with
+  | 0 => []
+  | S n => (n,CanExit)::(n,CannotExit)::(possible_elements n)
+  end.
+
+Lemma possible_size:
+  forall size, length (possible_elements size) = 2 * size.
+Proof.
+  intros size. induction size; auto. simpl. lia.
+Qed.
+
+Lemma possible_all:
+  forall pc b size,
+    pc < size -> In (pc, b) (possible_elements size).
+Proof.
+  intros pc b size H. induction size; [lia|].
+  assert (pc = size \/ pc < size) by lia. destruct H0.
+  - subst. simpl. destruct b; auto.
+  - apply IHsize in H0. simpl. auto.
+Qed.      
 
 Theorem wf_size:
-  forall seen size count,
-    wf seen size count -> count <= 2 * size.
+  forall seen size dist,
+    wf seen size dist -> length dist <= 2 * size.
 Proof.
-Admitted.
+  intros seen size dist H. rewrite <- possible_size.
+  apply NoDup_incl_length.
+  { eapply wf_nodup; eauto. }
+  unfold incl. intros [pca ba] IN.
+  eapply wf_small in IN; eauto. apply possible_all. auto.
+Qed.
 
 (* the number of free slots in a seen set *)
 (* the total number of slots is 2 times the size of the code: each label can be added with 2 possible LoopBool values *)
 (* we remove the number of distinct entries in the seen set *)
-Definition free (codesize:nat) (count:nat) : nat :=
-  (2 * codesize) - count.
+Definition free (codesize:nat) (dist:list (nat*LoopBool)) : nat :=
+  (2 * codesize) - length dist.
 
 Lemma free_initial:
-  forall codesize, free codesize 0 = 2 * codesize.
+  forall codesize, free codesize [] = 2 * codesize.
 Proof.
-  intros codesize. unfold free. lia.
+  intros codesize. unfold free. simpl. lia.
 Qed.
 
 Lemma free_add:
-  forall seen size count t,
-    wf seen size count ->
+  forall seen size dist t,
+    wf seen size dist ->
     seen_thread seen t = false ->
     fst (fst t) < size ->
-    wf (add_thread seen t) size (S count).
+    wf (add_thread seen t) size ((fst (fst t),snd t)::dist).
 Proof.
   intros seen size count [[pc gm] b] WF SEEN SIZE. unfold seen_thread in SEEN.
   constructor; auto.
@@ -88,21 +157,21 @@ Definition size (c:code) : nat := length c.
 (* In some cases (a fork), a new thread is created but the number of free slots decreases: this is why free slots are multiplied by 2 *)
 (* As we change characters, the seen set might get 2*codesize new free slots (multiplied by 2 for the measure) *)
 (* But the input decreases, which makes the measure also decrease, because input size is multiplied by (1 + 4*codesize)  *)
-Definition measure (codesize:nat) (count:nat) (active blocked:list thread) (inp:input) :=
-  (2 * free codesize count) + length active + length blocked + (inpsize inp * (1 + 4 * codesize)).
+Definition measure (codesize:nat) (dist:list (nat*LoopBool)) (active blocked:list thread) (inp:input) :=
+  (2 * free codesize dist) + length active + length blocked + (inpsize inp * (1 + 4 * codesize)).
 
 (* The invariant that is preserved through pikeVM execution, with a measure that strictly decreases *)
 Inductive vm_inv (c:code): pike_vm_seen_state -> nat -> Prop :=
 | inv_final:
   forall b, vm_inv c (PVSS_final b) 0
 | inv_pvss:
-  forall inp active best blocked seen count
+  forall inp active best blocked seen dist
     (* the threads in active and blocked have their pc inside the code range *)
     (ACTIVEWF: forall t, In t active -> fst (fst t) < size c)
     (BLOCKEDWF: forall t, In t blocked -> fst (fst t) < size c)
     (* the seen set is well-formed, and has `count` distinct elements *)
-    (SEENWF: wf seen (size c) count),
-    vm_inv c (PVSS inp active best blocked seen) (measure (size c) count active blocked inp).
+    (SEENWF: wf seen (size c) dist),
+    vm_inv c (PVSS inp active best blocked seen) (measure (size c) dist active blocked inp).
 
 Lemma nonfinal_pos:
   forall c inp active best blocked seen m,
@@ -300,7 +369,8 @@ Theorem pikevm_decreases:
     vm_inv code pvs1 m1 ->
     exists m2, vm_inv code pvs2 m2 /\ m2 < m1.
 Proof.
-  intros code pvs1 pvs2 m1 CODEWF STEP INV. inversion STEP; subst; simpl measure; inversion INV; subst.
+  intros code pvs1 pvs2 m1 CODEWF STEP INV. inversion STEP; subst; simpl measure; inversion INV; subst;
+    try destruct t as [[pc gm] b].
   (* when reaching a final state, we end up with a measure of 0, while the previous measure was strictly positive *)
   - exists 0. split.
     + constructor.
@@ -309,43 +379,43 @@ Proof.
     + constructor.
     + apply nonfinal_pos in INV. auto.
   (* nextchar: we might add (2*codesize) free slots, but we lose an input length *)
-  - exists (measure (size code) 0 (thr::blocked) [] inp2). split; [constructor|]; auto.
+  - exists (measure (size code) [] (thr::blocked) [] inp2). split; [constructor|]; auto.
     + constructor.
     + unfold measure. simpl. rewrite free_initial. apply advance_input_decreases in ADVANCE.
       apply increase_mult with (x:= 4 * size code) in ADVANCE as NEXT. simpl in NEXT. lia.
   (* skip: we lose a thread *)
-  - exists (measure (size code) count active blocked inp). split; [constructor|]; auto.
+  - exists (measure (size code) dist active blocked inp). split; [constructor|]; auto.
     + intros t0 H. apply ACTIVEWF. simpl. right. auto.
     + unfold measure. simpl. lia.
   (* active: we may add a new thread, but lose a free slot *)
-  - assert (RANGE: fst (fst t) < size code).
-    { apply ACTIVEWF. left. auto. }
-    exists (measure (size code) (S count) (nextactive++active) blocked inp). split; [constructor|]; auto.
+  - assert (RANGE: pc < size code).
+    { specialize (ACTIVEWF (pc,gm,b) ltac:(simpl;left;auto)). simpl in ACTIVEWF. auto. }
+    exists (measure (size code) ((pc,b)::dist) (nextactive++active) blocked inp). split; [constructor|]; auto.
     + intros t0 H. apply in_app_or in H as [H|H].
       * eapply eps_step_active_wf in STEP0 as [i [GET IN]]; eauto.
       * apply ACTIVEWF. right. auto.
-    + destruct t as [[pc gm] b]. unfold add_thread. apply wf_new; auto.
-    + specialize (free_add seen (size code) count t SEENWF UNSEEN) as FREE.
+    + unfold add_thread. apply wf_new; auto.
+    + specialize (free_add seen (size code) dist (pc,gm,b) SEENWF UNSEEN) as FREE.
       apply wf_size in FREE; auto. apply eps_step_active in STEP0.
-      unfold measure, free. rewrite app_length. simpl. lia.
+      unfold measure, free. rewrite app_length. simpl. simpl in FREE. lia.
   (* match: we lose a thread and a free slot *)
-  - assert (RANGE: fst (fst t) < size code).
-    { apply ACTIVEWF. left. auto. }
-    exists (measure (size code) (S count) [] blocked inp). split; [constructor|]; auto.
+  - assert (RANGE: pc < size code).
+    { specialize (ACTIVEWF (pc,gm,b) ltac:(simpl;left;auto)). simpl in ACTIVEWF. auto. }
+    exists (measure (size code) ((pc,b)::dist) [] blocked inp). split; [constructor|]; auto.
     + intros t0 H. inversion H.
-    + destruct t as [[pc gm] b]. unfold add_thread. apply wf_new; auto.
-    + specialize (free_add seen (size code) count t SEENWF UNSEEN RANGE) as FREE.
+    + unfold add_thread. apply wf_new; auto.
+    + specialize (free_add seen (size code) dist (pc,gm,b) SEENWF UNSEEN RANGE) as FREE.
       apply wf_size in FREE. unfold measure, free. simpl. lia.
   (* blocked: we switch an active thread to blocked, but lose a free slot *)
-  -  assert (RANGE: fst (fst t) < size code).
-     { apply ACTIVEWF. left. auto. }
-     exists (measure (size code) (S count) active (blocked++[newt]) inp). split; [constructor|]; auto.
+  -  assert (RANGE: pc < size code).
+     { specialize (ACTIVEWF (pc,gm,b) ltac:(simpl;left;auto)). simpl in ACTIVEWF. auto. }
+     exists (measure (size code) ((pc,b)::dist) active (blocked++[newt]) inp). split; [constructor|]; auto.
      + intros t0 H. apply ACTIVEWF. simpl. right. auto.
      + intros t0 H. apply in_app_or in H as [H|H].
        * eapply BLOCKEDWF; eauto.
        * inversion H; [|inversion H0]. subst.
          eapply eps_step_blocked_wf in STEP0 as [i [GET IN]]; eauto.
-     + destruct t as [[pc gm] b]. unfold add_thread. apply wf_new; auto.
-     + specialize (free_add seen (size code) count t SEENWF UNSEEN RANGE) as FREE.
-       apply wf_size in FREE. unfold measure, free. rewrite app_length. simpl. lia.
+     + unfold add_thread. apply wf_new; auto.
+     + specialize (free_add seen (size code) dist (pc,gm,b) SEENWF UNSEEN RANGE) as FREE.
+       apply wf_size in FREE. unfold measure, free. rewrite app_length. simpl. simpl in FREE. lia.
 Qed.
