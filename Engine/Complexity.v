@@ -121,11 +121,104 @@ Definition code_wf (c:code) (size:nat) :=
     In next (next_pcs pc i) ->
     next < size.
 
+Lemma nfa_wf:
+  forall r c startl endl pc next i,
+    nfa_rep r c startl endl ->
+    pc >= startl ->
+    pc < endl ->
+    get_pc c pc = Some i ->
+    In next (next_pcs pc i) ->
+    next <= endl.
+Proof.
+  intros r c startl endl pc next i REP GE LT GET IN.
+  generalize dependent pc. induction REP; intros.
+  - lia.
+  (* char *)
+  - assert (pc = lbl) by lia. subst.
+    rewrite CONSUME in GET. inversion GET. subst.
+    simpl in IN. destruct IN; lia.
+  - apply nfa_rep_incr in REP1 as INCR1.
+    apply nfa_rep_incr in REP2 as INCR2.
+    assert (pc = start \/ pc >= S start) as [ST|H] by lia.
+    (* Fork *)
+    { subst. rewrite FORK in GET. inversion GET. subst.
+      simpl in IN. destruct IN as [IN|[IN|IN]]; inversion IN; lia. }
+    assert (pc < end1 \/ pc >= end1) as [R1|H1] by lia.
+    (* in r1 *)
+    { eapply IHREP1 in IN; eauto. lia. }
+    assert (pc = end1 \/ pc >= S end1) as [J|H2] by lia.
+    (* the jmp *)
+    { subst. rewrite JMP in GET. inversion GET. subst.
+      simpl in IN. destruct IN as [IN|IN]; inversion IN. lia. }
+    (* in r2 *)
+    apply IHREP2 in IN; auto.
+  - apply nfa_rep_incr in REP1 as INCR1.
+    apply nfa_rep_incr in REP2 as INCR2.
+    assert (pc < end1 \/ pc >= end1) as [H1|H2] by lia.
+    (* in r1 *)
+    { apply IHREP1 in IN; auto. lia. }
+    (* in r2 *)
+    apply IHREP2 in IN; auto.
+  - apply nfa_rep_incr in REP as INC.
+    assert (pc = start \/ pc >= S start) as [FOR|H] by lia.
+    (* fork *)
+    { subst. rewrite FORK in GET. destruct greedy; inversion GET; subst;
+        simpl in IN; destruct IN as [IN|[IN|IN]]; inversion IN; lia. }
+    assert (pc = S start \/ pc >= S (S start)) as [BEG|H1] by lia.
+    (* Begin *)
+    { subst. rewrite BEGIN in GET. inversion GET. subst.
+      simpl in IN. destruct IN as [IN|IN]; inversion IN; lia. }
+    assert (pc = S (S start) \/ pc >= S (S (S start))) as [RES|H2] by lia.
+    (* Reset *)
+    { subst. rewrite RESET in GET. inversion GET. subst.
+      simpl in IN. destruct IN as [IN|IN]; inversion IN; lia. }
+    assert (pc < end1 \/ pc = end1) as [R1|H3] by lia.
+    (* in r1 *)
+    { apply IHREP in IN; auto. }
+    (* endloop *)
+    subst. rewrite END in GET. inversion GET. subst.
+    simpl in IN. destruct IN as [IN|IN]; inversion IN; lia.
+  - apply nfa_rep_incr in REP as INC.
+    assert (pc = start \/ pc >= S start) as [ST|H] by lia.
+    (* open *)
+    { subst. rewrite OPEN in GET. inversion GET. subst.
+      simpl in IN. destruct IN as [IN|IN]; inversion IN; lia. }
+    assert (pc = end1 \/ pc < end1) as [END|H1] by lia.
+    (* close *)
+    { subst. rewrite CLOSE in GET. inversion GET. subst.
+      simpl in IN. destruct IN as [IN|IN]; inversion IN; lia. }
+    (* in r1 *)
+    apply IHREP in IN; auto.
+  - assert (pc = lbl) by lia. subst.
+    rewrite KILL in GET. inversion GET. subst.
+    simpl in IN. inversion IN.
+Qed.
+
 Theorem compiled_wf:
   forall r, code_wf (compilation r) (size (compilation r)).
 Proof.
-Admitted.
-
+  intros r.  destruct (compile r 0) as [c endl] eqn:COMP.
+  eapply compile_nfa_rep with (prev:=[]) in COMP as REP; simpl in *; auto.
+  unfold compilation. rewrite COMP. unfold code_wf.
+  apply fresh_correct in COMP as FRESH. simpl in FRESH. subst.
+  intros pc i next GET IN.
+  assert (HL: pc < length (c ++ [Accept])).
+  { eapply nth_error_Some. unfold get_pc in GET. rewrite GET. intros HI. inversion HI. }
+  rewrite app_length in HL. simpl in HL.
+  assert (pc = length c \/ pc < length c) as [ACC|H1] by lia.
+  (* accept *)
+  { subst. assert (get_pc (c ++ [Accept]) (length c) = get_pc [Accept] 0).
+    - apply get_first.
+    - unfold get_pc in H. simpl in H. unfold get_pc in GET. rewrite H in GET.
+      inversion GET. subst. inversion IN. }
+  (* inside the code *)
+  assert (GETI: get_pc c pc = Some i).
+  { unfold get_pc in GET. rewrite nth_error_app1 in GET; auto. }
+  assert (POS: pc >= 0) by lia.
+  specialize (nfa_wf r c 0 (length c) pc next i REP POS H1 GETI IN) as WF.
+  unfold size. rewrite app_length. simpl. lia.
+Qed.
+  
 Lemma eps_step_blocked_wf:
   forall t code inp newt,
     epsilon_step rer t code inp = EpsBlocked newt ->
