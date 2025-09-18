@@ -16,26 +16,59 @@ From Warblre Require Import Base RegExpRecord.
 
 Context (rer: RegExpRecord).
 
-(** * Pike VM measure  *)
+(** * Free slots  *)
+(* To define the measure, we need a notion of free slots: how many more states can the PikeVM visit *)
+
+(* well-formedness of a seen set: it was obtained by applying add to the initial seen set *)
+(* each element that was added is smaller than some `size` constant (size of the bytecode) *)
+(* and `count` is the number of distinct elements  *)
+Inductive wf: seenpcs -> nat -> nat -> Prop :=
+| wf_init:
+  forall size, wf initial_seenpcs size 0
+| wf_new:
+  forall seen size pc b count
+    (RANGE: pc < size)
+    (NEW: inseenpc seen pc b = false)
+    (WF: wf seen size count),
+    wf (add_seenpcs seen pc b) size (S count)
+| wf_seen:
+  forall seen size pc b count
+    (RANGE: pc < size)
+    (SEEN: inseenpc seen pc b = true)
+    (WF: wf seen size count),
+    wf (add_seenpcs seen pc b) size count.
+
+
+Theorem wf_size:
+  forall seen size count,
+    wf seen size count -> count <= 2 * size.
+Proof.
+Admitted.
 
 (* the number of free slots in a seen set *)
 (* the total number of slots is 2 times the size of the code: each label can be added with 2 possible LoopBool values *)
 (* we remove the number of distinct entries in the seen set *)
-Definition free (codesize:nat) (seen:seenpcs) : nat :=
-  (2 * codesize) - (VMS.count seen).
+Definition free (codesize:nat) (count:nat) : nat :=
+  (2 * codesize) - count.
 
 Lemma free_initial:
-  forall codesize, free codesize initial_seenpcs = 2 * codesize.
+  forall codesize, free codesize 0 = 2 * codesize.
 Proof.
-  intros codesize. unfold free, initial_seenpcs. rewrite VMS.count_empty. lia.
+  intros codesize. unfold free. lia.
 Qed.
 
-(* this is FALSE, we need a nice property on the seen set and pc of t before doing that *)
 Lemma free_add:
-  forall codesize seen t, free codesize seen = 1 + free codesize (add_thread seen t).
+  forall seen size count t,
+    wf seen size count ->
+    seen_thread seen t = false ->
+    fst (fst t) < size ->
+    wf (add_thread seen t) size (S count).
 Proof.
-Admitted.
-  
+  intros seen size count [[pc gm] b] WF SEEN SIZE. unfold seen_thread in SEEN.
+  constructor; auto.
+Qed.
+
+(** * Well Formedness Invariant and Measure of PikeVM states *)
 
 (* we add 1 because we consider that even at the last position, there is work to do to reach the final state *)
 Definition inpsize (i:input) : nat :=
@@ -49,20 +82,38 @@ Proof.
   intros [next pref]. simpl. lia.
 Qed.
 
-(* The number of free slots decreases at most steps *)
-(* In some cases ( afork), a new thread is created but the number of free slots decreases: this is why free slots are multiplied by 2 *)
-(* As we change characters, the seen set might get 2*codesize new free slots (multiplied by 2 for the measure) *)
-(* But the input decreases, which makes the measure also decrease, because input size is multiplied by (1 + 4*codesize)  *)
-Definition measure (codesize:nat) (pvs: pike_vm_seen_state) : nat :=
-  match pvs with
-  | PVSS_final _ => 0
-  | PVSS inp active best blocked seen =>
-      (2 * free codesize seen) + length active + length blocked + (inpsize inp * (1 + 4 * codesize))
-  end.
-
 Definition size (c:code) : nat := length c.
 
-(** * PikeVM measure decrease *)
+(* The number of free slots decreases at most steps *)
+(* In some cases (a fork), a new thread is created but the number of free slots decreases: this is why free slots are multiplied by 2 *)
+(* As we change characters, the seen set might get 2*codesize new free slots (multiplied by 2 for the measure) *)
+(* But the input decreases, which makes the measure also decrease, because input size is multiplied by (1 + 4*codesize)  *)
+Definition measure (codesize:nat) (count:nat) (active blocked:list thread) (inp:input) :=
+  (2 * free codesize count) + length active + length blocked + (inpsize inp * (1 + 4 * codesize)).
+
+(* The invariant that is preserved through pikeVM execution, with a measure that strictly decreases *)
+Inductive vm_inv (c:code): pike_vm_seen_state -> nat -> Prop :=
+| inv_final:
+  forall b, vm_inv c (PVSS_final b) 0
+| inv_pvss:
+  forall inp active best blocked seen count
+    (* the threads in active and blocked have their pc inside the code range *)
+    (ACTIVEWF: forall t, In t active -> fst (fst t) < size c)
+    (BLOCKEDWF: forall t, In t blocked -> fst (fst t) < size c)
+    (* the seen set is well-formed, and has `count` distinct elements *)
+    (SEENWF: wf seen (size c) count),
+    vm_inv c (PVSS inp active best blocked seen) (measure (size c) count active blocked inp).
+
+Lemma nonfinal_pos:
+  forall c inp active best blocked seen m,
+    vm_inv c (PVSS inp active best blocked seen) m -> 0 < m.
+Proof.
+  intros c inp active best blocked seen m H. inversion H. subst. unfold measure.
+  specialize (inpsize_strict inp) as SIZE. lia.
+Qed.
+
+
+(** * PikeVM measure decreases *)
 
 (* epsilon_step cannot generate too many new threads *)
 Lemma eps_step_active:
@@ -94,30 +145,58 @@ Proof.
   intros a b c H. repeat rewrite PeanoNat.Nat.mul_succ_r.
   induction c; try lia.
 Qed.
-  
+
 
 (* at each step, the measure strictly decreases *)
+(* the well-formedness of the seen set is preserved *)
 Theorem pikevm_decreases:
-  forall code pvs1 pvs2,
+  forall code pvs1 pvs2 m1,
     pike_vm_seen_step rer code pvs1 pvs2 ->
-    measure (size code) pvs2 < measure (size code) pvs1.
+    vm_inv code pvs1 m1 ->
+    exists m2, vm_inv code pvs2 m2 /\ m2 < m1.
 Proof.
-  intros code pvs1 pvs2 STEP. inversion STEP; subst; simpl measure.
+  intros code pvs1 pvs2 m1 STEP INV. inversion STEP; subst; simpl measure; inversion INV; subst.
   (* when reaching a final state, we end up with a measure of 0, while the previous measure was strictly positive *)
-  - specialize (inpsize_strict inp) as SIZE. lia.
-  - specialize (inpsize_strict inp) as SIZE. lia.
+  - exists 0. split.
+    + constructor.
+    + apply nonfinal_pos in INV. auto.
+  - exists 0. split.
+    + constructor.
+    + apply nonfinal_pos in INV. auto.
   (* nextchar: we might add (2*codesize) free slots, but we lose an input length *)
-  - rewrite free_initial. apply advance_input_decreases in ADVANCE.
-    repeat rewrite PeanoNat.Nat.add_0_r.
-    apply increase_mult with (x:= 4 * size code) in ADVANCE as NEXT. simpl in NEXT. lia.
+  - exists (measure (size code) 0 (thr::blocked) [] inp2). split; [constructor|]; auto.
+    + constructor.
+    + unfold measure. simpl. rewrite free_initial. apply advance_input_decreases in ADVANCE.
+      apply increase_mult with (x:= 4 * size code) in ADVANCE as NEXT. simpl in NEXT. lia.
   (* skip: we lose a thread *)
-  - lia.
+  - exists (measure (size code) count active blocked inp). split; [constructor|]; auto.
+    + intros t0 H. apply ACTIVEWF. simpl. right. auto.
+    + unfold measure. simpl. lia.
   (* active: we may add a new thread, but lose a free slot *)
-  - specialize (free_add (size code) seen t) as FREE.
-    apply  eps_step_active in STEP0. rewrite app_length. lia.
+  - assert (RANGE: fst (fst t) < size code).
+    { apply ACTIVEWF. left. auto. }
+    exists (measure (size code) (S count) (nextactive++active) blocked inp). split; [constructor|]; auto.
+    + intros t0 H. admit.       (* I still need to prove all the targets are in range... *)
+    (* we are mising a property of the code itself and epsilon_step *)
+    + destruct t as [[pc gm] b]. unfold add_thread. apply wf_new; auto.
+    + specialize (free_add seen (size code) count t SEENWF UNSEEN) as FREE.
+      apply wf_size in FREE; auto. apply eps_step_active in STEP0.
+      unfold measure, free. rewrite app_length. simpl. lia.
   (* match: we lose a thread and a free slot *)
-  - specialize (free_add (size code) seen t) as FREE. lia.
+  - assert (RANGE: fst (fst t) < size code).
+    { apply ACTIVEWF. left. auto. }
+    exists (measure (size code) (S count) [] blocked inp). split; [constructor|]; auto.
+    + intros t0 H. inversion H.
+    + destruct t as [[pc gm] b]. unfold add_thread. apply wf_new; auto.
+    + specialize (free_add seen (size code) count t SEENWF UNSEEN RANGE) as FREE.
+      apply wf_size in FREE. unfold measure, free. simpl. lia.
   (* blocked: we switch an active thread to blocked, but lose a free slot *)
-  - specialize (free_add (size code) seen t) as FREE. 
-    rewrite app_length. simpl. lia.
-Qed.
+  -  assert (RANGE: fst (fst t) < size code).
+     { apply ACTIVEWF. left. auto. }
+     exists (measure (size code) (S count) active (blocked++[newt]) inp). split; [constructor|]; auto.
+     + intros t0 H. apply ACTIVEWF. simpl. right. auto.
+     + intros t0 H. admit.      (* same thing *)
+     + destruct t as [[pc gm] b]. unfold add_thread. apply wf_new; auto.
+     + specialize (free_add seen (size code) count t SEENWF UNSEEN RANGE) as FREE.
+       apply wf_size in FREE. unfold measure, free. rewrite app_length. simpl. lia.
+Admitted.
