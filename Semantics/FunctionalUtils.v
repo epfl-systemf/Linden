@@ -103,15 +103,12 @@ Section Utilities.
     (* tree_lk, tree_lk_fail *)
     | Areg (Lookaround lk r1)::cont =>
         let treelk := compute_tr [Areg r1] inp gm (lk_dir lk) in
-        if lk_succeeds lk treelk then
-          match lk_group_map lk treelk gm inp with
-          | Some gmlk =>
-              let treecont := compute_tr cont inp gmlk dir in
-              LK lk treelk treecont
-          | None => Mismatch (* should not happen *)
-          end
-        else
-          LKFail lk treelk
+        match lk_result lk treelk gm inp with
+        | Some gmlk =>
+            let treecont := compute_tr cont inp gmlk dir in
+            LK lk treelk treecont
+        | None =>  LKFail lk treelk
+        end
     (* tree_anchor, tree_anchor_fail *)
     | Areg (Anchor a)::cont =>
         if anchor_satisfied rer a inp then
@@ -210,9 +207,8 @@ Section Utilities.
         assert (treelk_opt <> None). { destruct treelk_opt; discriminate. }
         apply compute_tree_None_compute_tr in H. fold treelk_opt in H.
         rewrite H in *.
-        destruct lk_succeeds. 2: reflexivity.
-        destruct lk_group_map as [gmlk|]. 2: reflexivity.
-        set (treecont_opt := compute_tree rer cont inp gmlk dir _) in *.
+        destruct lk_result. 2: reflexivity.
+        set (treecont_opt := compute_tree rer cont inp g dir _) in *.
         assert (treecont_opt <> None). { destruct treecont_opt; discriminate. }
         apply compute_tree_None_compute_tr in H0. fold treecont_opt in H0.
         rewrite H0 in *. reflexivity.
