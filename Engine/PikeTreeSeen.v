@@ -236,12 +236,14 @@ Inductive piketreeinv: pike_tree_seen_state -> option leaf -> Prop :=
 
 (** * Initialization  *)
 
+(* In the initial state, the invariant holds *)
+
 Lemma init_piketree_inv:
   forall t inp,
     pike_subtree t -> 
-    piketreeinv (pike_tree_seen_initial_state t inp) (tree_res t GroupMap.empty inp forward).
+    piketreeinv (pike_tree_seen_initial_state t inp) (first_leaf t inp).
 Proof.
-  intros t. unfold pike_tree_seen_initial_state. constructor; pike_subset; auto.
+  intros t. unfold first_leaf. unfold pike_tree_seen_initial_state. constructor; pike_subset; auto.
   intros res STATEND. inversion STATEND; subst.
   simpl. rewrite seqop_none. inversion ACTIVE; subst.
   inversion TLR; subst. rewrite seqop_none.
