@@ -114,14 +114,16 @@ Section Equiv.
       (* About mc ms *)
       unfold equiv_cont in Hequivcont. specialize (Hequivcont gm ms inp).
       
+      (* Deduplicate Linden part *)
+      set (topt := (match compute_tree rer _ inp _ dir fueltree with | Some titer => _ | None => None end)).
+      replace (match delta with | NoI.N n => _ | +∞ => _ end) with topt.
+      2: { destruct delta as [[|delta']|]; simpl in *; try discriminate; reflexivity. }
+      subst topt.
+
       (* Case analysis on greediness *)
       destruct greedy.
       - destruct (m msreset mcloop) as [resloop|] eqn:Hresloopsucc; simpl; try discriminate.
         specialize (Hequiv resloop fueltree).
-        set (topt := (match compute_tree rer _ inp _ dir fueltree with | Some titer => _ | None => None end)).
-        replace (match delta with | NoI.N n => _ | +∞ => _ end) with topt.
-        2: { destruct delta as [[|delta']|]; simpl in *; try discriminate; reflexivity. }
-        subst topt.
         destruct (compute_tree rer _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
         destruct (compute_tree rer act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
         intros Hres H. injection H as <-.
@@ -145,10 +147,6 @@ Section Equiv.
         destruct resskip as [resskipms|]; simpl.
         + (* resskip is not None *)
           intro H. injection H as <-.
-          set (topt := (match compute_tree rer _ inp _ dir fueltree with | Some titer => _ | None => None end)).
-          replace (match delta with | NoI.N n => _ | +∞ => _ end) with topt.
-          2: { destruct delta as [[|delta']|]; simpl in *; try discriminate; reflexivity. }
-          subst topt.
           destruct (compute_tree rer _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
           destruct (compute_tree rer act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
           intro H. injection H as <-.
@@ -158,10 +156,6 @@ Section Equiv.
           inversion Hequivcont. simpl. rewrite <- H. simpl. constructor; assumption.
         + (* resloop is None *)
           intro Hcontsucc.
-          set (topt := (match compute_tree rer _ inp _ dir fueltree with | Some titer => _ | None => None end)).
-          replace (match delta with | NoI.N n => _ | +∞ => _ end) with topt.
-          2: { destruct delta as [[|delta']|]; simpl in *; try discriminate; reflexivity. }
-          subst topt.
           destruct (compute_tree rer _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
           destruct (compute_tree rer act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
           intro H. injection H as <-.
