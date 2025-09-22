@@ -14,6 +14,7 @@ From Warblre Require Import Base RegExpRecord.
 (* This provides an upper bound on the number of steps needed to reach a final state. *)
 (* This upper bound can be expressed in terms of the size of the regex and the size of the input string. *)
 
+Section Complexity.
 Context (rer: RegExpRecord).
 
 (** * Free slots  *)
@@ -419,3 +420,165 @@ Proof.
      + specialize (free_add seen (size code) dist (pc,gm,b) SEENWF UNSEEN RANGE) as FREE.
        apply wf_size in FREE. unfold measure, free. rewrite app_length. simpl. simpl in FREE. lia.
 Qed.
+
+(** * Code Size  *)
+
+(* Here we prove that the size of the NFA bytecode is linear in the size of the regex *)
+(* Note that this "size of the regex" counts counted quantifier as being unfolded, so it might not be linear in the size of the textual representation of the regex *)
+
+Fixpoint compsize (r:regex) : nat :=
+  match r with
+  | Epsilon => 0
+  | Regex.Character _ => 1
+  | Disjunction r1 r2 => 2 + compsize r1 + compsize r2
+  | Sequence r1 r2 => compsize r1 + compsize r2
+  | Quantified g 0 (NoI.Inf) r1 => 4 + compsize r1
+  | Group _ r1 => 2 + compsize r1
+  | _ => 0
+  end.
+
+Definition codesize (r:regex) := S (compsize r).
+
+Lemma compile_size:
+  forall r start endl code,
+    pike_regex r ->
+    compile r start = (code, endl) -> 
+    length (code) = compsize r.
+Proof.
+  intros r start endl code SUBSET COMP.
+  generalize dependent start. generalize dependent endl. generalize dependent code.
+  induction r; simpl; intros;
+    try solve [inversion COMP; subst; auto]; try solve[pike_subset].
+  - destruct (compile r1 (S start)) eqn:C1. destruct (compile r2 (S l)) eqn:C2.
+    erewrite <- IHr1; eauto. 2: pike_subset.
+    erewrite <- IHr2; eauto. 2: pike_subset.
+    inversion COMP. subst. simpl. rewrite app_length. simpl. lia.
+  - destruct (compile r1 start) eqn:C1. destruct (compile r2 l) eqn:C2.
+    erewrite <- IHr1; eauto. 2: pike_subset.
+    erewrite <- IHr2; eauto. 2: pike_subset.
+    inversion COMP. subst. simpl. rewrite app_length. simpl. lia.
+  - destruct min; destruct delta; try solve[pike_subset].
+    destruct (compile r (S (S (S start)))) eqn:C1.
+    erewrite <- IHr; eauto. 2: pike_subset.
+    inversion COMP. subst. simpl. rewrite app_length. simpl. lia.
+  - destruct (compile r (S start)) eqn:C1.
+    erewrite <- IHr; eauto. 2: pike_subset.
+    inversion COMP. subst. simpl. rewrite app_length. simpl. lia.
+Qed.
+
+Theorem compilation_size:
+  forall r,
+    pike_regex r ->
+    size (compilation r) = codesize r.
+Proof.
+  unfold codesize, size, compilation. intros r H. destruct (compile r 0) eqn:COMP.
+  apply compile_size in COMP; auto. rewrite <- COMP. rewrite app_length. simpl. lia.
+Qed.
+  
+
+(** * Initial PikeVM Measure *)
+
+Definition complexity (r:regex) (inp:input) : nat :=
+  1 + (4 * codesize r) + (inpsize inp * (1 + 4 * codesize r)).
+
+Theorem initial_measure:
+  forall inp r,
+    pike_regex r ->
+    vm_inv (compilation r) (pike_vm_seen_initial_state inp) (complexity r inp).
+Proof.
+  intros inp r SUBSET.
+  replace (complexity r inp) with (measure (codesize r) [] [(0, GroupMap.empty, CanExit)] [] inp).
+  - unfold pike_vm_seen_initial_state. rewrite <- compilation_size; auto.
+    constructor; auto.
+    + intros t H. destruct H. 2: inversion H.
+      subst. simpl. unfold compilation. destruct (compile r 0) eqn:C. unfold size. rewrite app_length.
+      simpl. lia.
+    + intros t H. inversion H.
+    + constructor.
+  - unfold complexity, measure. rewrite <- compilation_size; auto. simpl.
+    rewrite free_initial. simpl. lia.
+Qed.
+
+
+(** * Bounding the number of PikeVM steps  *)
+
+(* A counted transitive reflexive cloture relation *)
+(* The nat indicates a maximum number of steps *)
+Inductive steps {A:Type} (R: A -> A -> Prop): A -> nat -> A -> Prop:=
+| steps_refl: forall a n, steps R a n a
+| steps_cons:
+  forall x y z n
+    (STEP: R x y)
+    (TRC: steps R y n z),
+    steps R x (S n) z.
+
+Lemma steps_trc:
+  forall A (R:A->A->Prop) (x y:A) n,
+    steps R x n y -> @trc _ R x y.
+Proof.
+  intros A R x y n H. induction H; econstructor; eauto.
+Qed.
+
+Lemma trc_steps:
+  forall A (R:A->A->Prop) (x y:A),
+    @trc _ R x y -> exists n, steps R x n y.
+Proof.
+  intros A R x y H. induction H; try destruct IHtrc; eexists;
+    try eapply steps_refl with (n:=0); (* avoiding the shelved goal *)
+    econstructor; eauto.
+Qed.
+
+Lemma more_steps:
+  forall A (R:A->A->Prop) x y n m,
+    n <= m ->
+    steps R x n y ->
+    steps R x m y.
+Proof.
+  intros A R x y n m LE STEPS. generalize dependent m.
+  induction STEPS; intros.
+  - constructor.
+  - destruct m as [|m]; try lia.
+    econstructor; eauto. apply IHSTEPS. lia.
+Qed.
+
+Lemma strong_ind (P : nat -> Prop) :
+  (forall m, (forall k : nat, k < m -> P k) -> P m) ->
+  forall n, P n.
+Proof.
+  intros H n; enough (H0: forall p, p <= n -> P p).
+    - apply H0, le_n. 
+    - induction n; intros; apply H; intros; try lia.
+      apply IHn; lia.
+Qed.
+
+Lemma pike_vm_bound:
+  forall pvs code n,
+    code_wf code (size code) ->
+    vm_inv code pvs n ->
+    exists result, steps (pike_vm_seen_step rer code) pvs n (PVSS_final result).
+Proof.
+  intros pvs code n WF INV. generalize dependent pvs. induction n using (strong_ind); intros.
+  destruct pvs.
+  2: { exists best. constructor. }
+  specialize (pikevm_progress rer code inp active best blocked seen) as [next STEP].
+  specialize (pikevm_decreases code (PVSS inp active best blocked seen) next n WF STEP INV) as [newm [INV2 DECR]].
+  specialize (H newm DECR next INV2) as [result STEPS].
+  exists result. apply more_steps with (n:=S newm); try lia.
+  econstructor; eauto.
+Qed.
+
+Theorem pikevm_complexity:
+  forall (r:regex) (inp:input),
+    (* for any supported regex r and input inp *)
+    pike_regex r ->
+    (* The initial state reaches a final state in at most (complexity r inp) steps. *)
+    exists result, steps (pike_vm_seen_step rer (compilation r))
+                (pike_vm_seen_initial_state inp) (complexity r inp) (PVSS_final result).
+Proof.
+  intros r inp SUBSET.
+  apply pike_vm_bound.
+  - apply compiled_wf.
+  - apply initial_measure. auto.
+Qed.
+
+End Complexity.
