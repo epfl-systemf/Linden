@@ -742,7 +742,7 @@ Section EquivLemmas.
 
   (** ** For lookarounds *)
   (* Linking the lookaround success conditions of Warblre and Linden *)
-  Lemma wl_lk_success:
+  (*Lemma wl_lk_success:
     forall tlk gm inp lkdir rlk pos,
       equiv_res (Tree.tree_res tlk gm inp lkdir) rlk ->
       (pos && (rlk ==? None)%wt || negb pos && (rlk !=? None)%wt)%bool =
@@ -772,7 +772,7 @@ Section EquivLemmas.
     destruct pos; simpl.
     - rewrite Bool.orb_false_r. unfold EqDec.neqb. rewrite Bool.negb_involutive. reflexivity.
     - reflexivity.
-  Qed.
+  Qed.*)
 
   (* The following lemmas prove that interpreting a (lookaround) tree corresponding to some regex only affects the groups defined in that regex. *)
 
@@ -913,25 +913,22 @@ Section EquivLemmas.
         
       + (* Lookaround *)
         destruct compute_tree as [treelk|] eqn:Hcomputelk; try discriminate.
-        destruct lk_succeeds eqn:Hlksucc.
+        destruct lk_result eqn:LKRES.
         * (* Lookaround succeeds *)
-          destruct lk_group_map as [gmlk|] eqn:Heqgmlk.
-          -- destruct (compute_tree rer acts inp0 gmlk dir0 fuel) as [treecont|] eqn:Htreecont; try discriminate.
-             intro H. injection H as <-.
-             simpl. destruct positivity.
-             ++ intros gm1 gm2 inp1 inp2 dir. destruct tree_res as [[inpafterlk gmafterlk]|] eqn:Heqgmafterlk; try discriminate.
-                intros Heqgm2 gid Hnotin.
-                rewrite in_app_iff in Hnotin.
-                rewrite (IHfuel _ _ _ _ _ Htreecont _ _ _ _ _ Heqgm2) by tauto.
-                rewrite (IHfuel _ _ _ _ _ Hcomputelk _ _ _ _ _ Heqgmafterlk).
-                2: { simpl. rewrite app_nil_r. tauto. }
-                reflexivity.
-             ++ intros gm1 gm2 inp1 inp2 dir.
-                destruct tree_res eqn:Hgmafterlk; try discriminate.
-                intros Heqgm2 gid Hnotin. rewrite in_app_iff in Hnotin.
-                eapply IHfuel; eauto.
-          -- (* Does not happen, but does not matter *)
-             intro H. injection H as <-. simpl. discriminate.
+          destruct (compute_tree rer acts inp0 g dir0 fuel) as [treecont|] eqn:Htreecont; try discriminate.
+          intro H. injection H as <-.
+          simpl. destruct positivity.
+          ++ intros gm1 gm2 inp1 inp2 dir. destruct tree_res as [[inpafterlk gmafterlk]|] eqn:Heqgmafterlk; try discriminate.
+             intros Heqgm2 gid Hnotin.
+             rewrite in_app_iff in Hnotin.
+             rewrite (IHfuel _ _ _ _ _ Htreecont _ _ _ _ _ Heqgm2) by tauto.
+             rewrite (IHfuel _ _ _ _ _ Hcomputelk _ _ _ _ _ Heqgmafterlk).
+             2: { simpl. rewrite app_nil_r. tauto. }
+             reflexivity.
+          ++ intros gm1 gm2 inp1 inp2 dir.
+             destruct tree_res eqn:Hgmafterlk; try discriminate.
+             intros Heqgm2 gid Hnotin. rewrite in_app_iff in Hnotin.
+             eapply IHfuel; eauto.
         * (* Lookaround fails *)
           intro H. injection H as <-. simpl. discriminate.
 
@@ -1154,25 +1151,22 @@ Section EquivLemmas.
     - (* Lookaround *)
       intros gm0 inp dir0 t. simpl.
       destruct compute_tree as [treelk|] eqn:Hcomputelk; try discriminate.
-      destruct lk_succeeds.
+      destruct lk_result eqn:LKRES.
       + (* Lookaround succeeds *)
-        destruct lk_group_map as [gmlk|] eqn:Hgmlk.
-        * (* Only valid case *)
-          destruct (compute_tree rer acts inp gmlk dir0 fuel) as [treecont|] eqn:Htreecont; try discriminate.
-          intro H. injection H as <-. intros gm1 gm2 inp1 inp2 dir.
-          simpl.
-          destruct positivity.
-          -- destruct tree_res as [[inpafterlk gmafterlk]|] eqn:Hgmafterlk; try discriminate.
-             intros Heqgm2 gid idx' Hopen2.
-             rewrite Areg_Aclose_disappear.
-             pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ _ Heqgm2 _ _ Hopen2 as [].
-             pose proof IHfuel _ _ _ _ _ Hcomputelk _ _ _ _ _ Hgmafterlk _ _ H as []. auto.
-          -- destruct tree_res as [gmafterlk|] eqn:Hgmafterlk; try discriminate.
-             intros Heqgm2 gid Hopen2.
-             rewrite Areg_Aclose_disappear.
-             eauto using IHfuel.
-        * (* Does not happen, but does not matter *)
-          intro H. injection H as <-. simpl. discriminate.
+        (* Only valid case *)
+        destruct (compute_tree rer acts inp g dir0 fuel) as [treecont|] eqn:Htreecont; try discriminate.
+        intro H. injection H as <-. intros gm1 gm2 inp1 inp2 dir.
+        simpl.
+        destruct positivity.
+        -- destruct tree_res as [[inpafterlk gmafterlk]|] eqn:Hgmafterlk; try discriminate.
+           intros Heqgm2 gid idx' Hopen2.
+           rewrite Areg_Aclose_disappear.
+           pose proof IHfuel _ _ _ _ _ Htreecont _ _ _ _ _ Heqgm2 _ _ Hopen2 as [].
+           pose proof IHfuel _ _ _ _ _ Hcomputelk _ _ _ _ _ Hgmafterlk _ _ H as []. auto.
+        -- destruct tree_res as [gmafterlk|] eqn:Hgmafterlk; try discriminate.
+           intros Heqgm2 gid Hopen2.
+           rewrite Areg_Aclose_disappear.
+           eauto using IHfuel.
       + (* Lookaround fails *)
         intro H. injection H as <-. simpl. discriminate.
 

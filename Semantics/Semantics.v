@@ -51,24 +51,22 @@ Section Semantics.
   
   (** * Lookaround tree functions  *)
 
+  (* Checks for a result in a lookaround tree *)
   (* Positive lookarounds expect trees with a result, and negative ones expect trees without results *)
-  Definition lk_result (lk:lookaround) (t:tree) : Prop :=
+  (* In cases where the lookaround holds, computes the updated group_map after finding the first result in a tree of lookarounds *)
+  Definition lk_result (lk:lookaround) (t:tree) (gm:group_map) (inp:input) : option group_map :=
     match (positivity lk) with
-    | true => exists res, first_branch t [] = Some res
-    | false => first_branch t [] = None
+    | true =>
+        match tree_res t gm inp (lk_dir lk) with
+        | None => None      (* expected a result *)
+        | Some (_, gm') => Some gm'
+        end
+    | false =>
+        match tree_res t gm inp (lk_dir lk) with
+        | Some _ => None         (* expected no result *)
+        | None => Some gm        (* negative lookaounds keep the gm unchanged *)
+        end
     end.
-
-  (* Computes the updated group_map after finding the first result in a tree of lookarounds *)
-  Definition lk_group_map (lk: lookaround) (t: tree) (gm: group_map) (inp: input): option group_map :=
-    match (positivity lk) with
-    | true => 
-      match tree_res t gm inp (lk_dir lk) with 
-      | Some (_, gm') => Some gm'
-      | None => None
-      end
-    | false => Some gm
-    end.
-
 
   (** * Anchor semantics *)
 
@@ -204,16 +202,15 @@ Section Semantics.
     forall lk r1 cont treecont treelk inp gm gmlk dir
       (* there is a tree for the lookaround *)
       (TREELK: is_tree [Areg r1] inp gm (lk_dir lk) treelk)
-      (* this tree has the correct expected result (positivity) *)
-      (RES_LK: lk_result lk treelk)
-      (* we update the group_map with the groups defined in the lookaround *)
-      (GM_LK: lk_group_map lk treelk gm inp = Some gmlk)
+      (* the lookaround tree has the expected result, resulting in a new group map gmlk *)
+      (RES_LK: lk_result lk treelk gm inp = Some gmlk)
       (TREECONT: is_tree cont inp gmlk dir treecont),
       is_tree (Areg (Lookaround lk r1) :: cont) inp gm dir (LK lk treelk treecont)
   | tree_lk_fail:
     forall lk r1 cont treelk inp gm dir
       (TREELK: is_tree [Areg r1] inp gm (lk_dir lk) treelk)
-      (FAIL_LK: ~ lk_result lk treelk),
+      (* the lookaround tree does not have the expected result *)
+      (FAIL_LK: lk_result lk treelk gm inp = None),
       is_tree (Areg (Lookaround lk r1) :: cont) inp gm dir (LKFail lk treelk)
   | tree_anchor:
     forall a cont treecont inp gm dir
@@ -281,11 +278,11 @@ Section Semantics.
     - inversion H0; subst; auto.
       apply IHis_tree in TREECONT. subst. auto.
     - inversion H1; subst; auto.
-      2: { apply IHis_tree1 in TREELK. subst. exfalso. apply FAIL_LK. auto. }
-      apply IHis_tree1 in TREELK. subst treelk0. rewrite GM_LK in GM_LK0. injection GM_LK0 as GM_LK0. subst gmlk0.
-      apply IHis_tree2 in TREECONT. subst. auto.
+      2: { apply IHis_tree1 in TREELK. subst. rewrite RES_LK in FAIL_LK. inversion FAIL_LK. }
+      apply IHis_tree1 in TREELK. subst treelk0. rewrite RES_LK in RES_LK0. injection RES_LK0 as RES_LK0.
+      subst gmlk0. apply IHis_tree2 in TREECONT. subst. auto.
     - inversion H0; subst; auto.
-      { apply IHis_tree in TREELK. subst. exfalso. apply FAIL_LK. auto. }
+      { apply IHis_tree in TREELK. subst. rewrite RES_LK in FAIL_LK. inversion FAIL_LK. }
       apply IHis_tree in TREELK. subst. auto.
     - inversion H0; subst; auto.
       + f_equal. auto.

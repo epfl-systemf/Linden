@@ -111,7 +111,7 @@ Proof.
     pike_subset. }
   generalize (init_piketree_inv tree inp SUBTREE). intros INIT.
   eapply pike_tree_trc_correct in TRC as FINALINV; eauto.
-  inversion FINALINV. subst. unfold first_branch. auto.
+  inversion FINALINV. subst. auto.
 Qed.
 
 
