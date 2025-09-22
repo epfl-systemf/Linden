@@ -111,7 +111,7 @@ Section Equiv.
       unfold equiv_cont in Hequiv.
       specialize (Hequiv Hdef_forbid_disj gmreset msreset inp).
       destruct fueltree as [|fueltree]; simpl; try discriminate.
-      
+
       (* About mc ms *)
       unfold equiv_cont in Hequivcont. specialize (Hequivcont gm ms inp).
       
@@ -121,14 +121,15 @@ Section Equiv.
       2: { destruct delta as [[|delta']|]; simpl in *; try discriminate; reflexivity. }
       subst topt.
 
+      destruct (compute_tree rer _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
+      destruct (compute_tree rer act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
+      intros Hres H. injection H as <-.
+      specialize Hequiv with (fuel := fueltree) (t := titer) (1 := Hinpcompat).
+
       (* Case analysis on greediness *)
       destruct greedy.
       - destruct (m msreset mcloop) as [resloop|] eqn:Hresloopsucc; simpl; try discriminate.
-        specialize (Hequiv resloop fueltree).
-        destruct (compute_tree rer _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
-        destruct (compute_tree rer act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
-        intros Hres H. injection H as <-.
-        specialize (Hequiv titer Hinpcompat).
+        specialize (Hequiv resloop).
         specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
         specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
         specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
@@ -144,14 +145,10 @@ Section Equiv.
       
       - destruct (mc ms) as [resskip|] eqn:Hresskipsucc; simpl; try discriminate.
         (* Probably similar to greedy case *)
-        specialize (Hequivcont resskip fueltree).
-        destruct (compute_tree rer _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
-        destruct (compute_tree rer act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
-        intros Hres H. injection H as <-.
-        specialize (Hequivcont tskip Hinpcompat Hgmms Hgmgl Hmsinp).
+        specialize (Hequivcont resskip fueltree tskip Hinpcompat Hgmms Hgmgl Hmsinp).
         specialize_prove Hequivcont. { apply ms_valid_wrt_checks_tail in Hmschecks. auto. }
-        specialize (Hequivcont Hgmvalid Hnoforbidden eq_refl eq_refl).
-        specialize (Hequiv res fueltree titer Hinpcompat).
+        specialize (Hequivcont Hgmvalid Hnoforbidden eq_refl Htskipsucc).
+        specialize (Hequiv res).
         specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
         specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
         specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
@@ -160,11 +157,9 @@ Section Equiv.
         specialize_prove Hequiv. { eapply noforb_reset; eauto. reflexivity. }
         destruct resskip as [resskipms|]; simpl in *.
         + (* resskip is not None *)
-          injection Hres as <-.
-          inversion Hequivcont. simpl. constructor; assumption.
+          injection Hres as <-. inversion Hequivcont. simpl. constructor; assumption.
         + (* resloop is None *)
-          inversion Hequivcont. simpl.
-          specialize (Hequiv Hres Htitersucc). auto.
+          inversion Hequivcont. simpl. specialize (Hequiv Hres Htitersucc). auto.
   Qed.
 
   (* General case; the proof below mostly deals with the case max > 0 and applies the two above lemmas otherwise *)
