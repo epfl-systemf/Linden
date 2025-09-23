@@ -1,4 +1,5 @@
 (** * Termination of the PikeTree and PïkeVM algorithm *)
+(* Archived: now completely subsumed by the PikeVM complexity proof in Engine/Complexity.v *)
 
 Require Import List Lia.
 Require Import Init.Wf.
