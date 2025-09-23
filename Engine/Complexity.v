@@ -567,6 +567,8 @@ Proof.
   econstructor; eauto.
 Qed.
 
+(** * Complexity Theorem  *)
+
 Theorem pikevm_complexity:
   forall (r:regex) (inp:input),
     (* for any supported regex r and input inp *)
@@ -580,5 +582,19 @@ Proof.
   - apply compiled_wf.
   - apply initial_measure. auto.
 Qed.
+
+
+(** * Termination of the PikeVM algorithm  *)
+
+(* As a corollary, we can deduce that the PikeVM always terminate *)
+Theorem pike_vm_terminates:
+  forall r inp,
+    pike_regex r ->
+    exists result, trc_pike_vm rer (compilation r) (pike_vm_seen_initial_state inp) (PVSS_final result).
+Proof.
+  intros r inp H. eapply pikevm_complexity in H as [result STEPS]; eauto.
+  exists result. eapply steps_trc; eauto.
+Qed.
+
 
 End Complexity.
