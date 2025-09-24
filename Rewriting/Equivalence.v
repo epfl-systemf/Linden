@@ -210,6 +210,8 @@ Hint Unfold
   tree_equiv_tr_dir
   tree_equiv_compute
   tree_equiv_compute_dir
+  actions_equiv
+  actions_equiv_dir
   tree_nequiv
   tree_nequiv_dir
   tree_nequiv_tr_dir
