@@ -4,7 +4,7 @@ Import ListNotations.
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree.
 From Warblre Require Import Numeric Base RegExpRecord.
-From Linden Require Import Semantics FunctionalSemantics.
+From Linden Require Import Semantics.
 From Linden Require Import Parameters LWParameters.
 
 Section Exercise.
@@ -71,7 +71,7 @@ Section Exercise.
 (* Solution:
    If you are stuck, below  is a base64-encoded string of the solution:
 
-UHJvb2YuDQppbnRyb3MgbiBpbnAuDQppbmR1Y3Rpb24gbjsgc2ltcGwuDQotIGFwcGx5IHRyZWVfZXBzaWxvbi4NCiAgYXBwbHkgdHJlZV9kb25lLiAgICAgIA0KLSBhcHBseSB0cmVlX3NlcXVlbmNlLg0KICBhcHBseSB0cmVlX2Vwc2lsb24uDQogIGFwcGx5IElIbi4NClFlZC4NCg==
+UHJvb2YuDQppbnRyb3MgbiBpbnAuDQppbmR1Y3Rpb24gbjsgc2ltcGwuDQotIGFwcGx5IHRyZWVfZXBzaWxvbi4NCiAgYXBwbHkgdHJlZV9tYXRjaC4NCi0gYXBwbHkgdHJlZV9zZXF1ZW5jZS4NCiAgYXBwbHkgdHJlZV9lcHNpbG9uLg0KICBhcHBseSBJSG4uDQpRZWQuDQo=
 
 You can decode it by pasting it in a decoder, like https://www.base64decode.net/ 
  *)

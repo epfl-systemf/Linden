@@ -127,7 +127,7 @@ Section Semantics.
 
   (* `is_tree actions str t` means that `t` is a correct backtracking tree for all `actions` on `s` *)
   Inductive is_tree: actions -> input -> group_map -> Direction -> tree -> Prop :=
-  | tree_done:
+  | tree_match:
     (* nothing to do on an empty list of actions *)
     forall inp gm dir,
       is_tree [] inp gm dir Match
