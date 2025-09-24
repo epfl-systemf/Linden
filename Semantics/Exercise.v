@@ -26,10 +26,20 @@ Section Exercise.
     | S m => Sequence Epsilon (n_epsilon m)
     end.
 
-  (* We can check that this function computes these ε sequences *)
-  Eval cbn in (n_epsilon 0).
-  Eval cbn in (n_epsilon 3).
-  Eval cbn in (n_epsilon 10).
+  (* We can check that this function computes these ε sequences: *)
+  Lemma epsilon8:
+    n_epsilon 0 = Epsilon.
+  Proof. reflexivity. Qed.
+  Lemma epsilon2:
+    n_epsilon 2 = Sequence Epsilon (Sequence Epsilon Epsilon).
+  Proof. reflexivity. Qed.
+  Lemma epsilon5:
+    n_epsilon 5 = Sequence Epsilon
+                    (Sequence Epsilon
+                       (Sequence Epsilon
+                          (Sequence Epsilon
+                             (Sequence Epsilon Epsilon)))).
+  Proof. reflexivity. Qed.
 
   (* Now, we prove that for any input `inp` and any `n`,
      the backtracking tree of the nth ε-sequence for `inp` is a `Match` tree. *)
@@ -52,8 +62,7 @@ Section Exercise.
 
         These rules have slightly different names in the Rocq development,
         to find them, you can look at the `is_tree` definition in `Semantics/Semantics.v`.
-        To apply a rule, you can simply use the proof tactic
-        `apply rulename.`
+        To apply a rule, you can simply use the proof tactic `apply rulename.`
         For instance, you could use `apply tree_group.` to apply the GROUP rule of Fig 4.
        *)
       admit.
