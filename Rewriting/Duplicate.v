@@ -50,11 +50,11 @@ Qed.
       forall r, def_groups r = [] ->
            Disjunction r r ≅[rer] r.
     Proof.
-      unfold tree_equiv, tree_equiv_dir, tree_equiv_tr_dir. intros r NOG. split; intros.
+      unfold tree_equiv, tree_equiv_dir, actions_equiv_dir, tree_equiv_tr_dir. intros r NOG. split; intros.
       { simpl. rewrite NOG. auto. }
-      inversion H; subst. eapply is_tree_determ in ISTREE1; eauto. subst.
-      eapply is_tree_determ in H0; eauto. subst. simpl.
-      specialize (leaves_equiv_double (tree_leaves tr2 gm i dir) []). simpl. intros.
+      inversion TREE1; subst. eapply is_tree_determ in ISTREE1; eauto. subst.
+      eapply is_tree_determ in TREE2; eauto. subst. simpl.
+      specialize (leaves_equiv_double (tree_leaves t2 gm inp dir) []). simpl. intros.
       apply leaves_equiv_rel_Symmetric. auto.
     Qed.
 

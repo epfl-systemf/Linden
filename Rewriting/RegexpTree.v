@@ -1,5 +1,5 @@
 From Linden Require Import ProofSetup.
-From Linden.Rewriting Require Import Examples.
+From Linden.Rewriting Require Import Examples FlatMap.
 
 Coercion nat_to_N (n: nat) := NoI.N n.
 
@@ -285,8 +285,8 @@ Section RegexpTree.
     Qed.
 
     Lemma atmost_atmost_equiv_actions_mnat (m: nat) (n: non_neg_integer_or_inf) r:
-      forall dir, actions_equiv_dir rer [Areg (Quantified true 0 m r); Areg (Quantified true 0 n r)]
-        [Areg (Quantified true 0 (NoI.add m n) r)] dir.
+      forall dir, actions_equiv_dir rer dir [Areg (Quantified true 0 m r); Areg (Quantified true 0 n r)]
+        [Areg (Quantified true 0 (NoI.add m n) r)].
     Proof.
       induction m as [|m IHm].
       - simpl. replace (match n with | NoI.N r' => NoI.N r' | +∞ => +∞ end) with n by now destruct n.
@@ -300,7 +300,7 @@ Section RegexpTree.
         assert (plus = m). { destruct plus; try discriminate. injection H1 as ->. reflexivity. }
         subst plus plus0. clear H1 H2.
         inversion SKIP; subst; simpl.
-        + inversion SKIP0; subst. simpl. apply leaves_equiv_app. 2: reflexivity.
+        + inversion SKIP0; subst. unfold tree_equiv_tr_dir. simpl. apply leaves_equiv_app. 2: reflexivity.
           clear SKIP SKIP0.
           remember i as i' in ISTREE1 at 1, ISTREE0 at 1. clear Heqi'.
           remember (GroupMap.reset (def_groups r) gm) as gm'. clear gm Heqgm'.
@@ -340,8 +340,8 @@ Section RegexpTree.
     Qed.
 
     Lemma atmost_atmost_equiv_actions_minf (n: non_neg_integer_or_inf) r:
-      forall dir, actions_equiv_dir rer [Areg (Quantified true 0 +∞ r); Areg (Quantified true 0 n r)]
-        [Areg (Quantified true 0 +∞ r)] dir.
+      forall dir, actions_equiv_dir rer dir [Areg (Quantified true 0 +∞ r); Areg (Quantified true 0 n r)]
+        [Areg (Quantified true 0 +∞ r)].
     Proof.
       unfold actions_equiv_dir.
       intros dir inp.
@@ -353,7 +353,7 @@ Section RegexpTree.
         check will always fail *)
         intros inp Hend gm t1 t2 TREE1 TREE2.
         inversion TREE1; subst. inversion TREE2; subst.
-        inversion SKIP0; subst. simpl.
+        inversion SKIP0; subst. unfold tree_equiv_tr_dir. simpl.
         assert (NO_LEAVES: actions_no_leaves rer [Areg r; Acheck inp; Areg (Quantified true 0 plus r);
           Areg (Quantified true 0 n r)] dir). {
           apply actions_no_leaves_add_left with (a := [Areg r]).
