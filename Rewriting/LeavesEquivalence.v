@@ -336,4 +336,35 @@ Section Lemmas.
       intros; rewrite is_seen_spec in *; simpl in *; intuition (subst; eauto).
     - apply equiv_cons; eauto.
   Qed.
+
+  Lemma leaves_equiv_subseen:
+    forall l1 l2 seen subseen,
+      (forall x, is_seen x subseen = true -> is_seen x seen = true) ->
+      leaves_equiv seen l1 l2 ->
+      leaves_equiv seen (subseen ++ l1) l2.
+  Proof.
+    intros l1 l2 seen subseen SUB EQUIV.
+    generalize dependent l1. generalize dependent l2.
+    induction subseen; intros; auto.
+    destruct a. simpl. constructor.
+    - apply (SUB (i,g)). simpl. replace (input_eqb i i) with true.
+      2: { symmetry. apply input_eqb_true. auto. }
+      simpl. auto. replace (gm_eqb g g) with true; auto.
+      { symmetry. apply gm_eqb_true. auto. }
+    - apply IHsubseen; auto.
+      intros x H. apply SUB. simpl. rewrite H.
+      rewrite Bool.orb_true_r. auto.
+  Qed.
 End Lemmas.
+
+(* Leaves equivalence is an equivalence relation *)
+Section Relation.
+  Context {params: LindenParameters}.
+  Context (seen: list (input * group_map)).
+
+  #[global] Add Relation (list leaf) (leaves_equiv seen)
+      reflexivity proved by (fun l => leaves_equiv_refl l seen)
+      symmetry proved by (fun l1 l2 => leaves_equiv_comm l1 l2 seen)
+      transitivity proved by (fun l1 l2 l3 => leaves_equiv_trans l1 l2 l3 seen)
+      as leaves_equiv_rel.
+End Relation.
