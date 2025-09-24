@@ -26,7 +26,6 @@ Theorem equivalence_chain:
       (Quantified true (min0+min1) (Delta1+Delta2)%NoI r).
 Proof.
   intros r min0 min1 Delta1 Delta2 NOGROUPS.
-  Fail rewrite <- forced_equiv.
   (* transforms the false into a true *)
   etransitivity.
   { apply seq_equiv. symmetry. apply forced_equiv. reflexivity. }
