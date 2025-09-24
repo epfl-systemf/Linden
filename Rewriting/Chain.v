@@ -39,13 +39,12 @@ Proof.
   { apply seq_equiv. reflexivity. symmetry. apply sequence_assoc_equiv. }
   etransitivity.
   { apply sequence_assoc_equiv. }
-  (* merging the first two, and last two, quantifiers *)
+  (* merges the first two, and last two, quantifiers *)
   etransitivity.
   { apply seq_equiv.
     - apply bounded_bounded_equiv. auto.
-    - apply atmost_atmost_equiv. auto.
-  }
-  (* merging the two resulting quantifiers *)
+    - apply atmost_atmost_equiv. auto. }
+  (* merges the two resulting quantifiers *)
   apply bounded_atmost_equiv. auto.
 Qed.
 
