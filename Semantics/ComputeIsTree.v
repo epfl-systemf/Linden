@@ -16,7 +16,7 @@ Section ComputeIsTree.
     intros act inp gm dir t. simpl.
     destruct act as [|[reg | inpcheck | gid] acts].
     1: { 
-      intros H. injection H as <-. apply tree_done.
+      intros H. injection H as <-. apply tree_match.
     }
 
     1: destruct reg as [ | cd | r1 r2 | r1 r2 | greedy min delta r | lk r | gid r | a | gid].
