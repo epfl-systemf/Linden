@@ -2,7 +2,7 @@ From Coq Require Export Bool Arith List Equivalence Lia.
 From Warblre Require Import Base RegExpRecord.
 From Linden Require Import Regex Chars Groups Tree Semantics
   FunctionalSemantics FunctionalUtils ComputeIsTree Parameters
-  LWParameters LeavesEquivalence.
+  LWParameters LeavesEquivalence FlatMap.
 
 Export ListNotations.
 
@@ -316,17 +316,6 @@ Section Relation.
 
 
   Ltac eqv := repeat red; tree_equiv_rw; solve [congruence | intuition | firstorder].
-
-  (* Leaves equivalence *)
-  Section LeavesEquiv.
-    Context (seen: list (input * group_map)).
-
-    #[global] Add Relation (list leaf) (leaves_equiv seen)
-        reflexivity proved by (fun l => leaves_equiv_refl l seen)
-        symmetry proved by (fun l1 l2 => leaves_equiv_comm l1 l2 seen)
-        transitivity proved by (fun l1 l2 l3 => leaves_equiv_trans l1 l2 l3 seen)
-        as leaves_equiv_rel.
-  End LeavesEquiv.
 
 
   (* Tree equivalence *)
@@ -660,18 +649,6 @@ Section Congruence.
     apply equiv_head. auto.
   Qed.
 
-  (** * FlatMap Lemmas  *)
-
-  (* a propositional version of flat_map *)
-  (* FlatMap lbase f lmapped means that lmapped corresponds to the list lbase where each element has been replaced by its image by f *)
-  Inductive FlatMap {X Y:Type} : list X -> (X -> list Y -> Prop) -> list Y -> Prop :=
-  | FM_nil: forall f,
-      FlatMap [] f []
-  | FM_cons:
-    forall lbase f lmapped x ly
-      (FM: FlatMap lbase f lmapped)
-      (HEAD: f x ly),
-      FlatMap (x::lbase) f (ly ++ lmapped).
 
   (* getting the leaves of a continuation applied to a particular leaf *)
   Inductive act_from_leaf : actions -> Direction -> leaf -> list leaf -> Prop :=
@@ -679,18 +656,6 @@ Section Congruence.
     forall act dir l t
       (TREE: is_tree rer act (fst l) (snd l) dir t),
       act_from_leaf act dir l (tree_leaves t (snd l) (fst l) dir).
-
-  Property FlatMap_app {X Y: Type}:
-    forall (lbase1 lbase2 : list X) (f: X -> list Y -> Prop) (lmapped1 lmapped2: list Y),
-      FlatMap lbase1 f lmapped1 ->
-      FlatMap lbase2 f lmapped2 ->
-      FlatMap (lbase1 ++ lbase2) f (lmapped1 ++ lmapped2).
-  Proof.
-    intros lbase1 lbase2 f lmapped1 lmapped2 FM1 FM2.
-    induction FM1.
-    - auto.
-    - rewrite <- app_assoc, <- app_comm_cons. constructor; auto.
-  Qed.
 
 
   (* The two following lemmas should probably be moved somewhere else *)
@@ -874,8 +839,7 @@ Section Congruence.
   (* building up to contextual equivalence *)
   (* to reason about the leaves of an app, we use the flatmap result *)
 
-  Definition determ {A B: Type} (f: A -> B -> Prop) :=
-    forall x y1 y2, f x y1 -> f x y2 -> y1 = y2.
+
 
   Lemma act_from_leaf_determ: forall act dir, determ (act_from_leaf act dir).
   Proof.
@@ -884,106 +848,11 @@ Section Congruence.
     assert (t0 = t) by eauto using is_tree_determ. subst t0. reflexivity.
   Qed.
 
-  Lemma FlatMap_in {A B}:
-    forall (l: list A) (f: A -> list B -> Prop) fl x fx,
-      determ f ->
-      FlatMap l f fl ->
-      In x l ->
-      f x fx ->
-      Forall (fun y => In y fl) fx.
-  Proof.
-    intros l f fl x fx DETERM FM INxl F.
-    revert fl FM.
-    induction l.
-    1: inversion INxl.
-    intros fl FM. destruct INxl.
-    - subst a. inversion FM; subst.
-      assert (ly = fx) by eauto (* using DETERM *). subst ly. clear HEAD FM F IHl.
-      induction fx.
-      + constructor.
-      + constructor.
-        * rewrite <- app_comm_cons. left. reflexivity.
-        * eapply Forall_impl; eauto. simpl. tauto.
-    - inversion FM; subst. specialize (IHl H lmapped FM0).
-      eapply Forall_impl; eauto. simpl. intro. rewrite in_app_iff. tauto.
-  Qed.
-
-  Lemma FlatMap_in2:
-    forall f leaf fleaf seen fseen,
-      determ f -> 
-      f leaf fleaf ->
-      is_seen leaf seen = true ->
-      FlatMap seen f fseen ->
-      forall x, is_seen x fleaf = true -> is_seen x fseen = true.
-  Proof.
-    intros f leaf fleaf seen fseen H H0 H1 H2 x H3.
-    rewrite is_seen_spec in H3, H1. rewrite is_seen_spec.
-    specialize (FlatMap_in _ _ _ _ _ H H2 H1 H0).
-    intros H4. rewrite Forall_forall in H4. auto.
-  Qed.
-
-  Lemma leaves_equiv_subseen:
-    forall l1 l2 seen subseen,
-      (forall x, is_seen x subseen = true -> is_seen x seen = true) ->
-      leaves_equiv seen l1 l2 ->
-      leaves_equiv seen (subseen ++ l1) l2.
-  Proof.
-    intros l1 l2 seen subseen SUB EQUIV.
-    generalize dependent l1. generalize dependent l2.
-    induction subseen; intros; auto.
-    destruct a. simpl. constructor.
-    - apply (SUB (i,g)). simpl. replace (input_eqb i i) with true.
-      2: { symmetry. apply input_eqb_true. auto. }
-      simpl. auto. replace (gm_eqb g g) with true; auto.
-      { symmetry. apply gm_eqb_true. auto. }
-    - apply IHsubseen; auto.
-      intros x H. apply SUB. simpl. rewrite H.
-      rewrite Bool.orb_true_r. auto.
-  Qed.
-
-
-  Lemma flatmap_leaves_equiv_l_seen:
-    forall l1 l2 seen f fseen fl1 fl2,
-      determ f ->
-      leaves_equiv seen l1 l2 ->
-      FlatMap l1 f fl1 ->
-      FlatMap l2 f fl2 ->
-      FlatMap seen f fseen ->
-      leaves_equiv fseen fl1 fl2.
-  Proof.
-    intros l1 l2 seen f fseen fl1 fl2 DET EQUIV FM1 FM2 FMSEEN.
-    generalize dependent fl1. generalize dependent fl2. generalize dependent fseen.
-    induction EQUIV; intros.
-    - inversion FM2; subst. inversion FM1; subst. apply leaves_equiv_refl.
-    - inversion FM1; subst. apply leaves_equiv_subseen; auto.
-      eapply FlatMap_in2; eauto.
-    - inversion FM2; subst. apply leaves_equiv_rel_Symmetric.
-      apply leaves_equiv_subseen; auto.
-      2: { apply leaves_equiv_rel_Symmetric. auto. }
-      eapply FlatMap_in2; eauto.
-    - inversion FM1; inversion FM2; subst.
-      specialize (DET _ _ _ HEAD HEAD0). subst.
-      apply leaves_equiv_app2; auto.
-      + apply leaves_equiv_refl.
-      + eapply IHEQUIV; eauto. constructor; auto.
-  Qed.
-
-  Lemma flatmap_leaves_equiv_l:
-    forall leaves1 leaves2 f leavesf1 leavesf2,
-      determ f ->
-      leaves_equiv [] leaves1 leaves2 ->
-      FlatMap leaves1 f leavesf1 ->
-      FlatMap leaves2 f leavesf2 ->
-      leaves_equiv [] leavesf1 leavesf2.
-  Proof.
-    intros.
-    eapply flatmap_leaves_equiv_l_seen with (seen := []); eauto. constructor.
-  Qed.
 
   Lemma app_eq_right:
     forall a1 a2 acts dir
-      (ACTS_EQ: actions_equiv_dir rer a1 a2 dir),
-      actions_equiv_dir rer (a1 ++ acts) (a2 ++ acts) dir.
+      (ACTS_EQ: actions_equiv_dir rer dir a1 a2),
+      actions_equiv_dir rer dir (a1 ++ acts) (a2 ++ acts).
   Proof.
     intros. unfold actions_equiv_dir in *.
     intros inp gm t1acts t2acts TREE1acts TREE2acts.
@@ -997,6 +866,7 @@ Section Congruence.
     pose proof leaves_concat inp gm dir a1 acts t1acts t1 TREE1acts TREE1.
     pose proof leaves_concat inp gm dir a2 acts t2acts t2 TREE2acts TREE2.
     specialize (ACTS_EQ inp gm t1 t2 TREE1 TREE2).
+    unfold tree_equiv_tr_dir.
     eauto using flatmap_leaves_equiv_l, act_from_leaf_determ.
   Qed.
 
@@ -1025,7 +895,7 @@ Section Congruence.
 
   Definition equiv_leaffuncts_cond (f g: leaf -> list leaf -> Prop) (P: leaf -> Prop): Prop :=
     forall l, P l ->
-         forall yf yg, f l yf -> g l yg -> leaves_equiv [] yf yg.
+      forall yf yg, f l yf -> g l yg -> leaves_equiv [] yf yg.
   
   Lemma flatmap_leaves_equiv_r_prop:
     forall l f g fl gl P,
@@ -1051,8 +921,8 @@ Section Congruence.
   
   Lemma app_eq_left:
     forall a1 a2 acts dir
-      (ACTS_EQ: actions_equiv_dir rer a1 a2 dir),
-      actions_equiv_dir rer (acts ++ a1) (acts ++ a2) dir.
+      (ACTS_EQ: actions_equiv_dir rer dir a1 a2),
+      actions_equiv_dir rer dir (acts ++ a1) (acts ++ a2).
   Proof.
     intros. unfold actions_equiv_dir in *.
     intros inp gm t1acts t2acts TREE1acts TREE2acts.
@@ -1071,11 +941,11 @@ Section Congruence.
   
   Lemma app_eq_both:
     forall a1 a2 b1 b2 dir
-      (A_EQ: actions_equiv_dir rer a1 a2 dir)
-      (B_EQ: actions_equiv_dir rer b1 b2 dir),
-      actions_equiv_dir rer (a1 ++ b1) (a2 ++ b2) dir.
+      (A_EQ: actions_equiv_dir rer dir a1 a2)
+      (B_EQ: actions_equiv_dir rer dir b1 b2),
+      actions_equiv_dir rer dir (a1 ++ b1) (a2 ++ b2).
   Proof.
-    intros. eapply equiv_trans with (a2:=a1++b2).
+    intros. transitivity (a1++b2).
     - apply app_eq_left. auto.
     - apply app_eq_right. auto.
   Qed.
@@ -1087,14 +957,14 @@ Section Congruence.
 
   Lemma actions_equiv_interm_prop:
     forall (a1 a2 b1 b2: actions) (P: leaf -> Prop) (dir: Direction),
-      actions_equiv_dir rer a1 a2 dir ->
-      actions_respect_prop_dir rer a1 dir P ->
-      actions_respect_prop_dir rer a2 dir P ->
-      actions_equiv_dir_cond rer b1 b2 dir P ->
-      actions_equiv_dir rer (a1 ++ b1) (a2 ++ b2) dir.
+      actions_equiv_dir rer dir a1 a2 ->
+      actions_respect_prop_dir a1 dir P ->
+      actions_respect_prop_dir a2 dir P ->
+      actions_equiv_dir_cond rer dir P b1 b2 ->
+      actions_equiv_dir rer dir (a1 ++ b1) (a2 ++ b2).
   Proof.
     intros a1 a2 b1 b2 P dir EQUIV_a PROP1 PROP2 EQUIV_b.
-    apply equiv_trans with (a2 := a1 ++ b2).
+    transitivity (a1 ++ b2).
     - unfold actions_equiv_dir. intros inp gm t1 t2 TREE1 TREE2.
       assert (exists ta1, is_tree rer a1 inp gm dir ta1). { exists (compute_tr rer a1 inp gm dir). apply compute_tr_is_tree. }
       destruct H as [ta1 TREEa1].
@@ -1109,8 +979,8 @@ Section Congruence.
 
   Lemma actions_respect_prop_add_left:
     forall (a b: actions) (P: leaf -> Prop) (dir: Direction),
-      actions_respect_prop_dir rer b dir P ->
-      actions_respect_prop_dir rer (a ++ b) dir P.
+      actions_respect_prop_dir b dir P ->
+      actions_respect_prop_dir (a ++ b) dir P.
   Proof.
     intros a b P dir PROPb.
     unfold actions_respect_prop_dir. intros inp gm t TREE.
@@ -1133,7 +1003,7 @@ Section Congruence.
 
   Lemma actions_prop_False_no_leaves:
     forall (a: actions) (dir: Direction) (P: leaf -> Prop),
-      actions_respect_prop_dir rer a dir P ->
+      actions_respect_prop_dir a dir P ->
       (forall lf, ~P lf) ->
       actions_no_leaves a dir.
   Proof.
@@ -1147,7 +1017,7 @@ Section Congruence.
   Lemma actions_no_leaves_prop_False:
     forall (a: actions) (dir: Direction),
       actions_no_leaves a dir ->
-      actions_respect_prop_dir rer a dir (fun _ => False).
+      actions_respect_prop_dir a dir (fun _ => False).
   Proof.
     intros a dir NO_LEAVES.
     unfold actions_respect_prop_dir. unfold actions_no_leaves in NO_LEAVES.
@@ -1181,11 +1051,10 @@ Section Congruence.
   Qed.
 
 
-  (** * END PLAN *)
   (* Lemma for quantifiers *)
   Lemma check_actions_prop:
     forall inp dir,
-      actions_respect_prop_dir rer [Acheck inp] dir
+      actions_respect_prop_dir [Acheck inp] dir
         (fun lf : input * group_map => StrictSuffix.strict_suffix (fst lf) inp dir).
   Proof.
     intros inp dir. unfold actions_respect_prop_dir.
@@ -1278,9 +1147,10 @@ Section Congruence.
       tree_equiv_tr_dir inp gm dir t1 t2) ->
       forall inp,
         remaining_length inp dir <= S n ->
-        actions_equiv_dir_cond rer [Areg (Quantified greedy 0 plus r1)]
-          [Areg (Quantified greedy 0 plus r2)] dir
-          (fun lf : input * group_map => StrictSuffix.strict_suffix (fst lf) inp dir).
+        actions_equiv_dir_cond rer dir
+          (fun lf : input * group_map => StrictSuffix.strict_suffix (fst lf) inp dir)
+          [Areg (Quantified greedy 0 plus r1)]
+          [Areg (Quantified greedy 0 plus r2)].
   Proof.
     intros. unfold actions_equiv_dir_cond.
     intros [inp' gm'] STRICT_SUFFIX t1 t2 TREE1 TREE2. simpl in *.
@@ -1396,7 +1266,7 @@ Section Congruence.
     induction ctx.
     - (* Hole *) auto.
     - (* Disjunction left *)
-      simpl in *. unfold tree_equiv_dir in *. specialize (IHctx Hctxdir).
+      simpl in *. unfold tree_equiv_dir, actions_equiv_dir in *. specialize (IHctx Hctxdir).
       destruct IHctx as [IHgroups IHctx]. split.
       1: { simpl. f_equal. auto. }
       intros inp gm t1 t2 TREE1 TREE2.
@@ -1406,7 +1276,7 @@ Section Congruence.
       assert (t1 = t0) by (eapply is_tree_determ; eauto). subst t1. apply leaves_equiv_refl.
     
     - (* Disjunction right *)
-      simpl in *. unfold tree_equiv_dir in *. specialize (IHctx Hctxdir).
+      simpl in *. unfold tree_equiv_dir, actions_equiv_dir in *. specialize (IHctx Hctxdir).
       destruct IHctx as [IHgroups IHctx]. split.
       1: { simpl. f_equal. auto. }
       intros inp gm t1 t2 TREE1 TREE2.
@@ -1430,7 +1300,7 @@ Section Congruence.
         unfold actions_equiv_dir in H. simpl in H. unfold tree_equiv_tr_dir in *. auto.
       
     - (* Sequence right *)
-      simpl in *. unfold tree_equiv_dir in *. specialize (IHctx Hctxdir).
+      simpl in *. unfold tree_equiv_dir, actions_equiv_dir in *. specialize (IHctx Hctxdir).
       destruct IHctx as [IHgroups IHctx]. split.
       1: { simpl. f_equal. auto. }
       intros inp gm t1 t2 TREE1 TREE2.
@@ -1438,10 +1308,10 @@ Section Congruence.
       destruct dir.
       + (* Forward *)
         simpl in *. pose proof app_eq_right _ _ [Areg r0] forward IHctx.
-        unfold actions_equiv in H. simpl in H. unfold tree_equiv_tr_dir in *. auto.
+        unfold actions_equiv_dir in H. simpl in H. unfold tree_equiv_tr_dir in *. auto.
       + (* Backward *)
         simpl in *. pose proof app_eq_left _ _ [Areg r0] backward IHctx.
-        unfold actions_equiv in H. simpl in H. unfold tree_equiv_tr_dir in *. auto.
+        unfold actions_equiv_dir in H. simpl in H. unfold tree_equiv_tr_dir in *. auto.
       
     - (* Quantified *)
       simpl in *. specialize (IHctx Hctxdir). apply regex_equiv_quant. auto.
@@ -1449,7 +1319,8 @@ Section Congruence.
     - (* Lookaround: direction of context is never Same *)
       exfalso. exact (ctx_dir_lookaround_not_Same _ _ Hctxdir).
 
-    - simpl in *. unfold tree_equiv_dir in *. specialize (IHctx Hctxdir).
+    - (* Group *)
+      simpl in *. unfold tree_equiv_dir, actions_equiv_dir in *. specialize (IHctx Hctxdir).
       destruct IHctx as [IHgroups IHctx]. split.
       1: { simpl. f_equal. auto. }
       intros inp gm t1 t2 TREE1 TREE2.
