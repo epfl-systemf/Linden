@@ -6,8 +6,8 @@ Import ListNotations.
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM PikeSubset.
-From Linden Require Import PikeTreeSeen PikeVMSeen.
-From Linden Require Import Correctness PikeSeenEquiv.
+From Linden Require Import PikeTree PikeVM.
+From Linden Require Import Correctness PikeEquiv.
 From Warblre Require Import Base RegExpRecord.
 
 (* We prove that there is a natural measure that strictly decreases at each step. *)
