@@ -5,7 +5,7 @@ Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics BooleanSemantics.
-From Linden Require Import NFA PikeTree PikeVM PikeSubset.
+From Linden Require Import NFA PikeTree PikeVMSeen PikeSubset.
 From Warblre Require Import Base RegExpRecord.
 
 
@@ -75,43 +75,43 @@ Qed.
 
 
 (* lifting the equivalence predicate to pike states, to get the full invariant *)
-Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> Prop :=
-| pikeinv:
-  forall inp treeactive treeblocked threadactive threadblocked best
-    (ACTIVE: list_tree_thread code inp treeactive threadactive)
-    (* blocked threads should be equivalent for the next input *)
-    (* nothing to say if there is no next input *)
-    (BLOCKED: forall nextinp, advance_input inp forward = Some nextinp -> list_tree_thread code nextinp treeblocked threadblocked)
-    (* these two properties are needed to ensure the two algorithms stop at he same time *)
-    (ENDVM: advance_input inp forward = None -> threadblocked = [])
-    (ENDTREE: advance_input inp forward = None -> treeblocked = []),
-    pike_inv code (PTS inp treeactive best treeblocked) (PVS inp threadactive best threadblocked)
-| pikeinv_final:
-  forall best,
-    pike_inv code (PTS_final best) (PVS_final best).
+(* Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> Prop := *)
+(* | pikeinv: *)
+(*   forall inp treeactive treeblocked threadactive threadblocked best *)
+(*     (ACTIVE: list_tree_thread code inp treeactive threadactive) *)
+(*     (* blocked threads should be equivalent for the next input *) *)
+(*     (* nothing to say if there is no next input *) *)
+(*     (BLOCKED: forall nextinp, advance_input inp forward = Some nextinp -> list_tree_thread code nextinp treeblocked threadblocked) *)
+(*     (* these two properties are needed to ensure the two algorithms stop at he same time *) *)
+(*     (ENDVM: advance_input inp forward = None -> threadblocked = []) *)
+(*     (ENDTREE: advance_input inp forward = None -> treeblocked = []), *)
+(*     pike_inv code (PTS inp treeactive best treeblocked) (PVS inp threadactive best threadblocked) *)
+(* | pikeinv_final: *)
+(*   forall best, *)
+(*     pike_inv code (PTS_final best) (PVS_final best). *)
 
 (** * Invariant Initialization  *)
 
 (* the initial states of both smallstep semantics are related with the invariant *)
-Lemma initial_pike_inv:
-  forall r inp tree code
-    (TREE: bool_tree rer [Areg r] inp CanExit tree)
-    (COMPILE: compilation r = code)
-    (SUBSET: pike_regex r),
-    pike_inv code (pike_tree_initial_state tree inp) (pike_vm_initial_state inp).
-Proof.
-  intros r inp tree code TREE COMPILE SUBSET.
-  unfold compilation in COMPILE. destruct (compile r 0) as [c fresh] eqn:COMP.
-  apply compile_nfa_rep with (prev := []) in COMP as REP; auto. simpl in REP.
-  apply fresh_correct in COMP. simpl in COMP. subst.
-  eapply pikeinv; econstructor.
-  { constructor. }
-  apply tt_eq with (actions:=[Areg r]); auto.
-  2: { constructor; constructor; auto. }
-  apply cons_bc with (pcmid:=length c).
-  - constructor. apply nfa_rep_extend. auto. 
-  - constructor. replace (length c) with (length c + 0) by auto. rewrite get_prefix. auto.
-Qed.
+(* Lemma initial_pike_inv: *)
+(*   forall r inp tree code *)
+(*     (TREE: bool_tree rer [Areg r] inp CanExit tree) *)
+(*     (COMPILE: compilation r = code) *)
+(*     (SUBSET: pike_regex r), *)
+(*     pike_inv code (pike_tree_initial_state tree inp) (pike_vm_initial_state inp). *)
+(* Proof. *)
+(*   intros r inp tree code TREE COMPILE SUBSET. *)
+(*   unfold compilation in COMPILE. destruct (compile r 0) as [c fresh] eqn:COMP. *)
+(*   apply compile_nfa_rep with (prev := []) in COMP as REP; auto. simpl in REP. *)
+(*   apply fresh_correct in COMP. simpl in COMP. subst. *)
+(*   eapply pikeinv; econstructor. *)
+(*   { constructor. } *)
+(*   apply tt_eq with (actions:=[Areg r]); auto. *)
+(*   2: { constructor; constructor; auto. } *)
+(*   apply cons_bc with (pcmid:=length c). *)
+(*   - constructor. apply nfa_rep_extend. auto.  *)
+(*   - constructor. replace (length c) with (length c + 0) by auto. rewrite get_prefix. auto. *)
+(* Qed. *)
 
 
 (** * Stuttering  *)
@@ -569,89 +569,89 @@ Proof.
 Qed.
 
 
-Theorem invariant_preservation:
-  forall code pts1 pvs1 pts2
-    (INV: pike_inv rer code pts1 pvs1)
-    (TREESTEP: pike_tree_step pts1 pts2),
-    (* progress on the PTS side implies progress on the PVS side *)
-    (        
-      exists pvs2,
-        pike_vm_step rer code pvs1 pvs2 /\
-          pike_inv rer code pts2 pvs2
-    )
-    \/
-      (* stuttering step on the PVS side *)
-      (
-        exists pvs2,
-          pike_vm_step rer code pvs1 pvs2 /\
-            pike_inv rer code pts1 pvs2
-      ).
-Proof.
-  intros code pts1 pvs1 pts2 INV TREESTEP.
-  inversion INV; subst.
-  (* Final states make no step *)
-  2: { left. intros. inversion TREESTEP. }
-  inversion TREESTEP; subst.
-  (* pts_final *)
-  - left. exists (PVS_final best). split.
-    + inversion ACTIVE. subst.
-      destruct (advance_input inp) eqn:ADVANCE.
-      * specialize (BLOCKED i eq_refl). inversion BLOCKED. subst. apply pvs_final.
-      * specialize (ENDVM eq_refl). subst. apply pvs_end. auto.
-    + apply pikeinv_final.
-  (* pts_nextchar *)
-  - left. inversion ACTIVE. subst.
-    (* the pike vm has two different rules for when we reach the end of input or not *)
-    destruct (advance_input inp) as [nextinp|] eqn:ADVANCE.
-    + specialize (BLOCKED nextinp eq_refl).
-      inversion BLOCKED. subst.
-      exists (PVS nextinp ((pc,gm,b)::threadlist) best []). split.
-      * apply pvs_nextchar. auto.
-      * apply advance_next in ADVANCE. subst. eapply pikeinv; eauto. intros. constructor.
-    + specialize (ENDTREE eq_refl). inversion ENDTREE.
-  (* pts_active *)
-  - inversion ACTIVE. subst.
-    destruct (stutters pc code) eqn:STUTTERS.
-    + right. apply stutter_step in TT as [nextpc [nextb [EPSSTEP TT]]]; subst; eauto.
-      exists (PVS inp ([(nextpc, gm, nextb)] ++ threadlist) best threadblocked).
-      split; try split; auto.
-      * apply pvs_active. auto.
-      * simpl. eapply pikeinv; eauto. econstructor; eauto.
-    + left. inversion ACTIVE. subst. rename t into tree.
-      eapply generate_active in TT as [newthreads [EPS LTT2]]; eauto.
-      exists (PVS inp (newthreads++threadlist) best threadblocked). split.
-      * apply pvs_active. auto.
-      * eapply pikeinv; auto. apply ltt_app; eauto.
-  (* pts_match *)
-  - inversion ACTIVE. subst.
-     destruct (stutters pc code) eqn:STUTTERS.
-    + right. apply stutter_step in TT as [nextpc [nextb [EPSSTEP TT]]]; subst; eauto.
-      exists (PVS inp ([(nextpc, gm, nextb)] ++ threadlist) best threadblocked).
-      split; try split; auto.
-      * apply pvs_active. auto.
-      * simpl. eapply pikeinv; eauto. econstructor; eauto.
-    + left. rename t into tree. eapply generate_match in TT; eauto.
-      exists (PVS inp [] (Some (inp,gm)) threadblocked). split.
-      * apply pvs_match. auto.
-      * econstructor; auto. constructor.
-  (* pts_blocked *)
-  - inversion ACTIVE. subst.
-    destruct (stutters pc code) eqn:STUTTERS.
-    + right. apply stutter_step in TT as [nextpc [nextb [EPSSTEP TT]]]; subst; eauto.
-      exists (PVS inp ([(nextpc, gm, nextb)] ++ threadlist) best threadblocked).
-      split; try split; auto.
-      * apply pvs_active. auto.
-      * simpl. eapply pikeinv; eauto. econstructor; eauto.
-    + left. rename t into tree.
-      specialize (generate_blocked _ _ _ _ _ _ _ STEP STUTTERS TT) as [EPS2 [TT2 [nexti ADVANCE]]].
-      exists (PVS inp threadlist best (threadblocked ++ [(pc+1,gm,CanExit)])). split.
-      * apply pvs_blocked. auto.
-      * econstructor; eauto.
-        2: { intros H. rewrite ADVANCE in H. inversion H. }
-        2: { intros H. rewrite ADVANCE in H. inversion H. }
-        intros nextinp H. specialize (BLOCKED nextinp H).
-        apply ltt_app; eauto. specialize (TT2 nextinp H).
-        eapply ltt_cons. constructor. auto.
-Qed.
+(* Theorem invariant_preservation: *)
+(*   forall code pts1 pvs1 pts2 *)
+(*     (INV: pike_inv rer code pts1 pvs1) *)
+(*     (TREESTEP: pike_tree_step pts1 pts2), *)
+(*     (* progress on the PTS side implies progress on the PVS side *) *)
+(*     (         *)
+(*       exists pvs2, *)
+(*         pike_vm_step rer code pvs1 pvs2 /\ *)
+(*           pike_inv rer code pts2 pvs2 *)
+(*     ) *)
+(*     \/ *)
+(*       (* stuttering step on the PVS side *) *)
+(*       ( *)
+(*         exists pvs2, *)
+(*           pike_vm_step rer code pvs1 pvs2 /\ *)
+(*             pike_inv rer code pts1 pvs2 *)
+(*       ). *)
+(* Proof. *)
+(*   intros code pts1 pvs1 pts2 INV TREESTEP. *)
+(*   inversion INV; subst. *)
+(*   (* Final states make no step *) *)
+(*   2: { left. intros. inversion TREESTEP. } *)
+(*   inversion TREESTEP; subst. *)
+(*   (* pts_final *) *)
+(*   - left. exists (PVS_final best). split. *)
+(*     + inversion ACTIVE. subst. *)
+(*       destruct (advance_input inp) eqn:ADVANCE. *)
+(*       * specialize (BLOCKED i eq_refl). inversion BLOCKED. subst. apply pvs_final. *)
+(*       * specialize (ENDVM eq_refl). subst. apply pvs_end. auto. *)
+(*     + apply pikeinv_final. *)
+(*   (* pts_nextchar *) *)
+(*   - left. inversion ACTIVE. subst. *)
+(*     (* the pike vm has two different rules for when we reach the end of input or not *) *)
+(*     destruct (advance_input inp) as [nextinp|] eqn:ADVANCE. *)
+(*     + specialize (BLOCKED nextinp eq_refl). *)
+(*       inversion BLOCKED. subst. *)
+(*       exists (PVS nextinp ((pc,gm,b)::threadlist) best []). split. *)
+(*       * apply pvs_nextchar. auto. *)
+(*       * apply advance_next in ADVANCE. subst. eapply pikeinv; eauto. intros. constructor. *)
+(*     + specialize (ENDTREE eq_refl). inversion ENDTREE. *)
+(*   (* pts_active *) *)
+(*   - inversion ACTIVE. subst. *)
+(*     destruct (stutters pc code) eqn:STUTTERS. *)
+(*     + right. apply stutter_step in TT as [nextpc [nextb [EPSSTEP TT]]]; subst; eauto. *)
+(*       exists (PVS inp ([(nextpc, gm, nextb)] ++ threadlist) best threadblocked). *)
+(*       split; try split; auto. *)
+(*       * apply pvs_active. auto. *)
+(*       * simpl. eapply pikeinv; eauto. econstructor; eauto. *)
+(*     + left. inversion ACTIVE. subst. rename t into tree. *)
+(*       eapply generate_active in TT as [newthreads [EPS LTT2]]; eauto. *)
+(*       exists (PVS inp (newthreads++threadlist) best threadblocked). split. *)
+(*       * apply pvs_active. auto. *)
+(*       * eapply pikeinv; auto. apply ltt_app; eauto. *)
+(*   (* pts_match *) *)
+(*   - inversion ACTIVE. subst. *)
+(*      destruct (stutters pc code) eqn:STUTTERS. *)
+(*     + right. apply stutter_step in TT as [nextpc [nextb [EPSSTEP TT]]]; subst; eauto. *)
+(*       exists (PVS inp ([(nextpc, gm, nextb)] ++ threadlist) best threadblocked). *)
+(*       split; try split; auto. *)
+(*       * apply pvs_active. auto. *)
+(*       * simpl. eapply pikeinv; eauto. econstructor; eauto. *)
+(*     + left. rename t into tree. eapply generate_match in TT; eauto. *)
+(*       exists (PVS inp [] (Some (inp,gm)) threadblocked). split. *)
+(*       * apply pvs_match. auto. *)
+(*       * econstructor; auto. constructor. *)
+(*   (* pts_blocked *) *)
+(*   - inversion ACTIVE. subst. *)
+(*     destruct (stutters pc code) eqn:STUTTERS. *)
+(*     + right. apply stutter_step in TT as [nextpc [nextb [EPSSTEP TT]]]; subst; eauto. *)
+(*       exists (PVS inp ([(nextpc, gm, nextb)] ++ threadlist) best threadblocked). *)
+(*       split; try split; auto. *)
+(*       * apply pvs_active. auto. *)
+(*       * simpl. eapply pikeinv; eauto. econstructor; eauto. *)
+(*     + left. rename t into tree. *)
+(*       specialize (generate_blocked _ _ _ _ _ _ _ STEP STUTTERS TT) as [EPS2 [TT2 [nexti ADVANCE]]]. *)
+(*       exists (PVS inp threadlist best (threadblocked ++ [(pc+1,gm,CanExit)])). split. *)
+(*       * apply pvs_blocked. auto. *)
+(*       * econstructor; eauto. *)
+(*         2: { intros H. rewrite ADVANCE in H. inversion H. } *)
+(*         2: { intros H. rewrite ADVANCE in H. inversion H. } *)
+(*         intros nextinp H. specialize (BLOCKED nextinp H). *)
+(*         apply ltt_app; eauto. specialize (TT2 nextinp H). *)
+(*         eapply ltt_cons. constructor. auto. *)
+(* Qed. *)
 
 End PikeEquiv2.

@@ -1,5 +1,5 @@
-(* The PikeVm algorithm, expressed as small-step semantics on the bytecode NFA *)
-(* This version records the code labels it has already handled to avoid doing work twice *)
+(* The PikeVM algorithm, expressed as small-step semantics on the bytecode NFA *)
+(* It records the code labels it has already handled to avoid doing work twice *)
 
 Require Import List Lia.
 Import ListNotations.
@@ -7,7 +7,6 @@ Import ListNotations.
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics NFA.
 From Linden Require Import BooleanSemantics PikeSubset.
-From Linden Require Import PikeVM.
 From Warblre Require Import Base RegExpRecord.
 
 (** * Sets of seen pcs *)
@@ -99,6 +98,10 @@ Module VMS <: VMSeen.
 End VMS.
 
 
+Section PikeVMSeen.
+  Context (rer: RegExpRecord).
+
+(** * Seen set instantiation  *)
 Definition seenpcs := VMS.seenpcs.
 Definition initial_seenpcs := VMS.initial_seenpcs.
 Definition add_seenpcs := VMS.add_seenpcs.
@@ -107,6 +110,35 @@ Definition inpc_add := VMS.inpc_add.
 Definition initial_nothing_pc := VMS.initial_nothing_pc.
 (* Global Opaque seenpcs initial_seenpcs add_seenpcs inseenpc inpc_add initial_nothing_pc. *)
 
+  
+(** * PikeVM threads  *)
+
+Definition thread : Type := (label * group_map * LoopBool).
+
+Definition upd_label (t:thread) (next:label): thread :=
+  match t with (l,r,b) => (next,r,b) end.
+
+Definition advance_thread (t:thread) : thread :=
+  match t with (l,r,b) => (l+1,r,b) end.
+
+(* used after consuming *)
+Definition block_thread (t:thread) : thread :=
+  match t with (l,r,b) => (l+1,r,CanExit) end.
+
+Definition open_thread (t:thread) (gid:group_id) (idx:nat) : thread :=
+  match t with (l,r,b) => (l+1, GroupMap.open idx gid r, b) end.
+
+Definition close_thread (t:thread) (gid:group_id) (idx:nat) : thread :=
+  match t with (l,r,b) => (l+1, GroupMap.close idx gid r, b) end.
+
+Definition reset_thread (t:thread) (gidl:list group_id) : thread :=
+  match t with (l,r,b) => (l+1, GroupMap.reset gidl r, b) end.
+
+Definition begin_thread (t:thread) : thread :=
+  match t with (l,r,b) => (l+1,r,CannotExit) end.
+
+Definition gm_of (t:thread) : group_map :=
+  match t with (pc,gm,b) => gm end.
 
 Definition seen_thread (seen:seenpcs) (t:thread) :bool :=
   match t with
@@ -118,6 +150,46 @@ Definition add_thread (seen:seenpcs) (t:thread) : seenpcs :=
   | (pc, gm, b) => add_seenpcs seen pc b
   end.
 
+
+(** * NFA epsilon-exploration  *)
+
+(* the result of one step of exploring transitions *)
+Inductive epsilon_result : Type :=
+| EpsActive: list thread -> epsilon_result
+| EpsMatch: epsilon_result
+| EpsBlocked: thread -> epsilon_result.
+
+Definition EpsDead : epsilon_result := EpsActive [].
+
+(* an atomic step for a thread *)
+Definition epsilon_step (t:thread) (c:code) (i:input): epsilon_result :=
+  match t with
+  | (pc, gm, b) =>
+      match get_pc c pc with
+      | None => EpsDead
+      | Some instr =>
+          match instr with
+          | Accept => EpsMatch
+          | Consume cd => match check_read rer cd i forward with
+                         | CannotRead => EpsDead
+                         | CanRead => EpsBlocked (block_thread t)
+                         end
+          | Jmp next => EpsActive [upd_label t next]
+          | Fork l1 l2 => EpsActive [upd_label t l1; upd_label t l2]
+          | SetRegOpen gid => EpsActive [open_thread t gid (idx i)]
+          | SetRegClose gid => EpsActive [close_thread t gid (idx i)]
+          | ResetRegs gidl => EpsActive [reset_thread t gidl]
+          | BeginLoop => EpsActive [begin_thread t]
+          | EndLoop next => match b with
+                           | CannotExit => EpsDead
+                           | CanExit => EpsActive [upd_label t next]
+                           end
+          | KillThread => EpsDead
+          end
+      end
+  end.
+
+
 (** * PikeVM Semantics  *)
 
 (* semantic states of the PikeVM algorithm *)
@@ -127,9 +199,6 @@ Inductive pike_vm_seen_state : Type :=
 
 Definition pike_vm_seen_initial_state (inp:input) : pike_vm_seen_state :=
   PVSS inp [(0,GroupMap.empty,CanExit)] None [] initial_seenpcs.
-
-Section PikeVMSeen.
-  Context (rer: RegExpRecord).
 
 (* small-step semantics for the PikeVM algorithm *)
 Inductive pike_vm_seen_step (c:code): pike_vm_seen_state -> pike_vm_seen_state -> Prop :=
@@ -157,19 +226,19 @@ Inductive pike_vm_seen_step (c:code): pike_vm_seen_state -> pike_vm_seen_state -
   (* generated new active threads: add them in front of the low-priority ones *)
   forall inp t active best blocked seen nextactive
     (UNSEEN: seen_thread seen t = false)
-    (STEP: epsilon_step rer t c inp = EpsActive nextactive),
+    (STEP: epsilon_step t c inp = EpsActive nextactive),
     pike_vm_seen_step c (PVSS inp (t::active) best blocked seen) (PVSS inp (nextactive++active) best blocked (add_thread seen t))
 | pvss_match:
   (* a match is found, discard remaining low-priority active threads *)
   forall inp t active best blocked seen
     (UNSEEN: seen_thread seen t = false)
-    (STEP: epsilon_step rer t c inp = EpsMatch),
+    (STEP: epsilon_step t c inp = EpsMatch),
     pike_vm_seen_step c (PVSS inp (t::active) best blocked seen) (PVSS inp [] (Some (inp,gm_of t)) blocked (add_thread seen t))
 | pvss_blocked:
   (* add the new blocked thread after the previous ones *)
   forall inp t active best blocked seen newt
     (UNSEEN: seen_thread seen t = false)
-    (STEP: epsilon_step rer t c inp = EpsBlocked newt),
+    (STEP: epsilon_step t c inp = EpsBlocked newt),
     pike_vm_seen_step c (PVSS inp (t::active) best blocked seen) (PVSS inp active best (blocked ++ [newt]) (add_thread seen t)).
 
 (** * PikeVM properties  *)
@@ -210,7 +279,7 @@ Proof.
       * eexists. apply pvss_end. eauto.
   - destruct (seen_thread seen (pc,gm,b)) eqn:SEEN.
     { eexists. apply pvss_skip. auto. }
-    destruct (epsilon_step rer (pc,gm,b) c inp) eqn:EPS.
+    destruct (epsilon_step (pc,gm,b) c inp) eqn:EPS.
     + eexists. apply pvss_active; eauto.
     + eexists. apply pvss_match; eauto.
     + eexists. apply pvss_blocked; eauto.
