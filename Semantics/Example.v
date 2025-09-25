@@ -5,7 +5,7 @@ Require Import List.
 Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
-From Linden Require Import Tree Semantics PikeVMSeen.
+From Linden Require Import Tree Semantics PikeVM.
 From Warblre Require Import Base RegExpRecord.
 From Linden Require Import FunctionalUtils FunctionalSemantics.
 
