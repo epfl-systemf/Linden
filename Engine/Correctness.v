@@ -9,7 +9,8 @@ From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeTreeSeen PikeVMSeen.
 From Linden Require Import PikeEquiv PikeSeenEquiv PikeSubset.
 From Linden Require Import EquivMain RegexpTranslation GroupMapMS.
-From Warblre Require Import Base Semantics Result RegExpRecord.
+From Linden Require Import ResultTranslation FunctionalUtils.
+From Warblre Require Import Base Semantics Result RegExpRecord StaticSemantics.
 Import Result.Notations.
 
 Local Open Scope result_flow.
@@ -110,7 +111,7 @@ Proof.
     pike_subset. }
   generalize (init_piketree_inv tree inp SUBTREE). intros INIT.
   eapply pike_tree_trc_correct in TRC as FINALINV; eauto.
-  inversion FINALINV. subst. unfold first_branch. auto.
+  inversion FINALINV. subst. auto.
 Qed.
 
 
@@ -149,6 +150,36 @@ Theorem pike_vm_same_warblre_str0:
 Proof.
   intros lr wr str0 Hpike Hequiv Hcapcount HearlyErrors.
   apply pike_vm_same_warblre; auto.
+Qed.
+
+(* Equivalence of PikeVM to Warblre Semantics *)
+(* A version closer to the paper definition *)
+Theorem pike_vm_warblre:
+  forall rw r inp result,
+    (* For a correct RegExpRecord *)
+    RegExpRecord.capturingGroupsCount rer = countLeftCapturingParensWithin rw [] ->
+    (* For any Warblre regex that passes the early errors check, *)
+    earlyErrors rw nil = Success false ->
+    (* letting r be the corresponding Linden regex, *)
+    r = warblre_to_linden' rw 0 (buildnm rw) ->
+    (* such that it is in the supported PikeVM subset *)
+    pike_regex r ->
+    (* When PikeVM reaches a final result *)
+    trc_pike_vm (compilation r) (pike_vm_seen_initial_state inp) (PVSS_final result) ->
+    (* this result is equal to Warblre's execution result *)
+    (compilePattern rw rer) (input_str inp) (idx inp) = to_MatchState result (RegExpRecord.capturingGroupsCount rer).
+Proof.
+  intros rw r inp result RER EARLY TOLINDEN SUBSET TRC.
+  specialize (earlyErrors_pass_translation _ EARLY) as [lr SUCCESS].
+  unfold warblre_to_linden' in TOLINDEN. rewrite SUCCESS in TOLINDEN. subst.
+  specialize (warblre_to_linden_sound_root _ _ SUCCESS) as EQUIV.
+  apply EarlyErrors.earlyErrors in EARLY as PASS.
+  specialize (equiv_main _ _ _ inp EQUIV RER PASS) as [m [res [COMP_SUCC [EXEC_SUCC LW_EQUIV]]]].
+  unfold compilePattern. rewrite COMP_SUCC, EXEC_SUCC.
+  specialize (LW_EQUIV (compute_tr rer [Areg lr] inp GroupMap.empty forward) eq_refl) as [ISTREE LW_EQUIV].
+  specialize (pike_vm_correct _ _ _ _ SUBSET ISTREE TRC) as FIRST. subst.  
+  symmetry. apply to_MatchState_equal; auto.
+  eapply compilePattern_preserves_groupcount; eauto.
 Qed.
 
 End Correctness.

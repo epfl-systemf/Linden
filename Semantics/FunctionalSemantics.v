@@ -466,19 +466,6 @@ Section FunctionalSemantics.
 
   (** * Computing a tree  *)
 
-  Definition lk_succeeds (lk: lookaround) (t: tree): bool :=
-    match positivity lk with
-    | true => match first_branch t [] with
-      | Some res => true
-      | None => false
-      end
-    | false => match first_branch t [] with
-      | Some res => false
-      | None => true
-      end
-    end.
-
-
   Fixpoint compute_tree (act: actions) (inp: input) (gm: group_map) (dir: Direction) (fuel:nat): option tree :=
     match fuel with
     | 0 => None
@@ -547,18 +534,17 @@ Section FunctionalSemantics.
         (* tree_lk, tree_lk_fail *)
         | Areg (Lookaround lk r1)::cont =>
             let treelk := compute_tree [Areg r1] inp gm (lk_dir lk) fuel in
-            match treelk with None => None | Some treelk =>
-              if lk_succeeds lk treelk then
-                match lk_group_map lk treelk gm inp with
+            match treelk with
+            | None => None
+            | Some treelk =>
+                match lk_result lk treelk gm inp with
                 | Some gmlk =>
                   let treecont := compute_tree cont inp gmlk dir fuel in
                   match treecont with None => None | Some treecont =>
                     Some (LK lk treelk treecont)
                   end
-                | None => Some Mismatch (* should not happen *)
+                | None => Some (LKFail lk treelk)
                 end
-              else
-                Some (LKFail lk treelk)
             end
         (* tree_anchor, tree_anchor_fail *)
         | Areg (Anchor a)::cont =>
@@ -676,9 +662,8 @@ Section FunctionalSemantics.
         assert (LK_AFTER_ENOUGH: fuel > actions_fuel act inp dir). {
           pose proof lk_after_termination act inp dir lk r. lia.
         }
-        destruct lk_succeeds; try apply somenone.
-        destruct lk_group_map as [gmlk|]; try apply somenone.
-        pose proof IHfuel dir gmlk inp act LK_AFTER_ENOUGH.
+        destruct (lk_result lk treelk gm inp) eqn:LKRES; try apply somenone.
+        pose proof IHfuel dir g inp act LK_AFTER_ENOUGH.
         destruct compute_tree; [apply somenone|contradiction].
       + simpl. generalize (group_termination act inp dir r id). intros.
         assert (ENOUGH: fuel > actions_fuel (Areg r :: Aclose id :: act) inp dir) by lia.
