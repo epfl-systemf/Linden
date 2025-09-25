@@ -225,17 +225,17 @@ Section RegexpTranslation.
       induction Hequiv as [
         n |
         n c |
-          n |
-          n |
-          n |
-          esc cd n Hequivesc |
-          esc cd n Hequivesc |
-          cc cd n Hequivcc |
-          n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
+        n |
+        n |
+        n |
+        esc cd n Hequivesc |
+        esc cd n Hequivesc |
+        cc cd n Hequivcc |
+        n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
         n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
         n wr lr wquant lquant wgreedylazy greedy Hequiv IH Hequivquant Hequivgreedy |
-          name n wr lr Hequiv IH |
-          name n wr lr Hequiv IH |
+        name n wr lr Hequiv IH |
+        name n wr lr Hequiv IH |
         n nm wr lr wlk llk Hequiv IH Hequivlk |
         n nm wr lanchor Hanchequiv]; simpl; try lia; try reflexivity.
       - inversion Hequivquant; inversion Hequivgreedy; auto.
