@@ -475,7 +475,7 @@ Definition head_pc (threadactive:list thread) : label :=
   | (pc,_,_)::_ => pc
   end.
 
-Inductive pike_inv (code:code): pike_tree_seen_state -> pike_vm_state -> Prop :=
+Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> Prop :=
 | pikeinv:
   forall inp treeactive treeblocked threadactive threadblocked best treeseen threadseen
     (ACTIVE: list_tree_thread code inp treeactive threadactive)
@@ -487,10 +487,10 @@ Inductive pike_inv (code:code): pike_tree_seen_state -> pike_vm_state -> Prop :=
     (ENDTREE: advance_input inp forward = None -> treeblocked = [])
     (* any pc in threadseen must correspond to a tree in treeseen *)
     (SEEN: seen_inclusion code inp treeseen threadseen (hd_error treeactive) (head_pc threadactive)),
-    pike_inv code (PTSS inp treeactive best treeblocked treeseen) (PVS inp threadactive best threadblocked threadseen)
+    pike_inv code (PTS inp treeactive best treeblocked treeseen) (PVS inp threadactive best threadblocked threadseen)
 | pikeinv_final:
   forall best,
-    pike_inv code (PTSS_final best) (PVS_final best).
+    pike_inv code (PTS_final best) (PVS_final best).
 
 
 
@@ -816,7 +816,7 @@ Lemma initial_pike_inv:
     (TREE: bool_tree rer [Areg r] inp CanExit tree)
     (COMPILE: compilation r = code)
     (SUBSET: pike_regex r),
-    pike_inv code (pike_tree_seen_initial_state tree inp) (pike_vm_initial_state inp).
+    pike_inv code (pike_tree_initial_state tree inp) (pike_vm_initial_state inp).
 Proof.
   intros r inp tree code TREE COMPILE SUBSET.
   unfold compilation in COMPILE. destruct (compile r 0) as [c fresh] eqn:COMP.
@@ -857,7 +857,7 @@ Theorem invariant_preservation:
     (* either we make a step on both sides, preserving invariant *)
     (
       exists pts2,
-        pike_tree_seen_step pts1 pts2 /\
+        pike_tree_step pts1 pts2 /\
           pike_inv code pts2 pvs2
     )
     \/
@@ -881,7 +881,7 @@ Proof.
     - assert (teq = tree).
       { eapply tt_same_tree; eauto. }
       subst.
-      exists (PTSS inp treeactive best treeblocked treeseen).
+      exists (PTS inp treeactive best treeblocked treeseen).
       split.
       + apply ptss_skip; auto.
       + eapply pikeinv; eauto.
@@ -898,14 +898,14 @@ Proof.
       { eapply pikevm_deterministic; eauto.
         destruct (advance_input inp) eqn:ADV; try solve[constructor; auto].
         specialize (BLOCKED i (eq_refl (Some i))). inversion BLOCKED; subst. constructor. }
-      subst. left. exists (PTSS_final best). split; constructor.
+      subst. left. exists (PTS_final best). split; constructor.
     (* nextchar *)
     - destruct (advance_input inp) eqn:ADV.
       2: { specialize (ENDTREE (eq_refl None)). inversion ENDTREE. }
       specialize (BLOCKED i (eq_refl (Some i))). inversion BLOCKED; subst.
       assert (pvs2 = PVS i ((pc,gmblocked,b)::threadlist) best [] initial_seenpcs).
       { eapply pikevm_deterministic; eauto. constructor. auto. }
-      subst. left. exists (PTSS i ((tblocked,gmblocked)::treeblocked) best [] initial_seentrees).
+      subst. left. exists (PTS i ((tblocked,gmblocked)::treeblocked) best [] initial_seentrees).
       apply advance_next in ADV. subst.
       split; try econstructor; eauto.
       + intros nextinp H. constructor.
@@ -931,7 +931,7 @@ Proof.
   - left. eapply generate_active in TREESTEP as H; eauto. destruct H as [newthreads [EPS LTT2]].
     assert (pvs2 = PVS inp (newthreads ++ threadactive) best threadblocked (add_thread threadseen (pc,gm,b))).
     { eapply pikevm_deterministic; eauto. constructor; auto. }
-    subst. exists (PTSS inp (l ++ treeactive) best treeblocked (add_seentrees treeseen t)). split.
+    subst. exists (PTS inp (l ++ treeactive) best treeblocked (add_seentrees treeseen t)). split.
     + eapply ptss_active; eauto.
     + eapply pikeinv; try (eapply add_inclusion; eauto); try constructor; eauto.
       apply ltt_app; eauto.
@@ -939,14 +939,14 @@ Proof.
   - left. eapply generate_match in TREESTEP as THREADSTEP; eauto.
     assert (pvs2 = PVS inp [] (Some (inp,gm_of (pc,gm,b))) threadblocked (add_thread threadseen (pc,gm,b))).
     { eapply pikevm_deterministic; eauto. constructor; auto. }
-    subst. exists (PTSS inp [] (Some (inp,gm)) treeblocked (add_seentrees treeseen t)). split.
+    subst. exists (PTS inp [] (Some (inp,gm)) treeblocked (add_seentrees treeseen t)). split.
     + constructor; auto.
     + eapply pikeinv; try (eapply add_inclusion; eauto); try constructor; eauto.
   (* blocked *)
   - left. specialize (generate_blocked _ _ _ _ _ _ _ TREESTEP STUTTERS TT) as [EPS2 [TT2 [nexti ADVANCE]]].
     assert (pvs2 = PVS inp threadactive best (threadblocked ++ [(pc+1,gm,CanExit)]) (add_thread threadseen (pc,gm,b))).
     { eapply pikevm_deterministic; eauto. constructor; auto. }
-    subst. exists (PTSS inp treeactive best (treeblocked ++ [(t0,gm)]) (add_seentrees treeseen t)). split.
+    subst. exists (PTS inp treeactive best (treeblocked ++ [(t0,gm)]) (add_seentrees treeseen t)). split.
     + eapply ptss_blocked; eauto.
     + eapply pikeinv; try (eapply add_inclusion; eauto); try constructor; eauto.
       2: { intros H. rewrite ADVANCE in H. inversion H. }

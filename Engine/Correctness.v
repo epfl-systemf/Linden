@@ -38,7 +38,7 @@ Qed.
 Section Correctness.
   Context (rer: RegExpRecord).
 
-Definition trc_pike_tree := @trc pike_tree_seen_state pike_tree_seen_step.
+Definition trc_pike_tree := @trc pike_tree_state pike_tree_step.
 Definition trc_pike_vm (c:code) := @trc pike_vm_state (pike_vm_step rer c).
 
 
@@ -67,7 +67,7 @@ Theorem pike_vm_to_pike_tree:
     pike_regex r -> 
     bool_tree rer [Areg r] inp CanExit tree ->
     trc_pike_vm (compilation r) (pike_vm_initial_state inp) (PVS_final result) ->
-    trc_pike_tree (pike_tree_seen_initial_state tree inp) (PTSS_final result).
+    trc_pike_tree (pike_tree_initial_state tree inp) (PTS_final result).
 Proof.
   intros r inp tree result SUBSET TREE TRCVM.
   generalize (initial_pike_inv rer r inp tree (compilation r) TREE (@eq_refl _ _) SUBSET).

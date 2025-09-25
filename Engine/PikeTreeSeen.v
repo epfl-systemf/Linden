@@ -112,49 +112,49 @@ Qed.
 (** * Pike Tree Seen Small Step Semantics  *)
 
 (* The semantic states of the PikeTree algorithm *)
-Inductive pike_tree_seen_state : Type :=
-| PTSS (inp:input) (active: list (tree * group_map)) (best: option leaf) (blocked: list (tree * group_map)) (seen:seentrees)
-| PTSS_final (best: option leaf).
+Inductive pike_tree_state : Type :=
+| PTS (inp:input) (active: list (tree * group_map)) (best: option leaf) (blocked: list (tree * group_map)) (seen:seentrees)
+| PTS_final (best: option leaf).
 
 
 (* Small-step semantics for the PikeTree algorithm *)
-Inductive pike_tree_seen_step : pike_tree_seen_state -> pike_tree_seen_state -> Prop :=
+Inductive pike_tree_step : pike_tree_state -> pike_tree_state -> Prop :=
 | ptss_skip:
 (* skip an active tree if it has been seen before *)
 (* this is non-deterministic, we can also not skip it by using the other rules *)
   forall inp t gm active best blocked seen
     (SEEN: inseen seen t = true),
-    pike_tree_seen_step (PTSS inp ((t,gm)::active) best blocked seen) (PTSS inp active best blocked seen)
+    pike_tree_step (PTS inp ((t,gm)::active) best blocked seen) (PTS inp active best blocked seen)
 | ptss_final:
 (* moving to a final state when there are no more active or blocked trees *)
   forall inp best seen,
-    pike_tree_seen_step (PTSS inp [] best [] seen) (PTSS_final best)
+    pike_tree_step (PTS inp [] best [] seen) (PTS_final best)
 | ptss_nextchar:
   (* when the list of active trees is empty, restart from the blocked ones, proceeding to the next character *)
   (* resetting the seen trees *)
   forall inp best blocked tgm seen,
-    pike_tree_seen_step (PTSS inp [] best (tgm::blocked) seen) (PTSS (next_inp inp) (tgm::blocked) best [] initial_seentrees)
+    pike_tree_step (PTS inp [] best (tgm::blocked) seen) (PTS (next_inp inp) (tgm::blocked) best [] initial_seentrees)
 | ptss_active:
   (* generated new active trees: add them in front of the low-priority ones *)
   forall inp t gm active best blocked nextactive seen1 seen2
     (STEP: tree_bfs_step t gm (idx inp) = StepActive nextactive)
     (ADD_SEEN: add_seentrees seen1 t = seen2),
-    pike_tree_seen_step (PTSS inp ((t,gm)::active) best blocked seen1) (PTSS inp (nextactive++active) best blocked seen2)
+    pike_tree_step (PTS inp ((t,gm)::active) best blocked seen1) (PTS inp (nextactive++active) best blocked seen2)
 | ptss_match:
   (* a match is found, discard remaining low-priority active trees *)
   forall inp t gm active best blocked seen1 seen2
     (STEP: tree_bfs_step t gm (idx inp) = StepMatch)
     (ADD_SEEN: add_seentrees seen1 t = seen2),
-    pike_tree_seen_step (PTSS inp ((t,gm)::active) best blocked seen1) (PTSS inp [] (Some (inp,gm)) blocked seen2)
+    pike_tree_step (PTS inp ((t,gm)::active) best blocked seen1) (PTS inp [] (Some (inp,gm)) blocked seen2)
 | ptss_blocked:
 (* add the new blocked thread after the previous ones *)
   forall inp t gm active best blocked newt seen1 seen2
     (STEP: tree_bfs_step t gm (idx inp) = StepBlocked newt)
     (ADD_SEEN: add_seentrees seen1 t = seen2),
-    pike_tree_seen_step (PTSS inp ((t,gm)::active) best blocked seen1) (PTSS inp active best (blocked ++ [(newt,gm)]) seen2).
+    pike_tree_step (PTS inp ((t,gm)::active) best blocked seen1) (PTS inp active best (blocked ++ [(newt,gm)]) seen2).
 
-Definition pike_tree_seen_initial_state (t:tree) (i:input) : pike_tree_seen_state :=
-  (PTSS i [(t, GroupMap.empty)] None [] initial_seentrees).
+Definition pike_tree_initial_state (t:tree) (i:input) : pike_tree_state :=
+  (PTS i [(t, GroupMap.empty)] None [] initial_seentrees).
 
 
 (** * Pike Tree Seen Correction  *)
@@ -294,16 +294,16 @@ Inductive state_nd: input -> list (tree*group_map) -> option leaf -> list (tree*
 (* Invariant of the PikeTreeSeen execution *)
 (* at any moment, all the possible results of the current state are all equal (equal to the first result of the original tree) *)
 (* at any moment, all trees manipulated by the algorithms are trees for the subset of regexes supported  *)
-Inductive piketreeinv: pike_tree_seen_state -> option leaf -> Prop :=
+Inductive piketreeinv: pike_tree_state -> option leaf -> Prop :=
 | pi:
   forall result blocked active best inp seen
     (SAMERES: forall res, state_nd inp active best blocked seen res -> res = result)
     (SUBSET_AC: pike_list active)
     (SUBSET_BL: pike_list blocked),
-    piketreeinv (PTSS inp active best blocked seen) result
+    piketreeinv (PTS inp active best blocked seen) result
 | sr_final:
   forall best,
-    piketreeinv (PTSS_final best) best.
+    piketreeinv (PTS_final best) best.
 
 (** * Initialization  *)
 
@@ -312,9 +312,9 @@ Inductive piketreeinv: pike_tree_seen_state -> option leaf -> Prop :=
 Lemma init_piketree_inv:
   forall t inp,
     pike_subtree t -> 
-    piketreeinv (pike_tree_seen_initial_state t inp) (first_leaf t inp).
+    piketreeinv (pike_tree_initial_state t inp) (first_leaf t inp).
 Proof.
-  intros t. unfold first_leaf. unfold pike_tree_seen_initial_state. constructor; pike_subset; auto.
+  intros t. unfold first_leaf. unfold pike_tree_initial_state. constructor; pike_subset; auto.
   intros res STATEND. inversion STATEND; subst.
   simpl. rewrite seqop_none. inversion ACTIVE; subst.
   inversion TLR; subst. rewrite seqop_none.
@@ -447,7 +447,7 @@ Qed.
 
 Theorem ptss_preservation:
   forall pts1 pts2 res
-    (PSTEP: pike_tree_seen_step pts1 pts2)
+    (PSTEP: pike_tree_step pts1 pts2)
     (INVARIANT: piketreeinv pts1 res),
     piketreeinv pts2 res.
 Proof.
