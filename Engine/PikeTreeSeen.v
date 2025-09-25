@@ -12,7 +12,7 @@ Import ListNotations.
 Require Import Lia.
 
 From Linden Require Import Regex Chars Groups Tree.
-From Linden Require Import PikeTree PikeSubset.
+From Linden Require Import PikeSubset.
 From Warblre Require Import Base.
 
 (** * Seen Sets  *)
@@ -65,6 +65,49 @@ Definition inseen := TS.inseen.
 Definition in_add := TS.in_add.
 Definition initial_nothing := TS.initial_nothing.
 Global Opaque seentrees initial_seentrees add_seentrees inseen in_add initial_nothing.
+
+(** * Pike Tree - tree steps  *)
+
+(* returns three things:
+ - the list of active trees to explore next. can be empty. Each has its own group map
+ - option leaf: a result found
+ - option tree: if the tree is blocked consuming a character *)
+
+Inductive step_result : Type :=
+| StepActive: list (tree * group_map) -> step_result (* generated new active threads, possibly 0 *)
+| StepMatch: step_result                (* a match was found *)
+| StepBlocked: tree -> step_result     (* the thread was blocked *)
+.
+
+Definition StepDead := StepActive []. (* the thread died *)
+
+(* this corresponds to an atomic step of a single tree *)
+Definition tree_bfs_step (t:tree) (gm:group_map) (idx:nat): step_result :=
+  match t with
+  | Mismatch | ReadBackRef _ _ | AnchorPass _ _ | LK _ _ _ | LKFail _ _ => StepDead
+  | Match => StepMatch
+  | Choice t1 t2 => StepActive [(t1,gm); (t2,gm)]
+  | Read c t1 => StepBlocked t1
+  | Progress t1 => StepActive [(t1,gm)]
+  | GroupAction a t1 => StepActive [(t1, GroupMap.update idx a gm)]
+  end.
+(* trees for unsupported features also return StepDead *)
+(* We could support them in this algorithm, but the only problem is ReadBackref which may advance the string in more than one index *)
+
+Definition upd_blocked {X:Type} (newblocked: option X) (blocked: list X) :=
+  match newblocked with Some b => b::blocked | None => blocked end.
+
+Definition next_inp (i:input) :=
+  advance_input' i forward.
+
+Lemma advance_next:
+  forall i1 i2,
+    advance_input i1 forward = Some i2 ->
+    next_inp i1 = i2.
+Proof.
+  intros i1 i2 H. unfold next_inp, advance_input'. rewrite H. auto.
+Qed.
+
 
 (** * Pike Tree Seen Small Step Semantics  *)
 
@@ -174,6 +217,34 @@ Proof.
   - subst. rewrite initial_nothing in SEEN. inversion SEEN.
   - pike_subset. specialize (IHtree_nd1 H3 (@eq_refl _ _)).
     specialize (IHtree_nd2 H4 (@eq_refl _ _)). subst. auto.
+Qed.
+
+(** * List Results  *)
+(* first possible result in a list of trees - deterministic and non-deterministic versions *)
+
+Definition list_result (l:list (tree * group_map)) (inp:input) : option leaf :=
+  seqop_list l (fun tgm => tree_res (fst tgm) (snd tgm) inp forward).
+
+Lemma list_result_cons:
+  forall t gm l inp,
+    list_result ((t,gm)::l) inp = seqop (tree_res t gm inp forward) (list_result l inp).
+Proof.
+  intros. unfold list_result. destruct (tree_res t gm inp forward) eqn:RES.
+  - erewrite seqop_list_head_some; simpl; eauto.
+  - erewrite seqop_list_head_none; simpl; eauto.
+Qed.
+
+Lemma list_result_app:
+  forall l1 l2 inp,
+    list_result (l1 ++ l2) inp = seqop (list_result l1 inp) (list_result l2 inp).
+Proof.
+  intros l1. induction l1; intros; auto.
+  destruct a as [t gm]. unfold list_result.
+  destruct (tree_res t gm inp forward) eqn:RES.
+  - erewrite seqop_list_head_some; simpl; eauto.
+    erewrite seqop_list_head_some; simpl; eauto.
+  - erewrite seqop_list_head_none; simpl; eauto.
+    erewrite seqop_list_head_none; simpl; eauto.
 Qed.
 
 Inductive list_nd: list (tree * group_map) -> input -> seentrees -> option leaf -> Prop :=
