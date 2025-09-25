@@ -22,25 +22,25 @@ Definition pike_vm_func_step (c:code) (pvs:pike_vm_state) : pike_vm_state :=
       match active with
       | [] =>
           match blocked with
-          | [] => PVS_final best (* pvss_final *)
+          | [] => PVS_final best (* pvs_final *)
           | thr::blocked =>
               match (advance_input inp forward) with
-              | None => PVS_final best (* pvss_end *)
-              | Some nextinp => PVS nextinp (thr::blocked) best [] initial_seenpcs (* pvss_nextchar *)
+              | None => PVS_final best (* pvs_end *)
+              | Some nextinp => PVS nextinp (thr::blocked) best [] initial_seenpcs (* pvs_nextchar *)
               end
           end     
       | t::active =>
           match (seen_thread seen t) with
-          | true => PVS inp active best blocked seen (* pvss_skip *)
+          | true => PVS inp active best blocked seen (* pvs_skip *)
           | false =>
               let nextseen := add_thread seen t in
               match (epsilon_step rer t c inp) with
               | EpsActive nextactive =>
-                  PVS inp (nextactive++active) best blocked nextseen (* pvss_active *)
+                  PVS inp (nextactive++active) best blocked nextseen (* pvs_active *)
               | EpsMatch =>
-                  PVS inp [] (Some (inp,gm_of t)) blocked nextseen (* pvss_match *)
+                  PVS inp [] (Some (inp,gm_of t)) blocked nextseen (* pvs_match *)
               | EpsBlocked newt =>
-                  PVS inp active best (blocked ++ [newt]) nextseen (* pvss_blocked *)
+                  PVS inp active best (blocked ++ [newt]) nextseen (* pvs_blocked *)
               end
           end
       end
@@ -63,7 +63,7 @@ Fixpoint pike_vm_loop (c:code) (pvs:pike_vm_state) (fuel:nat) : pike_vm_state :=
    in the worst-case the algorithm explores each (label,bool) configuration.
    Each of these explorations may generate up to two children.
    So we might need as many steps as 4 times the length of the bytecode (2 * 2 boolean values).
-   You need one extra step per input position for pvss_nextchar. *)
+   You need one extra step per input position for pvs_nextchar. *)
 Definition bytecode_fuel (c:code) (inp:input) : nat :=
   4 * (2 + (length (next_str inp))) * (1 + (length c)).
 

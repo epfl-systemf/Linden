@@ -882,7 +882,7 @@ Proof.
       subst.
       exists (PTS inp treeactive best treeblocked treeseen).
       split.
-      + apply ptss_skip; auto.
+      + apply pts_skip; auto.
       + eapply pikeinv; eauto.
         simpl in SEEN. eapply skip_inclusion; eauto.
     - simpl in GEQ. lia.
@@ -919,7 +919,7 @@ Proof.
     right. apply stutter_step in TT as H; auto.
     destruct H as [nextpc [nextb [EPSSTEP TT2]]]; subst.
     assert (pvs2 = (PVS inp ([(nextpc, gm, nextb)] ++ threadactive) best threadblocked (add_thread threadseen (pc,gm,b)))).
-    { eapply pikevm_deterministic; eauto. eapply pvss_active; eauto. }
+    { eapply pikevm_deterministic; eauto. eapply pvs_active; eauto. }
     subst; simpl; auto. eapply pikeinv; simpl; eauto.
     - constructor; eauto.
     - (* Here we use that the code is stutter-well-formed *)
@@ -931,7 +931,7 @@ Proof.
     assert (pvs2 = PVS inp (newthreads ++ threadactive) best threadblocked (add_thread threadseen (pc,gm,b))).
     { eapply pikevm_deterministic; eauto. constructor; auto. }
     subst. exists (PTS inp (l ++ treeactive) best treeblocked (add_seentrees treeseen t)). split.
-    + eapply ptss_active; eauto.
+    + eapply pts_active; eauto.
     + eapply pikeinv; try (eapply add_inclusion; eauto); try constructor; eauto.
       apply ltt_app; eauto.
   (* match *)
@@ -946,7 +946,7 @@ Proof.
     assert (pvs2 = PVS inp threadactive best (threadblocked ++ [(pc+1,gm,CanExit)]) (add_thread threadseen (pc,gm,b))).
     { eapply pikevm_deterministic; eauto. constructor; auto. }
     subst. exists (PTS inp treeactive best (treeblocked ++ [(t0,gm)]) (add_seentrees treeseen t)). split.
-    + eapply ptss_blocked; eauto.
+    + eapply pts_blocked; eauto.
     + eapply pikeinv; try (eapply add_inclusion; eauto); try constructor; eauto.
       2: { intros H. rewrite ADVANCE in H. inversion H. }
       2: { intros H. rewrite ADVANCE in H. inversion H. }

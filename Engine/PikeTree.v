@@ -119,34 +119,34 @@ Inductive pike_tree_state : Type :=
 
 (* Small-step semantics for the PikeTree algorithm *)
 Inductive pike_tree_step : pike_tree_state -> pike_tree_state -> Prop :=
-| ptss_skip:
+| pts_skip:
 (* skip an active tree if it has been seen before *)
 (* this is non-deterministic, we can also not skip it by using the other rules *)
   forall inp t gm active best blocked seen
     (SEEN: inseen seen t = true),
     pike_tree_step (PTS inp ((t,gm)::active) best blocked seen) (PTS inp active best blocked seen)
-| ptss_final:
+| pts_final:
 (* moving to a final state when there are no more active or blocked trees *)
   forall inp best seen,
     pike_tree_step (PTS inp [] best [] seen) (PTS_final best)
-| ptss_nextchar:
+| pts_nextchar:
   (* when the list of active trees is empty, restart from the blocked ones, proceeding to the next character *)
   (* resetting the seen trees *)
   forall inp best blocked tgm seen,
     pike_tree_step (PTS inp [] best (tgm::blocked) seen) (PTS (next_inp inp) (tgm::blocked) best [] initial_seentrees)
-| ptss_active:
+| pts_active:
   (* generated new active trees: add them in front of the low-priority ones *)
   forall inp t gm active best blocked nextactive seen1 seen2
     (STEP: tree_bfs_step t gm (idx inp) = StepActive nextactive)
     (ADD_SEEN: add_seentrees seen1 t = seen2),
     pike_tree_step (PTS inp ((t,gm)::active) best blocked seen1) (PTS inp (nextactive++active) best blocked seen2)
-| ptss_match:
+| pts_match:
   (* a match is found, discard remaining low-priority active trees *)
   forall inp t gm active best blocked seen1 seen2
     (STEP: tree_bfs_step t gm (idx inp) = StepMatch)
     (ADD_SEEN: add_seentrees seen1 t = seen2),
     pike_tree_step (PTS inp ((t,gm)::active) best blocked seen1) (PTS inp [] (Some (inp,gm)) blocked seen2)
-| ptss_blocked:
+| pts_blocked:
 (* add the new blocked thread after the previous ones *)
   forall inp t gm active best blocked newt seen1 seen2
     (STEP: tree_bfs_step t gm (idx inp) = StepBlocked newt)
@@ -445,7 +445,7 @@ Qed.
 
 (** * Invariant Preservation  *)
 
-Theorem ptss_preservation:
+Theorem pts_preservation:
   forall pts1 pts2 res
     (PSTEP: pike_tree_step pts1 pts2)
     (INVARIANT: piketreeinv pts1 res),
