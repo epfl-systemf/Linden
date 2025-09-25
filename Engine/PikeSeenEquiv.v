@@ -25,13 +25,13 @@ Section PikeSeenEquiv.
 Definition seen_inclusion (c:code) (inp:input) (treeseen:seentrees) (threadseen:seenpcs) (current:option (tree*group_map)) (currentpc:label): Prop :=
   forall pc b
     (SEEN: inseenpc threadseen pc b = true),
-  (exists t gm n,
+  (exists t gm,
       inseen treeseen t = true /\
-        tree_thread rer c inp (t, gm) (pc, gm, b) n)
+        tree_thread rer c inp (t, gm) (pc, gm, b))
   \/
     (stutters pc c = true /\
-       exists m t gm, pc < currentpc /\ current = Some (t,gm) /\
-              tree_thread rer c inp (t,gm) (pc,gm,b) m).
+       exists t gm, pc < currentpc /\ current = Some (t,gm) /\
+              tree_thread rer c inp (t,gm) (pc,gm,b)).
 
 Definition head_pc (threadactive:list thread) : label :=
   match threadactive with
@@ -39,24 +39,22 @@ Definition head_pc (threadactive:list thread) : label :=
   | (pc,_,_)::_ => pc
   end.
 
-Inductive pike_inv (code:code): pike_tree_seen_state -> pike_vm_seen_state -> nat -> Prop :=
+Inductive pike_inv (code:code): pike_tree_seen_state -> pike_vm_seen_state -> Prop :=
 | pikeinv:
-  forall inp treeactive treeblocked threadactive threadblocked best treeseen threadseen measureactive measureblocked n
-    (ACTIVE: list_tree_thread rer code inp treeactive threadactive measureactive)
+  forall inp treeactive treeblocked threadactive threadblocked best treeseen threadseen
+    (ACTIVE: list_tree_thread rer code inp treeactive threadactive)
     (* blocked threads should be equivalent for the next input *)
     (* nothing to say if there is no next input *)
-    (BLOCKED: forall nextinp, advance_input inp forward = Some nextinp -> list_tree_thread rer code nextinp treeblocked threadblocked measureblocked)
+    (BLOCKED: forall nextinp, advance_input inp forward = Some nextinp -> list_tree_thread rer code nextinp treeblocked threadblocked)
     (* these two properties are needed to ensure the two algorithms stop at he same time *)
     (ENDVM: advance_input inp forward = None -> threadblocked = [])
     (ENDTREE: advance_input inp forward = None -> treeblocked = [])
     (* any pc in threadseen must correspond to a tree in treeseen *)
-    (SEEN: seen_inclusion code inp treeseen threadseen (hd_error treeactive) (head_pc threadactive))
-    (* the measure is simply the measure of the top priority thread *)
-    (MEASURE: n = hd 0 (measureactive++measureblocked)),
-    pike_inv code (PTSS inp treeactive best treeblocked treeseen) (PVSS inp threadactive best threadblocked threadseen) n
+    (SEEN: seen_inclusion code inp treeseen threadseen (hd_error treeactive) (head_pc threadactive)),
+    pike_inv code (PTSS inp treeactive best treeblocked treeseen) (PVSS inp threadactive best threadblocked threadseen)
 | pikeinv_final:
   forall best,
-    pike_inv code (PTSS_final best) (PVSS_final best) 0.
+    pike_inv code (PTSS_final best) (PVSS_final best).
 
 
 
@@ -64,10 +62,10 @@ Inductive pike_inv (code:code): pike_tree_seen_state -> pike_vm_seen_state -> na
 
 (* tree-thread equivalence can only happen for a single gm *)
 Lemma tt_same_gm:
-  forall t gm1 pc gm2 b code inp n,
-    tree_thread rer code inp (t,gm1) (pc,gm2,b) n -> gm1 = gm2.
+  forall t gm1 pc gm2 b code inp,
+    tree_thread rer code inp (t,gm1) (pc,gm2,b) -> gm1 = gm2.
 Proof.
-  intros t gm1 pc gm2 b code inp n H. inversion H; auto.
+  intros t gm1 pc gm2 b code inp H. inversion H; auto.
 Qed.
 
 
@@ -112,12 +110,12 @@ Proof.
 Qed.
 
 Lemma actions_rep_start:
-  forall act code pc n i,
-    actions_rep act code pc n ->
+  forall act code pc i,
+    actions_rep act code pc ->
     get_pc code pc = Some i ->
     start_rep i.
 Proof.
-  intros act code pc n i H. induction H; intros GET. 
+  intros act code pc i H. induction H; intros GET. 
   - rewrite ACCEPT in GET. inversion GET. constructor.
   - apply action_rep_start in ACTION as [EQ | [instr [GETSTART START]]].
     + subst. apply IHactions_rep. auto.
@@ -127,17 +125,17 @@ Qed.
 
 (* rephrasing the lemma below so that induction handles pairs better *)
 Lemma tt_same_interm:
-  forall code inp treegm1 treegm2 thread1 thread2 n1 n2
-    (TT1: tree_thread rer code inp treegm1 thread1 n1)
-    (TT2: tree_thread rer code inp treegm2 thread2 n2)
+  forall code inp treegm1 treegm2 thread1 thread2
+    (TT1: tree_thread rer code inp treegm1 thread1)
+    (TT2: tree_thread rer code inp treegm2 thread2)
     (SAMEPC: fst (fst thread1) = fst (fst thread2))
     (SAMEB: snd thread1 = snd thread2)
     (SAMEGM1: snd (fst thread1) = snd treegm1)
     (SAMEGM2: snd (fst thread2) = snd treegm2),
     fst treegm1 = fst treegm2.
 Proof.
-  intros code inp treegm1 treegm2 thread1 thread2 n1 n2 TT1.
-  generalize dependent n2. generalize dependent thread2. generalize dependent treegm2.
+  intros code inp treegm1 treegm2 thread1 thread2 TT1.
+  generalize dependent thread2. generalize dependent treegm2.
   induction TT1; intros; subst.
   - inversion TT2; subst;
       simpl in SAMEB; simpl in SAMEPC; simpl in SAMEGM1; simpl in SAMEGM2; subst;
@@ -148,23 +146,23 @@ Proof.
       try solve[eapply actions_rep_start in CONT; eauto; inversion CONT].
     2: { rewrite BEGIN in RESET. inversion RESET. }
     rewrite RESET in RESET0. inversion RESET0. subst.
-    specialize (IHTT1 _ _ _ TT (eq_refl _) (eq_refl _) (eq_refl _) (eq_refl _)).
+    specialize (IHTT1 _ _ TT (eq_refl _) (eq_refl _) (eq_refl _) (eq_refl _)).
     simpl in IHTT1. destruct IHTT1. subst. simpl. auto.
   - inversion TT2; subst;
       simpl in SAMEB; simpl in SAMEPC; simpl in SAMEGM1; simpl in SAMEGM2; subst;
       try solve[eapply actions_rep_start in CONT; eauto; inversion CONT].
     { rewrite BEGIN in RESET. inversion RESET. }
-    specialize (IHTT1 _ _ _ TT (eq_refl _) (eq_refl _) (eq_refl _) (eq_refl _)).
+    specialize (IHTT1 _ _ TT (eq_refl _) (eq_refl _) (eq_refl _) (eq_refl _)).
     simpl in IHTT1. destruct IHTT1. subst. simpl. auto.
 Qed.
 
 Lemma tt_same_tree:
-  forall code inp t1 gm1 t2 gm2 n1 n2 pc b
-    (TT1: tree_thread rer code inp (t1,gm1) (pc,gm1,b) n1)
-    (TT2: tree_thread rer code inp (t2,gm2) (pc,gm2,b) n2),
+  forall code inp t1 gm1 t2 gm2 pc b
+    (TT1: tree_thread rer code inp (t1,gm1) (pc,gm1,b))
+    (TT2: tree_thread rer code inp (t2,gm2) (pc,gm2,b)),
     t1 = t2.
 Proof.
-  intros code inp t1 gm1 t2 gm2 n1 n2 pc b TT1 TT2.
+  intros code inp t1 gm1 t2 gm2 pc b TT1 TT2.
   eapply tt_same_interm in TT1; eauto. simpl in TT1. auto.
 Qed.
 
@@ -180,19 +178,19 @@ Proof.
 Qed.
 
 Lemma add_inclusion:
-  forall treeseen threadseen c inp t pc gm b n nextcurrent nextpc
+  forall treeseen threadseen c inp t pc gm b nextcurrent nextpc
     (INCL: seen_inclusion c inp treeseen threadseen (Some (t,gm)) pc)
-    (TT: tree_thread rer c inp (t,gm) (pc,gm,b) n),
+    (TT: tree_thread rer c inp (t,gm) (pc,gm,b)),
     seen_inclusion c inp (add_seentrees treeseen t) (add_thread threadseen (pc, gm, b)) nextcurrent nextpc.
 Proof.
-  intros treeseen threadseen c inp t pc gm b n nextcurrent nextpc INCL TT.
+  intros treeseen threadseen c inp t pc gm b nextcurrent nextpc INCL TT.
   unfold seen_inclusion in *.
   intros pc0 b0 SEEN. simpl in SEEN. apply inpc_add in SEEN. destruct SEEN as [EQ|SEEN].
-  - inversion EQ. subst. left. exists t. exists gm. exists n. split; auto. apply in_add. left. auto.
+  - inversion EQ. subst. left. exists t. exists gm. split; auto. apply in_add. left. auto.
   - specialize (INCL pc0 b0 SEEN).      
-    destruct INCL as [[ts [gms [ns [SEENs TTs]]]] | [ST [ms [ts [gms [GEQ [EQ TTS]]]]]]].
-    + left. exists ts. exists gms. exists ns. split; auto. apply in_add. right; auto.
-    + left. exists ts. exists gms. exists ms. split; auto.
+    destruct INCL as [[ts [gms [SEENs TTs]]] | [ST [ts [gms [GEQ [EQ TTS]]]]]].
+    + left. exists ts. exists gms. split; auto. apply in_add. right; auto.
+    + left. exists ts. exists gms. split; auto.
       apply in_add. left; auto. inversion EQ. auto.
 Qed.
 
@@ -207,29 +205,29 @@ Proof.
   unfold seen_inclusion in *.
   intros pc b SEENPC.
   specialize (INCL pc b SEENPC).
-  destruct INCL as [[ts [gms [ns [SEENs TTs]]]] | [ST [ms [ts [gms [GEQ [EQ TTS]]]]]]].
-  - left. exists ts. exists gms. exists ns. split; auto.
-  - left. exists ts. exists gms. exists ms. split; auto. inversion EQ. subst. auto.
+  destruct INCL as [[ts [gms [SEENs TTs]]] | [ST [ts [gms [GEQ [EQ TTS]]]]]].
+  - left. exists ts. exists gms. split; auto.
+  - left. exists ts. exists gms. split; auto. inversion EQ. subst. auto.
 Qed.
 
 Lemma stutter_inclusion:
-  forall code inp treeseen threadseen t gm n pc b nextpc
+  forall code inp treeseen threadseen t gm pc b nextpc
     (GT: pc < nextpc )
     (INCL: seen_inclusion code inp treeseen threadseen (Some (t, gm)) pc)
     (STUTTERS: stutters pc code = true)
-    (TT: tree_thread rer code inp (t,gm) (pc,gm,b) n),
+    (TT: tree_thread rer code inp (t,gm) (pc,gm,b)),
     seen_inclusion code inp treeseen (add_seenpcs threadseen pc b) (Some (t,gm)) nextpc.
 Proof.
-  intros code inp treeseen threadseen t gm n pc b nextpc GT INCL STUTTERS TT.
+  intros code inp treeseen threadseen t gm pc b nextpc GT INCL STUTTERS TT.
   unfold seen_inclusion in *.
   intros pc0 b0 SEEN.
   apply inpc_add in SEEN. destruct SEEN as [EQ | SEEN].
   { inversion EQ. subst. right. split; auto.
-    exists n. exists t. exists gm. split; auto. }
+    exists t. exists gm. split; auto. }
   specialize (INCL pc0 b0 SEEN).
-  destruct INCL as [[ts [gms [ns [SEENs TTs]]]] | [ST [ms [ts [gms [GEQ [EQ TTS]]]]]]].
-  - left. exists ts. exists gms. exists ns. split; auto.
-  - right. split; auto. exists ms. exists ts. exists gms. split; auto. lia.
+  destruct INCL as [[ts [gms [SEENs TTs]]] | [ST [ts [gms [GEQ [EQ TTS]]]]]].
+  - left. exists ts. exists gms. split; auto.
+  - right. split; auto. exists ts. exists gms. split; auto. lia.
 Qed.
 
 (** * Code Stuttering Well-formedness *)
@@ -382,7 +380,7 @@ Lemma initial_pike_inv:
     (TREE: bool_tree rer [Areg r] inp CanExit tree)
     (COMPILE: compilation r = code)
     (SUBSET: pike_regex r),
-    pike_inv code (pike_tree_seen_initial_state tree inp) (pike_vm_seen_initial_state inp) 0.
+    pike_inv code (pike_tree_seen_initial_state tree inp) (pike_vm_seen_initial_state inp).
 Proof.
   intros r inp tree code TREE COMPILE SUBSET.
   unfold compilation in COMPILE. destruct (compile r 0) as [c fresh] eqn:COMP.
@@ -399,7 +397,6 @@ Proof.
         rewrite get_prefix. auto.
   - constructor.
   - apply initial_inclusion.
-  - simpl. auto.
 Qed.
 
 (** * Invariant Preservation  *)
@@ -417,25 +414,23 @@ Definition skip_state (pvs:pike_vm_seen_state) : bool :=
   
 
 Theorem invariant_preservation:
-  forall code pts1 pvs1 n pvs2
+  forall code pts1 pvs1 pvs2
     (STWF: stutter_wf code)
-    (INV: pike_inv code pts1 pvs1 n)
+    (INV: pike_inv code pts1 pvs1)
     (VMSTEP: pike_vm_seen_step rer code pvs1 pvs2),
     (* either we make a step on both sides, preserving invariant *)
     (
-      exists pts2 m,
+      exists pts2,
         pike_tree_seen_step pts1 pts2 /\
-          pike_inv code pts2 pvs2 m
+          pike_inv code pts2 pvs2
     )
     \/
-      (* or we make a stuttering step, preserving invariant and reducing measure *)
+      (* or we make a stuttering step, preserving invariant with pts1 *)
       (
-        exists m,
-          pike_inv code pts1 pvs2 m /\
-            m < n
+          pike_inv code pts1 pvs2
       ).
 Proof.
-  intros code pts1 pvs1 n pvs2 STWF INV VMSTEP.
+  intros code pts1 pvs1 pvs2 STWF INV VMSTEP.
   inversion INV; subst.
   (* Final states make no step *)
   2: { inversion VMSTEP. }
@@ -446,12 +441,11 @@ Proof.
     destruct treeactive as [|[tree gmt] treeactive]; inversion ACTIVE; subst.
     inversion VMSTEP; subst; try simpl in UNSEEN;
       try rewrite UNSEEN in SKIP; inversion SKIP.    
-    apply SEEN in SKIP as [[teq [gmeq [neq [SEENEQ TTEQ]]]] | [STUTTER [m [t' [gm' [GEQ [EQ TTS]]]]]]].
+    apply SEEN in SKIP as [[teq [gmeq [SEENEQ TTEQ]]] | [STUTTER [t' [gm' [GEQ [EQ TTS]]]]]].
     - assert (teq = tree).
       { eapply tt_same_tree; eauto. }
       subst.
       exists (PTSS inp treeactive best treeblocked treeseen).
-      exists (hd 0 (measurelist ++ measureblocked)).
       split.
       + apply ptss_skip; auto.
       + eapply pikeinv; eauto.
@@ -468,7 +462,7 @@ Proof.
       { eapply pikevm_deterministic; eauto.
         destruct (advance_input inp) eqn:ADV; try solve[constructor; auto].
         specialize (BLOCKED i (eq_refl (Some i))). inversion BLOCKED; subst. constructor. }
-      subst. left. exists (PTSS_final best). exists 0. split; constructor.
+      subst. left. exists (PTSS_final best). split; constructor.
     (* nextchar *)
     - destruct (advance_input inp) eqn:ADV.
       2: { specialize (ENDTREE (eq_refl None)). inversion ENDTREE. }
@@ -477,7 +471,7 @@ Proof.
       { eapply pikevm_deterministic; eauto. constructor. auto. }
       subst. left. exists (PTSS i ((tblocked,gmblocked)::treeblocked) best [] initial_seentrees).
       apply advance_next in ADV. subst.
-      exists n. split; try econstructor; eauto.
+      split; try econstructor; eauto.
       + intros nextinp H. constructor.
       + apply initial_inclusion.
   }
@@ -488,20 +482,20 @@ Proof.
   {
     (* stuttering step *)
     right. apply stutter_step in TT as H; auto.
-    destruct H as [nextpc [nextb [m [EPSSTEP [TT2 LESS]]]]]; subst.
-    exists m. assert (pvs2 = (PVSS inp ([(nextpc, gm, nextb)] ++ threadactive) best threadblocked (add_thread threadseen (pc,gm,b)))).
+    destruct H as [nextpc [nextb [EPSSTEP TT2]]]; subst.
+    assert (pvs2 = (PVSS inp ([(nextpc, gm, nextb)] ++ threadactive) best threadblocked (add_thread threadseen (pc,gm,b)))).
     { eapply pikevm_deterministic; eauto. eapply pvss_active; eauto. }
-    split; subst; simpl; auto. eapply pikeinv with (measureactive:=m::measurelist); simpl; eauto.
+    subst; simpl; auto. eapply pikeinv; simpl; eauto.
     - constructor; eauto.
     - (* Here we use that the code is stutter-well-formed *)
       simpl in SEEN. eapply stutter_inclusion; eauto.
   }
   destruct (tree_bfs_step t gm (idx inp)) eqn:TREESTEP.
   (* active *)
-  - left. eapply generate_active in TREESTEP as H; eauto. destruct H as [newthreads [measure [EPS LTT2]]].
+  - left. eapply generate_active in TREESTEP as H; eauto. destruct H as [newthreads [EPS LTT2]].
     assert (pvs2 = PVSS inp (newthreads ++ threadactive) best threadblocked (add_thread threadseen (pc,gm,b))).
     { eapply pikevm_deterministic; eauto. constructor; auto. }
-    subst. exists (PTSS inp (l ++ treeactive) best treeblocked (add_seentrees treeseen t)). exists (hd 0 ((measure ++ measurelist) ++ measureblocked)). split.
+    subst. exists (PTSS inp (l ++ treeactive) best treeblocked (add_seentrees treeseen t)). split.
     + eapply ptss_active; eauto.
     + eapply pikeinv; try (eapply add_inclusion; eauto); try constructor; eauto.
       apply ltt_app; eauto.
@@ -509,14 +503,14 @@ Proof.
   - left. eapply generate_match in TREESTEP as THREADSTEP; eauto.
     assert (pvs2 = PVSS inp [] (Some (inp,gm_of (pc,gm,b))) threadblocked (add_thread threadseen (pc,gm,b))).
     { eapply pikevm_deterministic; eauto. constructor; auto. }
-    subst. exists (PTSS inp [] (Some (inp,gm)) treeblocked (add_seentrees treeseen t)). exists (hd 0 ([] ++ measureblocked)). split.
+    subst. exists (PTSS inp [] (Some (inp,gm)) treeblocked (add_seentrees treeseen t)). split.
     + constructor; auto.
     + eapply pikeinv; try (eapply add_inclusion; eauto); try constructor; eauto.
   (* blocked *)
-  - left. specialize (generate_blocked rer _ _ _ _ _ _ _ _ TREESTEP STUTTERS TT) as [EPS2 [TT2 [nexti ADVANCE]]].
+  - left. specialize (generate_blocked rer _ _ _ _ _ _ _ TREESTEP STUTTERS TT) as [EPS2 [TT2 [nexti ADVANCE]]].
     assert (pvs2 = PVSS inp threadactive best (threadblocked ++ [(pc+1,gm,CanExit)]) (add_thread threadseen (pc,gm,b))).
     { eapply pikevm_deterministic; eauto. constructor; auto. }
-    subst. exists (PTSS inp treeactive best (treeblocked ++ [(t0,gm)]) (add_seentrees treeseen t)). exists (hd 0 (measurelist ++ measureblocked ++ [n])). split.
+    subst. exists (PTSS inp treeactive best (treeblocked ++ [(t0,gm)]) (add_seentrees treeseen t)). split.
     + eapply ptss_blocked; eauto.
     + eapply pikeinv; try (eapply add_inclusion; eauto); try constructor; eauto.
       2: { intros H. rewrite ADVANCE in H. inversion H. }

@@ -18,6 +18,9 @@ Module Type VMSeen.
   Parameter initial_seenpcs: seenpcs.
   Parameter add_seenpcs: seenpcs -> label -> LoopBool -> seenpcs.
   Parameter inseenpc : seenpcs -> label -> LoopBool -> bool.
+
+  (* Counts the number of distinct pairs that have been added in the set *)
+  Parameter count: seenpcs -> nat.
   
   Axiom inpc_add:
     forall seen pc1 b1 pc2 b2,
@@ -26,6 +29,18 @@ Module Type VMSeen.
   
   Axiom initial_nothing_pc:
     forall pc b, inseenpc initial_seenpcs pc b = false.
+
+  (* Properties of the count function *)
+  Axiom count_empty:
+    count initial_seenpcs = 0.
+
+  Axiom count_new:
+    forall seen pc b, inseenpc seen pc b = false ->
+                 count (add_seenpcs seen pc b) = 1 + count seen.
+
+  Axiom count_seen:
+    forall seen pc b, inseenpc seen pc b = true ->
+                 count (add_seenpcs seen pc b) = count seen.
   
 End VMSeen.
 
@@ -43,6 +58,16 @@ Module VMS <: VMSeen.
   Definition inseenpc (s:seenpcs) (l:label) (b:LoopBool) : bool :=
     List.existsb (fun x => lblbool_eqb x (l,b)) s.
 
+  Fixpoint count (s:seenpcs) : nat :=
+    match s with
+    | [] => 0
+    | (pc,b)::seen =>
+        match (inseenpc seen pc b) with
+        | true => count seen
+        | false => 1 + count seen
+        end
+    end.
+  
   Theorem inpc_add:
     forall seen pc1 b1 pc2 b2,
       inseenpc (add_seenpcs seen pc2 b2) pc1 b1 = true <->
@@ -56,6 +81,21 @@ Module VMS <: VMSeen.
   Theorem initial_nothing_pc:
     forall pc b, inseenpc initial_seenpcs pc b = false.
   Proof. auto. Qed.
+
+  Theorem count_empty:
+    count initial_seenpcs = 0.
+  Proof. auto. Qed.
+
+  Theorem count_new:
+    forall seen pc b, inseenpc seen pc b = false ->
+                 count (add_seenpcs seen pc b) = 1 + count seen.
+  Proof. intros seen pc b H. simpl. rewrite H. auto. Qed.
+
+  Theorem count_seen:
+    forall seen pc b, inseenpc seen pc b = true ->
+                 count (add_seenpcs seen pc b) = count seen.
+  Proof. intros seen pc b H. simpl. rewrite H. auto. Qed.
+  
 End VMS.
 
 
@@ -91,7 +131,7 @@ Definition pike_vm_seen_initial_state (inp:input) : pike_vm_seen_state :=
 Section PikeVMSeen.
   Context (rer: RegExpRecord).
 
-(* small-tep semantics for the PikeVM algorithm *)
+(* small-step semantics for the PikeVM algorithm *)
 Inductive pike_vm_seen_step (c:code): pike_vm_seen_state -> pike_vm_seen_state -> Prop :=
 | pvss_final:
 (* moving to a final state when there are no more active or blocked threads *)
