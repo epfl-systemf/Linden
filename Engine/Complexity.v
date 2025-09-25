@@ -162,9 +162,9 @@ Definition measure (codesize:nat) (dist:list (nat*LoopBool)) (active blocked:lis
   (2 * free codesize dist) + length active + length blocked + (inpsize inp * (1 + 4 * codesize)).
 
 (* The invariant that is preserved through pikeVM execution, with a measure that strictly decreases *)
-Inductive vm_inv (c:code): pike_vm_seen_state -> nat -> Prop :=
+Inductive vm_inv (c:code): pike_vm_state -> nat -> Prop :=
 | inv_final:
-  forall b, vm_inv c (PVSS_final b) 0
+  forall b, vm_inv c (PVS_final b) 0
 | inv_pvss:
   forall inp active best blocked seen dist
     (* the threads in active and blocked have their pc inside the code range *)
@@ -172,11 +172,11 @@ Inductive vm_inv (c:code): pike_vm_seen_state -> nat -> Prop :=
     (BLOCKEDWF: forall t, In t blocked -> fst (fst t) < size c)
     (* the seen set is well-formed, and has `count` distinct elements *)
     (SEENWF: wf seen (size c) dist),
-    vm_inv c (PVSS inp active best blocked seen) (measure (size c) dist active blocked inp).
+    vm_inv c (PVS inp active best blocked seen) (measure (size c) dist active blocked inp).
 
 Lemma nonfinal_pos:
   forall c inp active best blocked seen m,
-    vm_inv c (PVSS inp active best blocked seen) m -> 0 < m.
+    vm_inv c (PVS inp active best blocked seen) m -> 0 < m.
 Proof.
   intros c inp active best blocked seen m H. inversion H. subst. unfold measure.
   specialize (inpsize_strict inp) as SIZE. lia.
@@ -366,7 +366,7 @@ Qed.
 Theorem pikevm_decreases:
   forall code pvs1 pvs2 m1,
     code_wf code (size code) ->
-    pike_vm_seen_step rer code pvs1 pvs2 ->
+    pike_vm_step rer code pvs1 pvs2 ->
     vm_inv code pvs1 m1 ->
     exists m2, vm_inv code pvs2 m2 /\ m2 < m1.
 Proof.
@@ -484,11 +484,11 @@ Definition complexity (r:regex) (inp:input) : nat :=
 Theorem initial_measure:
   forall inp r,
     pike_regex r ->
-    vm_inv (compilation r) (pike_vm_seen_initial_state inp) (complexity r inp).
+    vm_inv (compilation r) (pike_vm_initial_state inp) (complexity r inp).
 Proof.
   intros inp r SUBSET.
   replace (complexity r inp) with (measure (codesize r) [] [(0, GroupMap.empty, CanExit)] [] inp).
-  - unfold pike_vm_seen_initial_state. rewrite <- compilation_size; auto.
+  - unfold pike_vm_initial_state. rewrite <- compilation_size; auto.
     constructor; auto.
     + intros t H. destruct H. 2: inversion H.
       subst. simpl. unfold compilation. destruct (compile r 0) eqn:C. unfold size. rewrite app_length.
@@ -555,13 +555,13 @@ Lemma pike_vm_bound:
   forall pvs code n,
     code_wf code (size code) ->
     vm_inv code pvs n ->
-    exists result, steps (pike_vm_seen_step rer code) pvs n (PVSS_final result).
+    exists result, steps (pike_vm_step rer code) pvs n (PVS_final result).
 Proof.
   intros pvs code n WF INV. generalize dependent pvs. induction n using (strong_ind); intros.
   destruct pvs.
   2: { exists best. constructor. }
   specialize (pikevm_progress rer code inp active best blocked seen) as [next STEP].
-  specialize (pikevm_decreases code (PVSS inp active best blocked seen) next n WF STEP INV) as [newm [INV2 DECR]].
+  specialize (pikevm_decreases code (PVS inp active best blocked seen) next n WF STEP INV) as [newm [INV2 DECR]].
   specialize (H newm DECR next INV2) as [result STEPS].
   exists result. apply more_steps with (n:=S newm); try lia.
   econstructor; eauto.
@@ -574,8 +574,8 @@ Theorem pikevm_complexity:
     (* for any supported regex r and input inp *)
     pike_regex r ->
     (* The initial state reaches a final state in at most (complexity r inp) steps. *)
-    exists result, steps (pike_vm_seen_step rer (compilation r))
-                (pike_vm_seen_initial_state inp) (complexity r inp) (PVSS_final result).
+    exists result, steps (pike_vm_step rer (compilation r))
+                (pike_vm_initial_state inp) (complexity r inp) (PVS_final result).
 Proof.
   intros r inp SUBSET.
   apply pike_vm_bound.
@@ -590,7 +590,7 @@ Qed.
 Theorem pike_vm_terminates:
   forall r inp,
     pike_regex r ->
-    exists result, trc_pike_vm rer (compilation r) (pike_vm_seen_initial_state inp) (PVSS_final result).
+    exists result, trc_pike_vm rer (compilation r) (pike_vm_initial_state inp) (PVS_final result).
 Proof.
   intros r inp H. eapply pikevm_complexity in H as [result STEPS]; eauto.
   exists result. eapply steps_trc; eauto.

@@ -193,60 +193,60 @@ Definition epsilon_step (t:thread) (c:code) (i:input): epsilon_result :=
 (** * PikeVM Semantics  *)
 
 (* semantic states of the PikeVM algorithm *)
-Inductive pike_vm_seen_state : Type :=
-| PVSS (inp:input) (active: list thread) (best: option leaf) (blocked: list thread) (seen: seenpcs)
-| PVSS_final (best: option leaf).
+Inductive pike_vm_state : Type :=
+| PVS (inp:input) (active: list thread) (best: option leaf) (blocked: list thread) (seen: seenpcs)
+| PVS_final (best: option leaf).
 
-Definition pike_vm_seen_initial_state (inp:input) : pike_vm_seen_state :=
-  PVSS inp [(0,GroupMap.empty,CanExit)] None [] initial_seenpcs.
+Definition pike_vm_initial_state (inp:input) : pike_vm_state :=
+  PVS inp [(0,GroupMap.empty,CanExit)] None [] initial_seenpcs.
 
 (* small-step semantics for the PikeVM algorithm *)
-Inductive pike_vm_seen_step (c:code): pike_vm_seen_state -> pike_vm_seen_state -> Prop :=
+Inductive pike_vm_step (c:code): pike_vm_state -> pike_vm_state -> Prop :=
 | pvss_final:
 (* moving to a final state when there are no more active or blocked threads *)
   forall inp best seen,
-    pike_vm_seen_step c (PVSS inp [] best [] seen) (PVSS_final best)
+    pike_vm_step c (PVS inp [] best [] seen) (PVS_final best)
 | pvss_end:
   (* when the list of active is empty and we've reached the end of string *)
   forall inp best blocked seen
     (ADVANCE: advance_input inp forward = None),
-    pike_vm_seen_step c (PVSS inp [] best blocked seen) (PVSS_final best)
+    pike_vm_step c (PVS inp [] best blocked seen) (PVS_final best)
 | pvss_nextchar:
   (* when the list of active threads is empty (but not blocked), restart from the blocked ones, proceeding to the next character *)
   (* reset the set of seen pcs *)
   forall inp1 inp2 best blocked seen thr
     (ADVANCE: advance_input inp1 forward = Some inp2),
-    pike_vm_seen_step c (PVSS inp1 [] best (thr::blocked) seen) (PVSS inp2 (thr::blocked) best [] initial_seenpcs)
+    pike_vm_step c (PVS inp1 [] best (thr::blocked) seen) (PVS inp2 (thr::blocked) best [] initial_seenpcs)
 | pvss_skip:
   (* when the pc has already been seen at this current index, we skip it entirely *)
   forall inp t active best blocked seen
     (SEEN: seen_thread seen t = true),
-    pike_vm_seen_step c (PVSS inp (t::active) best blocked seen) (PVSS inp active best blocked seen)
+    pike_vm_step c (PVS inp (t::active) best blocked seen) (PVS inp active best blocked seen)
 | pvss_active:
   (* generated new active threads: add them in front of the low-priority ones *)
   forall inp t active best blocked seen nextactive
     (UNSEEN: seen_thread seen t = false)
     (STEP: epsilon_step t c inp = EpsActive nextactive),
-    pike_vm_seen_step c (PVSS inp (t::active) best blocked seen) (PVSS inp (nextactive++active) best blocked (add_thread seen t))
+    pike_vm_step c (PVS inp (t::active) best blocked seen) (PVS inp (nextactive++active) best blocked (add_thread seen t))
 | pvss_match:
   (* a match is found, discard remaining low-priority active threads *)
   forall inp t active best blocked seen
     (UNSEEN: seen_thread seen t = false)
     (STEP: epsilon_step t c inp = EpsMatch),
-    pike_vm_seen_step c (PVSS inp (t::active) best blocked seen) (PVSS inp [] (Some (inp,gm_of t)) blocked (add_thread seen t))
+    pike_vm_step c (PVS inp (t::active) best blocked seen) (PVS inp [] (Some (inp,gm_of t)) blocked (add_thread seen t))
 | pvss_blocked:
   (* add the new blocked thread after the previous ones *)
   forall inp t active best blocked seen newt
     (UNSEEN: seen_thread seen t = false)
     (STEP: epsilon_step t c inp = EpsBlocked newt),
-    pike_vm_seen_step c (PVSS inp (t::active) best blocked seen) (PVSS inp active best (blocked ++ [newt]) (add_thread seen t)).
+    pike_vm_step c (PVS inp (t::active) best blocked seen) (PVS inp active best (blocked ++ [newt]) (add_thread seen t)).
 
 (** * PikeVM properties  *)
 
 Theorem pikevm_deterministic:
   forall c pvso pvs1 pvs2
-    (STEP1: pike_vm_seen_step c pvso pvs1)
-    (STEP2: pike_vm_seen_step c pvso pvs2),
+    (STEP1: pike_vm_step c pvso pvs1)
+    (STEP2: pike_vm_step c pvso pvs2),
     pvs1 = pvs2.
 Proof.
   intros c pvso pvs1 pvs2 STEP1 STEP2. inversion STEP1; subst.
@@ -268,7 +268,7 @@ Qed.
 Theorem pikevm_progress:
   forall c inp active best blocked seen,
   exists pvs_next,
-    pike_vm_seen_step c (PVSS inp active best blocked seen) pvs_next.
+    pike_vm_step c (PVS inp active best blocked seen) pvs_next.
 Proof.
   intros c inp active best blocked seen.
   destruct active as [|[[pc gm] b] active].

@@ -39,7 +39,7 @@ Section Correctness.
   Context (rer: RegExpRecord).
 
 Definition trc_pike_tree := @trc pike_tree_seen_state pike_tree_seen_step.
-Definition trc_pike_vm (c:code) := @trc pike_vm_seen_state (pike_vm_seen_step rer c).
+Definition trc_pike_vm (c:code) := @trc pike_vm_state (pike_vm_step rer c).
 
 
 (* The Pike invariant is preserved through the TRC *)
@@ -66,7 +66,7 @@ Theorem pike_vm_to_pike_tree:
   forall r inp tree result,
     pike_regex r -> 
     bool_tree rer [Areg r] inp CanExit tree ->
-    trc_pike_vm (compilation r) (pike_vm_seen_initial_state inp) (PVSS_final result) ->
+    trc_pike_vm (compilation r) (pike_vm_initial_state inp) (PVS_final result) ->
     trc_pike_tree (pike_tree_seen_initial_state tree inp) (PTSS_final result).
 Proof.
   intros r inp tree result SUBSET TREE TRCVM.
@@ -99,7 +99,7 @@ Theorem pike_vm_correct:
     (* `tree` is the tree of the regex `r` for the input `inp` *)
     is_tree rer [Areg r] inp GroupMap.empty forward tree ->
     (* the result of the PikeVM is `result` *)
-    trc_pike_vm (compilation r) (pike_vm_seen_initial_state inp) (PVSS_final result) ->
+    trc_pike_vm (compilation r) (pike_vm_initial_state inp) (PVS_final result) ->
     (* This `result` is the priority result of the `tree` *)
     result = first_leaf tree inp.
 Proof.
@@ -123,7 +123,7 @@ Theorem pike_vm_same_warblre:
     RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wr nil ->
     EarlyErrors.Pass_Regex wr nil ->
     forall result,
-      trc_pike_vm (compilation lr) (pike_vm_seen_initial_state inp) (PVSS_final result) ->
+      trc_pike_vm (compilation lr) (pike_vm_initial_state inp) (PVS_final result) ->
       EquivDef.equiv_res result ((EquivMain.compilePattern wr rer) (input_str inp) (idx inp)).
 Proof.
   intros lr wr inp Hpike Hequiv Hcapcount HearlyErrors.
@@ -145,7 +145,7 @@ Theorem pike_vm_same_warblre_str0:
     RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wr nil ->
     EarlyErrors.Pass_Regex wr nil ->
     forall result,
-      trc_pike_vm (compilation lr) (pike_vm_seen_initial_state (init_input str0)) (PVSS_final result) ->
+      trc_pike_vm (compilation lr) (pike_vm_initial_state (init_input str0)) (PVS_final result) ->
       EquivDef.equiv_res result ((EquivMain.compilePattern wr rer) str0 0).
 Proof.
   intros lr wr str0 Hpike Hequiv Hcapcount HearlyErrors.
@@ -165,7 +165,7 @@ Theorem pike_vm_warblre:
     (* such that it is in the supported PikeVM subset *)
     pike_regex r ->
     (* When PikeVM reaches a final result *)
-    trc_pike_vm (compilation r) (pike_vm_seen_initial_state inp) (PVSS_final result) ->
+    trc_pike_vm (compilation r) (pike_vm_initial_state inp) (PVS_final result) ->
     (* this result is equal to Warblre's execution result *)
     (compilePattern rw rer) (input_str inp) (idx inp) = to_MatchState result (RegExpRecord.capturingGroupsCount rer).
 Proof.
