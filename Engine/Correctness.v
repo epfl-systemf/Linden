@@ -85,7 +85,7 @@ Lemma pike_tree_trc_correct:
 Proof.
   intros s1 s2 result INV TRC.
   induction TRC; auto.
-  apply IHTRC. eapply ptss_preservation; eauto.
+  apply IHTRC. eapply pts_preservation; eauto.
 Qed.
 
   

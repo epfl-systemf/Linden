@@ -165,7 +165,7 @@ Definition measure (codesize:nat) (dist:list (nat*LoopBool)) (active blocked:lis
 Inductive vm_inv (c:code): pike_vm_state -> nat -> Prop :=
 | inv_final:
   forall b, vm_inv c (PVS_final b) 0
-| inv_pvss:
+| inv_pvs:
   forall inp active best blocked seen dist
     (* the threads in active and blocked have their pc inside the code range *)
     (ACTIVEWF: forall t, In t active -> fst (fst t) < size c)

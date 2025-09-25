@@ -165,39 +165,39 @@ Definition pike_vm_initial_state (inp:input) : pike_vm_state :=
 
 (* small-step semantics for the PikeVM algorithm *)
 Inductive pike_vm_step (c:code): pike_vm_state -> pike_vm_state -> Prop :=
-| pvss_final:
+| pvs_final:
 (* moving to a final state when there are no more active or blocked threads *)
   forall inp best seen,
     pike_vm_step c (PVS inp [] best [] seen) (PVS_final best)
-| pvss_end:
+| pvs_end:
   (* when the list of active is empty and we've reached the end of string *)
   forall inp best blocked seen
     (ADVANCE: advance_input inp forward = None),
     pike_vm_step c (PVS inp [] best blocked seen) (PVS_final best)
-| pvss_nextchar:
+| pvs_nextchar:
   (* when the list of active threads is empty (but not blocked), restart from the blocked ones, proceeding to the next character *)
   (* reset the set of seen pcs *)
   forall inp1 inp2 best blocked seen thr
     (ADVANCE: advance_input inp1 forward = Some inp2),
     pike_vm_step c (PVS inp1 [] best (thr::blocked) seen) (PVS inp2 (thr::blocked) best [] initial_seenpcs)
-| pvss_skip:
+| pvs_skip:
   (* when the pc has already been seen at this current index, we skip it entirely *)
   forall inp t active best blocked seen
     (SEEN: seen_thread seen t = true),
     pike_vm_step c (PVS inp (t::active) best blocked seen) (PVS inp active best blocked seen)
-| pvss_active:
+| pvs_active:
   (* generated new active threads: add them in front of the low-priority ones *)
   forall inp t active best blocked seen nextactive
     (UNSEEN: seen_thread seen t = false)
     (STEP: epsilon_step t c inp = EpsActive nextactive),
     pike_vm_step c (PVS inp (t::active) best blocked seen) (PVS inp (nextactive++active) best blocked (add_thread seen t))
-| pvss_match:
+| pvs_match:
   (* a match is found, discard remaining low-priority active threads *)
   forall inp t active best blocked seen
     (UNSEEN: seen_thread seen t = false)
     (STEP: epsilon_step t c inp = EpsMatch),
     pike_vm_step c (PVS inp (t::active) best blocked seen) (PVS inp [] (Some (inp,gm_of t)) blocked (add_thread seen t))
-| pvss_blocked:
+| pvs_blocked:
   (* add the new blocked thread after the previous ones *)
   forall inp t active best blocked seen newt
     (UNSEEN: seen_thread seen t = false)
@@ -238,14 +238,14 @@ Proof.
   - destruct blocked as [|t blocked].
     + eexists. econstructor.
     + destruct (advance_input inp forward) eqn:INP.
-      * eexists. apply pvss_nextchar. eauto.
-      * eexists. apply pvss_end. eauto.
+      * eexists. apply pvs_nextchar. eauto.
+      * eexists. apply pvs_end. eauto.
   - destruct (seen_thread seen (pc,gm,b)) eqn:SEEN.
-    { eexists. apply pvss_skip. auto. }
+    { eexists. apply pvs_skip. auto. }
     destruct (epsilon_step (pc,gm,b) c inp) eqn:EPS.
-    + eexists. apply pvss_active; eauto.
-    + eexists. apply pvss_match; eauto.
-    + eexists. apply pvss_blocked; eauto.
+    + eexists. apply pvs_active; eauto.
+    + eexists. apply pvs_match; eauto.
+    + eexists. apply pvs_blocked; eauto.
 Qed.
 
 End PikeVM.
