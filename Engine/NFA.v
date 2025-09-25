@@ -347,3 +347,80 @@ Inductive actions_rep : actions -> code -> label -> Prop :=
     (CONT: actions_rep cont c pcstart)
     (JMP: get_pc c pc = Some (Jmp pcstart)),
     actions_rep cont c pc.
+
+(** * Stuttering  *)
+(* There are a few cases where the PikeVM takes more steps than the Pike Tree. *)
+(* These are stutter steps. *)
+(* They correspond to
+   - being at a Jmp instruction, inserted for a disjunction
+   - being at a BeginLoop instruction, inserted for a quantifier
+ *)
+
+(* With the definitions below, we provide ways to kow when is a state going to stutter *)
+
+(* returns true if that state will stutter *)
+(* or if we are at an unsupported feature *)
+Definition stutters (pc:label) (code:code) : bool :=
+  match get_pc code pc with
+  | Some (Jmp _) => true
+  | Some BeginLoop => true
+  | Some KillThread => true
+  | _ => false
+  end.
+
+Lemma does_stutter:
+  forall pc code, stutters pc code = true ->
+             get_pc code pc = Some BeginLoop \/ (exists next, get_pc code pc = Some (Jmp next)) \/ get_pc code pc = Some KillThread.
+Proof.
+  unfold stutters. intros. destruct get_pc; try destruct b; inversion H; eauto.
+Qed.
+
+Lemma doesnt_stutter_jmp:
+  forall pc code next, stutters pc code = false -> get_pc code pc = Some (Jmp next) -> False.
+Proof.
+  unfold stutters, not. intros. destruct get_pc; try destruct b; inversion H0. inversion H.
+Qed.
+
+Lemma doesnt_stutter_begin:
+  forall pc code, stutters pc code = false -> get_pc code pc = Some BeginLoop -> False.
+Proof.
+  unfold stutters, not. intros. destruct get_pc; try destruct b; inversion H0. inversion H.
+Qed.
+
+Lemma doesnt_stutter_kill:
+  forall pc code, stutters pc code = false -> get_pc code pc = Some KillThread -> False.
+Proof.
+  unfold stutters, not. intros. destruct get_pc; try destruct b; inversion H0. inversion H.
+Qed.
+
+
+Ltac no_stutter := 
+  match goal with
+  | [ H : stutters ?pc ?code = false, H1: get_pc ?code ?pc = Some (Jmp _) |- _ ] => exfalso; eapply doesnt_stutter_jmp; eauto
+  | [ H : stutters ?pc ?code = false, H1: get_pc ?code ?pc = Some (BeginLoop) |- _ ] => exfalso; eapply doesnt_stutter_begin; eauto
+  | [ H : stutters ?pc ?code = false, H1: get_pc ?code ?pc = Some (KillThread) |- _ ] => exfalso; eapply doesnt_stutter_kill; eauto
+  end.
+
+Ltac stutter :=
+  match goal with
+  | [ H : stutters ?pc ?code = true, H1: get_pc ?code ?pc = Some _ |- _ ] =>
+      try solve[unfold stutters in H; rewrite H1 in H; inversion H]
+  end.
+
+Ltac invert_rep :=
+   match goal with
+   | [ H : actions_rep (Areg _ :: _) _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : actions_rep (Aclose _ :: _) _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : actions_rep (Acheck _ :: _) _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : actions_rep [] _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : action_rep (Areg _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : action_rep (Aclose _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : action_rep (Acheck _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : nfa_rep (Epsilon) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : nfa_rep (Regex.Character _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : nfa_rep (Disjunction _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : nfa_rep (Sequence _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : nfa_rep (Quantified _ _ _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : nfa_rep (Group _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | _ => try no_stutter
+   end.
