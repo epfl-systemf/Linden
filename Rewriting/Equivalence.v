@@ -1007,28 +1007,27 @@ Section Congruence.
     - (* Lookaround success *)
       inversion TREE_APP; subst;
         assert (treelk0 = treelk) by (eapply is_tree_determ; eauto); subst.
-      2: contradiction.
-      rewrite GM_LK in GM_LK0. injection GM_LK0 as <-.
+      2: { rewrite RES_LK in FAIL_LK. inversion FAIL_LK. }
+      rewrite RES_LK in RES_LK0. injection RES_LK0 as <-.
       destruct positivity eqn:Hpos.
-      + unfold lk_group_map in GM_LK. rewrite Hpos in GM_LK.
+      + unfold lk_result in RES_LK. rewrite Hpos in RES_LK.
         pose proof first_tree_leaf treelk gm inp (lk_dir lk) as LK_FIRST.
         destruct (tree_res treelk gm inp (lk_dir lk)) as [[inplk gmlk']|] eqn:TREERES_LK; try discriminate.
-        injection GM_LK as ->.
+        injection RES_LK as ->.
         destruct (tree_leaves treelk gm inp (lk_dir lk)) as [|[inplk' gmlk'] q] eqn:TREELEAVES_LK; try discriminate.
         simpl in *. injection LK_FIRST as <- <-. rewrite Hpos.
         rewrite TREELEAVES_LK. auto.
-      + unfold lk_group_map in GM_LK. rewrite Hpos in GM_LK.
-        injection GM_LK as <-.
-        assert (tree_leaves treelk gm inp (lk_dir lk) = []).
-        { apply leaves_group_map_indep with (gm1 := GroupMap.empty) (inp1 := init_input nil) (dir1 := forward).
-          apply hd_error_none_nil. rewrite <- first_tree_leaf.
-          unfold lk_result in RES_LK. rewrite Hpos in RES_LK. apply RES_LK. }
+      + unfold lk_result in RES_LK. rewrite Hpos in RES_LK.
+        destruct (tree_res treelk gm inp (lk_dir lk)) eqn:TREERES; inversion RES_LK. subst.
+        assert (tree_leaves treelk gmlk inp (lk_dir lk) = []).
+        { apply leaves_group_map_indep with (gm1 := gmlk) (inp1 := inp) (dir1 := lk_dir lk).
+          apply hd_error_none_nil. rewrite <- first_tree_leaf. auto. }
         simpl. rewrite Hpos, H. auto.
   
     - (* Lookaround failure *)
       inversion TREE_APP; subst;
         assert (treelk0 = treelk) by (eapply is_tree_determ; eauto); subst.
-      1: contradiction.
+      { rewrite RES_LK in FAIL_LK. inversion FAIL_LK. }
       simpl. constructor.
     
     - (* Anchor *)
@@ -1697,34 +1696,40 @@ Section Congruence.
     inversion TREE1; subst; inversion TREE2; subst.
     - (* Both lookaheads succeed *)
       specialize (EQUIV _ _ _ _ TREELK TREELK0) as EQUIV_LK.
-      unfold lk_group_map in GM_LK, GM_LK0. simpl in *.
+      unfold lk_result in RES_LK, RES_LK0. simpl in *.
       unfold tree_equiv_tr_dir in *. simpl.
-      rewrite first_tree_leaf in GM_LK, GM_LK0.
+      rewrite first_tree_leaf in RES_LK, RES_LK0.
       inversion EQUIV_LK; subst; auto.
       + reflexivity.
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + rewrite <- H1 in GM_LK. rewrite <- H2 in GM_LK0. simpl in *.
-        injection GM_LK as ->. injection GM_LK0 as <-. inversion TREECONT; subst. inversion TREECONT0; subst.
+      + rewrite <- H1 in RES_LK. rewrite <- H2 in RES_LK0. simpl in *.
+        injection RES_LK as ->. injection RES_LK0 as <-. inversion TREECONT; subst. inversion TREECONT0; subst.
         simpl. reflexivity.
     - (* Impossible case *)
       exfalso.
       unfold lk_result in *. simpl in *.
+      destruct (tree_res treelk gm inp forward) as [[inp1 res1]|] eqn:RES1; inversion RES_LK; subst.
+      destruct (tree_res treelk0 gm inp forward) as [[inp2 res2]|] eqn:RES2; inversion FAIL_LK; subst.
+      clear RES_LK FAIL_LK. rewrite first_tree_leaf in RES1, RES2.
       specialize (EQUIV _ _ _ _ TREELK TREELK0). unfold tree_equiv_tr_dir in EQUIV.
       inversion EQUIV; subst; auto.
-      + symmetry in H1. apply tree_leaves_nil_no_first_branch with (str := []) in H1. contradiction.
+      + rewrite <- H1 in RES1. inversion RES1.
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + apply FAIL_LK. apply tree_leaves_notnil_first_branch with (gm := gm) (inp := inp) (dir := forward). rewrite <- H2. discriminate.
+      + rewrite <- H2 in RES2. inversion RES2.
     - (* Impossible case *)
       exfalso.
       unfold lk_result in *. simpl in *.
+      destruct (tree_res treelk gm inp forward) as [[inp1 res1]|] eqn:RES1; inversion FAIL_LK; subst.
+      destruct (tree_res treelk0 gm inp forward) as [[inp2 res2]|] eqn:RES2; inversion RES_LK; subst.
+      clear RES_LK FAIL_LK. rewrite first_tree_leaf in RES1, RES2.
       specialize (EQUIV _ _ _ _ TREELK TREELK0). unfold tree_equiv_tr_dir in EQUIV.
       inversion EQUIV; subst; auto.
-      + symmetry in H2. apply tree_leaves_nil_no_first_branch with (str := []) in H2. contradiction.
+      + rewrite <- H2 in RES2. inversion RES2.
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + apply FAIL_LK. apply tree_leaves_notnil_first_branch with (gm := gm) (inp := inp) (dir := forward). rewrite <- H1. discriminate.
+      + rewrite <- H1 in RES1. inversion RES1.
     - (* Both lookaheads fail *)
       unfold tree_equiv_tr_dir. simpl. reflexivity.
   Qed.
@@ -1741,36 +1746,40 @@ Section Congruence.
     inversion TREE1; subst; inversion TREE2; subst.
     - (* Both lookaheads succeed *)
       specialize (EQUIV _ _ _ _ TREELK TREELK0) as EQUIV_LK.
-      unfold lk_group_map in GM_LK, GM_LK0. simpl in *.
+      unfold lk_result in RES_LK, RES_LK0. simpl in *.
       unfold tree_equiv_tr_dir in *. simpl.
-      rewrite first_tree_leaf in GM_LK, GM_LK0.
+      rewrite first_tree_leaf in RES_LK, RES_LK0.
       inversion EQUIV_LK; subst; auto.
       + reflexivity.
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + rewrite <- H1 in GM_LK. rewrite <- H2 in GM_LK0. simpl in *.
-        injection GM_LK as ->. injection GM_LK0 as <-. inversion TREECONT; subst. inversion TREECONT0; subst.
+      + rewrite <- H1 in RES_LK. rewrite <- H2 in RES_LK0. simpl in *.
+        injection RES_LK as ->. injection RES_LK0 as <-. inversion TREECONT; subst. inversion TREECONT0; subst.
         simpl. reflexivity.
     - (* Impossible case *)
       exfalso.
       unfold lk_result in *. simpl in *.
+      destruct (tree_res treelk gm inp backward) as [[inp1 res1]|] eqn:RES1; inversion RES_LK; subst.
+      destruct (tree_res treelk0 gm inp backward) as [[inp2 res2]|] eqn:RES2; inversion FAIL_LK; subst.
+      clear RES_LK FAIL_LK. rewrite first_tree_leaf in RES1, RES2.
       specialize (EQUIV _ _ _ _ TREELK TREELK0). unfold tree_equiv_tr_dir in EQUIV.
       inversion EQUIV; subst; auto.
-      + symmetry in H1. apply tree_leaves_nil_no_first_branch with (str := []) in H1. contradiction.
+      + rewrite <- H1 in RES1. inversion RES1.
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + apply FAIL_LK. apply tree_leaves_notnil_first_branch with (gm := gm) (inp := inp) (dir := backward).
-        rewrite <- H2. discriminate.
+      + rewrite <- H2 in RES2. inversion RES2.
     - (* Impossible case *)
       exfalso.
       unfold lk_result in *. simpl in *.
+      destruct (tree_res treelk gm inp backward) as [[inp1 res1]|] eqn:RES1; inversion FAIL_LK; subst.
+      destruct (tree_res treelk0 gm inp backward) as [[inp2 res2]|] eqn:RES2; inversion RES_LK; subst.
+      clear RES_LK FAIL_LK. rewrite first_tree_leaf in RES1, RES2.
       specialize (EQUIV _ _ _ _ TREELK TREELK0). unfold tree_equiv_tr_dir in EQUIV.
       inversion EQUIV; subst; auto.
-      + symmetry in H2. apply tree_leaves_nil_no_first_branch with (str := []) in H2. contradiction.
+      + rewrite <- H2 in RES2. inversion RES2.
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + apply FAIL_LK. apply tree_leaves_notnil_first_branch with (gm := gm) (inp := inp) (dir := backward).
-        rewrite <- H1. discriminate.
+      + rewrite <- H1 in RES1. inversion RES1.
     - (* Both lookaheads fail *)
       unfold tree_equiv_tr_dir. simpl. reflexivity.
   Qed.
@@ -1796,33 +1805,27 @@ Section Congruence.
     - (* Impossible case *)
       exfalso.
       unfold lk_result in *. simpl in *.
+      destruct (tree_res treelk gm inp forward) as [[inp1 res1]|] eqn:RES1; inversion RES_LK; subst.
+      destruct (tree_res treelk0 gmlk inp forward) as [[inp2 res2]|] eqn:RES2; inversion FAIL_LK; subst.
+      clear RES_LK FAIL_LK. rewrite first_tree_leaf in RES1, RES2.
       specialize (EQUIV _ _ _ _ TREELK TREELK0). unfold tree_equiv_tr_dir in EQUIV.
       inversion EQUIV; subst; auto.
-      + symmetry in H2. apply tree_leaves_nil_no_first_branch with (str := []) in H2.
-        destruct (first_branch treelk0 []); try contradiction. apply H2. eexists; eauto.
+      + rewrite <- H2 in RES2. inversion RES2.
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + assert (exists res, first_branch treelk [] = Some res). {
-          apply tree_leaves_notnil_first_branch with (gm := gm) (inp := inp) (dir := forward).
-          rewrite <- H1. discriminate.
-        }
-        destruct H as [res H]. congruence.
+      + rewrite <- H1 in RES1. inversion RES1.
     - (* Impossible case *)
       exfalso.
       unfold lk_result in *. simpl in *.
+      destruct (tree_res treelk gm inp forward) as [[inp1 res1]|] eqn:RES1; inversion FAIL_LK; subst.
+      destruct (tree_res treelk0 gm inp forward) as [[inp2 res2]|] eqn:RES2; inversion RES_LK; subst.
+      clear RES_LK FAIL_LK. rewrite first_tree_leaf in RES1, RES2.
       specialize (EQUIV _ _ _ _ TREELK TREELK0). unfold tree_equiv_tr_dir in EQUIV.
       inversion EQUIV; subst; auto.
-      + (* H1 and FAIL_LK are contradictory *)
-        symmetry in H1. apply tree_leaves_nil_no_first_branch with (str := []) in H1.
-        destruct (first_branch treelk []); try contradiction. apply H1. eexists; eauto.
+      + rewrite <- H1 in RES1. inversion RES1.
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + (* H2 and RES_LK are contradictory *)
-        assert (exists res, first_branch treelk0 [] = Some res). {
-          apply tree_leaves_notnil_first_branch with (gm := gm) (inp := inp) (dir := forward).
-          rewrite <- H2. discriminate.
-        }
-        destruct H as [res H]. congruence.
+      + rewrite <- H2 in RES2. inversion RES2.
     - (* Both lookaheads fail *)
       unfold tree_equiv_tr_dir. simpl. reflexivity.
   Qed.
@@ -1848,31 +1851,27 @@ Section Congruence.
     - (* Impossible case *)
       exfalso.
       unfold lk_result in *. simpl in *.
+      destruct (tree_res treelk gm inp backward) as [[inp1 res1]|] eqn:RES1; inversion RES_LK; subst.
+      destruct (tree_res treelk0 gmlk inp backward) as [[inp2 res2]|] eqn:RES2; inversion FAIL_LK; subst.
+      clear RES_LK FAIL_LK. rewrite first_tree_leaf in RES1, RES2.
       specialize (EQUIV _ _ _ _ TREELK TREELK0). unfold tree_equiv_tr_dir in EQUIV.
       inversion EQUIV; subst; auto.
-      + (* H2 and FAIL_LK are contradictory *) symmetry in H2. apply tree_leaves_nil_no_first_branch with (str := []) in H2.
-        destruct (first_branch treelk0 []); try contradiction. apply H2. eexists; eauto.
+      + rewrite <- H2 in RES2. inversion RES2.
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + (* H1 and RES_LK are contradictory *) assert (exists res, first_branch treelk [] = Some res). {
-          apply tree_leaves_notnil_first_branch with (gm := gm) (inp := inp) (dir := backward).
-          rewrite <- H1. discriminate.
-        }
-        destruct H as [res H]. congruence.
+      + rewrite <- H1 in RES1. inversion RES1.
     - (* Impossible case *)
       exfalso.
       unfold lk_result in *. simpl in *.
+      destruct (tree_res treelk gm inp backward) as [[inp1 res1]|] eqn:RES1; inversion FAIL_LK; subst.
+      destruct (tree_res treelk0 gm inp backward) as [[inp2 res2]|] eqn:RES2; inversion RES_LK; subst.
+      clear RES_LK FAIL_LK. rewrite first_tree_leaf in RES1, RES2.
       specialize (EQUIV _ _ _ _ TREELK TREELK0). unfold tree_equiv_tr_dir in EQUIV.
       inversion EQUIV; subst; auto.
-      + (* H1 and FAIL_LK are contradictory *) symmetry in H1. apply tree_leaves_nil_no_first_branch with (str := []) in H1.
-        destruct (first_branch treelk []); try contradiction. apply H1. eexists; eauto.
+      + rewrite <- H1 in RES1. inversion RES1.
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
       + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + (* H2 and RES_LK are contradictory *) assert (exists res, first_branch treelk0 [] = Some res). {
-          apply tree_leaves_notnil_first_branch with (gm := gm) (inp := inp) (dir := backward).
-          rewrite <- H2. discriminate.
-        }
-        destruct H as [res H]. congruence.
+      + rewrite <- H2 in RES2. inversion RES2.
     - (* Both lookaheads fail *)
       unfold tree_equiv_tr_dir. simpl. reflexivity.
   Qed.

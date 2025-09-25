@@ -9,7 +9,8 @@ From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeTreeSeen PikeVMSeen.
 From Linden Require Import PikeEquiv PikeSeenEquiv PikeSubset.
 From Linden Require Import EquivMain RegexpTranslation GroupMapMS.
-From Warblre Require Import Base Semantics Result RegExpRecord.
+From Linden Require Import ResultTranslation FunctionalUtils.
+From Warblre Require Import Base Semantics Result RegExpRecord StaticSemantics.
 Import Result.Notations.
 
 Local Open Scope result_flow.
@@ -43,22 +44,21 @@ Definition trc_pike_vm (c:code) := @trc pike_vm_seen_state (pike_vm_seen_step re
 
 (* The Pike invariant is preserved through the TRC *)
 Lemma vm_to_tree:
-  forall svm1 st1 svm2 code n1
+  forall svm1 st1 svm2 code
     (STWF: stutter_wf rer code)
-    (INVARIANT: pike_inv rer code st1 svm1 n1)
+    (INVARIANT: pike_inv rer code st1 svm1)
     (TRCVM: trc_pike_vm code svm1 svm2),
-    exists st2 n2, trc_pike_tree st1 st2 /\ pike_inv rer code st2 svm2 n2.
+    exists st2, trc_pike_tree st1 st2 /\ pike_inv rer code st2 svm2.
 Proof.
-  intros svm1 st1 svm2 code n1 STWF INVARIANT TRCVM.
-  generalize dependent st1. generalize dependent n1.
-  induction TRCVM; intros.
-  { exists st1. exists n1. split; auto. apply trc_refl. }
+  intros svm1 st1 svm2 code STWF INVARIANT TRCVM.
+  generalize dependent st1. induction TRCVM; intros.
+  { exists st1. split; auto. apply trc_refl. }
   eapply invariant_preservation in STEP; eauto.
-  destruct STEP as [[pts2 [m [TSTEP INV]]] | [m [INV DECR]]].
-  - apply IHTRCVM in INV as [st2 [n2 [TTRC TINV]]].
-    exists st2. exists n2. split; auto. eapply trc_cons; eauto.
-  - apply IHTRCVM in INV as [st2 [n2 [TTRC TINV]]].
-    exists st2. exists n2. split; auto.
+  destruct STEP as [[pts2 [TSTEP INV]] | INV].
+  - apply IHTRCVM in INV as [st2 [TTRC TINV]].
+    exists st2. split; auto. eapply trc_cons; eauto.
+  - apply IHTRCVM in INV as [st2 [TTRC TINV]].
+    exists st2. split; auto.
 Qed.
 
 (* Any execution of the PikeVM to a final state corresponds to an execution of the PikeTree *)
@@ -72,7 +72,7 @@ Proof.
   intros r inp tree result SUBSET TREE TRCVM.
   generalize (initial_pike_inv rer r inp tree (compilation r) TREE (@eq_refl _ _) SUBSET).
   intros INIT.
-  eapply vm_to_tree in TRCVM as [vmfinal [nfinal [TRCTREE INV]]]; eauto.
+  eapply vm_to_tree in TRCVM as [vmfinal [TRCTREE INV]]; eauto.
   - inversion INV; subst. auto.
   - eapply compilation_stutter_wf; eauto.
 Qed.
@@ -111,7 +111,7 @@ Proof.
     pike_subset. }
   generalize (init_piketree_inv tree inp SUBTREE). intros INIT.
   eapply pike_tree_trc_correct in TRC as FINALINV; eauto.
-  inversion FINALINV. subst. unfold first_branch. auto.
+  inversion FINALINV. subst. auto.
 Qed.
 
 
@@ -150,6 +150,36 @@ Theorem pike_vm_same_warblre_str0:
 Proof.
   intros lr wr str0 Hpike Hequiv Hcapcount HearlyErrors.
   apply pike_vm_same_warblre; auto.
+Qed.
+
+(* Equivalence of PikeVM to Warblre Semantics *)
+(* A version closer to the paper definition *)
+Theorem pike_vm_warblre:
+  forall rw r inp result,
+    (* For a correct RegExpRecord *)
+    RegExpRecord.capturingGroupsCount rer = countLeftCapturingParensWithin rw [] ->
+    (* For any Warblre regex that passes the early errors check, *)
+    earlyErrors rw nil = Success false ->
+    (* letting r be the corresponding Linden regex, *)
+    r = warblre_to_linden' rw 0 (buildnm rw) ->
+    (* such that it is in the supported PikeVM subset *)
+    pike_regex r ->
+    (* When PikeVM reaches a final result *)
+    trc_pike_vm (compilation r) (pike_vm_seen_initial_state inp) (PVSS_final result) ->
+    (* this result is equal to Warblre's execution result *)
+    (compilePattern rw rer) (input_str inp) (idx inp) = to_MatchState result (RegExpRecord.capturingGroupsCount rer).
+Proof.
+  intros rw r inp result RER EARLY TOLINDEN SUBSET TRC.
+  specialize (earlyErrors_pass_translation _ EARLY) as [lr SUCCESS].
+  unfold warblre_to_linden' in TOLINDEN. rewrite SUCCESS in TOLINDEN. subst.
+  specialize (warblre_to_linden_sound_root _ _ SUCCESS) as EQUIV.
+  apply EarlyErrors.earlyErrors in EARLY as PASS.
+  specialize (equiv_main _ _ _ inp EQUIV RER PASS) as [m [res [COMP_SUCC [EXEC_SUCC LW_EQUIV]]]].
+  unfold compilePattern. rewrite COMP_SUCC, EXEC_SUCC.
+  specialize (LW_EQUIV (compute_tr rer [Areg lr] inp GroupMap.empty forward) eq_refl) as [ISTREE LW_EQUIV].
+  specialize (pike_vm_correct _ _ _ _ SUBSET ISTREE TRC) as FIRST. subst.  
+  symmetry. apply to_MatchState_equal; auto.
+  eapply compilePattern_preserves_groupcount; eauto.
 Qed.
 
 End Correctness.

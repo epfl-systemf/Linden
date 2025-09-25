@@ -6,36 +6,6 @@ Section ComputeIsTree.
   Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
 
-  Lemma lk_succeeds_group_map:
-    forall lk treelk gm inp,
-      lk_succeeds lk treelk = true ->
-      lk_group_map lk treelk gm inp <> None.
-  Proof.
-    intros lk treelk gm inp Hsucceeds.
-    unfold lk_succeeds in Hsucceeds. unfold lk_group_map.
-    destruct Regex.positivity. 2: discriminate.
-    unfold Tree.first_branch in Hsucceeds.
-    destruct Tree.tree_res as [res|] eqn:Hres; try discriminate.
-    intro Habs. destruct (Tree.tree_res treelk gm inp _) as [[]|] eqn:Habs'; try discriminate.
-    apply Tree.res_group_map_indep with (gm2 := Groups.GroupMap.empty) (inp2 := init_input nil) (dir2 := Base.forward) in Habs'.
-    congruence.
-  Qed.
-
-  Lemma lk_succeeds_result:
-    forall lk treelk,
-      lk_succeeds lk treelk = true <-> lk_result lk treelk.
-  Proof.
-    intros lk treelk.
-    unfold lk_succeeds, lk_result.
-    destruct Regex.positivity.
-    - destruct Tree.first_branch as [res|].
-      + split; try reflexivity. intros _. eexists. reflexivity.
-      + split. * discriminate. * intros [res H]; discriminate.
-    - destruct Tree.first_branch as [res|].
-      + split; discriminate.
-      + split; reflexivity.
-  Qed. 
-
   Theorem compute_is_tree:
     forall act inp gm dir fuel t,
       compute_tree rer act inp gm dir fuel = Some t ->
@@ -104,18 +74,14 @@ Section ComputeIsTree.
     
     - (* Lookaround *)
       destruct compute_tree as [treelk|] eqn:Htreelk; simpl; try discriminate.
-      destruct lk_succeeds eqn:Hlksucc.
+      destruct (lk_result lk treelk gm inp) eqn:LKRES.
       + (* Lookaround succeds *)
-        pose proof lk_succeeds_group_map lk treelk gm inp Hlksucc as Hlkgm_not_None.
-        destruct lk_group_map as [gmlk|] eqn:Hgmlk; try contradiction.
-        destruct (compute_tree rer acts inp gmlk dir fuel) as [treecont|] eqn:Hcomputecont; try discriminate.
+        destruct (compute_tree rer acts inp g dir fuel) as [treecont|] eqn:Hcomputecont; try discriminate.
         intros H. injection H as <-.
-        apply tree_lk with (gmlk := gmlk); auto.
-        now apply lk_succeeds_result.
+        apply tree_lk with (gmlk := g); auto.
       + (* Lookaround fails *)
         intros H. injection H as <-.
         apply tree_lk_fail; auto.
-        intro Habs. apply lk_succeeds_result in Habs. congruence.
 
     - (* Group *)
       destruct compute_tree as [treecont|] eqn:Htreecont; try discriminate.
