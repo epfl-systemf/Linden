@@ -311,7 +311,7 @@ Hint Extern 1 => lia : lia.
 
 
 
-(** * The tree and leaves equivalence relations are indeed equivalence relations. *)
+(** * The tree, actions and regex equivalence relations are indeed equivalence relations. *)
 Section Relation.
   Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
@@ -626,7 +626,7 @@ Section Relation.
 End Relation.
 
 
-
+(* Notations *)
 Notation "r1 ≅[ rer ][ dir ] r2" := (tree_equiv_dir rer dir r1 r2) (at level 70, format "r1  ≅[ rer ][ dir ]  r2").
 Notation "r1 ≅[ rer ] r2" := (tree_equiv rer r1 r2) (at level 70, format "r1  ≅[ rer ]  r2").
 Notation "r1 ≇[ rer ][ dir ] r2" := (tree_nequiv_dir rer dir r1 r2) (at level 70, format "r1  ≇[ rer ][ dir ]  r2").
@@ -652,8 +652,10 @@ Section Congruence.
   Qed.
 
 
-  (* getting the leaves of a continuation applied to a particular leaf *)
-  (* TODO Comment: Why is this needed? *)
+  (* Getting the leaves of a continuation applied to a particular leaf *)
+  (* This function will be used to express that appending a list of actions a2 to a list
+  of actions a1 corresponds to extending the leaves of the tree corresponding to actions
+  a1 with trees corresponding to the actions of a2 (see lemma leaves_concat below) *)
   Inductive act_from_leaf : actions -> Direction -> leaf -> list leaf -> Prop :=
   | afl:
     forall act dir l t
@@ -707,7 +709,7 @@ Section Congruence.
     - injection H as <- <-. simpl. now destruct inp, dir.
   Qed.
 
-  (* adding new things to the continuation is the same as extending each leaf of the tree with these new things *)
+  (* Adding new things to the continuation is the same as extending each leaf of the tree with these new things *)
   Theorem leaves_concat:
     forall inp gm dir act1 act2 tapp t1
       (TREE_APP: is_tree rer (act1 ++ act2) inp gm dir tapp)
@@ -832,9 +834,10 @@ Section Congruence.
       simpl. constructor.
   Qed.
 
-  (* We could use the functional flat_map, but this would require using the function compute_tr that associates a tree to each regex and input *)
+  (* We could use the functional flat_map, but this would require using the function compute_tr that associates a tree to each regex and input. *)
   (* The proof does not strictly rely on this function, it merely relies on the
   existence of a unique tree associated to each regex and input. *)
+
 
   (** * Continuation Lemmas  *)
 
@@ -876,6 +879,8 @@ Section Congruence.
   Qed.
 
   
+  (* Same, but prepending this time the actions to the left *)
+  (* Used in the sequence case *)
   Lemma app_eq_left:
     forall a1 a2 acts dir
       (ACTS_EQ: actions_equiv_dir rer dir a1 a2),
@@ -895,6 +900,8 @@ Section Congruence.
     inversion Hyf; subst. inversion Hyg; subst. apply ACTS_EQ; auto.
   Qed.
   
+  (* If a1 ≅ a2 and b1 ≅ b2, then a1 ++ b1 ≅ a2 ++ b2. *)
+  (* Used in quantifier case of contextual equivalence proof *)
   Lemma app_eq_both:
     forall a1 a2 b1 b2 dir
       (A_EQ: actions_equiv_dir rer dir a1 a2)
@@ -906,11 +913,24 @@ Section Congruence.
     - apply app_eq_right. auto.
   Qed.
 
+
+  (** ** Preparing the proof by induction for quantifiers *)
+  (* For quantifiers, we perform a proof by induction on the remaining length of the input to be matched. *)
+  (* Therefore, at any given point, we know the equivalence of r1{0, Δ, p} with r2{0, Δ, p} only for inputs whose remaining length is less than some integer n. *)
+  (* For an input inp whose remaining length is n, after unfolding the quantifier once, we need to prove that the lists of actions [r1; Acheck inp; r1{0, Δ, p}] and [r2; Acheck inp; r2{0, Δ, p}] are equivalent. *)
+  (* We then argue that the lists of actions [r1; Acheck inp] and [r2; Acheck inp] are not only equivalent but also respect the condition that any leaf has strictly progressed wrt inp, and hence have a remaining length of less than n. *)
+  (* We can then apply the induction hypothesis stated at the beginning of this paragraph. *)
+
+  (* A list of actions acts is said to respect a property P in direction dir when: *)
   Definition actions_respect_prop_dir (acts: actions) (dir: Direction) (P: leaf -> Prop): Prop :=
     forall inp gm t
+      (* whenever t is a tree corresponding to actions acts and direction dir, *)
       (TREE: is_tree rer acts inp gm dir t),
+      (* all the leaves of t respect P. *)
       Forall P (tree_leaves t gm inp dir).
+  (* Used for check actions in the context of the induction proof for free quantifiers  *)
 
+  (* Appending lists of actions that are conditionally equivalent, provided that the prepended actions respect the condition *)
   Lemma actions_equiv_interm_prop:
     forall (a1 a2 b1 b2: actions) (P: leaf -> Prop) (dir: Direction),
       actions_equiv_dir rer dir a1 a2 ->
@@ -932,6 +952,7 @@ Section Congruence.
     - apply app_eq_right. auto.
   Qed.
 
+  (* If a list of actions respects a property, then prepending actions to the list does not change that. *)
   Lemma actions_respect_prop_add_left:
     forall (a b: actions) (P: leaf -> Prop) (dir: Direction),
       actions_respect_prop_dir b dir P ->
@@ -951,11 +972,14 @@ Section Congruence.
     inversion HEAD; subst. apply PROPb. auto.
   Qed.
 
+  (* Definition of when a list of actions never yields any leaf *)
+  (* Used for checks that are at the end of the input *)
   Definition actions_no_leaves (a: actions) (dir: Direction): Prop :=
     forall inp gm t,
       is_tree rer a inp gm dir t ->
       tree_leaves t gm inp dir = [].
 
+  (* Relating the above definition to actions that respect a condition that is always false *)
   Lemma actions_prop_False_no_leaves:
     forall (a: actions) (dir: Direction) (P: leaf -> Prop),
       actions_respect_prop_dir a dir P ->
@@ -979,6 +1003,7 @@ Section Congruence.
     intros. rewrite NO_LEAVES; auto.
   Qed.
 
+  (* If a list of actions b never yields any leaves, then prepending actions to the left of b does not change that. *)
   Lemma actions_no_leaves_add_left:
     forall a b dir,
       actions_no_leaves b dir ->
@@ -990,6 +1015,7 @@ Section Congruence.
     apply actions_prop_False_no_leaves with (P := fun _ => False); auto.
   Qed.
 
+  (* If a list of actions a never yields any leaves, then appending actions to the right of b does not change that either. *)
   Lemma actions_no_leaves_add_right:
     forall a b dir,
       actions_no_leaves a dir ->
@@ -1006,7 +1032,7 @@ Section Congruence.
   Qed.
 
 
-  (* Lemma for quantifiers *)
+  (* A check action respects the property that all leaves have strictly advanced with respect to the check. *)
   Lemma check_actions_prop:
     forall inp dir,
       actions_respect_prop_dir [Acheck inp] dir
@@ -1018,6 +1044,8 @@ Section Congruence.
     - constructor.
   Qed.
 
+  (* Remaining length of an input given a direction *)
+  (* TODO Can probably be moved somewhere else *)
   Definition remaining_length (inp: input) (dir: Direction): nat :=
     let '(Input next pref) := inp in
     match dir with
@@ -1025,6 +1053,10 @@ Section Congruence.
     | backward => length pref
     end.
 
+
+  (** *** The quantifier lemmas *)
+  (* Forced case: If we know that r1 ≅ r2 and that r1{0, Δ, p} ≅ r2{0, Δ, p}, then we
+  prove by induction on min that for all min ≥ 0, r1{min, Δ, p} ≅ r2{min, Δ, p}. *)
   Lemma regex_equiv_quant_forced:
     forall r1 r2 dir,
       tree_equiv_dir rer dir r1 r2 ->
@@ -1049,6 +1081,7 @@ Section Congruence.
     - simpl. apply ISTREE0.
   Qed.
 
+  (* Done case *)
   Lemma regex_equiv_quant_done:
     forall r1 r2 dir greedy,
       def_groups r1 = def_groups r2 ->
@@ -1063,6 +1096,9 @@ Section Congruence.
     - destruct plus; discriminate.
   Qed.
 
+  (* If inp' is a strict suffix of inp, then the remaining length of inp' is less
+  than that of inp. *)
+  (* Used in the induction proof for the free quantifier case *)
   Lemma strict_suffix_remaining_length:
     forall inp' inp dir,
       StrictSuffix.strict_suffix inp' inp dir ->
@@ -1081,6 +1117,7 @@ Section Congruence.
       destruct diff; try contradiction. simpl. lia.
   Qed.
 
+  (* A check action that is at the end of the input never yields any leaves. *)
   Lemma check_end_no_leaves:
     forall inp dir,
       remaining_length inp dir = 0 ->
@@ -1092,6 +1129,11 @@ Section Congruence.
     - intros lf ABS. apply strict_suffix_remaining_length in ABS. lia.
   Qed.
 
+  (* If r1{0, Δ, p} ≅ r2{0, Δ, p} for inputs whose remaining length is at most n,
+  then for any input inp whose remaining length is at most S n, 
+  r1{0, Δ, p} ≅ r2{0, Δ, p} for inputs which are strict suffixes of inp. *)
+  (* TODO Rewrite this so that the statement becomes easier to understand?
+  Might need to factorize greedy and lazy cases below *)
   Lemma regex_quant_free_induction:
     forall n greedy plus r1 r2 dir,
       (forall (inp : input) (gm : group_map),
@@ -1113,6 +1155,9 @@ Section Congruence.
     pose proof strict_suffix_remaining_length _ _ _ STRICT_SUFFIX. lia.
   Qed.
 
+  (* Free quantifier case *)
+  (* If r1 ≅ r2, then r1{0, Δ, p} ≅ r2{0, Δ, p} for all Δ and p. *)
+  (* TODO? Factorize greedy and lazy cases, and generally try to make the proof simpler *)
   Lemma regex_equiv_quant_free:
     forall r1 r2 dir,
       tree_equiv_dir rer dir r1 r2 ->
@@ -1121,6 +1166,7 @@ Section Congruence.
   Proof.
     intros r1 r2 dir Hequiv greedy delta.
     destruct Hequiv as [DEF_GROUPS Hequiv].
+    (* Proceed by induction on the remaining length of the input *)
     split; auto. intros inp gm t1 t2 TREE1. remember (remaining_length inp dir) as n.
     assert (remaining_length inp dir <= n) as Hle_n by lia. clear Heqn.
     revert inp gm Hle_n delta t1 t2 TREE1. induction n.
@@ -1191,6 +1237,7 @@ Section Congruence.
              eauto using regex_quant_free_induction.
   Qed.
 
+  (* Quantifier case: if r1 ≅ r2, then r1{min, Δ, p} ≅ r2{min, Δ, p} for all min, Δ and p. *)
   Theorem regex_equiv_quant:
     forall r1 r2 dir,
       tree_equiv_dir rer dir r1 r2 ->
@@ -1203,19 +1250,24 @@ Section Congruence.
     - auto using regex_equiv_quant_forced, regex_equiv_quant_free.
   Qed.
 
+
+  (* The direction of a context starting with a lookaround is never Same. *)
   Lemma ctx_dir_lookaround_not_Same:
     forall lk ctx, ctx_dir (CLookaround lk ctx) <> Same.
   Proof.
     intros lk ctx. destruct lk; simpl; destruct (ctx_dir ctx); discriminate.
   Qed.
 
+
   (** * Main theorems: regex equivalence is preserved by plugging into a context *)
+
+  (* Theorem for bidirectional contexts *)
   Theorem regex_equiv_ctx_samedir:
     forall r1 r2 dir,
       r1 ≅[rer][dir] r2 ->
       forall ctx,
         ctx_dir ctx = Same ->
-        tree_equiv_dir rer dir (plug_ctx ctx r1) (plug_ctx ctx r2).
+        (plug_ctx ctx r1) ≅[rer][dir] (plug_ctx ctx r2).
   Proof.
     intros r1 r2 dir Hequiv ctx Hctxdir.
     induction ctx.
@@ -1295,40 +1347,13 @@ Section Congruence.
       eapply flatmap_leaves_equiv_l. 3: apply APP1. 3: apply APP2. 2: auto. apply act_from_leaf_determ.
   Qed.
 
-  Lemma tree_leaves_nil_no_first_branch:
-    forall t gm inp dir str,
-      tree_leaves t gm inp dir = [] ->
-      ~(exists res, first_branch t str = Some res).
-  Proof.
-    intros * LEAVES_NIL.
-    intro ABS. destruct ABS as [res ABS].
-    unfold first_branch in ABS.
-    apply (f_equal (hd_error (A := leaf))) in LEAVES_NIL.
-    rewrite <- first_tree_leaf in LEAVES_NIL. simpl in LEAVES_NIL.
-    apply res_group_map_indep with (gm2 := GroupMap.empty) (inp2 := init_input str) (dir2 := forward) in LEAVES_NIL.
-    congruence.
-  Qed.
 
-  Lemma tree_leaves_notnil_first_branch:
-    forall t gm inp dir str,
-      tree_leaves t gm inp dir <> [] ->
-      exists res, first_branch t str = Some res.
-  Proof.
-    intros * LEAVES_NIL.
-    destruct (first_branch t str) as [res|] eqn:FIRST_BRANCH.
-    1: eexists; eauto.
-    exfalso. destruct tree_leaves eqn:LEAVES; try contradiction.
-    apply (f_equal (hd_error (A := leaf))) in LEAVES.
-    rewrite <- first_tree_leaf in LEAVES. simpl in LEAVES.
-    unfold first_branch in FIRST_BRANCH.
-    apply res_group_map_indep with (gm2 := gm) (inp2 := inp) (dir2 := dir) in FIRST_BRANCH. congruence.
-  Qed.
-
+  (* Lemma for lookaheads *)
   Lemma regex_equiv_ctx_lookahead:
     forall r1 r2,
-      tree_equiv_dir rer forward r1 r2 ->
+      r1 ≅[rer][forward] r2 ->
       forall dir,
-        tree_equiv_dir rer dir (Lookaround LookAhead r1) (Lookaround LookAhead r2).
+        (Lookaround LookAhead r1) ≅[rer][dir] (Lookaround LookAhead r2).
   Proof.
     intros r1 r2 EQUIV dir. unfold tree_equiv_dir in *.
     destruct EQUIV as [DEF_GROUPS EQUIV]. split; auto.
@@ -1374,11 +1399,12 @@ Section Congruence.
       unfold tree_equiv_tr_dir. simpl. reflexivity.
   Qed.
 
+  (* Lemma for lookbehinds *)
   Lemma regex_equiv_ctx_lookbehind:
     forall r1 r2,
-      tree_equiv_dir rer backward r1 r2 ->
+      r1 ≅[rer][backward] r2 ->
       forall dir,
-        tree_equiv_dir rer dir (Lookaround LookBehind r1) (Lookaround LookBehind r2).
+        (Lookaround LookBehind r1) ≅[rer][dir] (Lookaround LookBehind r2).
   Proof. (* Almost exactly the same proof as above; LATER factorize? *)
     intros r1 r2 EQUIV dir. unfold tree_equiv_dir in *.
     destruct EQUIV as [DEF_GROUPS EQUIV]. split; auto.
@@ -1424,11 +1450,12 @@ Section Congruence.
       unfold tree_equiv_tr_dir. simpl. reflexivity.
   Qed.
 
+  (* Lemma for negative lookaheads *)
   Lemma regex_equiv_ctx_neglookahead:
     forall r1 r2,
-      tree_equiv_dir rer forward r1 r2 ->
+      r1 ≅[rer][forward] r2 ->
       forall dir,
-        tree_equiv_dir rer dir (Lookaround NegLookAhead r1) (Lookaround NegLookAhead r2).
+        (Lookaround NegLookAhead r1) ≅[rer][dir] (Lookaround NegLookAhead r2).
   Proof.
     intros r1 r2 EQUIV dir. unfold tree_equiv_dir in *.
     destruct EQUIV as [DEF_GROUPS EQUIV]. split; auto.
@@ -1470,11 +1497,12 @@ Section Congruence.
       unfold tree_equiv_tr_dir. simpl. reflexivity.
   Qed.
 
+  (* Lemma for negative lookbehinds *)
   Lemma regex_equiv_ctx_neglookbehind:
     forall r1 r2,
-      tree_equiv_dir rer backward r1 r2 ->
+      r1 ≅[rer][backward] r2 ->
       forall dir,
-        tree_equiv_dir rer dir (Lookaround NegLookBehind r1) (Lookaround NegLookBehind r2).
+        (Lookaround NegLookBehind r1) ≅[rer][dir] (Lookaround NegLookBehind r2).
   Proof. (* Almost exactly the same proof as above *)
     intros r1 r2 EQUIV dir. unfold tree_equiv_dir in *.
     destruct EQUIV as [DEF_GROUPS EQUIV]. split; auto.
@@ -1516,6 +1544,8 @@ Section Congruence.
       unfold tree_equiv_tr_dir. simpl. reflexivity.
   Qed.
 
+
+  (* Eight inversion lemmas for context directions involving lookarounds *)
   Lemma ctx_dir_lookahead_fwd_inv:
     forall ctx,
       ctx_dir (CLookaround LookAhead ctx) = Forward ->
@@ -1588,11 +1618,13 @@ Section Congruence.
     destruct (ctx_dir ctx); try discriminate; auto.
   Qed.
 
-  Lemma regex_equiv_ctx_forward:
+
+  (* Theorem for forward contexts *)
+  Theorem regex_equiv_ctx_forward:
     forall r1 r2,
-      tree_equiv_dir rer forward r1 r2 ->
+      r1 ≅[rer][forward] r2 ->
       forall ctx, ctx_dir ctx = Forward ->
-        forall dir, tree_equiv_dir rer dir (plug_ctx ctx r1) (plug_ctx ctx r2).
+        (plug_ctx ctx r1) ≅[rer] (plug_ctx ctx r2).
   Proof.
     intros r1 r2 EQUIV ctx Hctxforward.
     induction ctx.
@@ -1612,7 +1644,7 @@ Section Congruence.
     - specialize (IHctx Hctxforward).
       intro dir. simpl.
       apply regex_equiv_ctx_samedir with (ctx := CQuantified _ _ _ CHole); auto.
-    - destruct lk.
+    - unfold tree_equiv in *. destruct lk.
       + simpl. apply regex_equiv_ctx_lookahead.
         apply ctx_dir_lookahead_fwd_inv in Hctxforward. destruct Hctxforward.
         * auto.
@@ -1630,11 +1662,13 @@ Section Congruence.
       apply regex_equiv_ctx_samedir with (ctx := CGroup _ CHole); auto.
   Qed.
 
-  Lemma regex_equiv_ctx_backward:
+
+  (* Theorem for backward contexts *)
+  Theorem regex_equiv_ctx_backward:
     forall r1 r2,
-      tree_equiv_dir rer backward r1 r2 ->
+      r1 ≅[rer][backward] r2 ->
       forall ctx, ctx_dir ctx = Backward ->
-        forall dir, tree_equiv_dir rer dir (plug_ctx ctx r1) (plug_ctx ctx r2).
+        (plug_ctx ctx r1) ≅[rer] (plug_ctx ctx r2).
   Proof.
     intros r1 r2 EQUIV ctx Hctxbackward.
     induction ctx.
@@ -1654,7 +1688,7 @@ Section Congruence.
     - specialize (IHctx Hctxbackward).
       intro dir. simpl.
       apply regex_equiv_ctx_samedir with (ctx := CQuantified _ _ _ CHole); auto.
-    - destruct lk; try discriminate.
+    - unfold tree_equiv in *. destruct lk; try discriminate.
       + simpl. apply regex_equiv_ctx_lookahead.
         apply ctx_dir_lookahead_bwd_inv in Hctxbackward. auto.
       + simpl. apply regex_equiv_ctx_lookbehind.
