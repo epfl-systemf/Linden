@@ -9,6 +9,8 @@ Section Preparation.
 
 
   (** ** Preparation for list of leaves equivalence *)
+  (* Boolean equality of leaves *)
+
   Definition input_eqb (i1 i2: input): bool :=
     if input_eq_dec i1 i2 then true else false.
 
@@ -57,9 +59,11 @@ Section Preparation.
     - unfold gm_eqb. destruct EqDec.eq_dec; try reflexivity. contradiction.
   Qed.
 
+  (* Decides whether inpgm is present in l *)
   Definition is_seen (inpgm: input * group_map) (l: list (input * group_map)): bool :=
     existsb (fun x => leaf_eqb x inpgm) l.
 
+  (* Specification in terms of the In predicate *)
   Lemma is_seen_spec:
     forall inpgm l, is_seen inpgm l = true <-> In inpgm l.
   Proof.
@@ -73,6 +77,7 @@ Section Preparation.
         * simpl. rewrite IHl by assumption. rewrite Bool.orb_true_r. reflexivity.
   Qed.
 
+  (* Deduplicates list l, assuming that the leaves in seen have already been seen *)
   Fixpoint filter_leaves (l:list leaf) (seen: list (input * group_map)) : list leaf :=
     match l with
     | [] => []
@@ -90,10 +95,8 @@ Section Def.
 
   (** * List of Leaves Equivalence  *)
 
-  (* relates two ordered list of leaves when they are equivalent up to removing duplicates (that have the same input) *)
-  (* the notion of duplicates should change in presence of backreferences (to also include group maps) *)
-  (* the third list, seen, accumulates inputs that have already been seen and can be removed *)
-
+  (* Relates two ordered lists of leaves when they are equivalent up to removing lower priority duplicates *)
+  (* The third list, seen, accumulates inputs that have already been seen and can be removed *)
   Inductive leaves_equiv: list (input * group_map) -> list leaf -> list leaf -> Prop :=
   | equiv_nil:
     forall seen,
@@ -111,6 +114,7 @@ Section Def.
       (EQUIV: leaves_equiv seen l1 l2),
       leaves_equiv seen l1 ((inp,gm)::l2)
   | equiv_cons:
+    (* not a duplicate *)
     forall seen inp gm l1 l2
       (NEW: is_seen (inp,gm) seen = false)
       (EQUIV: leaves_equiv ((inp,gm)::seen) l1 l2),
@@ -121,12 +125,17 @@ End Def.
 Section Lemmas.
   Context {params: LindenParameters}.
 
+  (* Decomposing the input list when filter_leaves gives a nonempty result *)
   Lemma filter_decomp:
     forall l seen i g res,
+      (* When filter_leaves l seen gives a nonempty result (i,g)::res, *)
       filter_leaves l seen = (i,g)::res ->
       exists l1 l2,
+        (* l can be decomposed into two sublists l1 and (i,g)::l2 *)
         l = l1 ++ (i,g)::l2 /\
+          (* such that all the leaves of l1 were already in seen *)
           filter_leaves l1 seen = [] /\
+          (* and the rest of the computation computes res. *)
           filter_leaves l2 ((i,g)::seen) = res.
   Proof.
     intros l seen i g res H. induction l.
@@ -145,8 +154,10 @@ Section Lemmas.
 
   Lemma equiv_empty_right:
     forall l1 l2 seen pref,
+      (* If all the leaves of pref were already seen, *)
       filter_leaves pref seen = [] ->
       leaves_equiv seen l1 l2 ->
+      (* then we can prepend them to l2 and still get equivalent lists. *)
       leaves_equiv seen l1 (pref++l2).
   Proof.
     intros l1 l2 seen pref H H0. induction pref; simpl; auto.
@@ -156,6 +167,7 @@ Section Lemmas.
     apply equiv_seen_right; auto.
   Qed.
 
+  (* A specification of leaves_equiv with an arbitrary seen list *)
   Theorem equiv_nodup:
     forall l1 l2 seen,
       leaves_equiv seen l1 l2 <->
@@ -182,6 +194,7 @@ Section Lemmas.
   Qed.
 
 
+  (* leaves_equiv is reflexive... *)
   Lemma leaves_equiv_refl:
     forall l seen, leaves_equiv seen l l.
   Proof.
@@ -194,6 +207,7 @@ Section Lemmas.
     - apply equiv_cons; auto.
   Qed.
   
+  (* ... and symmetric *)
   Lemma leaves_equiv_comm:
     forall l1 l2 seen,
       leaves_equiv seen l1 l2 ->
@@ -203,6 +217,7 @@ Section Lemmas.
     induction H; solve[constructor; auto].
   Qed.
 
+  (* Sort of an inversion lemma *)
   Lemma equiv_remove_left:
     forall l1 l2 inp gm seen
       (SEEN: is_seen (inp,gm) seen = true)
@@ -216,6 +231,7 @@ Section Lemmas.
     - rewrite SEEN in NEW. inversion NEW.
   Qed.        
 
+  (* Leaves equivalence is transitive *)
   Lemma leaves_equiv_trans:
     forall l1 l2 l3 seen,
       leaves_equiv seen l1 l2 ->
@@ -230,8 +246,8 @@ Section Lemmas.
   Qed.
 
 
-  (* adding things in the seen accumulator preserves equivalence *)
-  (* this means that being equivalent under [] is the strongest form of equivalence *)
+  (* Adding things in the seen accumulator preserves equivalence. *)
+  (* This means that being equivalent under [] is the strongest form of equivalence. *)
   (* Note that this also allows removing duplicates from the accumulator *)
   Lemma leaves_equiv_monotony:
     forall l1 l2 seen1 seen2
@@ -260,22 +276,7 @@ Section Lemmas.
         rewrite H0. rewrite Bool.orb_true_r. auto.
   Qed.
 
-  Lemma seen_or_not:
-    forall seen inp gm l1 l2,
-      leaves_equiv ((inp,gm)::seen) l1 l2 ->
-      leaves_equiv seen ((inp,gm)::l1) ((inp,gm)::l2).
-  Proof.
-    intros seen inp gm l1 l2 H.
-    destruct (is_seen (inp,gm) seen) eqn:SEEN.
-    - apply equiv_seen_right; auto.
-      apply equiv_seen_left; auto.
-      eapply leaves_equiv_monotony with (seen1:=(inp,gm)::seen); eauto.
-      intros x H0. unfold is_seen in H0. simpl in H0.
-      apply Bool.orb_prop in H0. destruct H0; auto.
-      fold (leaf_eqb (inp, gm) x) in H0. apply leaf_eqb_true in H0; subst; auto.
-    - apply equiv_cons; auto.
-  Qed.
-
+  (* One can append equivalent prefixes and suffixes and get equivalent lists. *)
   Lemma leaves_equiv_app:
     forall p1 p2 l1 l2,
       leaves_equiv [] p1 p2 ->
@@ -290,8 +291,8 @@ Section Lemmas.
     intros. simpl. rewrite H. rewrite Bool.orb_true_r. auto.
   Qed.
 
-  (* we sometimes need a more generic version *)
-  (* for the suffix we need to update seen with what we've seen so far *)
+  (* We sometimes need a more generic version. *)
+  (* For the suffix, we need to update seen with what we've seen so far *)
   Lemma leaves_equiv_app2:
     forall seen p1 p2 l1 l2,
       leaves_equiv seen p1 p2 ->
@@ -314,6 +315,7 @@ Section Lemmas.
   Qed.
 
   
+  (* Two equivalent lists of leaves either have the same first element or are both empty. *)
   Lemma equiv_head:
     forall l1 l2,
       leaves_equiv [] l1 l2 ->
@@ -323,6 +325,8 @@ Section Lemmas.
     induction H; subst; try inversion SEEN; auto.
   Qed.
 
+  (* Another version of equiv_cons where we remove the hypothesis that (inp, gm)
+  was not seen *)
   Lemma equiv_cons'
     (seen : list (input * group_map))
     (inp : input) (gm : group_map)
@@ -337,6 +341,8 @@ Section Lemmas.
     - apply equiv_cons; eauto.
   Qed.
 
+  (* Same as equiv_empty_right but with another statement of being already seen
+  and prepending to the left list. TODO/LATER Simplify? *)
   Lemma leaves_equiv_subseen:
     forall l1 l2 seen subseen,
       (forall x, is_seen x subseen = true -> is_seen x seen = true) ->
