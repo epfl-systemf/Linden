@@ -16,10 +16,18 @@ This includes:
 - a proof of the PikeVM linear-time matching algorithm supporting a subset of JavaScript regexes, in folder `Engine`. The algorithm is adapted to fit JavaScript unique quantifier semantics, following section 4.1 of [Linear Matching of JavaScript Regular Expressions](https://dl.acm.org/doi/10.1145/3656431).
 - proof of JavaScript regex *contextual equivalences*, in folder `Rewriting`.
 
-# Dependencies
-- coq 8.18.0
-- Warblre 0.1.0
-- dune >= 3.14
-
 # Usage
-Build all proofs with `dune build`.
+
+1. Create a local [opam](https://opam.ocaml.org/) switch:
+
+   ```
+   opam switch --no-install create .
+   ```
+
+2. Pin the version of Warblre:
+
+   ```
+   opam pin add warblre https://github.com/epfl-systemf/Warblre.git#a99859f920edf0ff425a29be37042106712d8825
+   ```
+
+3. Build all proofs with `dune build`.
