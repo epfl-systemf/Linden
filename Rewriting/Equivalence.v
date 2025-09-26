@@ -107,6 +107,47 @@ Section Definitions.
   End ComputeTree.
 
 
+  (* Lemmas relating the is_tree and compute_tr versions of the definitions. *)
+  Section ComputeTreeIsTree.
+    Lemma tree_equiv_compute_dir_iff {dir r1 r2} :
+      tree_equiv_dir dir r1 r2 <-> tree_equiv_compute_dir dir r1 r2.
+    Proof.
+      unfold tree_equiv_dir, tree_equiv_compute_dir, actions_equiv_dir, tree_equiv_tr_dir; split.
+      - intros [DEF_GROUPS EQUIV]. eauto 6 using compute_tr_is_tree.
+      - intros [DEF_GROUPS Heq]; split; auto. intros * H1 H2.
+        pattern t1; eapply compute_tr_ind with (2 := H1); eauto.
+        pattern t2; eapply compute_tr_ind with (2 := H2); eauto.
+    Qed.
+
+    Lemma tree_equiv_compute_iff {r1 r2} :
+      tree_equiv r1 r2 <-> tree_equiv_compute r1 r2.
+    Proof.
+      unfold tree_equiv, tree_equiv_compute; split; intros;
+        apply tree_equiv_compute_dir_iff; eauto.
+    Qed.
+
+    Lemma tree_nequiv_compute_dir_iff r1 r2 dir :
+      tree_nequiv_dir dir r1 r2 <-> tree_nequiv_compute_dir dir r1 r2.
+    Proof.
+      unfold tree_nequiv_dir, tree_nequiv_compute_dir, tree_nequiv_tr_dir.
+      split.
+      - intros (i & gm & tr1 & tr2 & Htr1 & Htr2 & Hneq).
+        rewrite (is_tree_eq_compute_tr rer Htr1), (is_tree_eq_compute_tr rer Htr2) in Hneq.
+        eauto.
+      - intros (i & gm & Hneq).
+        eauto 7 using compute_tr_is_tree.
+    Qed.
+
+    Lemma tree_nequiv_compute_iff {r1 r2} :
+      tree_nequiv r1 r2 <-> tree_nequiv_compute r1 r2.
+    Proof.
+      unfold tree_nequiv, tree_nequiv_compute.
+      pose proof tree_nequiv_compute_dir_iff r1 r2.
+      split; intros (dir & Hneq); exists dir; specialize (H dir); intuition.
+    Qed.
+  End ComputeTreeIsTree.
+
+
   (** * Regex contexts *)
   Section Contexts.
     Inductive regex_ctx: Type :=
@@ -156,47 +197,6 @@ Section Definitions.
       end.
   
   End Contexts.
-
-
-  (* Lemmas relating the is_tree and compute_tr versions of the definitions. *)
-  Section ComputeTreeIsTree.
-    Lemma tree_equiv_compute_dir_iff {dir r1 r2} :
-      tree_equiv_dir dir r1 r2 <-> tree_equiv_compute_dir dir r1 r2.
-    Proof.
-      unfold tree_equiv_dir, tree_equiv_compute_dir, actions_equiv_dir, tree_equiv_tr_dir; split.
-      - intros [DEF_GROUPS EQUIV]. eauto 6 using compute_tr_is_tree.
-      - intros [DEF_GROUPS Heq]; split; auto. intros * H1 H2.
-        pattern t1; eapply compute_tr_ind with (2 := H1); eauto.
-        pattern t2; eapply compute_tr_ind with (2 := H2); eauto.
-    Qed.
-
-    Lemma tree_equiv_compute_iff {r1 r2} :
-      tree_equiv r1 r2 <-> tree_equiv_compute r1 r2.
-    Proof.
-      unfold tree_equiv, tree_equiv_compute; split; intros;
-        apply tree_equiv_compute_dir_iff; eauto.
-    Qed.
-
-    Lemma tree_nequiv_compute_dir_iff r1 r2 dir :
-      tree_nequiv_dir dir r1 r2 <-> tree_nequiv_compute_dir dir r1 r2.
-    Proof.
-      unfold tree_nequiv_dir, tree_nequiv_compute_dir, tree_nequiv_tr_dir.
-      split.
-      - intros (i & gm & tr1 & tr2 & Htr1 & Htr2 & Hneq).
-        rewrite (is_tree_eq_compute_tr rer Htr1), (is_tree_eq_compute_tr rer Htr2) in Hneq.
-        eauto.
-      - intros (i & gm & Hneq).
-        eauto 7 using compute_tr_is_tree.
-    Qed.
-
-    Lemma tree_nequiv_compute_iff {r1 r2} :
-      tree_nequiv r1 r2 <-> tree_nequiv_compute r1 r2.
-    Proof.
-      unfold tree_nequiv, tree_nequiv_compute.
-      pose proof tree_nequiv_compute_dir_iff r1 r2.
-      split; intros (dir & Hneq); exists dir; specialize (H dir); intuition.
-    Qed.
-  End ComputeTreeIsTree.
 
 
 End Definitions.
@@ -653,6 +653,7 @@ Section Congruence.
 
 
   (* getting the leaves of a continuation applied to a particular leaf *)
+  (* TODO Comment: Why is this needed? *)
   Inductive act_from_leaf : actions -> Direction -> leaf -> list leaf -> Prop :=
   | afl:
     forall act dir l t
@@ -831,10 +832,9 @@ Section Congruence.
       simpl. constructor.
   Qed.
 
-  (* There are many ways to rephrase this if needed. *)
-  (* We don't need the generic FlatMap: we could specialize it to X=Y=leaf, and to f=cont_from_leaf *)
-  (* We could also use the functional flat_map, but this would require proving that there is a function that associates a tree to each regex and input *)
-  (* I don't really like this solution, because I don't believe the proof relies on that property *)
+  (* We could use the functional flat_map, but this would require using the function compute_tr that associates a tree to each regex and input *)
+  (* The proof does not strictly rely on this function, it merely relies on the
+  existence of a unique tree associated to each regex and input. *)
 
   (** * Continuation Lemmas  *)
 
@@ -842,7 +842,7 @@ Section Congruence.
   (* to reason about the leaves of an app, we use the flatmap result *)
 
 
-
+  (* The function act_from_leaf is deterministic *)
   Lemma act_from_leaf_determ: forall act dir, determ (act_from_leaf act dir).
   Proof.
     intros act dir x y1 y2 Hxy1 Hxy2.
@@ -851,6 +851,9 @@ Section Congruence.
   Qed.
 
 
+  (* Appending a list of actions acts to the right of two equivalent lists of actions
+  a1 and a2 yields equivalent lists of actions. *)
+  (* This is needed in the contextual equivalence proof for the sequence case and the free quantifier case, as well as for app_eq_both (see below) *)
   Lemma app_eq_right:
     forall a1 a2 acts dir
       (ACTS_EQ: actions_equiv_dir rer dir a1 a2),
@@ -872,54 +875,6 @@ Section Congruence.
     eauto using flatmap_leaves_equiv_l, act_from_leaf_determ.
   Qed.
 
-  Definition equiv_leaffuncts (f g: leaf -> list leaf -> Prop): Prop :=
-    forall lf yf yg,
-      f lf yf -> g lf yg ->
-      leaves_equiv [] yf yg.
-    
-  Lemma flatmap_leaves_equiv_r:
-    forall leaves f g leavesf leavesg,
-      determ f -> determ g -> equiv_leaffuncts f g ->
-      FlatMap leaves f leavesf ->
-      FlatMap leaves g leavesg ->
-      leaves_equiv [] leavesf leavesg.
-  Proof.
-    intros leaves f g leavesf leavesg DETF DETG FGEQUIV FMF FMG.
-    generalize dependent leavesg.
-    induction FMF; intros; inversion FMG; subst.
-    { apply leaves_equiv_refl. }
-    apply leaves_equiv_app2.
-    - eapply FGEQUIV; eauto.
-    - rewrite app_nil_r. apply IHFMF in FM; auto.
-      eapply leaves_equiv_monotony with (seen1:=[]); eauto.
-      { intros x0 H. simpl in H. inversion H. }
-  Qed.
-
-  Definition equiv_leaffuncts_cond (f g: leaf -> list leaf -> Prop) (P: leaf -> Prop): Prop :=
-    forall l, P l ->
-      forall yf yg, f l yf -> g l yg -> leaves_equiv [] yf yg.
-  
-  Lemma flatmap_leaves_equiv_r_prop:
-    forall l f g fl gl P,
-      determ f -> determ g ->
-      equiv_leaffuncts_cond f g P ->
-      Forall P l ->
-      FlatMap l f fl ->
-      FlatMap l g gl ->
-      leaves_equiv [] fl gl.
-  Proof.
-    intros l f g fl gl P DETF DETG EQFG PL FMF FMG.
-    generalize dependent gl.
-    induction FMF; intros; inversion FMG; subst.
-    - reflexivity.
-    - apply leaves_equiv_app2.
-      + eapply EQFG; eauto. now inversion PL.
-      + rewrite app_nil_r. apply IHFMF in FM; auto.
-        * eapply leaves_equiv_monotony with (seen1 := []); eauto.
-          intros x0 H. simpl in H. inversion H.
-        * now inversion PL.
-  Qed.
-
   
   Lemma app_eq_left:
     forall a1 a2 acts dir
@@ -935,7 +890,6 @@ Section Congruence.
     pose proof leaves_concat inp gm dir acts a1 t1acts tacts TREE1acts TREEacts.
     pose proof leaves_concat inp gm dir acts a2 t2acts tacts TREE2acts TREEacts.
     eapply flatmap_leaves_equiv_r; eauto.
-    1,2: apply act_from_leaf_determ.
     (* Now act_from_leaf a1 dir and act_from_leaf a2 dir are morally equivalent *)
     unfold equiv_leaffuncts. intros lf yf yg Hyf Hyg.
     inversion Hyf; subst. inversion Hyg; subst. apply ACTS_EQ; auto.
@@ -972,8 +926,7 @@ Section Congruence.
       destruct H as [ta1 TREEa1].
       pose proof leaves_concat _ _ _ _ _ _ _ TREE1 TREEa1 as CONCAT1.
       pose proof leaves_concat _ _ _ _ _ _ _ TREE2 TREEa1 as CONCAT2.
-      unshelve eapply (flatmap_leaves_equiv_r_prop _ _ _ _ _ P _ _ _ _ CONCAT1 CONCAT2); auto.
-      1,2: apply act_from_leaf_determ.
+      unshelve eapply (flatmap_leaves_equiv_r_prop _ _ _ _ _ P _ _ CONCAT1 CONCAT2); auto.
       unfold equiv_leaffuncts_cond. intros. inversion H0; subst. inversion H1; subst.
       apply EQUIV_b; auto.
     - apply app_eq_right. auto.
