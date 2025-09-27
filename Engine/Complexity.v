@@ -260,6 +260,9 @@ Proof.
     (* in r1 *)
     apply IHREP in IN; auto.
   - assert (pc = lbl) by lia. subst.
+    rewrite CHECK in GET. inversion GET. subst.
+    simpl in IN. destruct IN; lia.
+  - assert (pc = lbl) by lia. subst.
     rewrite KILL in GET. inversion GET. subst.
     simpl in IN. inversion IN.
 Qed.
@@ -288,7 +291,7 @@ Proof.
   specialize (nfa_wf r c 0 (length c) pc next i REP POS H1 GETI IN) as WF.
   unfold size. rewrite app_length. simpl. lia.
 Qed.
-  
+
 Lemma eps_step_blocked_wf:
   forall t code inp newt,
     epsilon_step rer t code inp = EpsBlocked newt ->
@@ -300,6 +303,7 @@ Proof.
   destruct b0; inversion H; subst.
   - destruct (check_read rer c inp forward); inversion H1; subst.
     simpl; eexists; split; eauto; simpl; auto; lia.
+  - destruct (anchor_satisfied rer a inp); inversion H1; subst.
   - destruct b; inversion H1.
 Qed.
 
@@ -317,6 +321,9 @@ Proof.
     try solve[inversion IN; subst; try solve [inversion H0];
               simpl; eexists; split; eauto; simpl; auto; lia].
   - destruct (check_read rer c inp forward); inversion H1; subst;
+      inversion IN; subst; try solve [inversion H0];
+      simpl; eexists; split; eauto; simpl; auto; lia.
+  - destruct (anchor_satisfied rer a inp); inversion H1; subst;
       inversion IN; subst; try solve [inversion H0];
       simpl; eexists; split; eauto; simpl; auto; lia.
   - inversion IN; [|inversion H0]; subst; try solve [inversion H1];
@@ -340,6 +347,7 @@ Proof.
   2: { inversion H. simpl. lia. }
   destruct b0; try solve [inversion H; simpl; lia].
   - destruct (check_read rer c inp forward); try solve [inversion H; simpl; lia].
+  - destruct (anchor_satisfied rer a inp); try solve [inversion H; simpl; lia].
   - destruct b; try solve [inversion H; simpl; lia].
 Qed.
 
@@ -434,6 +442,8 @@ Fixpoint compsize (r:regex) : nat :=
   | Sequence r1 r2 => compsize r1 + compsize r2
   | Quantified g 0 (NoI.Inf) r1 => 4 + compsize r1
   | Group _ r1 => 2 + compsize r1
+  (* FIXME(mw): why without this all proofs pass anyway? *)
+  | Anchor _ => 1
   | _ => 0
   end.
 

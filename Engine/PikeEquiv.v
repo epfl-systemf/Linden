@@ -1,3 +1,4 @@
+(* FIXME(mw): add anchor support *)
 (* Relating the PikeVM smallstep semantics to the Pike Tree smallstep semantics *)
 
 Require Import List Lia.
@@ -508,6 +509,7 @@ Qed.
 Inductive start_rep: bytecode -> Prop :=
 | start_accept: start_rep Accept
 | start_cons: forall cd, start_rep (Consume cd)
+| start_chkanch: forall a, start_rep (CheckAnchor a)
 | start_jmp: forall lbl, start_rep (Jmp lbl)
 | start_fork: forall l1 l2, start_rep (Fork l1 l2)
 | start_open: forall gid, start_rep (SetRegOpen gid)
@@ -747,6 +749,8 @@ Proof.
     { subst. rewrite CLOSE in GET. inversion GET. }
     (* in r1 *)
     apply IHREP; auto.
+  - assert (pc = lbl) by lia. subst.
+    rewrite CHECK in GET. inversion GET.
   - assert (pc = lbl) by lia. subst.
     rewrite KILL in GET. inversion GET.
 Qed.

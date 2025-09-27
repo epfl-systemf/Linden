@@ -137,6 +137,10 @@ Definition epsilon_step (t:thread) (c:code) (i:input): epsilon_result :=
                          | CannotRead => EpsDead
                          | CanRead => EpsBlocked (block_thread t)
                          end
+          | CheckAnchor a => match anchor_satisfied rer a i with
+                            | false => EpsDead
+                            | true => EpsActive [advance_thread t]
+                            end
           | Jmp next => EpsActive [upd_label t next]
           | Fork l1 l2 => EpsActive [upd_label t l1; upd_label t l2]
           | SetRegOpen gid => EpsActive [open_thread t gid (idx i)]
@@ -163,6 +167,7 @@ Inductive pike_vm_state : Type :=
 Definition pike_vm_initial_state (inp:input) : pike_vm_state :=
   PVS inp [(0,GroupMap.empty,CanExit)] None [] initial_seenpcs.
 
+(* FIXME(mw): add anchor support *)
 (* small-step semantics for the PikeVM algorithm *)
 Inductive pike_vm_step (c:code): pike_vm_state -> pike_vm_state -> Prop :=
 | pvs_final:
