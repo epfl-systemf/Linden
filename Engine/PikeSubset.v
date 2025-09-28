@@ -35,7 +35,10 @@ Inductive pike_regex : regex -> Prop :=
 | pike_group:
   forall g r1,
     pike_regex r1 ->
-    pike_regex (Group g r1).
+    pike_regex (Group g r1)
+| pike_anchor:
+  forall a, pike_regex (Anchor a).
+
 
 (* lifting to actions *)
 Inductive pike_action: action -> Prop :=
@@ -67,6 +70,9 @@ Inductive pike_subtree: tree -> Prop :=
 | pike_progress: forall t1,
     pike_subtree t1 ->
     pike_subtree (Progress t1)
+| pike_anchorpass: forall a t1,
+    pike_subtree t1 ->
+    pike_subtree (AnchorPass a t1)
 | pike_groupaction: forall ga t1,
     pike_subtree t1 ->
     pike_subtree (GroupAction ga t1).
@@ -173,6 +179,7 @@ Ltac in_subset :=
   | [ H : ~ pike_regex (Sequence _ _) |- _ ] => try solve[exfalso; apply H; pike_subset]
   | [ H : ~ pike_regex (Quantified _ _ _ _) |- _ ] => try solve[exfalso; apply H; pike_subset]
   | [ H : ~ pike_regex (Group _ _) |- _ ] => try solve[exfalso; apply H; pike_subset]
+  | [ H : ~ pike_regex (Anchor _) |- _ ] => try solve[exfalso; apply H; pike_subset]
   end.
 
 (* prove that one can only construct pike subtrees from pike regexes *)

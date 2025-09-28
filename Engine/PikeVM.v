@@ -30,7 +30,7 @@ Module Type VMSeen.
 
 End VMSeen.
 
-(* one instanciation using lists, but you could use anything else *)
+(* one instantiation using lists, but you could use anything else *)
 Module VMS <: VMSeen.
   Definition seenpcs: Type := list (label * LoopBool).
   Definition initial_seenpcs : seenpcs := [].
@@ -167,7 +167,6 @@ Inductive pike_vm_state : Type :=
 Definition pike_vm_initial_state (inp:input) : pike_vm_state :=
   PVS inp [(0,GroupMap.empty,CanExit)] None [] initial_seenpcs.
 
-(* FIXME(mw): add anchor support *)
 (* small-step semantics for the PikeVM algorithm *)
 Inductive pike_vm_step (c:code): pike_vm_state -> pike_vm_state -> Prop :=
 | pvs_final:

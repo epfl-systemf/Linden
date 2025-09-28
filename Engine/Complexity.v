@@ -442,7 +442,6 @@ Fixpoint compsize (r:regex) : nat :=
   | Sequence r1 r2 => compsize r1 + compsize r2
   | Quantified g 0 (NoI.Inf) r1 => 4 + compsize r1
   | Group _ r1 => 2 + compsize r1
-  (* FIXME(mw): why without this all proofs pass anyway? *)
   | Anchor _ => 1
   | _ => 0
   end.

@@ -426,5 +426,6 @@ Ltac invert_rep :=
    | [ H : nfa_rep (Sequence _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
    | [ H : nfa_rep (Quantified _ _ _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
    | [ H : nfa_rep (Group _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+   | [ H : nfa_rep (Anchor _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
    | _ => try no_stutter
    end.
