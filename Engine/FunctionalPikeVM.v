@@ -6,7 +6,7 @@ Import ListNotations.
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics NFA.
 From Linden Require Import BooleanSemantics PikeSubset.
-From Linden Require Import PikeVM PikeVMSeen Correctness.
+From Linden Require Import PikeVM Correctness.
 From Warblre Require Import Base RegExpRecord.
 From Linden Require Import FunctionalUtils FunctionalSemantics.
 
@@ -15,41 +15,41 @@ Section FunctionalPikeVM.
 (** * Functional Definition  *)
 
 (* a functional version of the small step *)
-Definition pike_vm_func_step (c:code) (pvs:pike_vm_seen_state) : pike_vm_seen_state :=
+Definition pike_vm_func_step (c:code) (pvs:pike_vm_state) : pike_vm_state :=
   match pvs with
-  | PVSS_final _ => pvs
-  | PVSS inp active best blocked seen =>
+  | PVS_final _ => pvs
+  | PVS inp active best blocked seen =>
       match active with
       | [] =>
           match blocked with
-          | [] => PVSS_final best (* pvss_final *)
+          | [] => PVS_final best (* pvs_final *)
           | thr::blocked =>
               match (advance_input inp forward) with
-              | None => PVSS_final best (* pvss_end *)
-              | Some nextinp => PVSS nextinp (thr::blocked) best [] initial_seenpcs (* pvss_nextchar *)
+              | None => PVS_final best (* pvs_end *)
+              | Some nextinp => PVS nextinp (thr::blocked) best [] initial_seenpcs (* pvs_nextchar *)
               end
           end     
       | t::active =>
           match (seen_thread seen t) with
-          | true => PVSS inp active best blocked seen (* pvss_skip *)
+          | true => PVS inp active best blocked seen (* pvs_skip *)
           | false =>
               let nextseen := add_thread seen t in
               match (epsilon_step rer t c inp) with
               | EpsActive nextactive =>
-                  PVSS inp (nextactive++active) best blocked nextseen (* pvss_active *)
+                  PVS inp (nextactive++active) best blocked nextseen (* pvs_active *)
               | EpsMatch =>
-                  PVSS inp [] (Some (inp,gm_of t)) blocked nextseen (* pvss_match *)
+                  PVS inp [] (Some (inp,gm_of t)) blocked nextseen (* pvs_match *)
               | EpsBlocked newt =>
-                  PVSS inp active best (blocked ++ [newt]) nextseen (* pvss_blocked *)
+                  PVS inp active best (blocked ++ [newt]) nextseen (* pvs_blocked *)
               end
           end
       end
   end.
 
 (* looping the small step function until fuel runs out or a final state is reached *)
-Fixpoint pike_vm_loop (c:code) (pvs:pike_vm_seen_state) (fuel:nat) : pike_vm_seen_state :=
+Fixpoint pike_vm_loop (c:code) (pvs:pike_vm_state) (fuel:nat) : pike_vm_state :=
   match pvs with
-  | PVSS_final _ => pvs
+  | PVS_final _ => pvs
   | _ =>
       match fuel with
       | 0 => pvs
@@ -63,7 +63,7 @@ Fixpoint pike_vm_loop (c:code) (pvs:pike_vm_seen_state) (fuel:nat) : pike_vm_see
    in the worst-case the algorithm explores each (label,bool) configuration.
    Each of these explorations may generate up to two children.
    So we might need as many steps as 4 times the length of the bytecode (2 * 2 boolean values).
-   You need one extra step per input position for pvss_nextchar. *)
+   You need one extra step per input position for pvs_nextchar. *)
 Definition bytecode_fuel (c:code) (inp:input) : nat :=
   4 * (2 + (length (next_str inp))) * (1 + (length c)).
 
@@ -71,9 +71,9 @@ Inductive matchres : Type :=
 | OutOfFuel
 | Finished: option leaf -> matchres.
 
-Definition getres (pvs:pike_vm_seen_state) : matchres :=
+Definition getres (pvs:pike_vm_state) : matchres :=
   match pvs with
-  | PVSS_final best => Finished best
+  | PVS_final best => Finished best
   | _ => OutOfFuel
   end.
 
@@ -81,14 +81,14 @@ Definition getres (pvs:pike_vm_seen_state) : matchres :=
 Definition pike_vm_match (r:regex) (inp:input) : matchres :=
   let code := compilation r in
   let fuel := bytecode_fuel code inp in
-  let pvsinit := pike_vm_seen_initial_state inp in
+  let pvsinit := pike_vm_initial_state inp in
   getres (pike_vm_loop code pvsinit fuel).
                                                    
 
 (** * Smallstep correspondence  *)
 
-Inductive final_state: pike_vm_seen_state -> Prop :=
-| pfinal: forall best, final_state (PVSS_final best).
+Inductive final_state: pike_vm_state -> Prop :=
+| pfinal: forall best, final_state (PVS_final best).
 
 Ltac match_destr:=
   match goal with
@@ -98,7 +98,7 @@ Ltac match_destr:=
 Theorem func_step_correct:
   forall c pvs1 pvs2,
     pike_vm_func_step c pvs1 = pvs2 ->
-    pike_vm_seen_step rer c pvs1 pvs2 \/ final_state pvs1.
+    pike_vm_step rer c pvs1 pvs2 \/ final_state pvs1.
 Proof.
   unfold pike_vm_func_step. intros c pvs1 pvs2 H.
   repeat match_destr; subst; try solve[left; constructor; auto].
@@ -107,9 +107,9 @@ Qed.
 
 Corollary func_step_not_final:
   forall c inp active best blocked seen,
-    pike_vm_seen_step rer c (PVSS inp active best blocked seen) (pike_vm_func_step c (PVSS inp active best blocked seen)).
+    pike_vm_step rer c (PVS inp active best blocked seen) (pike_vm_func_step c (PVS inp active best blocked seen)).
 Proof.
-  intros c inp active best blocked seen. specialize (func_step_correct c (PVSS inp active best blocked seen) _ (@eq_refl _ _)).
+  intros c inp active best blocked seen. specialize (func_step_correct c (PVS inp active best blocked seen) _ (@eq_refl _ _)).
   intros [H|H]; auto. inversion H.
 Qed.
 
@@ -130,7 +130,7 @@ Qed.
 Theorem pike_vm_match_correct:
   forall r inp result,
     pike_vm_match r inp = Finished result ->
-    trc_pike_vm rer (compilation r) (pike_vm_seen_initial_state inp) (PVSS_final result).
+    trc_pike_vm rer (compilation r) (pike_vm_initial_state inp) (PVS_final result).
 Proof.
   unfold pike_vm_match, getres. intros r inp result H. 
   match_destr; subst; inversion H; subst.
@@ -141,8 +141,8 @@ Qed.
 
 Lemma unroll_loop:
   forall code inp active best blocked seen fuel,
-    pike_vm_loop code (PVSS inp active best blocked seen) (S fuel) =
-      pike_vm_loop code (pike_vm_func_step code (PVSS inp active best blocked seen)) fuel.
+    pike_vm_loop code (PVS inp active best blocked seen) (S fuel) =
+      pike_vm_loop code (pike_vm_func_step code (PVS inp active best blocked seen)) fuel.
 Proof. auto. Qed.
 
 
@@ -181,7 +181,7 @@ Example nq_inp: input := Input [a;b] [].
 Lemma fuel_nq: bytecode_fuel nq_bytecode nq_inp = 192.
 Proof. auto. Qed.
 
-Lemma init_nq: pike_vm_seen_initial_state nq_inp = PVSS nq_inp [(0,GroupMap.empty,CanExit)] None [] initial_seenpcs.
+Lemma init_nq: pike_vm_initial_state nq_inp = PVS nq_inp [(0,GroupMap.empty,CanExit)] None [] initial_seenpcs.
 Proof. auto. Qed.
 
 
@@ -256,7 +256,7 @@ Example final_gm : GroupMap.t :=
 Lemma paper_fuel: bytecode_fuel paper_bytecode paper_input = 208.
 Proof. auto. Qed.
 
-Lemma paper_init: pike_vm_seen_initial_state paper_input = PVSS paper_input [(0,GroupMap.empty,CanExit)] None [] initial_seenpcs.
+Lemma paper_init: pike_vm_initial_state paper_input = PVS paper_input [(0,GroupMap.empty,CanExit)] None [] initial_seenpcs.
 Proof. auto. Qed.
 
 Lemma paper_pikevm_exec:

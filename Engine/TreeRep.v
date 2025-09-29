@@ -4,8 +4,7 @@ Import ListNotations.
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM.
-From Linden Require Import PikeTreeSeen PikeVMSeen.
-From Linden Require Import PikeEquiv PikeSubset.
+From Linden Require Import PikeSubset.
 From Warblre Require Import Base RegExpRecord.
 
 
@@ -131,14 +130,14 @@ Qed.
 
 (* NOTE: here the induction on ACT only serves when there are jmps. In the other case, IHACT is never needed *)
 Theorem actions_tree_rep:
-  forall actions code pc n inp b t
+  forall actions code pc inp b t
     (SUBSET: pike_actions actions)
-    (ACT: actions_rep actions code pc n)
+    (ACT: actions_rep actions code pc)
     (TREE: bool_tree rer actions inp b t),
     tree_rep t code pc inp b.
 Proof.
-  intros actions code pc n inp b t SUBSET ACT TREE.
-  generalize dependent code. generalize dependent n. generalize dependent pc.
+  intros actions code pc inp b t SUBSET ACT TREE.
+  generalize dependent code. generalize dependent pc.
   induction TREE; intros.
   (* Match *)
   - remember [] as emp. induction ACT; inversion Heqemp.
@@ -248,7 +247,7 @@ Qed.
 
 (** * Correctness of compilation with regards to tree_rep  *)
 
-(* As a thought experiment, we could try to replace the invariant of the PikeVM, using actions_rep
+(* LATER: As a thought experiment, we could try to replace the invariant of the PikeVM, using actions_rep
    with an invariant that only uses tree_rep
    But to do so, we would need to initialize the invariant, and that would be more difficult than for actions_rep
 *)
@@ -264,11 +263,11 @@ Qed.
 (** * Unicity of Memoized trees  *)
 
 Lemma actions_rep_unicity:
-  forall a1 a2 code pc t1 t2 inp b n1 n2,
+  forall a1 a2 code pc t1 t2 inp b,
     pike_actions a1 ->
     pike_actions a2 ->
-    actions_rep a1 code pc n1 ->
-    actions_rep a2 code pc n2 ->
+    actions_rep a1 code pc ->
+    actions_rep a2 code pc ->
     bool_tree rer a1 inp b t1 ->
     bool_tree rer a2 inp b t2 ->
     t1 = t2.

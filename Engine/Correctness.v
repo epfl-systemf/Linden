@@ -6,8 +6,7 @@ Import ListNotations.
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM.
-From Linden Require Import PikeTreeSeen PikeVMSeen.
-From Linden Require Import PikeEquiv PikeSeenEquiv PikeSubset.
+From Linden Require Import PikeEquiv PikeSubset.
 From Linden Require Import EquivMain RegexpTranslation GroupMapMS.
 From Linden Require Import ResultTranslation FunctionalUtils.
 From Warblre Require Import Base Semantics Result RegExpRecord StaticSemantics.
@@ -38,28 +37,27 @@ Qed.
 Section Correctness.
   Context (rer: RegExpRecord).
 
-Definition trc_pike_tree := @trc pike_tree_seen_state pike_tree_seen_step.
-Definition trc_pike_vm (c:code) := @trc pike_vm_seen_state (pike_vm_seen_step rer c).
+Definition trc_pike_tree := @trc pike_tree_state pike_tree_step.
+Definition trc_pike_vm (c:code) := @trc pike_vm_state (pike_vm_step rer c).
 
 
 (* The Pike invariant is preserved through the TRC *)
 Lemma vm_to_tree:
-  forall svm1 st1 svm2 code n1
+  forall svm1 st1 svm2 code
     (STWF: stutter_wf rer code)
-    (INVARIANT: pike_inv rer code st1 svm1 n1)
+    (INVARIANT: pike_inv rer code st1 svm1)
     (TRCVM: trc_pike_vm code svm1 svm2),
-    exists st2 n2, trc_pike_tree st1 st2 /\ pike_inv rer code st2 svm2 n2.
+    exists st2, trc_pike_tree st1 st2 /\ pike_inv rer code st2 svm2.
 Proof.
-  intros svm1 st1 svm2 code n1 STWF INVARIANT TRCVM.
-  generalize dependent st1. generalize dependent n1.
-  induction TRCVM; intros.
-  { exists st1. exists n1. split; auto. apply trc_refl. }
+  intros svm1 st1 svm2 code STWF INVARIANT TRCVM.
+  generalize dependent st1. induction TRCVM; intros.
+  { exists st1. split; auto. apply trc_refl. }
   eapply invariant_preservation in STEP; eauto.
-  destruct STEP as [[pts2 [m [TSTEP INV]]] | [m [INV DECR]]].
-  - apply IHTRCVM in INV as [st2 [n2 [TTRC TINV]]].
-    exists st2. exists n2. split; auto. eapply trc_cons; eauto.
-  - apply IHTRCVM in INV as [st2 [n2 [TTRC TINV]]].
-    exists st2. exists n2. split; auto.
+  destruct STEP as [[pts2 [TSTEP INV]] | INV].
+  - apply IHTRCVM in INV as [st2 [TTRC TINV]].
+    exists st2. split; auto. eapply trc_cons; eauto.
+  - apply IHTRCVM in INV as [st2 [TTRC TINV]].
+    exists st2. split; auto.
 Qed.
 
 (* Any execution of the PikeVM to a final state corresponds to an execution of the PikeTree *)
@@ -67,13 +65,13 @@ Theorem pike_vm_to_pike_tree:
   forall r inp tree result,
     pike_regex r -> 
     bool_tree rer [Areg r] inp CanExit tree ->
-    trc_pike_vm (compilation r) (pike_vm_seen_initial_state inp) (PVSS_final result) ->
-    trc_pike_tree (pike_tree_seen_initial_state tree inp) (PTSS_final result).
+    trc_pike_vm (compilation r) (pike_vm_initial_state inp) (PVS_final result) ->
+    trc_pike_tree (pike_tree_initial_state tree inp) (PTS_final result).
 Proof.
   intros r inp tree result SUBSET TREE TRCVM.
   generalize (initial_pike_inv rer r inp tree (compilation r) TREE (@eq_refl _ _) SUBSET).
   intros INIT.
-  eapply vm_to_tree in TRCVM as [vmfinal [nfinal [TRCTREE INV]]]; eauto.
+  eapply vm_to_tree in TRCVM as [vmfinal [TRCTREE INV]]; eauto.
   - inversion INV; subst. auto.
   - eapply compilation_stutter_wf; eauto.
 Qed.
@@ -87,7 +85,7 @@ Lemma pike_tree_trc_correct:
 Proof.
   intros s1 s2 result INV TRC.
   induction TRC; auto.
-  apply IHTRC. eapply ptss_preservation; eauto.
+  apply IHTRC. eapply pts_preservation; eauto.
 Qed.
 
   
@@ -100,7 +98,7 @@ Theorem pike_vm_correct:
     (* `tree` is the tree of the regex `r` for the input `inp` *)
     is_tree rer [Areg r] inp GroupMap.empty forward tree ->
     (* the result of the PikeVM is `result` *)
-    trc_pike_vm (compilation r) (pike_vm_seen_initial_state inp) (PVSS_final result) ->
+    trc_pike_vm (compilation r) (pike_vm_initial_state inp) (PVS_final result) ->
     (* This `result` is the priority result of the `tree` *)
     result = first_leaf tree inp.
 Proof.
@@ -124,7 +122,7 @@ Theorem pike_vm_same_warblre:
     RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wr nil ->
     EarlyErrors.Pass_Regex wr nil ->
     forall result,
-      trc_pike_vm (compilation lr) (pike_vm_seen_initial_state inp) (PVSS_final result) ->
+      trc_pike_vm (compilation lr) (pike_vm_initial_state inp) (PVS_final result) ->
       EquivDef.equiv_res result ((EquivMain.compilePattern wr rer) (input_str inp) (idx inp)).
 Proof.
   intros lr wr inp Hpike Hequiv Hcapcount HearlyErrors.
@@ -146,7 +144,7 @@ Theorem pike_vm_same_warblre_str0:
     RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wr nil ->
     EarlyErrors.Pass_Regex wr nil ->
     forall result,
-      trc_pike_vm (compilation lr) (pike_vm_seen_initial_state (init_input str0)) (PVSS_final result) ->
+      trc_pike_vm (compilation lr) (pike_vm_initial_state (init_input str0)) (PVS_final result) ->
       EquivDef.equiv_res result ((EquivMain.compilePattern wr rer) str0 0).
 Proof.
   intros lr wr str0 Hpike Hequiv Hcapcount HearlyErrors.
@@ -166,7 +164,7 @@ Theorem pike_vm_warblre:
     (* such that it is in the supported PikeVM subset *)
     pike_regex r ->
     (* When PikeVM reaches a final result *)
-    trc_pike_vm (compilation r) (pike_vm_seen_initial_state inp) (PVSS_final result) ->
+    trc_pike_vm (compilation r) (pike_vm_initial_state inp) (PVS_final result) ->
     (* this result is equal to Warblre's execution result *)
     (compilePattern rw rer) (input_str inp) (idx inp) = to_MatchState result (RegExpRecord.capturingGroupsCount rer).
 Proof.
