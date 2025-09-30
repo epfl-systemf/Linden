@@ -653,7 +653,7 @@ Section Congruence.
 
 
   (* Getting the leaves of a continuation applied to a particular leaf *)
-  (* This function will be used to express that appending a list of actions a2 to a list
+  (* This predicate will be used to express that appending a list of actions a2 to a list
   of actions a1 corresponds to extending the leaves of the tree corresponding to actions
   a1 with trees corresponding to the actions of a2 (see lemma leaves_concat below) *)
   Inductive act_from_leaf : actions -> Direction -> leaf -> list leaf -> Prop :=
@@ -663,7 +663,7 @@ Section Congruence.
       act_from_leaf act dir l (tree_leaves t (snd l) (fst l) dir).
 
 
-  (* The two following lemmas should probably be moved somewhere else *)
+  (* TODO The two following lemmas should probably be moved somewhere else: in Semantics/ *)
   Lemma read_char_success_advance:
     forall cd inp dir c nextinp,
       read_char rer cd inp dir = Some (c, nextinp) ->
@@ -834,10 +834,6 @@ Section Congruence.
       simpl. constructor.
   Qed.
 
-  (* We could use the functional flat_map, but this would require using the function compute_tr that associates a tree to each regex and input. *)
-  (* The proof does not strictly rely on this function, it merely relies on the
-  existence of a unique tree associated to each regex and input. *)
-
 
   (** * Continuation Lemmas  *)
 
@@ -879,7 +875,7 @@ Section Congruence.
   Qed.
 
   
-  (* Same, but prepending this time the actions to the left *)
+  (* Same as app_eq_right, but prepending this time the actions to the left *)
   (* Used in the sequence case *)
   Lemma app_eq_left:
     forall a1 a2 acts dir
