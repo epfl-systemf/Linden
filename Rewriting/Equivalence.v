@@ -663,52 +663,6 @@ Section Congruence.
       act_from_leaf act dir l (tree_leaves t (snd l) (fst l) dir).
 
 
-  (* TODO The two following lemmas should probably be moved somewhere else: in Semantics/ *)
-  Lemma read_char_success_advance:
-    forall cd inp dir c nextinp,
-      read_char rer cd inp dir = Some (c, nextinp) ->
-      advance_input inp dir = Some nextinp.
-  Proof.
-    intros. destruct inp as [next pref]. destruct dir; simpl in *.
-    - (* Forward *)
-      destruct next as [|h next']; try discriminate.
-      destruct char_match; try discriminate. now injection H as <- <-.
-    - (* Backward *)
-      destruct pref as [|h pref']; try discriminate.
-      destruct char_match; try discriminate. now injection H as <- <-.
-  Qed.
-
-  Lemma read_backref_success_advance:
-    forall gm gid inp dir br_str nextinp,
-      read_backref rer gm gid inp dir = Some (br_str, nextinp) ->
-      nextinp = advance_input_n inp (length br_str) dir.
-  Proof.
-    intros gm gid inp dir br_str nextinp H.
-    unfold read_backref in H. unfold advance_input_n.
-    destruct GroupMap.find as [[startIdx [endIdx|]]|].
-    - destruct inp as [next pref]. destruct dir.
-      + (* Forward *)
-        destruct Nat.leb eqn:Hinb; try discriminate.
-        rewrite PeanoNat.Nat.leb_gt in Hinb.
-        destruct EqDec.eqb eqn:Hsubeq; try discriminate.
-        injection H as H <-.
-        rewrite EqDec.inversion_true in Hsubeq.
-        replace (length br_str) with (endIdx - startIdx). 1: reflexivity.
-        rewrite <- H. apply (f_equal (length (A := Parameters.Character))) in Hsubeq.
-        do 2 rewrite map_length in Hsubeq. rewrite firstn_length. lia.
-      + (* Backward *)
-        destruct Nat.leb eqn:Hinb; try discriminate.
-        rewrite PeanoNat.Nat.leb_gt in Hinb.
-        destruct EqDec.eqb eqn:Hsubeq; try discriminate.
-        injection H as H <-.
-        rewrite EqDec.inversion_true in Hsubeq.
-        replace (length br_str) with (endIdx - startIdx). 1: reflexivity.
-        rewrite <- H. apply (f_equal (length (A := Parameters.Character))) in Hsubeq.
-        do 2 rewrite map_length in Hsubeq. rewrite rev_length, firstn_length. lia.
-    - injection H as <- <-. simpl. now destruct inp, dir.
-    - injection H as <- <-. simpl. now destruct inp, dir.
-  Qed.
-
   (* Adding new things to the continuation is the same as extending each leaf of the tree with these new things *)
   Theorem leaves_concat:
     forall inp gm dir act1 act2 tapp t1
