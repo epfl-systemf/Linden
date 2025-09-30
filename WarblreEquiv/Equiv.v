@@ -124,20 +124,21 @@ Section Equiv.
       destruct (compute_tree rer _ inp (GroupMap.reset _ _) dir fueltree) as [titer|] eqn:Htitersucc; simpl; try discriminate.
       destruct (compute_tree rer act inp gm dir fueltree) as [tskip|] eqn:Htskipsucc; simpl; try discriminate.
       intros Hres H. injection H as <-.
-      specialize Hequiv with (fuel := fueltree) (t := titer) (1 := Hinpcompat).
+      specialize Hequiv with (fuel := fueltree) (t := titer)
+        (1 := Hinpcompat)
+        (2 := ltac:(eapply equiv_gm_ms_reset; eauto; reflexivity))
+        (3 := ltac:(eapply equiv_open_groups_reset; eauto))
+        (* msreset is valid with respect to the checks in act because of the
+        assumption on ms and wrt the check with inp because msreset matches inp *)
+        (5 := ltac:(eapply msreset_valid_checks; eauto; reflexivity))
+        (6 := ltac:(now apply gm_reset_valid))
+        (7 := ltac:(eapply noforb_reset; eauto; reflexivity)). (* gmreset does not contain any of the forbidden groups in lreg because those have just been reset, and does not contain any of the rest of the forbidden groups by assumption on gm *)
 
       (* Case analysis on greediness *)
       destruct greedy.
       - destruct (m msreset mcloop) as [resloop|] eqn:Hresloopsucc; simpl; try discriminate.
         specialize (Hequiv resloop).
-        specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
-        specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
         specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
-        specialize_prove Hequiv. { eapply msreset_valid_checks; eauto. reflexivity. }
-        (* msreset is valid with respect to the checks in act because of the
-        assumption on ms and wrt the check with inp because msreset matches inp *)
-        specialize_prove Hequiv by now apply gm_reset_valid.
-        specialize_prove Hequiv. { eapply noforb_reset; eauto. reflexivity. } (* gmreset does not contain any of the forbidden groups in lreg because those have just been reset, and does not contain any of the rest of the forbidden groups by assumption on gm *)
         specialize (Hequiv eq_refl Htitersucc).
         destruct resloop as [resloopms|]; simpl in *.
         + injection Hres as <-. inversion Hequiv. simpl. unfold gmreset in H. rewrite <- H. simpl. constructor; assumption.
@@ -149,12 +150,7 @@ Section Equiv.
         specialize_prove Hequivcont. { apply ms_valid_wrt_checks_tail in Hmschecks. auto. }
         specialize (Hequivcont Hgmvalid Hnoforbidden eq_refl Htskipsucc).
         specialize (Hequiv res).
-        specialize_prove Hequiv. { eapply equiv_gm_ms_reset; eauto. reflexivity. }
-        specialize_prove Hequiv. { eapply equiv_open_groups_reset; eauto. }
         specialize_prove Hequiv. { destruct ms. eapply ms_matches_inp_capchg; eauto. }
-        specialize_prove Hequiv. { eapply msreset_valid_checks; eauto. reflexivity. }
-        specialize_prove Hequiv by now apply gm_reset_valid.
-        specialize_prove Hequiv. { eapply noforb_reset; eauto. reflexivity. }
         destruct resskip as [resskipms|]; simpl in *.
         + (* resskip is not None *)
           injection Hres as <-. inversion Hequivcont. simpl. constructor; assumption.
@@ -193,8 +189,7 @@ Section Equiv.
     intros str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj. unfold equiv_cont.
     intros gm ms inp res fueltree t Hinpcompat Hgmms Hgmgl Hmsinp Hmschecks Hgmvalid Hnoforbidden.
     simpl.
-    rewrite Hmaxzero.
-    replace (min' - 0) with min' by lia.
+    rewrite Hmaxzero. rewrite Nat.sub_0_r.
     destruct List.Update.Nat.Batch.update as [capreset|] eqn:Hcapreset; simpl; try discriminate.
     rewrite mini_plus_plusminus_one with (mini := min') (plus := delta) by reflexivity.
     specialize (IHfuel min' delta). unfold equiv_matcher in IHfuel. specialize (IHfuel str0 mc gl forbgroups act Hequivcont Hgldisj Hdef_forbid_disj).
@@ -229,23 +224,6 @@ Section Equiv.
     intros. unfold equiv_cont. intros.
     eapply repeatMatcher'_equiv; eauto.
   Qed.
-
-
-  (* Linking CharSet.exist_canonicalized and CharSet.contains *)
-  (*Lemma exist_canonicalized_contains:
-    forall rer charset chr,
-    RegExpRecord.ignoreCase rer = false ->
-    CharSet.exist_canonicalized rer charset (Character.canonicalize rer chr) = CharSet.contains charset chr.
-  Proof.
-    intros rer charset chr Hcasesenst.
-    rewrite CharSet.exist_canonicalized_equiv. simpl.
-    apply Bool.eq_true_iff_eq.
-    setoid_rewrite CharSetExt.exist_spec. split.
-    - intros [c [Hcontains Heq]]. setoid_rewrite canonicalize_casesenst in Heq. 2,3: assumption. rewrite EqDec.inversion_true in Heq. subst c. now apply CharSetExt.contains_spec.
-    - intro Hcontains. exists chr. split. 1: now apply CharSetExt.contains_spec.
-      apply EqDec.reflb.
-  Qed.*)
-
 
 
   (* Lemma for character set matchers *)
@@ -592,21 +570,21 @@ Section Equiv.
     remember (buildnm wroot) as nm in Hequiv.
     revert ctx Hroot Heqn Heqnm.
     induction Hequiv as [
-        n nm |
-        n c nm |
-        n nm |
-        n gid nm |
-        n nm name gid NAME |
-        esc cd n nm Hequivesc |
-        esc cd n nm Hequivesc |
-        cc cd n nm Hequivcc |
-        n wr1 wr2 lr1 lr2 nm Hequiv1 IH1 Hequiv2 IH2 |
-        n wr1 wr2 lr1 lr2 nm Hequiv1 IH1 Hequiv2 IH2 |
-        n wr lr wquant lquant wgreedylazy greedy nm Hequiv IH Hequivquant Hequivgreedy |
-        n wr lr nm Hequiv IH |
-        name n wr lr nm Hgid Hequiv IH |
-        n wr lr wlk llk nm Hequiv IH Hequivlk |
-        n wr lanchor nm Hanchequiv
+      n nm |
+      n c nm |
+      n nm |
+      n gid nm |
+      n nm name gid NAME |
+      esc cd n nm Hequivesc |
+      esc cd n nm Hequivesc |
+      cc cd n nm Hequivcc |
+      n wr1 wr2 lr1 lr2 nm Hequiv1 IH1 Hequiv2 IH2 |
+      n wr1 wr2 lr1 lr2 nm Hequiv1 IH1 Hequiv2 IH2 |
+      n wr lr wquant lquant wgreedylazy greedy nm Hequiv IH Hequivquant Hequivgreedy |
+      n wr lr nm Hequiv IH |
+      name n wr lr nm Hgid Hequiv IH |
+      n wr lr wlk llk nm Hequiv IH Hequivlk |
+      n wr lanchor nm Hanchequiv
     ].
 
     - (* Epsilon *)

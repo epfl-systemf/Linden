@@ -34,35 +34,20 @@ Section EquivLemmas.
     induction Hequiv as [
       n |
       n c |
-        n |
-        n |
-        n |
-        esc cd n nm Hequivesc |
-        esc cd n nm Hequivesc |
-        cc cd n nm Hequivcc |
+      n |
+      n |
+      n |
+      esc cd n nm Hequivesc |
+      esc cd n nm Hequivesc |
+      cc cd n nm Hequivcc |
       n wr1 wr2 lr1 lr2 nm Hequiv1 IH1 Hequiv2 IH2 |
       n wr1 wr2 lr1 lr2 nm Hequiv1 IH1 Hequiv2 IH2 |
       n wr lr wquant lquant wgreedylazy greedy nm Hequiv IH Hequivquant Hequivgreedy |
-        n wr lr nm Hequiv IH |
-        name n wr lr nm CHKNAME Hequiv IH |
+      n wr lr nm Hequiv IH |
+      name n wr lr nm CHKNAME Hequiv IH |
       n wr lr wlk llk nm Hequiv IH Hequivlk |
       n wr lanchor nm Hanchequiv].
-    - intros parenCount ctx Hcount.
-      simpl in *. subst parenCount. reflexivity.
-    - intros parenCount ctx Hcount.
-      simpl in *. subst parenCount. reflexivity.
-    - intros parenCount ctx Hcount.
-      simpl in *. subst parenCount. reflexivity.
-    - intros parenCount ctx Hcount.
-      simpl in *. subst parenCount. reflexivity.
-    - intros parenCount ctx Hcount.
-      simpl in *. subst parenCount. reflexivity.
-    - intros parenCount ctx Hcount.
-      simpl in *. subst parenCount. reflexivity.
-    - intros parenCount ctx Hcount.
-      simpl in *. subst parenCount. reflexivity.
-    - intros parenCount ctx Hcount.
-      simpl in *. subst parenCount. reflexivity.
+    all: try solve[intros parenCount ctx Hcount; simpl in *; subst parenCount; reflexivity].
     - intros parenCount ctx Hcount. simpl in *.
       specialize (IH1 (countLeftCapturingParensWithin wr1 ctx) ctx eq_refl).
       specialize (IH2 (countLeftCapturingParensWithin wr2 ctx) ctx eq_refl).
@@ -193,7 +178,7 @@ Section EquivLemmas.
       setoid_rewrite char_match_warblre with (chr := chr) (cd := cd) (charset := charset); auto.
   Qed.
 
-  (* Same as above, but with another definition of the next end index. *)
+  (* Same as read_char_success, but with another definition of the next end index. *)
   Lemma read_char_success':
     forall ms inp chr cd charset dir inp_adv nextend,
       (* Let cd and charset be equivalent. *)
@@ -226,7 +211,7 @@ Section EquivLemmas.
     specialize (Hequiv chr). congruence.
   Qed.
 
-  (* Same as above, but with inverted character descriptors. *)
+  (* Same as char_mismatch_warblre, but with inverted character descriptors. *)
   Lemma char_mismatch_warblre_inv:
     forall chr cd charset,
       equiv_cd_charset rer cd charset ->
