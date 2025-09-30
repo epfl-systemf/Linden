@@ -998,5 +998,5 @@ Section Equiv.
           destruct compute_tree as [treecont|]; try discriminate.
           intro H. injection H as <-. simpl. apply Hequivcont; auto. apply ms_valid_wrt_checks_tail in Hmschecks. auto.
 
-  Admitted.
+  Qed.
 End Equiv.
