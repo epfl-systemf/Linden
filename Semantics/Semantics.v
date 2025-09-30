@@ -49,6 +49,37 @@ Section Semantics.
       end
     end.
   
+  Lemma read_backref_success_advance:
+    forall gm gid inp dir br_str nextinp,
+      read_backref gm gid inp dir = Some (br_str, nextinp) ->
+      nextinp = advance_input_n inp (length br_str) dir.
+  Proof.
+    intros gm gid inp dir br_str nextinp H.
+    unfold read_backref in H. unfold advance_input_n.
+    destruct GroupMap.find as [[startIdx [endIdx|]]|].
+    - destruct inp as [next pref]. destruct dir.
+      + (* Forward *)
+        destruct Nat.leb eqn:Hinb; try discriminate.
+        rewrite PeanoNat.Nat.leb_gt in Hinb.
+        destruct EqDec.eqb eqn:Hsubeq; try discriminate.
+        injection H as H <-.
+        rewrite EqDec.inversion_true in Hsubeq.
+        replace (length br_str) with (endIdx - startIdx). 1: reflexivity.
+        rewrite <- H. apply (f_equal (length (A := Parameters.Character))) in Hsubeq.
+        do 2 rewrite map_length in Hsubeq. rewrite firstn_length. lia.
+      + (* Backward *)
+        destruct Nat.leb eqn:Hinb; try discriminate.
+        rewrite PeanoNat.Nat.leb_gt in Hinb.
+        destruct EqDec.eqb eqn:Hsubeq; try discriminate.
+        injection H as H <-.
+        rewrite EqDec.inversion_true in Hsubeq.
+        replace (length br_str) with (endIdx - startIdx). 1: reflexivity.
+        rewrite <- H. apply (f_equal (length (A := Parameters.Character))) in Hsubeq.
+        do 2 rewrite map_length in Hsubeq. rewrite rev_length, firstn_length. lia.
+    - injection H as <- <-. simpl. now destruct inp, dir.
+    - injection H as <- <-. simpl. now destruct inp, dir.
+  Qed.
+
   (** * Lookaround tree functions  *)
 
   (* Checks for a result in a lookaround tree *)

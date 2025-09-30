@@ -280,6 +280,20 @@ Section Chars.
         exists t. destruct (char_match t cd); inversion H0. auto.
   Qed.
 
+  Lemma read_char_success_advance:
+    forall cd inp dir c nextinp,
+      read_char cd inp dir = Some (c, nextinp) ->
+      advance_input inp dir = Some nextinp.
+  Proof.
+    intros. destruct inp as [next pref]. destruct dir; simpl in *.
+    - (* Forward *)
+      destruct next as [|h next']; try discriminate.
+      destruct char_match; try discriminate. now injection H as <- <-.
+    - (* Backward *)
+      destruct pref as [|h pref']; try discriminate.
+      destruct char_match; try discriminate. now injection H as <- <-.
+  Qed.
+
   Theorem cannot_read_correct:
     forall i cd dir,
       read_char cd i dir = None <-> check_read cd i dir = CannotRead.
