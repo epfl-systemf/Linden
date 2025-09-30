@@ -1,5 +1,4 @@
-(** * An example Backtracking Tree  *)
-(* Figure 2 of the paper *)
+(** * Some examples of Backtracking Trees  *)
 
 Require Import List.
 Import ListNotations.
@@ -29,7 +28,12 @@ Proof. unfold char_match, char_match'. intros. apply EqDec.reflb. Qed.
 (* we assume that these characters are distincts (b does not match c) *)
 Axiom charmatch_bc:
   char_match rer b (CdSingle c) = false.
+Axiom charmatch_cb:
+  char_match rer c (CdSingle b) = false.
 
+
+
+(** * Figure 2 of the paper  *)
 Example fig2_regex: regex :=
   Sequence
     (Disjunction a_char
@@ -62,6 +66,58 @@ Theorem fig2_first_leaf:
     GroupMap.close 2 1 (GroupMap.open 1 1 GroupMap.empty)).
 Proof.
   reflexivity.
+Qed.
+
+
+(** * Figure 6 of the paper  *)
+(* A counter-example of distributing the sequence over the disjunction *)
+
+Example fig6_1_regex: regex :=
+  Sequence
+    (Disjunction a_char (Sequence a_char b_char))
+    (Disjunction c_char b_char).
+
+Example fig6_2_regex: regex :=
+  Disjunction
+    (Sequence (Disjunction a_char (Sequence a_char b_char)) c_char)
+    (Sequence (Disjunction a_char (Sequence a_char b_char)) b_char).
+
+Example fig6_input : input := Input [a;b;c] [].
+
+Example fig6_1_tree: tree :=
+  Choice
+    (Read a (Choice Mismatch (Read b Match)))
+    (Read a (Read b (Choice (Read c Match) Mismatch))).
+
+Example fig6_2_tree: tree :=
+  Choice
+    (Choice (Read a Mismatch) (Read a (Read b (Read c Match))))
+    (Choice (Read a (Read b Match)) (Read a (Read b Mismatch))).
+
+Theorem fig6_1_is_tree:
+  is_tree rer [Areg fig6_1_regex] fig6_input GroupMap.empty forward fig6_1_tree.
+Proof.
+  unfold fig6_input.
+  repeat (econstructor; simpl; try rewrite charmatch_same).
+  2: { rewrite charmatch_cb. auto. }
+  rewrite charmatch_bc. auto.
+Qed.
+
+Theorem fig6_2_is_tree:
+  is_tree rer [Areg fig6_2_regex] fig6_input GroupMap.empty forward fig6_2_tree.
+Proof.
+  unfold fig6_input.
+  repeat (econstructor; simpl; try rewrite charmatch_same).
+  2: { rewrite charmatch_cb. auto. }
+  rewrite charmatch_bc. auto.
+Qed.
+
+(* The two trees have different results *)
+Theorem different_results:
+  first_leaf fig6_1_tree fig6_input <> first_leaf fig6_2_tree fig6_input.
+Proof.
+  unfold fig6_input, fig6_1_tree, fig6_2_tree, first_leaf. simpl.
+  unfold advance_input'. simpl. intros H. inversion H.
 Qed.
 
 End TreeExample.
