@@ -15,7 +15,7 @@ Section Utilities.
       clear TREE1 TREE2.
       inversion CONT0; subst. simpl in CONT1.
       clear CONT0. revert i gm tr1 tr2 CONT CONT1.
-      change (actions_equiv_dir rer [Areg r0; Areg (Sequence r1 r2)] [Areg r0; Areg r1; Areg r2] forward).
+      change (actions_equiv_dir rer forward [Areg r0; Areg (Sequence r1 r2)] [Areg r0; Areg r1; Areg r2]).
       apply app_eq_left with (acts := [Areg r0]).
       unfold actions_equiv_dir. intros inp gm t1 t2 TREE1 TREE2.
       inversion TREE1; subst. simpl in CONT. replace t2 with t1 by (eapply is_tree_determ; eauto). reflexivity.
@@ -24,7 +24,7 @@ Section Utilities.
       clear TREE1 TREE2.
       inversion CONT; subst. simpl in CONT1.
       clear CONT. revert i gm tr1 tr2 CONT1 CONT0.
-      change (actions_equiv_dir rer [Areg r2; Areg r1; Areg r0] [Areg r2; Areg (Sequence r0 r1)] backward).
+      change (actions_equiv_dir rer backward [Areg r2; Areg r1; Areg r0] [Areg r2; Areg (Sequence r0 r1)]).
       apply app_eq_left with (acts := [Areg r2]).
       unfold actions_equiv_dir. intros inp gm t1 t2 TREE1 TREE2.
       inversion TREE2; subst. simpl in CONT. replace t2 with t1 by (eapply is_tree_determ; eauto). reflexivity.
@@ -51,18 +51,18 @@ Section Utilities.
       intros i gm tr1 tr2 TREE1 TREE2.
       inversion TREE1; subst. inversion TREE2; subst. simpl in *. clear TREE1 TREE2.
       revert i gm tr1 tr2 CONT CONT0.
-      change (actions_equiv_dir rer [Areg x; Areg y] [Areg x'; Areg y'] forward).
-      change (actions_equiv_dir rer [Areg x] [Areg x'] forward) in EQUIV_x.
-      change (actions_equiv_dir rer [Areg y] [Areg y'] forward) in EQUIV_y.
+      change (actions_equiv_dir rer forward [Areg x; Areg y] [Areg x'; Areg y']).
+      change (actions_equiv_dir rer forward [Areg x] [Areg x']) in EQUIV_x.
+      change (actions_equiv_dir rer forward [Areg y] [Areg y']) in EQUIV_y.
       apply app_eq_both with (a1 := [Areg x]) (a2 := [Areg x']) (b1 := [Areg y]) (b2 := [Areg y']) (dir := forward); auto.
     - destruct EQUIV_x as [DEF_GROUPS_x EQUIV_x]. destruct EQUIV_y as [DEF_GROUPS_y EQUIV_y].
       split. 1: { simpl. rewrite <- DEF_GROUPS_x, DEF_GROUPS_y. reflexivity. }
       intros i gm tr1 tr2 TREE1 TREE2.
       inversion TREE1; subst. inversion TREE2; subst. simpl in *. clear TREE1 TREE2.
       revert i gm tr1 tr2 CONT CONT0.
-      change (actions_equiv_dir rer [Areg y; Areg x] [Areg y'; Areg x'] backward).
-      change (actions_equiv_dir rer [Areg x] [Areg x'] backward) in EQUIV_x.
-      change (actions_equiv_dir rer [Areg y] [Areg y'] backward) in EQUIV_y.
+      change (actions_equiv_dir rer backward [Areg y; Areg x] [Areg y'; Areg x']).
+      change (actions_equiv_dir rer backward [Areg x] [Areg x']) in EQUIV_x.
+      change (actions_equiv_dir rer backward [Areg y] [Areg y']) in EQUIV_y.
       apply app_eq_both with (a1 := [Areg y]) (a2 := [Areg y']) (b1 := [Areg x]) (b2 := [Areg x']); auto.
   Qed.
 
@@ -115,7 +115,7 @@ Section Examples.
     remember (GroupMap.reset (def_groups r) gm) as gm'.
     clear gm Heqgm'.
     revert i gm' titer titer0 ISTREE1 ISTREE0.
-    change (actions_equiv_dir rer [Areg r; Areg (Quantified greedy n delta r)] [Areg r; Areg (Quantified greedy 0 (NoI.N 0) r); Areg (Quantified greedy n delta r)] forward).
+    change (actions_equiv_dir rer forward [Areg r; Areg (Quantified greedy n delta r)] [Areg r; Areg (Quantified greedy 0 (NoI.N 0) r); Areg (Quantified greedy n delta r)]).
     apply app_eq_left with (acts := [Areg r]).
     unfold actions_equiv_dir. intros inp gm t1 t2 TREE1 TREE2.
     inversion TREE2; subst.
@@ -137,7 +137,7 @@ Section Examples.
     remember (GroupMap.reset (def_groups r) gm) as gm'.
     clear gm Heqgm'.
     revert i gm' titer titer0 ISTREE1 ISTREE0.
-    change (actions_equiv_dir rer [Areg r; Areg (Quantified greedy n delta r)] [Areg r; Areg (Quantified greedy 0 (NoI.N 0) r); Areg (Quantified greedy n delta r)] backward).
+    change (actions_equiv_dir rer backward [Areg r; Areg (Quantified greedy n delta r)] [Areg r; Areg (Quantified greedy 0 (NoI.N 0) r); Areg (Quantified greedy n delta r)]).
     apply app_eq_left with (acts := [Areg r]).
     unfold actions_equiv_dir. intros inp gm t1 t2 TREE1 TREE2.
     inversion TREE2; subst.
@@ -158,7 +158,7 @@ Section Examples.
       unfold tree_equiv_tr_dir. simpl.
       remember (GroupMap.reset _ gm) as gm'. clear gm Heqgm'.
       revert i gm' titer titer0 ISTREE1 ISTREE0.
-      change (actions_equiv_dir rer [Areg r; Areg (Quantified true n 0 r)] [Areg r; Areg (Quantified false n 0 r)] dir).
+      change (actions_equiv_dir rer dir [Areg r; Areg (Quantified true n 0 r)] [Areg r; Areg (Quantified false n 0 r)]).
       apply app_eq_left with (acts := [Areg r]).
       unfold actions_equiv_dir. intros inp gm t1 t2 TREE1 TREE2.
       apply IHn; auto.

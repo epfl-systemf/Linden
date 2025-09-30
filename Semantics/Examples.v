@@ -60,6 +60,14 @@ Proof.
   rewrite charmatch_bc. auto.
 Qed.
 
+(* On page 8, right before section 3.2 *)
+Theorem fig2_first_leaf:
+  first_leaf fig2_tree fig2_input = Some (Input [] [c; b; b; a],
+    GroupMap.close 2 1 (GroupMap.open 1 1 GroupMap.empty)).
+Proof.
+  reflexivity.
+Qed.
+
 (** * Figure 6 of the paper  *)
 (* A counter-example of distributing the sequence over the disjunction *)
 

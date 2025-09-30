@@ -721,7 +721,27 @@ Section EquivLemmas.
   Qed.
 
 
+  (** ** About EqDec.neqb *)
+  Lemma neqb_neq {A} `{EqDec A}: forall (x y: A),
+      (x !=? y)%wt = true <-> x <> y.
+  Proof.
+    intros x y. split.
+    - intro H. unfold EqDec.neqb in H.
+      apply (f_equal negb) in H. rewrite Bool.negb_involutive in H. simpl in H. apply EqDec.inversion_false. auto.
+    - intro H. apply EqDec.inversion_false in H. unfold EqDec.neqb. rewrite H. reflexivity.
+  Qed.
+
+  Lemma neqb_eq {A} `{EqDec A}:
+    forall x y: A, (x !=? y)%wt = false <-> x = y.
+  Proof.
+    intros x y. split.
+    - intro H. apply (f_equal negb) in H. unfold EqDec.neqb in H. rewrite Bool.negb_involutive in H. simpl in H.
+      apply EqDec.inversion_true. auto.
+    - intro H. unfold EqDec.neqb. subst y. rewrite EqDec.reflb. reflexivity.
+  Qed.
+
   (** ** For lookarounds *)
+
   (* The following lemmas prove that interpreting a (lookaround) tree corresponding to some regex only affects the groups defined in that regex. *)
 
   (* Definition of groups defined by a list of actions *)
@@ -1177,6 +1197,7 @@ Section EquivLemmas.
   Qed.
 
 
+
   (** ** Lemmas for validity wrt checks *)
 
   (* We always have validity wrt no checks at all *)
@@ -1555,6 +1576,15 @@ Section EquivLemmas.
     - exfalso. unfold List.Disjoint, not in Hdef_forbid_disj. simpl in Hdef_forbid_disj. eauto.
     - rewrite (reg_tree_no_outside_groups _ _ _ _ _ _ Heqtlk _ _ _ _ _ Heqgmafterlk) by assumption.
       unfold no_forbidden_groups in Hnoforb. apply Hnoforb. apply in_or_app. now right.
+  Qed.
+
+  Lemma noforb_tail:
+    forall gm forbgroups_add forbgroups,
+      no_forbidden_groups gm (forbgroups_add ++ forbgroups) ->
+      no_forbidden_groups gm forbgroups.
+  Proof.
+    intros gm forbgroups_add forbgroups H gid IN.
+    apply H, in_or_app. right. auto.
   Qed.
 
 
@@ -1944,24 +1974,6 @@ Section EquivLemmas.
   Proof.
     intros; rewrite EqDec.inversion_false.
     apply list_diff_iff.
-  Qed.
-
-  Lemma neqb_neq {A} `{EqDec A}: forall (x y: A),
-      (x !=? y)%wt = true <-> x <> y.
-  Proof.
-    intros x y. split.
-    - intro H. unfold EqDec.neqb in H.
-      apply (f_equal negb) in H. rewrite Bool.negb_involutive in H. simpl in H. apply EqDec.inversion_false. auto.
-    - intro H. apply EqDec.inversion_false in H. unfold EqDec.neqb. rewrite H. reflexivity.
-  Qed.
-
-  Lemma neqb_eq {A} `{EqDec A}:
-    forall x y: A, (x !=? y)%wt = false <-> x = y.
-  Proof.
-    intros x y. split.
-    - intro H. apply (f_equal negb) in H. unfold EqDec.neqb in H. rewrite Bool.negb_involutive in H. simpl in H.
-      apply EqDec.inversion_true. auto.
-    - intro H. unfold EqDec.neqb. subst y. rewrite EqDec.reflb. reflexivity.
   Qed.
 
   Lemma substr_len:
