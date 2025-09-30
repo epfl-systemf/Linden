@@ -30,7 +30,7 @@ Module Type VMSeen.
 
 End VMSeen.
 
-(* one instanciation using lists, but you could use anything else *)
+(* one instantiation using lists, but you could use anything else *)
 Module VMS <: VMSeen.
   Definition seenpcs: Type := list (label * LoopBool).
   Definition initial_seenpcs : seenpcs := [].
@@ -137,6 +137,10 @@ Definition epsilon_step (t:thread) (c:code) (i:input): epsilon_result :=
                          | CannotRead => EpsDead
                          | CanRead => EpsBlocked (block_thread t)
                          end
+          | CheckAnchor a => match anchor_satisfied rer a i with
+                            | false => EpsDead
+                            | true => EpsActive [advance_thread t]
+                            end
           | Jmp next => EpsActive [upd_label t next]
           | Fork l1 l2 => EpsActive [upd_label t l1; upd_label t l2]
           | SetRegOpen gid => EpsActive [open_thread t gid (idx i)]

@@ -84,11 +84,12 @@ Definition StepDead := StepActive []. (* the thread died *)
 (* this corresponds to an atomic step of a single tree *)
 Definition tree_bfs_step (t:tree) (gm:group_map) (idx:nat): step_result :=
   match t with
-  | Mismatch | ReadBackRef _ _ | AnchorPass _ _ | LK _ _ _ | LKFail _ _ => StepDead
+  | Mismatch | ReadBackRef _ _ | LK _ _ _ | LKFail _ _ => StepDead
   | Match => StepMatch
   | Choice t1 t2 => StepActive [(t1,gm); (t2,gm)]
   | Read c t1 => StepBlocked t1
   | Progress t1 => StepActive [(t1,gm)]
+  | AnchorPass a t1 => StepActive [(t1,gm)]
   | GroupAction a t1 => StepActive [(t1, GroupMap.update idx a gm)]
   end.
 (* trees for unsupported features also return StepDead *)
@@ -184,12 +185,16 @@ Inductive tree_nd: tree -> group_map -> input -> seentrees -> option leaf -> Pro
   forall t gm inp l seen
     (TR: tree_nd t gm inp seen l),
     tree_nd (Progress t) gm inp seen l
+| tr_anchorpass:
+  forall a t gm inp l seen
+    (TR: tree_nd t gm inp seen l),
+    tree_nd (AnchorPass a t) gm inp seen l
 | tr_groupaction:
   forall t act gm inp l seen
     (TR: tree_nd t (GroupMap.update (idx inp) act gm) inp seen l),
     tree_nd (GroupAction act t) gm inp seen l.
 (* To keep this relation as simple as possible, it does not compute
-the results of a tree which does not corespond to the regexes
+the results of a tree which does not correspond to the regexes
 supported by the engine. We could support them, but we won't need them
 and it would require adding a direction as argument *)
 
@@ -518,7 +523,22 @@ Proof.
       eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
       econstructor; eauto.
   (* anchor pass *)
-  - simpl. constructor; pike_subset; auto.
+  - constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
+    inversion ACTIVE; subst.
+    apply SAMERES.
+    apply add_parent_tree in TR.
+    2: { simpl. lia. }
+    assert (PARENT: tree_nd (AnchorPass a t) gm inp seen l1).
+    { apply tr_anchorpass; auto. }
+    (* case analysis: did t contribute to the result? *)
+    destruct l1 as [leaf1|].
+    + econstructor; eauto. simpl.
+      eapply tlr_cons; eauto.
+      apply list_result_nd; auto.
+    (* when the tree did not contribute, adding it to seen does not change the results *)
+    + econstructor; eauto.
+      eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
+      econstructor; eauto.
   (* group action *)
   - simpl. constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
     inversion ACTIVE; subst.
