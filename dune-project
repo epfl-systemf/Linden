@@ -8,6 +8,8 @@
 
 (homepage "https://github.com/epfl-systemf/Linden")
 
+(authors "Aurèle Barrière" "Victor Deng" "Clément Pit-Claudel")
+
 (package
  (name linden)
  (synopsis "Formal Verification for JavaScript Regular Expressions")
