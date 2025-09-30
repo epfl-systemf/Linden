@@ -16,6 +16,10 @@ Inductive FlatMap {X Y:Type} : list X -> (X -> list Y -> Prop) -> list Y -> Prop
     (HEAD: f x ly),
     FlatMap (x::lbase) f (ly ++ lmapped).
 
+(* We could use the functional flat_map, but this would require using the function compute_tr that associates a tree to each regex and input. *)
+(* The proof does not strictly rely on this function, it merely relies on the
+existence of a unique tree associated to each regex and input. *)
+
 (* Used in disjunction and free quantifier cases of contextual equivalence proof *)
 Property FlatMap_app {X Y: Type}:
   forall (lbase1 lbase2 : list X) (f: X -> list Y -> Prop) (lmapped1 lmapped2: list Y),

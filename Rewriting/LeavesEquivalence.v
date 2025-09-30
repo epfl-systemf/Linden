@@ -90,37 +90,34 @@ Section Preparation.
 
 End Preparation.
 
-Section Def.
-  Context {params: LindenParameters}.
 
-  (** * List of Leaves Equivalence  *)
+(** * List of Leaves Equivalence  *)
 
-  (* Relates two ordered lists of leaves when they are equivalent up to removing lower priority duplicates *)
-  (* The third list, seen, accumulates inputs that have already been seen and can be removed *)
-  Inductive leaves_equiv: list (input * group_map) -> list leaf -> list leaf -> Prop :=
-  | equiv_nil:
-    forall seen,
-      leaves_equiv seen [] []
-  | equiv_seen_left:
-    (* removing a duplicate *)
-    forall seen inp gm l1 l2
-      (SEEN: is_seen (inp, gm) seen = true)
-      (EQUIV: leaves_equiv seen l1 l2),
-      leaves_equiv seen ((inp,gm)::l1) l2
-  | equiv_seen_right:
-    (* removing a duplicate *)
-    forall seen inp gm l1 l2
-      (SEEN: is_seen (inp,gm) seen = true)
-      (EQUIV: leaves_equiv seen l1 l2),
-      leaves_equiv seen l1 ((inp,gm)::l2)
-  | equiv_cons:
-    (* not a duplicate *)
-    forall seen inp gm l1 l2
-      (NEW: is_seen (inp,gm) seen = false)
-      (EQUIV: leaves_equiv ((inp,gm)::seen) l1 l2),
-      leaves_equiv seen ((inp,gm)::l1) ((inp,gm)::l2).
+(* Relates two ordered lists of leaves when they are equivalent up to removing lower priority duplicates *)
+(* The third list, seen, accumulates inputs that have already been seen and can be removed *)
+Inductive leaves_equiv {params: LindenParameters}: list (input * group_map) -> list leaf -> list leaf -> Prop :=
+| equiv_nil:
+  forall seen,
+    leaves_equiv seen [] []
+| equiv_seen_left:
+  (* removing a duplicate *)
+  forall seen inp gm l1 l2
+    (SEEN: is_seen (inp, gm) seen = true)
+    (EQUIV: leaves_equiv seen l1 l2),
+    leaves_equiv seen ((inp,gm)::l1) l2
+| equiv_seen_right:
+  (* removing a duplicate *)
+  forall seen inp gm l1 l2
+    (SEEN: is_seen (inp,gm) seen = true)
+    (EQUIV: leaves_equiv seen l1 l2),
+    leaves_equiv seen l1 ((inp,gm)::l2)
+| equiv_cons:
+  (* not a duplicate *)
+  forall seen inp gm l1 l2
+    (NEW: is_seen (inp,gm) seen = false)
+    (EQUIV: leaves_equiv ((inp,gm)::seen) l1 l2),
+    leaves_equiv seen ((inp,gm)::l1) ((inp,gm)::l2).
 
-End Def.
 
 Section Lemmas.
   Context {params: LindenParameters}.
@@ -213,8 +210,7 @@ Section Lemmas.
       leaves_equiv seen l1 l2 ->
       leaves_equiv seen l2 l1.
   Proof.
-    intros l1 l2 seen H.
-    induction H; solve[constructor; auto].
+    induction 1; solve[constructor; auto].
   Qed.
 
   (* Sort of an inversion lemma *)
@@ -342,7 +338,7 @@ Section Lemmas.
   Qed.
 
   (* Same as equiv_empty_right but with another statement of being already seen
-  and prepending to the left list. TODO/LATER Simplify? *)
+  and prepending to the left list. LATER Simplify? *)
   Lemma leaves_equiv_subseen:
     forall l1 l2 seen subseen,
       (forall x, is_seen x subseen = true -> is_seen x seen = true) ->

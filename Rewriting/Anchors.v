@@ -1,5 +1,7 @@
 From Linden.Rewriting Require Import ProofSetup.
 
+(** * Rewriting anchors as lookarounds *)
+
 Section Anchors.
   Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
