@@ -125,12 +125,4 @@ Section LKFactorization.
     intros wr [] [] ctx; simpl; rewrite PeanoNat.Nat.add_0_r; reflexivity.
   Qed.
 
-  (* Lemma lk_fact_llk:
-    forall lkdir pos llk,
-      equiv_lookaround (to_warblre_lookaround lkdir pos) llk ->
-      llk = to_lookaround lkdir pos.
-  Proof.
-    intros [] [] llk EQUIV; simpl in *; inversion EQUIV; try reflexivity; subst llk.
-    all: apply (f_equal (fun llk => llk Empty)) in H0; discriminate.
-  Qed. *)
 End LKFactorization.
