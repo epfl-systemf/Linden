@@ -26,7 +26,8 @@ Section MSInput.
       MatchState.captures := MatchState.captures s |}.
 
 
-  (* Computation of the current suffix of a MatchState given a direction; this is used when computing check strings. *)
+  (* Computation of the current suffix of a MatchState given a direction; this is used
+  when computing check strings. *)
   Definition ms_suffix (ms: MatchState) (dir: Direction) :=
     match dir with
     | forward => List.skipn (Z.to_nat (MatchState.endIndex ms)) (MatchState.input ms)
@@ -56,8 +57,11 @@ Section MSInput.
     intros str rer. now constructor.
   Qed.
 
-  (* Inversion lemma: when a MatchState matches an input, we have MatchState.input ms = List.rev pref ++ next. *)
-  Lemma ms_matches_inp_invinp: forall ms pref next, ms_matches_inp ms (Input next pref) -> MatchState.input ms = List.rev pref ++ next.
+  (* Inversion lemma: when a MatchState matches an input, we have
+  MatchState.input ms = List.rev pref ++ next. *)
+  Lemma ms_matches_inp_invinp:
+    forall ms pref next,
+      ms_matches_inp ms (Input next pref) -> MatchState.input ms = List.rev pref ++ next.
   Proof.
     intros ms pref next Hmatches. inversion Hmatches. symmetry. assumption.
   Qed.
@@ -99,7 +103,8 @@ Section MSInput.
     intro str. constructor. reflexivity.
   Qed.
 
-  (* A transitivity lemma: a MatchState ms that matches an input inp that is itself compatible with a string str0 has str0 as its input string. *)
+  (* A transitivity lemma: a MatchState ms that matches an input inp that is itself
+  compatible with a string str0 has str0 as its input string. *)
   Lemma inp_compat_ms_str0:
     forall (str0: string) (inp: input),
       input_compat inp str0 ->
@@ -129,7 +134,8 @@ Section MSInput.
       + apply Hmatches2.
   Qed.
 
-  (* Two MatchStates that have the same end index and are compatible with the same input string have the same suffix. *)
+  (* Two MatchStates that have the same end index and are compatible with the same
+  input string have the same suffix. *)
   Lemma ms_same_end_same_suffix:
     forall ms ms' inp inp' str0 dir,
       (MatchState.endIndex ms =? MatchState.endIndex ms')%Z = true ->
@@ -145,7 +151,8 @@ Section MSInput.
     reflexivity.
   Qed.
 
-  (* The corresponding Linden inputs of two MatchStates that have the same end index and are compatible with the same input string are equal. *)
+  (* The corresponding Linden inputs of two MatchStates that have the same end index
+  and are compatible with the same input string are equal. *)
   Lemma ms_same_end_same_inp:
     forall ms ms' inp inp' str0,
       (MatchState.endIndex ms =? MatchState.endIndex ms')%Z = true ->
