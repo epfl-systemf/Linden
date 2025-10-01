@@ -233,7 +233,7 @@ Section EquivLemmas.
       CharSet.exist_canonicalized rer charset (Character.canonicalize rer chr) = false ->
       char_match rer chr (CdInv cd) = true.
   Proof.
-    intros chr cd charset Hequiv Hexist_false. simpl.
+    intros chr cd charset Hequiv Hexist_false. unfold char_match. simpl.
     apply <- Bool.negb_true_iff. eapply char_mismatch_warblre; eauto.
   Qed.
 

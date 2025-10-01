@@ -87,10 +87,10 @@ Section Chars.
   Definition word_char c := CharSet.contains (wordCharacters rer) c.
 
   (* Lemma for boolean version of In *)
-  Lemma char_all_inb: forall c, inb c Character.all = true.
+  (* Lemma char_all_inb: forall c, inb c Character.all = true.
   Proof.
     intro c. rewrite inb_spec. apply char_all_in.
-  Qed.
+  Qed. *)
 
 
   (** * Character Descriptors  *)
@@ -116,7 +116,7 @@ Section Chars.
   (* Whether dot matches a character *)
   Definition dot_matches (dotAll: bool) (c: Character): bool :=
     if dotAll then
-      true
+      CharSet.exist_canonicalized rer Characters.all c
     else
       CharSet.exist_canonicalized rer (CharSet.remove_all Characters.all Characters.line_terminators) c.
   

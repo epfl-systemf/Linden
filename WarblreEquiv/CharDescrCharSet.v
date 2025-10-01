@@ -97,11 +97,7 @@ Section CharDescrCharSet.
     RegExpRecord.dotAll rer = true ->
     equiv_cd_charset CdDot Characters.all.
   Proof.
-    intros HdotAll c. unfold char_match. simpl. unfold dot_matches. rewrite HdotAll. symmetry.
-    rewrite CharSet.exist_canonicalized_equiv, CharSet.exist_iff.
-    exists c. split.
-    - apply contains_all.
-    - apply EqDec.reflb.
+    intros HdotAll c. unfold char_match. simpl. unfold dot_matches. rewrite HdotAll. reflexivity.
   Qed.
 
   Lemma equiv_cd_dot_noDotAll:

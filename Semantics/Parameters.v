@@ -8,6 +8,4 @@ Class LindenParameters := make {
 
   (* As per the ECMA specification (22.2.2.7.3 Canonicalize ( rer, ch )), when we do not ignore case, canonicalization is the identity function. *)
   canonicalize_casesenst: forall rer chr, RegExpRecord.ignoreCase rer = false -> Character.canonicalize rer chr = chr;
-  (* char_all contains all characters. Should be in Warblre as stated in mechanization/spec/Parameters.v, lines 50-51. *)
-  char_all_in: forall c, In c (@Character.all char)
 }.
