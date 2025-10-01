@@ -774,42 +774,15 @@ Section EquivLemmas.
           do 2 rewrite in_app_iff. do 2 rewrite in_app_iff in H0. tauto.
       
       + (* Quantified *)
-        destruct min as [|min']. 1: destruct delta as [[|ndelta']|].
+        destruct min as [|min'].
+        1: destruct (delta =? (NoI.N 0))%NoI eqn:Hdeltazero.
         * (* Done *)
-          simpl. intros. eapply IHfuel; eauto. rewrite in_app_iff in H1. tauto.
-        * (* Free, finite delta *)
-          simpl. replace (ndelta' - 0) with ndelta' by lia.
-          destruct (compute_tree rer (Areg r :: Acheck inp0 :: _ :: acts) inp0 _ dir0 fuel) as [titer|] eqn:Hiter; simpl; try discriminate.
-          destruct (compute_tree rer acts inp0 gm0 dir0 fuel) as [tskip|] eqn:Hskip; simpl; try discriminate.
-          intro H. injection H as <-.
-          intros gm1 gm2 inp1 inp2 dir.
-          pose proof IHfuel _ _ _ _ _ Hiter (GroupMap.reset (def_groups r) gm1) as IHiter.
-          pose proof IHfuel _ _ _ _ _ Hskip gm1 as IHskip.
-          destruct greedy; simpl.
-          -- (* Greedy *)
-             destruct (tree_res titer _ inp1 dir) as [[inpiter gmiter]|] eqn:Hiterres; simpl.
-             ++ (* Iteration succeeds *)
-                intro H. injection H as <- <-.
-                specialize (IHiter gmiter inp1 inpiter dir Hiterres). simpl in IHiter.
-                intros. rewrite IHiter. 2: { do 2 rewrite in_app_iff. rewrite in_app_iff in H. tauto. }
-                rewrite in_app_iff in H. assert (~In gid (def_groups r)) by tauto. now apply gm_reset_find_other.
-             ++ (* Iteration fails *)
-                intro Hskipres. specialize (IHskip gm2 inp1 inp2 dir Hskipres).
-                intros. apply IHskip. rewrite in_app_iff in H. tauto.
-          -- (* Lazy *)
-             destruct (tree_res tskip _ inp1 dir) as [[inpskip gmskip]|] eqn:Hskipres; simpl.
-             ++ (* Iteration succeeds *)
-                intro H. injection H as <- <-.
-                specialize (IHskip gmskip inp1 inpskip dir Hskipres).
-                intros gid H. apply IHskip. rewrite in_app_iff in H. tauto.
-             ++ (* Iteration fails *)
-                intro Hiterres. specialize (IHiter _ _ _ _ Hiterres). simpl in IHiter.
-                intros. rewrite in_app_iff in H.
-                rewrite IHiter. 2: { do 2 rewrite in_app_iff. tauto. }
-                assert (~In gid (def_groups r)) by tauto. now apply gm_reset_find_other.
-        * (* Free, infinite delta *)
-          simpl.
-          (* Copy-pasting from above!! *)
+          rewrite NumericLemmas.noi_eqb_eq in Hdeltazero. subst delta. simpl. intros. eapply IHfuel; eauto. rewrite in_app_iff in H1. tauto.
+        * (* Free *)
+          remember (match _ with | Some titer => _ | None => None end) as topt.
+          replace (match delta with | NoI.N n => _ | +∞ => _ end) with topt.
+          2: { destruct delta as [[|delta']|]; try discriminate; reflexivity. }
+          subst topt. simpl.
           destruct (compute_tree rer (Areg r :: Acheck inp0 :: _ :: acts) inp0 _ dir0 fuel) as [titer|] eqn:Hiter; simpl; try discriminate.
           destruct (compute_tree rer acts inp0 gm0 dir0 fuel) as [tskip|] eqn:Hskip; simpl; try discriminate.
           intro H. injection H as <-.
@@ -1004,11 +977,17 @@ Section EquivLemmas.
       intros gm0 inp dir0 t. simpl.
       (* Annoying but should be okay *)
       destruct min as [|min'].
-      1: destruct delta as [[|n']|].
+      (*1: destruct delta as [[|n']|].*)
+      1: destruct (delta =? NoI.N 0)%NoI eqn:Hdeltazero.
       + (* Done *)
+        rewrite NumericLemmas.noi_eqb_eq in Hdeltazero. subst delta.
         intros Hcompute gm1 gm2 inp1 inp2 dir Heqgm2 gid idx' Hopen2.
         rewrite Areg_Aclose_disappear. eauto using IHfuel.
-      + (* Free, finite delta *)
+      + (* Free *)
+        remember (match _ with | Some titer => _ | None => None end) as topt.
+        replace (match delta with | NoI.N n => _ | +∞ => _ end) with topt.
+        2: { destruct delta as [[|delta']|]; try discriminate; reflexivity. }
+        subst topt.
         destruct compute_tree as [titer|] eqn:Htiter; try discriminate.
         destruct (compute_tree rer acts inp gm0 dir0 fuel) as [tskip|] eqn:Htskip; try discriminate.
         intro H. injection H as <-.
@@ -1031,38 +1010,6 @@ Section EquivLemmas.
           destruct (tree_res tskip gm1 inp1 dir) as [[inpskip gmskip]|] eqn:Hresskip; simpl.
           -- (* Skipping succeeds *)
              intro H. injection H as <- <-. intros gid idx Hopenskip.
-             rewrite Areg_Aclose_disappear. eauto using IHfuel.
-          -- (* Skipping fails *)
-             intros Heqgm2 gid idx' Hopen2.
-             rewrite Areg_Aclose_disappear.
-             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ _ Heqgm2 _ _ Hopen2. simpl in H.
-             rewrite Areg_Aclose_disappear, Acheck_Aclose_disappear, Areg_Aclose_disappear in H.
-             destruct (in_dec Nat.eq_dec gid (def_groups r)) as [Hreset | Hnotreset].
-             ++ rewrite gm_reset_find in H by assumption. destruct H. inversion H. (* gid was reset *)
-             ++ rewrite gm_reset_find_other in H by assumption. auto.
-      + (* Free, infinite delta: copy-pasting!! *)
-        destruct compute_tree as [titer|] eqn:Htiter; try discriminate.
-        destruct (compute_tree rer acts inp gm0 dir0 fuel) as [tskip|] eqn:Htskip; try discriminate.
-        intro H. injection H as <-.
-        intros gm1 gm2 inp1 inp2 dir. destruct greedy; simpl.
-        * (* Greedy *)
-          destruct (tree_res titer _ inp1 dir) as [[inpiter gmiter]|] eqn:Hresiter; simpl.
-          -- (* Iterating succeeds *)
-             intro H. injection H as <- <-. intros gid idx' Hopeniter.
-             rewrite Areg_Aclose_disappear.
-             pose proof IHfuel _ _ _ _ _ Htiter _ _ _ _ _ Hresiter _ _ Hopeniter.
-             simpl in H. rewrite Areg_Aclose_disappear, Acheck_Aclose_disappear, Areg_Aclose_disappear in H.
-             destruct (in_dec Nat.eq_dec gid (def_groups r)) as [Hreset | Hnotreset].
-             ++ rewrite gm_reset_find in H by assumption. destruct H. inversion H. (* gid was reset *)
-             ++ rewrite gm_reset_find_other in H by assumption. auto.
-          -- (* Iterating fails *)
-             intros Heqgm2 gid idx' Hopen2.
-             pose proof IHfuel _ _ _ _ _ Htskip _ _ _ _ _ Heqgm2 _ _ Hopen2.
-             rewrite Areg_Aclose_disappear. auto.
-        * (* Lazy *)
-          destruct (tree_res tskip gm1 inp1 dir) as [[inpskip gmskip]|] eqn:Hresskip; simpl.
-          -- (* Skipping succeeds *)
-             intro H. injection H as <- <-. intros gid idx' Hopenskip.
              rewrite Areg_Aclose_disappear. eauto using IHfuel.
           -- (* Skipping fails *)
              intros Heqgm2 gid idx' Hopen2.
@@ -1137,7 +1084,7 @@ Section EquivLemmas.
         rewrite Areg_Aclose_disappear. eauto using IHfuel.
       + intro H. injection H as <-. discriminate.
     
-    - (* Check; should not be difficult *)
+    - (* Check *)
       intros gm0 inp dir0 t. simpl.
       destruct is_strict_suffix.
       + (* Is strict suffix *)
@@ -1305,23 +1252,15 @@ Section EquivLemmas.
   Proof.
     intros ms inp cap' msreset lreg qreg qreg' act dir
       Hmsinp -> Hvalidchecks.
-    intros inpcheck Hin. destruct dir.
-    - destruct Hin as [Habs | Hin]. 1: discriminate.
-      destruct Hin as [Heqinp | [Habs | Hinact]]. 2: discriminate.
-      + (* The input itself *)
-        injection Heqinp as <-.
-        inversion Hmsinp. constructor. simpl. lia.
-      + (* In the tail *)
-        apply ms_valid_wrt_checks_tail in Hvalidchecks. specialize (Hvalidchecks inpcheck Hinact).
-        inversion Hvalidchecks. constructor. simpl. lia.
-    - destruct Hin as [Habs | Hin]. 1: discriminate.
-      destruct Hin as [Heqinp | [Habs | Hinact]]. 2: discriminate.
-      + (* The input itself *)
-        injection Heqinp as <-.
-        inversion Hmsinp. constructor. simpl. lia.
-      + (* In the tail *)
-        apply ms_valid_wrt_checks_tail in Hvalidchecks. specialize (Hvalidchecks inpcheck Hinact).
-        inversion Hvalidchecks. constructor. simpl. lia.
+    intros inpcheck Hin.
+    destruct Hin as [Habs | Hin]. 1: discriminate.
+    destruct Hin as [Heqinp | [Habs | Hinact]]. 2: discriminate.
+    - (* The input itself *)
+      injection Heqinp as <-.
+      inversion Hmsinp. destruct dir; constructor; simpl; lia.
+    - (* In the tail *)
+      apply ms_valid_wrt_checks_tail in Hvalidchecks. specialize (Hvalidchecks inpcheck Hinact).
+      destruct dir; inversion Hvalidchecks; constructor; simpl; lia.
   Qed.
 
 
@@ -1352,7 +1291,8 @@ Section EquivLemmas.
 
   (** * Lemmas about disjointness of list of open groups *)
 
-  (* Corollary: disjointness from the list of groups of a parent regex implies disjointness from the list of groups of any child regex. *)
+  (* Corollary: disjointness from the list of groups of a parent regex implies
+  disjointness from the list of groups of any child regex. *)
   Lemma disj_parent_disj_child:
     forall child parent, ChildRegex child parent ->
       forall gl, open_groups_disjoint gl (def_groups parent) -> open_groups_disjoint gl (def_groups child).
@@ -1679,7 +1619,8 @@ Section EquivLemmas.
       apply Hequiv.
   Qed.
 
-  (* Resetting a list of groups that is disjoint from the list of open groups preserves equivalence to the list of open groups. *)
+  (* Resetting a list of groups that is disjoint from the list of open groups
+  preserves equivalence to the list of open groups. *)
   Lemma equiv_open_groups_reset:
     forall gl gidl gm gmreset
       (Hgldisj: open_groups_disjoint gl gidl)
@@ -2020,6 +1961,20 @@ Section EquivLemmas.
     intro H. injection H as ->. reflexivity.
   Qed.
 
+  Lemma nth_error_skipn {A: Type}:
+    forall (s: list A) start i,
+      start + i < length s -> (* this hypothesis is not needed but makes the proof simpler and is met for what we need *)
+      nth_error (skipn start s) i = nth_error s (start + i).
+  Proof.
+    intros s start i H.
+    replace i with (start + i - start) at 1 by lia.
+    replace start with (length (firstn start s)) at 3.
+    2: { apply firstn_length_le. lia. }
+    rewrite <- nth_error_app2.
+    2: { rewrite firstn_length_le by lia. lia. }
+    rewrite firstn_skipn. auto.
+  Qed.
+
   (* Non-trivial *)
   Lemma indexing_firstn_skipn {A: Type}:
     forall (s: list A) startIdx n i x,
@@ -2038,23 +1993,11 @@ Section EquivLemmas.
       rewrite <- nth_error_app1 with (l' := skipn n (skipn (Z.to_nat startIdx) s)).
       2: { rewrite firstn_length_le; auto. rewrite skipn_length. lia. }
       rewrite firstn_skipn.
-      (* The rest of the proof of this case is the same as in the 2nd case *)
-      replace i with ((Z.to_nat startIdx + i) - Z.to_nat startIdx) by lia.
-      replace (Z.to_nat startIdx) with (length (firstn (Z.to_nat startIdx) s)) at 3.
-      2: { apply firstn_length_le. lia. }
-      rewrite <- nth_error_app2.
-      2: { rewrite firstn_length_le by lia. lia. }
-      rewrite firstn_skipn. auto.
+      rewrite nth_error_skipn; auto.
     - (* firstn leaves the skipn unchanged *)
       rewrite firstn_all2.
       2: { rewrite skipn_length. lia. }
-      (* Copy-pasting... *)
-      replace i with ((Z.to_nat startIdx + i) - Z.to_nat startIdx) by lia.
-      replace (Z.to_nat startIdx) with (length (firstn (Z.to_nat startIdx) s)) at 3.
-      2: { apply firstn_length_le. lia. }
-      rewrite <- nth_error_app2.
-      2: { rewrite firstn_length_le by lia. lia. }
-      rewrite firstn_skipn. auto.
+      rewrite nth_error_skipn; auto.
   Qed.
 
   (* This lemma actually follows from the above lemma in a somewhat convoluted way *)
@@ -2343,17 +2286,14 @@ Section EquivLemmas.
       tree_res t gm inp dir = Some (inp', gm') ->
       gm_valid gm'.
   Proof.
-    intro t. induction t as [ | | t1 IH1 t2 IH2 | | | | | act t IH | lk tlk IHlk tcont IHcont |].
+    intro t. induction t as [ | | t1 IH1 t2 IH2 | | | | | act t IH | lk tlk IHlk tcont IHcont |];
+      try solve[intros; simpl; eauto].
     - discriminate.
     - intros gm inp inp' gm' dir Hvalid. simpl. intro H. injection H as <- <-. auto.
     - intros gm inp inp' gm' dir Hvalid. simpl.
       destruct (tree_res t1 gm inp dir) as [[inp1 gm1]|] eqn:H1; simpl.
       + intro H. injection H as <- <-. eauto.
       + intro H. eauto.
-    - intros gm inp inp' gm' dir Hvalid. simpl. eauto.
-    - intros gm inp inp' gm' dir Hvalid. simpl. eauto.
-    - intros gm inp inp' gm' dir Hvalid. simpl. eauto.
-    - intros gm inp inp' gm' dir Hvalid. simpl. eauto.
     - intros gm inp inp' gm' dir Hvalid. destruct act as [gid | gid | gl]; simpl.
       + apply IH. apply gm_open_valid. auto.
       + apply IH. apply gm_close_valid. auto.
