@@ -34,35 +34,20 @@ Section EquivLemmas.
     induction Hequiv as [
       n |
       n c |
-        n |
-        n |
-        n |
-        esc cd n nm Hequivesc |
-        esc cd n nm Hequivesc |
-        cc cd n nm Hequivcc |
+      n |
+      n |
+      n |
+      esc cd n nm Hequivesc |
+      esc cd n nm Hequivesc |
+      cc cd n nm Hequivcc |
       n wr1 wr2 lr1 lr2 nm Hequiv1 IH1 Hequiv2 IH2 |
       n wr1 wr2 lr1 lr2 nm Hequiv1 IH1 Hequiv2 IH2 |
       n wr lr wquant lquant wgreedylazy greedy nm Hequiv IH Hequivquant Hequivgreedy |
-        n wr lr nm Hequiv IH |
-        name n wr lr nm CHKNAME Hequiv IH |
+      n wr lr nm Hequiv IH |
+      name n wr lr nm CHKNAME Hequiv IH |
       n wr lr wlk llk nm Hequiv IH Hequivlk |
-      n wr lanchor nm Hanchequiv].
-    - intros parenCount ctx Hcount.
-      simpl in *. subst parenCount. reflexivity.
-    - intros parenCount ctx Hcount.
-      simpl in *. subst parenCount. reflexivity.
-    - intros parenCount ctx Hcount.
-      simpl in *. subst parenCount. reflexivity.
-    - intros parenCount ctx Hcount.
-      simpl in *. subst parenCount. reflexivity.
-    - intros parenCount ctx Hcount.
-      simpl in *. subst parenCount. reflexivity.
-    - intros parenCount ctx Hcount.
-      simpl in *. subst parenCount. reflexivity.
-    - intros parenCount ctx Hcount.
-      simpl in *. subst parenCount. reflexivity.
-    - intros parenCount ctx Hcount.
-      simpl in *. subst parenCount. reflexivity.
+      n wr lanchor nm Hanchequiv];
+      try solve[intros parenCount ctx Hcount; simpl in *; subst parenCount; reflexivity].
     - intros parenCount ctx Hcount. simpl in *.
       specialize (IH1 (countLeftCapturingParensWithin wr1 ctx) ctx eq_refl).
       specialize (IH2 (countLeftCapturingParensWithin wr2 ctx) ctx eq_refl).
@@ -329,23 +314,6 @@ Section EquivLemmas.
   Qed.
 
 
-  (* Advancing a valid MatchState forward yields a valid MatchState when we remain in bounds. *)
-  (*Lemma ms_advance_valid:
-    forall ms rer ms_adv,
-      MatchState.Valid (MatchState.input ms) rer ms ->
-      (MatchState.endIndex ms + 1 <= Z.of_nat (length (MatchState.input ms)))%Z ->
-      ms_adv = advance_ms ms forward ->
-      MatchState.Valid (MatchState.input ms_adv) rer ms_adv.
-  Proof.
-    intros ms rer ms_adv [Honinp [Hiton [Hlencap Hcapvalid]]] Hinb Heqms_adv.
-    destruct ms as [input endIndex cap].
-    unfold advance_ms in Heqms_adv. simpl in Heqms_adv. subst ms_adv.
-    simpl in *.
-    split; [|split; [|split]]; try easy.
-    unfold IteratorOn in *. simpl. lia.
-  Qed.*)
-
-
   (* Advancing corresponding MatchStates and inputs yields corresponding MatchStates and inputs. *)
   Lemma ms_matches_inp_adv:
     forall ms inp dir ms_adv inp_adv,
@@ -380,7 +348,9 @@ Section EquivLemmas.
   Qed.
 
 
-  (* If a MatchState has advanced or regressed and corresponds to a new Linden input, then the current string of this Linden input is different from the suffix of the original MatchState. *)
+  (* If a MatchState has advanced or regressed and corresponds to a new Linden input,
+  then the current string of this Linden input is different from the suffix of the
+  original MatchState. *)
   Lemma endInd_neq_advanced:
     (* For all valid MatchStates ms and ms1 and Linden input inp' *)
     forall ms ms1 inp inp1 str0,
@@ -442,7 +412,8 @@ Section EquivLemmas.
     - exists pref. exists x. exists next. reflexivity.
   Qed.
 
-  (* If we try to read forward out of bounds from a valid state, then we are exactly at the end of the input. *)
+  (* If we try to read forward out of bounds from a valid state, then we are exactly
+  at the end of the input. *)
   Lemma read_oob_fail_atend:
     forall (ms: MatchState) (inp: Chars.input),
       (MatchState.endIndex ms + 1 > Z.of_nat (length (MatchState.input ms)))%Z ->
@@ -453,7 +424,8 @@ Section EquivLemmas.
     pose proof ms_matches_inp_inbounds ms inp Hmatches. lia.
   Qed.
 
-  (* Corollary: if we try to read forward out of bounds from a valid state, then the suffix of our input is empty. *)
+  (* Corollary: if we try to read forward out of bounds from a valid state, then the
+  suffix of our input is empty. *)
   Lemma read_oob_fail_end:
     forall (ms: MatchState) (inp: Chars.input),
       (MatchState.endIndex ms + 1 > Z.of_nat (length (MatchState.input ms)))%Z ->
@@ -463,7 +435,8 @@ Section EquivLemmas.
     intros. eauto using end_input_next_empty, read_oob_fail_atend.
   Qed.
 
-  (* If we are at the beginning of our input, this means that the prefix of our input is empty. *)
+  (* If we are at the beginning of our input, this means that the prefix of our
+  input is empty. *)
   Lemma begin_input_pref_empty:
     forall (ms: MatchState) (inp: Chars.input),
       MatchState.endIndex ms = 0%Z ->
@@ -473,16 +446,15 @@ Section EquivLemmas.
     intros ms inp Hbegin Hmatches.
     inversion Hmatches as [s end_ind cap next pref Hlenpref Heqs Heqms Heqinp].
     subst ms. simpl in *.
-    (*assert (Hoob': end_ind + 1 > length s) by lia.*)
     apply (f_equal (length (A := Character))) in Heqs.
-    rewrite List.app_length in Heqs.
-    rewrite List.rev_length in Heqs.
+    rewrite List.app_length, List.rev_length in Heqs.
     assert (Hlen: end_ind = 0) by lia. subst end_ind.
     exists next. f_equal.
     now apply List.length_zero_iff_nil.
   Qed.
 
-  (* If we are NOT at the beginning of our input, this means that the prefix of our input is not empty. *)
+  (* If we are NOT at the beginning of our input, this means that the prefix of our
+  input is not empty. *)
   Lemma begin_input_pref_nonempty:
     forall (ms: MatchState) (inp: Chars.input),
       MatchState.endIndex ms <> 0%Z ->
@@ -495,7 +467,8 @@ Section EquivLemmas.
     - exists next. exists x. exists pref. reflexivity.
   Qed.
 
-  (* If we try to read backwards out of bounds from a valid state, then we are exactly at the beginning of the input. *)
+  (* If we try to read backwards out of bounds from a valid state, then we are exactly
+  at the beginning of the input. *)
   Lemma read_oob_fail_atbegin:
     forall (ms: MatchState) (inp: Chars.input),
       (MatchState.endIndex ms - 1 < 0)%Z ->
@@ -506,7 +479,8 @@ Section EquivLemmas.
     pose proof ms_matches_inp_inbounds ms inp Hmatches. lia.
   Qed.
 
-  (* Corollary: if we try to read backwards out of bounds from a valid state, then the prefix of our input is empty. *)
+  (* Corollary: if we try to read backwards out of bounds from a valid state, then
+  the prefix of our input is empty. *)
   Lemma read_oob_fail_begin:
     forall (ms: MatchState) (inp: Chars.input),
       (MatchState.endIndex ms - 1 < 0)%Z ->
@@ -559,7 +533,8 @@ Section EquivLemmas.
       subst inp. simpl. reflexivity.
   Qed.
 
-  (* If we try to read backwards out of bounds in the Warblre sense, then reading a character backwards in the Linden sense fails. *)
+  (* If we try to read backwards out of bounds in the Warblre sense, then reading a
+  character backwards in the Linden sense fails. *)
   Lemma read_oob_fail_begin_bool:
     forall (ms: MatchState) (inp: Chars.input),
       ms_matches_inp ms inp ->
@@ -575,7 +550,8 @@ Section EquivLemmas.
     - exfalso. rewrite Z.gtb_gt in Hoob. apply (endInd_gtlen_abs _ _ Hmatches Hoob).
   Qed.
 
-  (* Combining the two above lemmas: if we try to read out of bounds in the Warblre sense, then reading a character in the Linden sense fails. *)
+  (* Combining the two above lemmas: if we try to read out of bounds in the Warblre
+  sense, then reading a character in the Linden sense fails. *)
   Lemma read_oob_fail_bool:
     forall (ms: MatchState) (inp: Chars.input) (dir: Direction) (nextend: Z),
       ms_matches_inp ms inp ->
@@ -644,15 +620,6 @@ Section EquivLemmas.
   Proof.
     now intros [].
   Qed.
-
-  (*Lemma word_char_warblre:
-    forall c, word_char c = CharSet.contains Characters.ascii_word_characters c.
-  Proof.
-    intro c. unfold Characters.ascii_word_characters.
-    apply Bool.eq_true_iff_eq.
-    setoid_rewrite CharSetExt.from_list_contains. unfold word_char.
-    apply Utils.List.inb_spec.
-  Qed.*)
 
   Lemma is_boundary_xorb:
     forall inp ms a b,

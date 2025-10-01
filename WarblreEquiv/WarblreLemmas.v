@@ -117,26 +117,3 @@ Proof.
       apply Match.CaptureRange.vCrUndefined.
     - destruct x. now simpl in *.
 Qed.
-
-From Linden Require Import LWParameters Parameters.
-From Warblre Require Import Errors.
-
-Section WarblreLemmas.
-  Context {params: LindenParameters}.
-
-  Lemma wordCharacters_casesenst:
-    forall rer,
-      RegExpRecord.ignoreCase rer = false ->
-      Semantics.wordCharacters rer = Success Characters.ascii_word_characters.
-  Proof.
-    intros rer Hcasesenst. unfold Semantics.wordCharacters.
-    unfold Coercions.Coercions.wrap_CharSet. simpl. f_equal.
-    rewrite CharSet.union_empty. 1: reflexivity.
-    intro c. rewrite CharSet.filter_spec.
-    assert (false = true <-> False). { split. - discriminate. - intros []. }
-    destruct CharSet.contains eqn:Hascii; simpl.
-    - tauto.
-    - rewrite canonicalize_casesenst by assumption. rewrite Hascii.
-      tauto.
-  Qed.
-End WarblreLemmas.

@@ -13,17 +13,6 @@ Section CharDescrCharSet.
   Definition equiv_cd_charset (cd: char_descr) (charset: CharSet) :=
     forall c: Character, char_match rer c cd = CharSet.exist_canonicalized rer charset (Character.canonicalize rer c).
 
-  (* Lemma for character descriptor inversion *)
-  (* Should not be needed *)
-  (*Lemma equiv_cd_inv:
-    forall cd s, equiv_cd_charset cd s -> equiv_cd_charset (CdInv cd) (CharSet.remove_all Characters.all s).
-  Proof.
-    intros cd s H c. specialize (H c).
-    simpl. apply Bool.eq_true_iff_eq.
-    rewrite CharSet.remove_all_contains. rewrite H.
-    setoid_rewrite contains_all. simpl. reflexivity.
-  Qed.*)
-
   (* Lemma for character descriptor union *)
   Lemma equiv_cd_union:
     forall cd1 cd2 s1 s2,
@@ -133,15 +122,11 @@ Section CharDescrCharSet.
              equiv_cd_charset cd a.
   Proof.
     intros esc cd Hequiv.
-    inversion Hequiv as [Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | p Heqesc Heqcd | p Heqesc Heqcd ]; simpl; unfold Coercions.Coercions.wrap_CharSet; eexists; split; try solve[reflexivity].
-    - apply equiv_cd_digits.
-    - unfold equiv_cd_charset. reflexivity.
-    - apply equiv_cd_whitespace.
-    - unfold equiv_cd_charset. reflexivity.
-    - apply equiv_cd_wordchar.
-    - unfold equiv_cd_charset. reflexivity.
-    - apply equiv_cd_unicodeprop.
-    - unfold equiv_cd_charset. reflexivity.
+    inversion Hequiv as [
+      Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd |
+      p Heqesc Heqcd | p Heqesc Heqcd ];
+      simpl; unfold Coercions.Coercions.wrap_CharSet; eexists; split; try solve[reflexivity];
+      try solve[unfold equiv_cd_charset; reflexivity].
   Qed.
 
   (* Lemma for ControlEscapes *)
@@ -152,7 +137,9 @@ Section CharDescrCharSet.
              equiv_cd_charset cd a.
   Proof.
     intros esc cd Hequiv.
-    inversion Hequiv; simpl; unfold Coercions.Coercions.wrap_CharSet; eexists; split; try solve[reflexivity]; unfold Numeric.nat_to_nni; rewrite Character.numeric_pseudo_bij; apply equiv_cd_single.
+    inversion Hequiv; simpl; unfold Coercions.Coercions.wrap_CharSet; eexists; split;
+      try solve[reflexivity]; unfold Numeric.nat_to_nni; rewrite Character.numeric_pseudo_bij;
+      apply equiv_cd_single.
   Qed.
 
   (* Lemma for CharacterEscapes *)
@@ -162,7 +149,11 @@ Section CharDescrCharSet.
       exists a, Semantics.compileToCharSet_ClassAtom (ClassEsc (CCharacterEsc esc)) rer = Success a /\
              equiv_cd_charset cd a.
   Proof.
-    intros esc cd Hequiv. inversion Hequiv as [esc0 cd0 Hequiv' Heqesc Heqcd0 | l cd0 Hequiv' Heqesc Heqcd0 | Heqesc Heqcd | d1 d2 Heqesc Heqcd | c Heqesc Heqcd | head tail Heqesc Heqcd | hex Heqesc Heqcd | c Heqesc Heqcd].
+    intros esc cd Hequiv.
+    inversion Hequiv as [
+      esc0 cd0 Hequiv' Heqesc Heqcd0 | l cd0 Hequiv' Heqesc Heqcd0 | Heqesc Heqcd |
+      d1 d2 Heqesc Heqcd | c Heqesc Heqcd | head tail Heqesc Heqcd | hex Heqesc Heqcd |
+      c Heqesc Heqcd].
     - apply equiv_cd_ControlEscape. assumption.
     - inversion Hequiv' as [l0 i Heqi Heql0 Heqcd]. subst cd0 l0.
       simpl. rewrite <- Heqi.
