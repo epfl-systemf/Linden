@@ -347,38 +347,6 @@ Section EquivLemmas.
       + simpl in Hmatches'. rewrite <- List.app_assoc in Hmatches'. simpl in Hmatches'. assumption.
   Qed.
 
-
-  (* If a MatchState has advanced or regressed and corresponds to a new Linden input,
-  then the current string of this Linden input is different from the suffix of the
-  original MatchState. *)
-  Lemma endInd_neq_advanced:
-    (* For all valid MatchStates ms and ms1 and Linden input inp' *)
-    forall ms ms1 inp inp1 str0,
-      ms_matches_inp ms inp -> input_compat inp str0 ->
-      (* such that ms1 and inp' correspond, *)
-      ms_matches_inp ms1 inp1 -> input_compat inp1 str0 ->
-      (* and ms1 has advanced or regressed wrt ms, *)
-      (MatchState.endIndex ms1 =? MatchState.endIndex ms)%Z = false ->
-      (* the current input string of inp' is different from the suffix of ms. *)
-      forall dir, current_str inp1 dir <> ms_suffix ms dir.
-  Proof.
-    intros [input endInd cap] [input1 endInd1 cap1] [next pref] [next1 pref1] str0 Hmsinp Hinpcompat Hms1inp1 Hinp1compat HendInd_neq dir. simpl.
-    inversion Hmsinp. inversion Hms1inp1. subst next2 pref2 next0 pref0 s s0 cap0 cap2.
-    inversion Hinpcompat. inversion Hinp1compat. subst next0 pref0 str1 next2 pref2 str2.
-    replace input with str0 in * by congruence. replace input1 with str0 in * by congruence. simpl in *.
-    intro Habs. subst endInd endInd1.
-    destruct dir.
-    - erewrite <- ms_suffix_current_str in Habs by eauto. simpl in *.
-      subst next1.
-      rewrite Z.eqb_neq in HendInd_neq. assert (end_ind0 <> end_ind) by lia.
-      apply (f_equal (@length Character)) in H5, H12. rewrite List.app_length, List.rev_length in H5, H12. lia.
-    - erewrite <- ms_suffix_current_str in Habs by eauto. simpl in *.
-      subst pref1.
-      rewrite Z.eqb_neq in HendInd_neq. assert (end_ind0 <> end_ind) by lia.
-      apply (f_equal (@length Character)) in H5, H12. rewrite List.app_length, List.rev_length in H5, H12. lia.
-  Qed.
-
-
   (* If we are at the end of our input, this means that the suffix of our input is empty. *)
   Lemma end_input_next_empty:
     forall (ms: MatchState) (inp: Chars.input),

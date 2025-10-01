@@ -26,20 +26,6 @@ Section MSInput.
       MatchState.captures := MatchState.captures s |}.
 
 
-  (* Computation of the current suffix of a MatchState given a direction; this is used
-  when computing check strings. *)
-  Definition ms_suffix (ms: MatchState) (dir: Direction) :=
-    match dir with
-    | forward => List.skipn (Z.to_nat (MatchState.endIndex ms)) (MatchState.input ms)
-    | backward => List.rev (List.firstn (Z.to_nat (MatchState.endIndex ms)) (MatchState.input ms))
-    end.
-
-
-  (* Converting a MatchState to an input; used for new check strings *)
-  Definition ms_to_input (ms: MatchState) :=
-    Input (ms_suffix ms forward) (ms_suffix ms backward).
-
-
 
   (* We say that a MatchState ms matches an input Input next pref when they represent the same
      string and the same position; in other words, when rev pref ++ next = MatchState.input ms
@@ -64,36 +50,6 @@ Section MSInput.
       ms_matches_inp ms (Input next pref) -> MatchState.input ms = List.rev pref ++ next.
   Proof.
     intros ms pref next Hmatches. inversion Hmatches. symmetry. assumption.
-  Qed.
-
-  (* Linking the suffixes of corresponding MatchStates and Linden inputs. *)
-  Lemma ms_suffix_current_str: forall ms inp, ms_matches_inp ms inp -> forall dir, current_str inp dir = ms_suffix ms dir.
-  Proof.
-    intros ms inp Hmatches dir.
-    inversion Hmatches as [s end_ind cap next pref Hlpref Hcompats Heqms Heqinp].
-    destruct dir; unfold ms_suffix; simpl.
-    - rewrite Nat2Z.id in *.
-      assert (length (rev pref) = end_ind) as Hlrevpref. {
-        subst end_ind. apply rev_length.
-      }
-      pose proof firstn_app end_ind (rev pref) next as H.
-      subst end_ind.
-      replace (length pref - length (rev pref)) with 0 in H by lia. rewrite Hcompats in H.
-      change (firstn 0 next) with (@nil Parameters.Character) in H.
-      rewrite <- Hlrevpref in H at 2. rewrite firstn_all in H. rewrite app_nil_r in H.
-      rewrite <- H in Hcompats.
-      pose proof firstn_skipn (length pref) s as H2.
-      rewrite <- H2 in Hcompats at 2.
-      eapply app_inv_head. apply Hcompats.
-    - rewrite Nat2Z.id in *.
-      assert (length (rev pref) = end_ind) as Hlrevpref. {
-        subst end_ind. apply rev_length.
-      }
-      pose proof firstn_app end_ind (rev pref) next as H.
-      subst end_ind.
-      replace (length pref - length (rev pref)) with 0 in H by lia. rewrite Hcompats in H.
-      simpl in H. rewrite app_nil_r in H. rewrite <- Hlrevpref in H at 2. rewrite firstn_all in H.
-      apply (f_equal (@rev Character)) in H. rewrite rev_involutive in H. congruence.
   Qed.
 
   (* The initial input of a string is compatible with the string. *)
@@ -132,23 +88,6 @@ Section MSInput.
     - symmetry. eapply inp_compat_ms_str0.
       + apply Hcompat2.
       + apply Hmatches2.
-  Qed.
-
-  (* Two MatchStates that have the same end index and are compatible with the same
-  input string have the same suffix. *)
-  Lemma ms_same_end_same_suffix:
-    forall ms ms' inp inp' str0 dir,
-      (MatchState.endIndex ms =? MatchState.endIndex ms')%Z = true ->
-      ms_matches_inp ms inp -> ms_matches_inp ms' inp' ->
-      input_compat inp str0 -> input_compat inp' str0 ->
-      ms_suffix ms dir = ms_suffix ms' dir.
-  Proof.
-    intros ms ms' inp inp' str0 dir Hsameend Hmsinp Hms'inp' Hinpcompat Hinp'compat.
-    rewrite Z.eqb_eq in Hsameend.
-    unfold ms_suffix.
-    rewrite <- Hsameend.
-    rewrite <- inp_compat_ms_same_inp with (str0 := str0) (inp1 := inp) (inp2 := inp') (ms1 := ms) (ms2 := ms') by assumption.
-    reflexivity.
   Qed.
 
   (* The corresponding Linden inputs of two MatchStates that have the same end index
