@@ -7,15 +7,18 @@ From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics PikeVM.
 From Warblre Require Import Base RegExpRecord.
 From Linden Require Import FunctionalUtils FunctionalSemantics.
+From Linden Require Import Inst.
+From Warblre Require Import Inst.
+Require Import Coq.Strings.Ascii Coq.Strings.String.
+Open Scope string_scope.
 
 Section TreeExample.
   Context (rer: RegExpRecord).
 
 
-(* we assume the existence of three characters *)
-Parameter a : Character.type.
-Parameter b : Character.type.
-Parameter c : Character.type.
+Definition a := $ "a".
+Definition b := $ "b".
+Definition c := $ "c".
 
 Example a_char : regex := Regex.Character (CdSingle a).
 Example b_char : regex := Regex.Character (CdSingle b).
@@ -25,11 +28,13 @@ Example c_char : regex := Regex.Character (CdSingle c).
 Lemma charmatch_same:
   forall c, char_match rer c (CdSingle c) = true.
 Proof. unfold char_match, char_match'. intros. apply EqDec.reflb. Qed.
-(* we assume that these characters are distincts (b does not match c) *)
-Axiom charmatch_bc:
+(* these characters are distinct (b does not match c) *)
+Lemma charmatch_bc:
   char_match rer b (CdSingle c) = false.
-Axiom charmatch_cb:
+Proof. reflexivity. Qed.
+Lemma charmatch_cb:
   char_match rer c (CdSingle b) = false.
+Proof. reflexivity. Qed.
 
 
 
@@ -56,8 +61,8 @@ Theorem fig2_is_tree:
 Proof.
   unfold fig2_input.
   repeat (econstructor; simpl; try rewrite charmatch_same).
-  2: { rewrite charmatch_bc; auto. }
-  rewrite charmatch_bc. auto.
+  (* 2: { rewrite charmatch_bc; auto. }
+  rewrite charmatch_bc. auto. *)
 Qed.
 
 (* On page 8, right before section 3.2 *)
@@ -98,8 +103,8 @@ Theorem fig6_1_is_tree:
 Proof.
   unfold fig6_input.
   repeat (econstructor; simpl; try rewrite charmatch_same).
-  2: { rewrite charmatch_cb. auto. }
-  rewrite charmatch_bc. auto.
+  (* 2: { rewrite charmatch_cb. auto. }
+  rewrite charmatch_bc. auto. *)
 Qed.
 
 Theorem fig6_2_is_tree:
@@ -107,8 +112,8 @@ Theorem fig6_2_is_tree:
 Proof.
   unfold fig6_input.
   repeat (econstructor; simpl; try rewrite charmatch_same).
-  2: { rewrite charmatch_cb. auto. }
-  rewrite charmatch_bc. auto.
+  (* 2: { rewrite charmatch_cb. auto. }
+  rewrite charmatch_bc. auto. *)
 Qed.
 
 (* The two trees have different results *)

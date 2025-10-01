@@ -8,10 +8,12 @@ From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeSubset.
 From Linden Require Import TreeRep.
+From Linden Require Import Parameters.
 From Warblre Require Import Base RegExpRecord.
 
 
 Section PikeEquiv.
+  Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
 
 (** * Simulation Invariant  *)
