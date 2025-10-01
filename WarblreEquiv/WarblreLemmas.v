@@ -1,6 +1,6 @@
 From Warblre Require Import Match Notation Parameters RegExpRecord List Result
   Semantics Result.
-From Linden Require Import Chars MSInput CharSet.
+From Linden Require Import Chars MSInput.
 From Coq Require Import ZArith Lia List.
 Import Notation.
 Import Result.Notations.
@@ -127,29 +127,16 @@ Section WarblreLemmas.
   Lemma wordCharacters_casesenst:
     forall rer,
       RegExpRecord.ignoreCase rer = false ->
-      exists s,
-        Semantics.wordCharacters rer = Success s /\
-          CharSetExt.Equal s Characters.ascii_word_characters.
-  Proof.
-    intros rer Hcasesenst. unfold Semantics.wordCharacters.
-    unfold Coercions.Coercions.wrap_CharSet. simpl. eexists.
-    split. 1: reflexivity.
-    intro c.
-    rewrite CharSetExt.union_spec. rewrite CharSetExt.filter_spec.
-    destruct CharSetExt.contains eqn:Hascii; simpl.
-    - rewrite CharSetExt.contains_spec in Hascii. tauto.
-    - rewrite canonicalize_casesenst by assumption. rewrite Hascii.
-      assert (false = true <-> False). { split. - discriminate. - intros []. }
-      tauto.
-  Qed.
-
-  Lemma wordCharacters_casesenst_eq:
-    forall rer,
-      RegExpRecord.ignoreCase rer = false ->
       Semantics.wordCharacters rer = Success Characters.ascii_word_characters.
   Proof.
-    intros rer Hcasesenst.
-    pose proof wordCharacters_casesenst rer Hcasesenst as [s [Heqs HEqual]].
-    rewrite <- CharSetExt.canonicity in HEqual. now subst s.
+    intros rer Hcasesenst. unfold Semantics.wordCharacters.
+    unfold Coercions.Coercions.wrap_CharSet. simpl. f_equal.
+    rewrite CharSet.union_empty. 1: reflexivity.
+    intro c. rewrite CharSet.filter_spec.
+    assert (false = true <-> False). { split. - discriminate. - intros []. }
+    destruct CharSet.contains eqn:Hascii; simpl.
+    - tauto.
+    - rewrite canonicalize_casesenst by assumption. rewrite Hascii.
+      tauto.
   Qed.
 End WarblreLemmas.

@@ -288,12 +288,12 @@ Ltac leaves_equiv_t :=
   first [ reflexivity | repeat leaves_equiv_step ].
 
 Hint Rewrite
-  @CharSet.CharSetExt.exist_canonicalized_equiv
-  @CharSet.CharSetExt.exist_spec
-  @CharSet.CharSetExt.exist_false_iff
-  @CharSet.CharSetExt.contains_spec
-  @CharSet.CharSetExt.contains_false_iff
-  @CharSet.CharSetExt.range_spec
+  @CharSet.exist_canonicalized_equiv
+  @CharSet.exist_spec
+  @CharSet.exist_false_iff
+  @CharSet.contains_spec
+  @CharSet.contains_false_iff
+  @CharSet.range_spec
   EqDec.inversion_false
   EqDec.inversion_true
   Bool.andb_true_iff
@@ -304,7 +304,7 @@ Hint Rewrite
   Bool.negb_false_iff
   : charset.
 
-Hint Unfold CharSet.CharSetExt.Exists
+Hint Unfold CharSet.Exists
   : charset.
 
 Hint Extern 1 => lia : lia.

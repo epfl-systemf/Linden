@@ -1,6 +1,6 @@
 Require Import List Lia.
 Import ListNotations.
-From Linden Require Import Utils Parameters LWParameters CharSet.
+From Linden Require Import Utils Parameters LWParameters.
 Import Utils.List.
 From Warblre Require Import Base Typeclasses RegExpRecord Semantics Result Errors.
 
@@ -118,7 +118,7 @@ Section Chars.
     if dotAll then
       true
     else
-      CharSetExt.exist_canonicalized rer (CharSetExt.remove_all Characters.all Characters.line_terminators) c.
+      CharSet.exist_canonicalized rer (CharSet.remove_all Characters.all Characters.line_terminators) c.
   
   Fixpoint char_match' (ccan: Character) (cd: char_descr): bool :=
     match cd with
@@ -127,20 +127,20 @@ Section Chars.
         dot_matches (RegExpRecord.dotAll rer) ccan
     | CdAll => true
     | CdSingle c' => ccan == Character.canonicalize rer c'
-    | CdDigits => CharSetExt.exist_canonicalized rer Characters.digits ccan
-    | CdNonDigits => CharSetExt.exist_canonicalized rer (CharSetExt.remove_all Characters.all Characters.digits) ccan
-    | CdWhitespace => CharSetExt.exist_canonicalized rer (CharSet.union Characters.white_spaces Characters.line_terminators) ccan
-    | CdNonWhitespace => CharSetExt.exist_canonicalized rer (CharSetExt.remove_all Characters.all (CharSet.union Characters.white_spaces Characters.line_terminators)) ccan
-    | CdWordChar => CharSetExt.exist_canonicalized rer (wordCharacters rer) ccan
-    | CdNonWordChar => CharSetExt.exist_canonicalized rer (CharSetExt.remove_all Characters.all (wordCharacters rer)) ccan
-    | CdUnicodeProp p => CharSetExt.exist_canonicalized rer (CharSetExt.from_list (Property.code_points_for p)) ccan
-    | CdNonUnicodeProp p => CharSetExt.exist_canonicalized rer (CharSetExt.remove_all Characters.all (CharSetExt.from_list (Property.code_points_for p))) ccan
+    | CdDigits => CharSet.exist_canonicalized rer Characters.digits ccan
+    | CdNonDigits => CharSet.exist_canonicalized rer (CharSet.remove_all Characters.all Characters.digits) ccan
+    | CdWhitespace => CharSet.exist_canonicalized rer (CharSet.union Characters.white_spaces Characters.line_terminators) ccan
+    | CdNonWhitespace => CharSet.exist_canonicalized rer (CharSet.remove_all Characters.all (CharSet.union Characters.white_spaces Characters.line_terminators)) ccan
+    | CdWordChar => CharSet.exist_canonicalized rer (wordCharacters rer) ccan
+    | CdNonWordChar => CharSet.exist_canonicalized rer (CharSet.remove_all Characters.all (wordCharacters rer)) ccan
+    | CdUnicodeProp p => CharSet.exist_canonicalized rer (CharSet.from_list (Property.code_points_for p)) ccan
+    | CdNonUnicodeProp p => CharSet.exist_canonicalized rer (CharSet.remove_all Characters.all (CharSet.from_list (Property.code_points_for p))) ccan
     | CdInv cd' => negb (char_match' ccan cd')
     | CdRange l h =>
         let i := Character.numeric_value l in
         let j := Character.numeric_value h in
-        let charSet := CharSetExt.range (Character.from_numeric_value i) (Character.from_numeric_value j) in
-        CharSetExt.exist_canonicalized rer charSet ccan
+        let charSet := CharSet.range (Character.from_numeric_value i) (Character.from_numeric_value j) in
+        CharSet.exist_canonicalized rer charSet ccan
     | CdUnion cd1 cd2 => char_match' ccan cd1 || char_match' ccan cd2
     end.
 

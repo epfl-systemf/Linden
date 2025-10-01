@@ -525,7 +525,7 @@ Illustrative examples taken from https://github.com/DmitrySoshnikov/regexp-tree/
       unfold char_match; simpl; apply Bool.eq_iff_eq_true.
       rewrite !Character.numeric_pseudo_bij.
       autorewrite with charset in *; autounfold with charset.
-      setoid_rewrite CharSet.CharSetExt.range_spec.
+      setoid_rewrite CharSet.range_spec.
       setoid_rewrite EqDec.inversion_true.
       split; intros H; [ | destruct H ].
       all: destruct H as (c' & ?Hle & <-).

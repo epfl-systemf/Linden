@@ -1,6 +1,6 @@
 From Linden Require Import EquivDef RegexpTranslation Regex LWParameters
   Semantics FunctionalSemantics CharDescrCharSet Tactics
-  NumericLemmas MSInput Chars Groups EquivLemmas Utils CharSet GroupMapLemmas
+  NumericLemmas MSInput Chars Groups EquivLemmas Utils GroupMapLemmas
   LKFactorization StrictSuffix Parameters.
 From Warblre Require Import Parameters Semantics RegExpRecord Patterns
   Node Result Notation Typeclasses List Base Node Match.
@@ -240,9 +240,9 @@ Section Equiv.
     intros rer charset chr Hcasesenst.
     rewrite CharSet.exist_canonicalized_equiv. simpl.
     apply Bool.eq_true_iff_eq.
-    setoid_rewrite CharSetExt.exist_spec. split.
-    - intros [c [Hcontains Heq]]. setoid_rewrite canonicalize_casesenst in Heq. 2,3: assumption. rewrite EqDec.inversion_true in Heq. subst c. now apply CharSetExt.contains_spec.
-    - intro Hcontains. exists chr. split. 1: now apply CharSetExt.contains_spec.
+    setoid_rewrite CharSet.exist_spec. split.
+    - intros [c [Hcontains Heq]]. setoid_rewrite canonicalize_casesenst in Heq. 2,3: assumption. rewrite EqDec.inversion_true in Heq. subst c. now apply CharSet.contains_spec.
+    - intro Hcontains. exists chr. split. 1: now apply CharSet.contains_spec.
       apply EqDec.reflb.
   Qed.*)
 
@@ -269,7 +269,7 @@ Section Equiv.
       pose proof next_inbounds_nextinp ms inp dir nextend Hmsinp eq_refl Hoob as [inp' Hadv].
       destruct List.Indexing.Int.indexing as [chr|] eqn:Hgetchr; simpl; try discriminate.
       (* Some simplification *)
-      set (exist_can := CharSetExt.exist_canonicalized rer charset (Character.canonicalize rer chr)).
+      set (exist_can := CharSet.exist_canonicalized rer charset (Character.canonicalize rer chr)).
       fold (negb inv). fold (negb exist_can).
       do 2 rewrite Tactics.BooleanSimplifier.identity_if.
       (* Case analysis on whether read fails *)
@@ -329,7 +329,8 @@ Section Equiv.
     - subst esc0 lreg. pose proof equiv_cd_CharacterClassEscape rer esc cd H0 as [a [HcompileCharSet Hequivcdcs]].
       unfold Semantics.compileSubPattern, Semantics.compileToCharSet, Coercions.ClassAtom_to_range, Coercions.ClassEscape_to_ClassAtom, Coercions.CharacterClassEscape_to_ClassEscape in Hcompilesucc.
       setoid_rewrite HcompileCharSet in Hcompilesucc. simpl in Hcompilesucc.
-      injection Hcompilesucc as <-. apply charSetMatcher_equiv with (inv := false); auto. rewrite CharSetExt.union_empty. auto.
+      injection Hcompilesucc as <-. apply charSetMatcher_equiv with (inv := false); auto. rewrite CharSet.union_empty. 1: auto.
+      exact CharSet.empty_spec.
     - inversion H1; congruence.
     - inversion H; congruence.
   Qed.
@@ -914,7 +915,7 @@ Section Equiv.
           -- (* Multiline *)
              rewrite ms_matches_inp_prevchar2 with (next := next) (pref := pref) (x := x) by auto.
              simpl.
-             unfold Characters.line_terminators. setoid_rewrite CharSetExt.from_list_contains_inb.
+             unfold Characters.line_terminators. setoid_rewrite from_list_contains_inb.
              destruct List.inb.
              ++ unfold equiv_cont in Hequivcont. specialize (Hequivcont gm ms (Input next (x::pref)%list) res fuel).
                 destruct compute_tree as [treecont|]; try discriminate.
@@ -944,7 +945,7 @@ Section Equiv.
           destruct RegExpRecord.multiline; simpl.
           -- rewrite (proj2 (ms_matches_inp_currchar2 ms _ _ _ _ Hmsinp eq_refl)).
              simpl.
-             unfold Characters.line_terminators. setoid_rewrite CharSetExt.from_list_contains_inb.
+             unfold Characters.line_terminators. setoid_rewrite from_list_contains_inb.
              destruct List.inb.
              ++ unfold equiv_cont in Hequivcont. specialize (Hequivcont gm ms (Input (x::next)%list pref) res fuel).
                 destruct compute_tree as [treecont|]; try discriminate.

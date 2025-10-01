@@ -1,5 +1,5 @@
 From Warblre Require Import Parameters Typeclasses RegExpRecord Patterns Result Errors.
-From Linden Require Import Parameters Utils CharSet.
+From Linden Require Import Parameters Utils.
 From Coq Require Import List.
 Import ListNotations.
 Import Result.Notations.
@@ -57,39 +57,12 @@ Section LWParameters.
   #[export] Instance unicode_marker: UnicodePropertyMarker Property := mk_unicode_property_marker Property.
 
 
-  (** ** CharSets *)
-  #[export] Instance charsetext_classinst: CharSetExt.class := charsetext_class.
-
-  #[export,refine] Instance linden_set_class: CharSet.class :=
-    {|
-      CharSet.type := CharSetExt.type;
-      CharSet.empty := CharSetExt.empty;
-      CharSet.from_list := CharSetExt.from_list;
-      CharSet.union := CharSetExt.union;
-      CharSet.singleton := CharSetExt.singleton;
-      CharSet.size := CharSetExt.size;
-      CharSet.remove_all := CharSetExt.remove_all;
-      CharSet.is_empty := CharSetExt.is_empty;
-      CharSet.contains := CharSetExt.contains;
-      CharSet.range := CharSetExt.range;
-      CharSet.unique := @CharSetExt.unique _ _;
-      CharSet.filter := CharSetExt.filter;
-      CharSet.exist := CharSetExt.exist;
-      CharSet.exist_canonicalized := CharSetExt.exist_canonicalized;
-      CharSet.exist_canonicalized_equiv := CharSetExt.exist_canonicalized_equiv
-    |}.
-  Proof.
-    - apply CharSetExt.singleton_size.
-    - apply CharSetExt.singleton_exist.
-    - apply @CharSetExt.singleton_unique.
-  Defined.
-
   (** ** Parameters class *)
 
   #[export] Instance LWParameters: Parameters := {|
       Parameters.character_class := char;
 
-      Parameters.set_class := linden_set_class;
+      Parameters.set_class := charset_class;
       Parameters.string_class := string_String;
       Parameters.unicode_property_class := unicodeProp;
 
@@ -103,7 +76,13 @@ Section LWParameters.
   Lemma contains_all:
     forall c, CharSet.contains Characters.all c = true.
   Proof.
-    intro c. setoid_rewrite CharSetExt.contains_spec. setoid_rewrite CharSetExt.from_list_spec. apply char_all_in.
+    intro c. rewrite CharSet.contains_spec. unfold Characters.all. rewrite CharSet.from_list_spec. apply char_all_in.
+  Qed.
+
+  Lemma from_list_contains_inb: forall (c: Character) (l: list Character), CharSet.contains (CharSet.from_list l) c = List.inb c l.
+  Proof.
+    intros c l.
+    apply <- Bool.eq_iff_eq_true. rewrite List.inb_spec. apply CharSet.from_list_contains.
   Qed.
 
 End LWParameters.
