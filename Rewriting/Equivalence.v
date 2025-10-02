@@ -1082,35 +1082,9 @@ Section Congruence.
     - intros lf ABS. apply strict_suffix_remaining_length in ABS. lia.
   Qed.
 
-  (* If r1{0, Δ, p} ≅ r2{0, Δ, p} for inputs whose remaining length is at most n,
-  then for any input inp whose remaining length is at most S n, 
-  r1{0, Δ, p} ≅ r2{0, Δ, p} for inputs which are strict suffixes of inp. *)
-  (* TODO Rewrite this so that the statement becomes easier to understand?
-  Might need to factorize greedy and lazy cases below *)
-  Lemma regex_quant_free_induction:
-    forall n greedy plus r1 r2 dir,
-      (forall (inp : input) (gm : group_map),
-      remaining_length inp dir <= n ->
-      forall (delta : non_neg_integer_or_inf) (t1 t2 : tree),
-      is_tree rer [Areg (Quantified greedy 0 delta r1)] inp gm dir t1 ->
-      is_tree rer [Areg (Quantified greedy 0 delta r2)] inp gm dir t2 ->
-      tree_equiv_tr_dir inp gm dir t1 t2) ->
-      forall inp,
-        remaining_length inp dir <= S n ->
-        actions_equiv_dir_cond rer dir
-          (fun lf : input * group_map => StrictSuffix.strict_suffix (fst lf) inp dir)
-          [Areg (Quantified greedy 0 plus r1)]
-          [Areg (Quantified greedy 0 plus r2)].
-  Proof.
-    intros. unfold actions_equiv_dir_cond.
-    intros [inp' gm'] STRICT_SUFFIX t1 t2 TREE1 TREE2. simpl in *.
-    apply H with (delta := plus); auto.
-    pose proof strict_suffix_remaining_length _ _ _ STRICT_SUFFIX. lia.
-  Qed.
-
   (* Free quantifier case *)
   (* If r1 ≅ r2, then r1{0, Δ, p} ≅ r2{0, Δ, p} for all Δ and p. *)
-  (* TODO? Factorize greedy and lazy cases, and generally try to make the proof simpler *)
+  (* TODO? Try to make the proof simpler *)
   Lemma regex_equiv_quant_free:
     forall r1 r2 dir,
       tree_equiv_dir rer dir r1 r2 ->
@@ -1126,10 +1100,10 @@ Section Congruence.
     - (* At end of input *)
       intros inp gm Hend delta t1 t2 TREE1 TREE2.
       inversion TREE1; subst; inversion TREE2; subst.
-      + inversion SKIP; subst. inversion SKIP0; subst. unfold tree_equiv_tr_dir. reflexivity.
+      + (* Done *) inversion SKIP; subst. inversion SKIP0; subst. unfold tree_equiv_tr_dir. reflexivity.
       + destruct plus; discriminate.
       + destruct plus; discriminate.
-      + assert (plus = plus0). { destruct plus0; destruct plus; congruence. }
+      + (* Free *) assert (plus = plus0). { destruct plus0; destruct plus; congruence. }
         subst plus0. clear H1.
         inversion SKIP; subst inp0 gm0 dir0 tskip. inversion SKIP0; subst inp0 gm0 dir0 tskip0.
         unfold tree_equiv_tr_dir.
@@ -1150,44 +1124,36 @@ Section Congruence.
     - (* Not at the end of input *)
       intros inp gm Hremlength delta t1 t2 TREE1 TREE2.
       inversion TREE1; subst; inversion TREE2; subst.
-      + inversion SKIP; inversion SKIP0. unfold tree_equiv_tr_dir. reflexivity.
+      + (* Done *) inversion SKIP; inversion SKIP0. unfold tree_equiv_tr_dir. reflexivity.
       + destruct plus; discriminate.
       + destruct plus; discriminate.
-      + assert (plus = plus0). { destruct plus0; destruct plus; congruence. }
+      + (* Free *) assert (plus = plus0). { destruct plus0; destruct plus; congruence. }
         subst plus0. clear H1.
         inversion SKIP; subst inp0 gm0 dir0 tskip. inversion SKIP0; subst inp0 gm0 dir0 tskip0.
         unfold tree_equiv_tr_dir.
         rewrite <- DEF_GROUPS in *.
+        assert (leaves_equiv [] (tree_leaves titer (GroupMap.reset (def_groups r1) gm) inp dir)
+          (tree_leaves titer0 (GroupMap.reset (def_groups r1) gm) inp dir)). {
+          eapply actions_equiv_interm_prop with
+            (a1 := [Areg r1; Acheck inp]) (a2 := [Areg r2; Acheck inp])
+            (P := fun lf => StrictSuffix.strict_suffix (fst lf) inp dir).
+          5: apply ISTREE1. 5: apply ISTREE0.
+          -- apply app_eq_right with (a1 := [Areg r1]) (a2 := [Areg r2]) (acts := [Acheck inp]).
+             unfold actions_equiv_dir. intros. apply Hequiv; auto.
+          -- apply actions_respect_prop_add_left with (a := [Areg r1]) (b := [Acheck inp]).
+             apply check_actions_prop.
+          -- apply actions_respect_prop_add_left with (a := [Areg r2]) (b := [Acheck inp]).
+             apply check_actions_prop.
+          -- (* Apply IHn *)
+             unfold actions_equiv_dir_cond. clear TREE1 TREE2. intros [inp' gm'] STRICT_SUFFIX t1 t2 TREE1 TREE2. simpl in *.
+             apply IHn with (delta := plus); auto.
+             pose proof strict_suffix_remaining_length _ _ _ STRICT_SUFFIX. lia.
+        }
         destruct greedy; simpl.
         * (* Greedy *)
-          apply leaves_equiv_app. 2: reflexivity.
-          eapply actions_equiv_interm_prop with
-            (a1 := [Areg r1; Acheck inp]) (a2 := [Areg r2; Acheck inp])
-            (P := fun lf => StrictSuffix.strict_suffix (fst lf) inp dir).
-          5: apply ISTREE1. 5: apply ISTREE0.
-          -- apply app_eq_right with (a1 := [Areg r1]) (a2 := [Areg r2]) (acts := [Acheck inp]).
-             unfold actions_equiv_dir. intros. apply Hequiv; auto.
-          -- apply actions_respect_prop_add_left with (a := [Areg r1]) (b := [Acheck inp]).
-             apply check_actions_prop.
-          -- apply actions_respect_prop_add_left with (a := [Areg r2]) (b := [Acheck inp]).
-             apply check_actions_prop.
-          -- (* Apply IHn *)
-             eauto using regex_quant_free_induction.
+          apply leaves_equiv_app. 2: reflexivity. auto.
         * (* Lazy *)
-          apply leaves_equiv_app with (p1 := [(inp, gm)]) (p2 := [(inp, gm)]). 1: reflexivity.
-          (* Copy-pasting from greedy case... *)
-          eapply actions_equiv_interm_prop with
-            (a1 := [Areg r1; Acheck inp]) (a2 := [Areg r2; Acheck inp])
-            (P := fun lf => StrictSuffix.strict_suffix (fst lf) inp dir).
-          5: apply ISTREE1. 5: apply ISTREE0.
-          -- apply app_eq_right with (a1 := [Areg r1]) (a2 := [Areg r2]) (acts := [Acheck inp]).
-             unfold actions_equiv_dir. intros. apply Hequiv; auto.
-          -- apply actions_respect_prop_add_left with (a := [Areg r1]) (b := [Acheck inp]).
-             apply check_actions_prop.
-          -- apply actions_respect_prop_add_left with (a := [Areg r2]) (b := [Acheck inp]).
-             apply check_actions_prop.
-          -- (* Apply IHn *)
-             eauto using regex_quant_free_induction.
+          apply leaves_equiv_app with (p1 := [(inp, gm)]) (p2 := [(inp, gm)]). 1: reflexivity. auto.
   Qed.
 
   (* Quantifier case: if r1 ≅ r2, then r1{min, Δ, p} ≅ r2{min, Δ, p} for all min, Δ and p. *)
