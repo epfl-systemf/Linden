@@ -1,4 +1,4 @@
-From Linden Require Import Chars LWParameters Parameters RegexpTranslation WarblreLemmas CharSet.
+From Linden Require Import Chars LWParameters Parameters RegexpTranslation WarblreLemmas.
 From Warblre Require Import Parameters Semantics Result Patterns RegExpRecord Typeclasses.
 Import Result.Notations.
 Import Patterns.
@@ -13,17 +13,6 @@ Section CharDescrCharSet.
   Definition equiv_cd_charset (cd: char_descr) (charset: CharSet) :=
     forall c: Character, char_match rer c cd = CharSet.exist_canonicalized rer charset (Character.canonicalize rer c).
 
-  (* Lemma for character descriptor inversion *)
-  (* Should not be needed *)
-  (*Lemma equiv_cd_inv:
-    forall cd s, equiv_cd_charset cd s -> equiv_cd_charset (CdInv cd) (CharSet.remove_all Characters.all s).
-  Proof.
-    intros cd s H c. specialize (H c).
-    simpl. apply Bool.eq_true_iff_eq.
-    rewrite CharSetExt.remove_all_contains. rewrite H.
-    setoid_rewrite contains_all. simpl. reflexivity.
-  Qed.*)
-
   (* Lemma for character descriptor union *)
   Lemma equiv_cd_union:
     forall cd1 cd2 s1 s2,
@@ -31,27 +20,27 @@ Section CharDescrCharSet.
       equiv_cd_charset (CdUnion cd1 cd2) (CharSet.union s1 s2).
   Proof.
     intros cd1 cd2 s1 s2 Hequiv1 Hequiv2 c. unfold char_match.
-    simpl. rewrite CharSetExt.exist_canonicalized_equiv.
-    apply Bool.eq_iff_eq_true. rewrite CharSetExt.exist_iff.
-    setoid_rewrite CharSetExt.union_contains.
+    simpl. rewrite CharSet.exist_canonicalized_equiv.
+    apply Bool.eq_iff_eq_true. rewrite CharSet.exist_iff.
+    setoid_rewrite CharSet.union_contains.
     split.
     - intro H. apply Bool.orb_prop in H. destruct H.
       + specialize (Hequiv1 c). setoid_rewrite H in Hequiv1.
         symmetry in Hequiv1. rewrite CharSet.exist_canonicalized_equiv in Hequiv1.
-        setoid_rewrite CharSetExt.exist_iff in Hequiv1.
+        setoid_rewrite CharSet.exist_iff in Hequiv1.
         setoid_rewrite Bool.orb_true_iff. firstorder.
       + specialize (Hequiv2 c). setoid_rewrite H in Hequiv2.
         symmetry in Hequiv2. rewrite CharSet.exist_canonicalized_equiv in Hequiv2.
-        setoid_rewrite CharSetExt.exist_iff in Hequiv2.
+        setoid_rewrite CharSet.exist_iff in Hequiv2.
         setoid_rewrite Bool.orb_true_iff. firstorder.
     - setoid_rewrite Bool.orb_true_iff. intros [c0 [Hcontains Hcanonicalize]].
       destruct Hcontains as [Hcontains | Hcontains].
       + left. specialize (Hequiv1 c). setoid_rewrite Hequiv1.
-        setoid_rewrite CharSetExt.exist_canonicalized_equiv.
-        rewrite CharSetExt.exist_iff. exists c0. auto.
+        setoid_rewrite CharSet.exist_canonicalized_equiv.
+        rewrite CharSet.exist_iff. exists c0. auto.
       + right. specialize (Hequiv2 c). setoid_rewrite Hequiv2.
-        setoid_rewrite CharSetExt.exist_canonicalized_equiv.
-        rewrite CharSetExt.exist_iff. exists c0. auto.
+        setoid_rewrite CharSet.exist_canonicalized_equiv.
+        rewrite CharSet.exist_iff. exists c0. auto.
   Qed.
 
   (* Lemmas for various character descriptors *)
@@ -59,11 +48,11 @@ Section CharDescrCharSet.
     equiv_cd_charset CdEmpty CharSet.empty.
   Proof.
     intro c. unfold char_match. simpl.
-    rewrite CharSetExt.exist_canonicalized_equiv.
+    rewrite CharSet.exist_canonicalized_equiv.
     symmetry. apply Bool.not_true_is_false.
-    intro ABS. rewrite CharSetExt.exist_iff in ABS.
+    intro ABS. rewrite CharSet.exist_iff in ABS.
     destruct ABS as [c0 [ABS _]].
-    rewrite CharSetExt.empty_contains in ABS. discriminate ABS.
+    rewrite CharSet.empty_contains in ABS. discriminate ABS.
   Qed.
 
   Lemma equiv_cd_digits:
@@ -97,11 +86,7 @@ Section CharDescrCharSet.
     RegExpRecord.dotAll rer = true ->
     equiv_cd_charset CdDot Characters.all.
   Proof.
-    intros HdotAll c. unfold char_match. simpl. unfold dot_matches. rewrite HdotAll. symmetry.
-    rewrite CharSetExt.exist_canonicalized_equiv, CharSetExt.exist_iff.
-    exists c. split.
-    - apply contains_all.
-    - apply EqDec.reflb.
+    intros HdotAll c. unfold char_match. simpl. unfold dot_matches. rewrite HdotAll. reflexivity.
   Qed.
 
   Lemma equiv_cd_dot_noDotAll:
@@ -116,7 +101,7 @@ Section CharDescrCharSet.
     forall c, equiv_cd_charset (CdSingle c) (CharSet.singleton c).
   Proof.
     intros c chr. unfold char_match. simpl.
-    rewrite CharSetExt.exist_canonicalized_equiv. rewrite CharSetExt.singleton_exist.
+    rewrite CharSet.exist_canonicalized_equiv. rewrite CharSet.singleton_exist.
     destruct EqDec.eqb eqn:H.
     - rewrite EqDec.inversion_true in H. symmetry. rewrite H. apply EqDec.reflb.
     - symmetry. apply Bool.not_true_is_false. intro ABS.
@@ -124,7 +109,7 @@ Section CharDescrCharSet.
   Qed.
 
   Lemma equiv_cd_unicodeprop:
-    forall p, equiv_cd_charset (CdUnicodeProp p) (CharSetExt.from_list (Property.code_points_for p)).
+    forall p, equiv_cd_charset (CdUnicodeProp p) (CharSet.from_list (Property.code_points_for p)).
   Proof.
     intros p c. unfold char_match. simpl. reflexivity.
   Qed.
@@ -137,15 +122,11 @@ Section CharDescrCharSet.
              equiv_cd_charset cd a.
   Proof.
     intros esc cd Hequiv.
-    inversion Hequiv as [Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | p Heqesc Heqcd | p Heqesc Heqcd ]; simpl; unfold Coercions.Coercions.wrap_CharSet; eexists; split; try solve[reflexivity].
-    - apply equiv_cd_digits.
-    - unfold equiv_cd_charset. reflexivity.
-    - apply equiv_cd_whitespace.
-    - unfold equiv_cd_charset. reflexivity.
-    - apply equiv_cd_wordchar.
-    - unfold equiv_cd_charset. reflexivity.
-    - apply equiv_cd_unicodeprop.
-    - unfold equiv_cd_charset. reflexivity.
+    inversion Hequiv as [
+      Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd | Heqesc Heqcd |
+      p Heqesc Heqcd | p Heqesc Heqcd ];
+      simpl; unfold Coercions.Coercions.wrap_CharSet; eexists; split; try solve[reflexivity];
+      try solve[unfold equiv_cd_charset; reflexivity].
   Qed.
 
   (* Lemma for ControlEscapes *)
@@ -156,7 +137,9 @@ Section CharDescrCharSet.
              equiv_cd_charset cd a.
   Proof.
     intros esc cd Hequiv.
-    inversion Hequiv; simpl; unfold Coercions.Coercions.wrap_CharSet; eexists; split; try solve[reflexivity]; unfold Numeric.nat_to_nni; rewrite Character.numeric_pseudo_bij; apply equiv_cd_single.
+    inversion Hequiv; simpl; unfold Coercions.Coercions.wrap_CharSet; eexists; split;
+      try solve[reflexivity]; unfold Numeric.nat_to_nni; rewrite Character.numeric_pseudo_bij;
+      apply equiv_cd_single.
   Qed.
 
   (* Lemma for CharacterEscapes *)
@@ -166,7 +149,11 @@ Section CharDescrCharSet.
       exists a, Semantics.compileToCharSet_ClassAtom (ClassEsc (CCharacterEsc esc)) rer = Success a /\
              equiv_cd_charset cd a.
   Proof.
-    intros esc cd Hequiv. inversion Hequiv as [esc0 cd0 Hequiv' Heqesc Heqcd0 | l cd0 Hequiv' Heqesc Heqcd0 | Heqesc Heqcd | d1 d2 Heqesc Heqcd | c Heqesc Heqcd | head tail Heqesc Heqcd | hex Heqesc Heqcd | c Heqesc Heqcd].
+    intros esc cd Hequiv.
+    inversion Hequiv as [
+      esc0 cd0 Hequiv' Heqesc Heqcd0 | l cd0 Hequiv' Heqesc Heqcd0 | Heqesc Heqcd |
+      d1 d2 Heqesc Heqcd | c Heqesc Heqcd | head tail Heqesc Heqcd | hex Heqesc Heqcd |
+      c Heqesc Heqcd].
     - apply equiv_cd_ControlEscape. assumption.
     - inversion Hequiv' as [l0 i Heqi Heql0 Heqcd]. subst cd0 l0.
       simpl. rewrite <- Heqi.
@@ -252,7 +239,7 @@ Section CharDescrCharSet.
       simpl.
       destruct IH as [C [HeqC IH]]. rewrite HeqC. simpl.
       unfold Semantics.characterRange. setoid_rewrite CharSet.singleton_size. simpl.
-      do 2 rewrite CharSetExt.singleton_unique. simpl.
+      do 2 rewrite CharSet.singleton_unique. simpl.
       pose proof Hl_le_h as Hl_le_h'. rewrite <- PeanoNat.Nat.leb_le in Hl_le_h'. rewrite Hl_le_h'. simpl.
       unfold Coercions.Coercions.wrap_CharSet. eexists. split.
       + reflexivity.

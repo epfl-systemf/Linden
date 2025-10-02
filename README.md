@@ -27,7 +27,7 @@ This includes:
 2. Pin the version of Warblre:
 
    ```
-   opam pin add warblre https://github.com/epfl-systemf/Warblre.git#a99859f920edf0ff425a29be37042106712d8825
+   opam pin add warblre https://github.com/epfl-systemf/Warblre.git#a1ffc3f2e47d942ad9e1194dfb71f0783ead6d8a
    ```
 
 3. Build all proofs with `dune build`.

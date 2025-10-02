@@ -7,6 +7,7 @@ From Warblre Require Import Base RegExpRecord.
 From Linden Require Import StrictSuffix.
 From Linden Require Import FunctionalSemantics.
 From Linden Require Import ComputeIsTree.
+From Linden Require Import Parameters.
 
 
 (* An alternate definition of the semantics, using a boolean to know if one can exit a loop *)
@@ -24,6 +25,7 @@ Inductive LoopBool : Type :=
 
 
 Section BooleanSemantics.
+  Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
 
   (** * Boolean Semantics  *)

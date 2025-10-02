@@ -7,10 +7,12 @@ From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics NFA.
 From Linden Require Import BooleanSemantics PikeSubset.
 From Linden Require Import PikeVM Correctness.
+From Linden Require Import Parameters.
 From Warblre Require Import Base RegExpRecord.
 From Linden Require Import FunctionalUtils FunctionalSemantics.
 
 Section FunctionalPikeVM.
+  Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
 (** * Functional Definition  *)
 
@@ -145,44 +147,61 @@ Lemma unroll_loop:
       pike_vm_loop code (pike_vm_func_step code (PVS inp active best blocked seen)) fuel.
 Proof. auto. Qed.
 
+End FunctionalPikeVM.
+
+
+From Linden Require Import Inst.
+From Warblre Require Import Inst.
+Require Import Coq.Strings.Ascii Coq.Strings.String.
+Open Scope string_scope.
 
 (* Nullable Quantifier Example *)
 (* Matching ((a|epsilon)(epsilon|b))* on string "ab" matches "ab", a specificity of Javascript semantics *)
+Section Example.
+  Context (rer: RegExpRecord).
 
-(* we assume the existence of two characters *)
-Parameter a : Character.type.
-Parameter b : Character.type.
+  Definition a : Character.type := $ "a".
+  Definition b : Character.type := $ "b".
 
-Example a_char : regex := Regex.Character (CdSingle a).
-Example b_char : regex := Regex.Character (CdSingle b).
-Lemma charmatch_same:
-  forall c, char_match rer c (CdSingle c) = true.
-Proof. unfold char_match, char_match'. intros. apply EqDec.reflb. Qed.
-(* we assume that these characters cannot match, regardless of the flags *)
-Axiom charmatch_ab:
-  char_match rer a (CdSingle b) = false.
-Axiom charmatch_ba:
-  char_match rer b (CdSingle a) = false.
+  Example a_char : regex := Regex.Character (CdSingle a).
+  Example b_char : regex := Regex.Character (CdSingle b).
+  Lemma charmatch_same:
+    forall c, char_match rer c (CdSingle c) = true.
+  Proof. unfold char_match, char_match'. intros. apply EqDec.reflb. Qed.
+
+  (* These characters cannot match, regardless of the flags *)
+  Lemma charmatch_ab:
+    char_match rer a (CdSingle b) = false.
+  Proof.
+    unfold char_match. simpl. unfold NaiveEngineParameters.Character.canonicalize, a, b. simpl.
+    destruct RegExpRecord.ignoreCase; reflexivity.
+  Qed.
+  Lemma charmatch_ba:
+    char_match rer b (CdSingle a) = false.
+  Proof.
+    unfold char_match. simpl. unfold NaiveEngineParameters.Character.canonicalize, a, b. simpl.
+    destruct RegExpRecord.ignoreCase; reflexivity.
+  Qed.
 
 
 
-Example nq_regex: regex :=
-  greedy_star(Sequence
-                (Disjunction(a_char)(Epsilon))
-                (Disjunction(Epsilon)(b_char))).
+  Example nq_regex: regex :=
+    greedy_star(Sequence
+                  (Disjunction(a_char)(Epsilon))
+                  (Disjunction(Epsilon)(b_char))).
 
-Example nq_bytecode := [Fork 1 10; BeginLoop; ResetRegs []; Fork 4 6; Consume (CdSingle a); Jmp 6; Fork 7 8; Jmp 9; Consume (CdSingle b); EndLoop 0; Accept].
+  Example nq_bytecode := [Fork 1 10; BeginLoop; ResetRegs []; Fork 4 6; Consume (CdSingle a); Jmp 6; Fork 7 8; Jmp 9; Consume (CdSingle b); EndLoop 0; Accept].
 
-Lemma compile_nq: compilation nq_regex = nq_bytecode.
-Proof. auto. Qed.
+  Lemma compile_nq: compilation nq_regex = nq_bytecode.
+  Proof. auto. Qed.
 
-Example nq_inp: input := Input [a;b] [].
+  Example nq_inp: input := Input [a;b] [].
 
-Lemma fuel_nq: bytecode_fuel nq_bytecode nq_inp = 192.
-Proof. auto. Qed.
+  Lemma fuel_nq: bytecode_fuel nq_bytecode nq_inp = 192.
+  Proof. auto. Qed.
 
-Lemma init_nq: pike_vm_initial_state nq_inp = PVS nq_inp [(0,GroupMap.empty,CanExit)] None [] initial_seenpcs.
-Proof. auto. Qed.
+  Lemma init_nq: pike_vm_initial_state nq_inp = PVS nq_inp [(0,GroupMap.empty,CanExit)] None [] initial_seenpcs.
+  Proof. auto. Qed.
 
 
 Ltac simpl_step:=
@@ -205,7 +224,7 @@ Ltac one_step:= rewrite unroll_loop; simpl pike_vm_func_step; repeat simpl_step.
   
 
 Lemma nullable_quant:
-  pike_vm_match nq_regex nq_inp = Finished (Some (Input [] [b;a], GroupMap.empty)).
+  pike_vm_match rer nq_regex nq_inp = Finished (Some (Input [] [b;a], GroupMap.empty)).
 Proof. 
   unfold pike_vm_match, getres. rewrite compile_nq. rewrite fuel_nq. rewrite init_nq.
   do 37 one_step. 
@@ -260,10 +279,10 @@ Lemma paper_init: pike_vm_initial_state paper_input = PVS paper_input [(0,GroupM
 Proof. auto. Qed.
 
 Lemma paper_pikevm_exec:
-  pike_vm_match paper_regex paper_input = Finished (Some (Input [] [b;a], final_gm)).
+  pike_vm_match rer paper_regex paper_input = Finished (Some (Input [] [b;a], final_gm)).
 Proof. 
   unfold pike_vm_match, getres, final_gm. rewrite compile_paper. rewrite paper_fuel. rewrite paper_init.
   do 24 one_step. auto.
 Qed.
 
-End FunctionalPikeVM.
+End Example.

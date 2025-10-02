@@ -8,6 +8,7 @@ From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM PikeSubset.
 From Linden Require Import PikeTree PikeVM.
 From Linden Require Import Correctness PikeEquiv.
+From Linden Require Import Parameters.
 From Warblre Require Import Base RegExpRecord.
 
 (* We prove that there is a natural measure that strictly decreases at each step. *)
@@ -15,6 +16,7 @@ From Warblre Require Import Base RegExpRecord.
 (* This upper bound can be expressed in terms of the size of the regex and the size of the input string. *)
 
 Section Complexity.
+Context {params: LindenParameters}.
 Context (rer: RegExpRecord).
 
 (** * Free slots  *)

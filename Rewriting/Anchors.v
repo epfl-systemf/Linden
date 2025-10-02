@@ -11,6 +11,12 @@ Section Anchors.
         In c Character.ascii_word_characters ->
         In (Character.canonicalize rer c) Character.ascii_word_characters).
 
+  Notation ascii_word_inall :=
+    (forall c, In c Character.ascii_word_characters -> In c Character.all).
+
+  Notation canonicalize_nonall_stable :=
+    (forall c, In (Character.canonicalize rer c) Character.all <-> In c Character.all).
+
   Notation line_terminators_canon :=
     (forall c,
         In c Character.line_terminators <->
@@ -75,42 +81,50 @@ Section Anchors.
 
   (* FIXME move closer to definition *)
   Lemma wordCharacters_spec c:
-    CharSet.CharSetExt.In c (wordCharacters rer) <->
-      CharSet.CharSetExt.In c Characters.ascii_word_characters \/
-        CharSet.CharSetExt.In (Character.canonicalize rer c) Characters.ascii_word_characters.
+    CharSet.In c (wordCharacters rer) <->
+      CharSet.In c Characters.ascii_word_characters \/
+        (CharSet.In c Characters.all /\ CharSet.In (Character.canonicalize rer c) Characters.ascii_word_characters).
   Proof.
     unfold wordCharacters, Semantics.Semantics.wordCharacters,
       Coercions.wrap_CharSet; simpl.
-    rewrite !CharSet.CharSetExt.union_spec.
-    rewrite !CharSet.CharSetExt.filter_spec.
+    rewrite !CharSet.union_spec.
+    rewrite !CharSet.filter_spec.
     rewrite !Bool.andb_true_iff, !Bool.negb_true_iff.
-    rewrite !CharSet.CharSetExt.contains_spec.
-    rewrite !CharSet.CharSetExt.contains_false_iff.
-    setoid_rewrite CharSet.CharSetExt.from_list_spec.
-    pose proof char_all_in c.
+    rewrite !CharSet.contains_spec.
+    rewrite !CharSet.contains_false_iff.
+    setoid_rewrite CharSet.from_list_spec.
     assert (In c Character.ascii_word_characters \/ ~  In c Character.ascii_word_characters)
-      by (rewrite <- !CharSet.CharSetExt.from_list_contains;
-          destruct CharSet.CharSetExt.contains; eauto).
+      by (rewrite <- !CharSet.from_list_contains;
+          destruct CharSet.contains; eauto).
     intuition.
   Qed.
 
-  Lemma wordCharacters_canonical t (Hac: ascii_word_canon):
-    CharSet.CharSetExt.contains (wordCharacters rer) t =
-      CharSet.CharSetExt.exist_canonicalized rer (wordCharacters rer) (Character.canonicalize rer t).
+  Lemma wordCharacters_canonical t (Hac: ascii_word_canon) (Haa: ascii_word_inall) (Hcan_nonall_st: canonicalize_nonall_stable):
+    CharSet.contains (wordCharacters rer) t =
+      CharSet.exist_canonicalized rer (wordCharacters rer) (Character.canonicalize rer t).
   Proof.
     apply Bool.eq_true_iff_eq.
-    rewrite CharSet.CharSetExt.exist_canonicalized_equiv, CharSet.CharSetExt.exist_iff.
-    setoid_rewrite CharSet.CharSetExt.contains_spec.
+    rewrite CharSet.exist_canonicalized_equiv, CharSet.exist_iff.
+    setoid_rewrite CharSet.contains_spec.
     setoid_rewrite EqDec.inversion_true.
     setoid_rewrite wordCharacters_spec.
-    setoid_rewrite CharSet.CharSetExt.from_list_spec.
-    split; [ | intros (c & HIn & <-) ];
-      intuition eauto.
+    setoid_rewrite CharSet.from_list_spec.
+    split; [ | intros (c & HIn & Hsamecan) ].
+    - intuition eauto.
+    - assert (In t Character.all \/ ~ In t Character.all)
+        by (rewrite <- !CharSet.from_list_contains;
+            destruct CharSet.contains; eauto).
+      destruct H.
+      + rewrite <- Hsamecan. intuition eauto.
+      + assert (In c Character.all). { destruct HIn. - auto. - tauto. }
+        pose proof Hcan_nonall_st c as Hcan_nonall_st_c.
+        pose proof Hcan_nonall_st t as Hcan_nonall_st_t.
+        rewrite <- Hsamecan in Hcan_nonall_st_t. tauto.
   Qed.
 
-  Lemma char_match_word_char c (Ha: ascii_word_canon):
+  Lemma char_match_word_char c (Ha: ascii_word_canon) (Haa: ascii_word_inall) (Hcan_nonall_st: canonicalize_nonall_stable):
     char_match rer c CdWordChar =
-      CharSet.CharSetExt.contains (wordCharacters rer) c.
+      CharSet.contains (wordCharacters rer) c.
   Proof.
     unfold char_match; simpl.
     symmetry; eauto using wordCharacters_canonical.
@@ -120,6 +134,8 @@ Section Anchors.
 
   Theorem desugar_anchor_correct (a: anchor):
     ascii_word_canon ->
+    ascii_word_inall ->
+    canonicalize_nonall_stable ->
     line_terminators_canon ->
     Anchor a ≅[rer] desugar_anchor a.
   Proof.
@@ -128,11 +144,11 @@ Section Anchors.
     all: reflexivity.
   Qed.
 
-  Corollary desugar_anchor_correct_noi (a: anchor):
+  Corollary desugar_anchor_correct_noi (a: anchor) (Haa: ascii_word_inall):
     rer.(RegExpRecord.ignoreCase) = false ->
     Anchor a ≅[rer] desugar_anchor a.
   Proof.
     intros Hic; apply desugar_anchor_correct.
-    all: intros c; rewrite canonicalize_casesenst; intuition.
+    all: intros c; try rewrite canonicalize_casesenst; intuition.
   Qed.
 End Anchors.

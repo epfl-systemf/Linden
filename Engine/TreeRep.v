@@ -5,10 +5,12 @@ From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeSubset.
+From Linden Require Import Parameters.
 From Warblre Require Import Base RegExpRecord.
 
 
 Section TreeRep.
+  Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
 (** * Tree Rep Predicate  *)
 (* A predicate showing that a tree is represented at a given point in the code *)
