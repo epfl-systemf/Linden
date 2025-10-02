@@ -172,10 +172,16 @@ Section Example.
   (* These characters cannot match, regardless of the flags *)
   Lemma charmatch_ab:
     char_match rer a (CdSingle b) = false.
-  Proof. reflexivity. Qed.
+  Proof.
+    unfold char_match. simpl. unfold NaiveEngineParameters.Character.canonicalize, a, b. simpl.
+    destruct RegExpRecord.ignoreCase; reflexivity.
+  Qed.
   Lemma charmatch_ba:
     char_match rer b (CdSingle a) = false.
-  Proof. reflexivity. Qed.
+  Proof.
+    unfold char_match. simpl. unfold NaiveEngineParameters.Character.canonicalize, a, b. simpl.
+    destruct RegExpRecord.ignoreCase; reflexivity.
+  Qed.
 
 
 
@@ -255,12 +261,12 @@ Proof.
   repeat (econstructor; simpl; try rewrite charmatch_same).
   unfold greedy_star. replace +∞ with (NoI.N 1 + +∞)%NoI by auto.
   econstructor; simpl; eauto.
-  2: { repeat (constructor; simpl). (*rewrite charmatch_ab. auto.*) }
+  2: { repeat (constructor; simpl). rewrite charmatch_ab. auto. }
   repeat (econstructor; simpl; try rewrite charmatch_same); simpl.
   unfold greedy_star. replace +∞ with (NoI.N 1 + +∞)%NoI by auto.
   repeat (econstructor; simpl; auto).
-  (* { rewrite charmatch_ba. auto. }
-  rewrite charmatch_same. auto. *)
+  { rewrite charmatch_ba. auto. }
+  rewrite charmatch_same. auto.
 Qed.
 
 Example final_gm : GroupMap.t :=
@@ -276,7 +282,7 @@ Lemma paper_pikevm_exec:
   pike_vm_match rer paper_regex paper_input = Finished (Some (Input [] [b;a], final_gm)).
 Proof. 
   unfold pike_vm_match, getres, final_gm. rewrite compile_paper. rewrite paper_fuel. rewrite paper_init.
-  do 24 one_step. (*auto.*)
+  do 24 one_step. auto.
 Qed.
 
 End Example.

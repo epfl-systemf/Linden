@@ -31,10 +31,17 @@ Proof. unfold char_match, char_match'. intros. apply EqDec.reflb. Qed.
 (* these characters are distinct (b does not match c) *)
 Lemma charmatch_bc:
   char_match rer b (CdSingle c) = false.
-Proof. reflexivity. Qed.
+Proof.
+  unfold char_match. simpl. unfold NaiveEngineParameters.Character.canonicalize, b, c. simpl.
+  destruct RegExpRecord.ignoreCase; reflexivity.
+Qed.
+
 Lemma charmatch_cb:
   char_match rer c (CdSingle b) = false.
-Proof. reflexivity. Qed.
+Proof.
+  unfold char_match. simpl. unfold NaiveEngineParameters.Character.canonicalize, b, c. simpl.
+  destruct RegExpRecord.ignoreCase; reflexivity.
+Qed.
 
 
 
@@ -61,8 +68,8 @@ Theorem fig2_is_tree:
 Proof.
   unfold fig2_input.
   repeat (econstructor; simpl; try rewrite charmatch_same).
-  (* 2: { rewrite charmatch_bc; auto. }
-  rewrite charmatch_bc. auto. *)
+  2: { rewrite charmatch_bc; auto. }
+  rewrite charmatch_bc. auto.
 Qed.
 
 (* On page 8, right before section 3.2 *)
@@ -103,8 +110,8 @@ Theorem fig6_1_is_tree:
 Proof.
   unfold fig6_input.
   repeat (econstructor; simpl; try rewrite charmatch_same).
-  (* 2: { rewrite charmatch_cb. auto. }
-  rewrite charmatch_bc. auto. *)
+  2: { rewrite charmatch_cb. auto. }
+  rewrite charmatch_bc. auto.
 Qed.
 
 Theorem fig6_2_is_tree:
@@ -112,8 +119,8 @@ Theorem fig6_2_is_tree:
 Proof.
   unfold fig6_input.
   repeat (econstructor; simpl; try rewrite charmatch_same).
-  (* 2: { rewrite charmatch_cb. auto. }
-  rewrite charmatch_bc. auto. *)
+  2: { rewrite charmatch_cb. auto. }
+  rewrite charmatch_bc. auto.
 Qed.
 
 (* The two trees have different results *)

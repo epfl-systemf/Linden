@@ -8,7 +8,7 @@ Lemma canonicalize_casesenst: forall rer chr, RegExpRecord.ignoreCase rer = fals
 Proof.
   intros rer chr Hcasesenst.
   unfold Character.canonicalize, character_class, Parameters.character_class, parameters, NaiveEngineParameters.Character.canonicalize.
-  reflexivity.
+  rewrite Hcasesenst. reflexivity.
 Qed.
 
 Instance naive_params: LindenParameters := make
