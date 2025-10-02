@@ -15,6 +15,7 @@ From Warblre Require Import Base RegExpRecord.
 Section PikeEquiv.
   Context {params: LindenParameters}.
   Context {TS: TSeen params}.
+  Context {VMS: VMSeen}.
   Context (rer: RegExpRecord).
 
 (** * Simulation Invariant  *)
