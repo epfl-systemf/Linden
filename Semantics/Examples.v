@@ -12,9 +12,15 @@ From Warblre Require Import Inst.
 Require Import Coq.Strings.Ascii Coq.Strings.String.
 Open Scope string_scope.
 
-Section TreeExample.
-  Context (rer: RegExpRecord).
 
+(* Defining an example rer to execute our regexes with *)
+Search (regex -> non_neg_integer).
+
+(* setting flags to false *)
+Definition rer_of (r:regex) : RegExpRecord :=
+  RegExpRecord.make false false false tt (max_group r).
+
+Section TreeExample.
 
 Definition a := $ "a".
 Definition b := $ "b".
@@ -23,26 +29,6 @@ Definition c := $ "c".
 Example a_char : regex := Regex.Character (CdSingle a).
 Example b_char : regex := Regex.Character (CdSingle b).
 Example c_char : regex := Regex.Character (CdSingle c).
-
-
-Lemma charmatch_same:
-  forall c, char_match rer c (CdSingle c) = true.
-Proof. unfold char_match, char_match'. intros. apply EqDec.reflb. Qed.
-(* these characters are distinct (b does not match c) *)
-Lemma charmatch_bc:
-  char_match rer b (CdSingle c) = false.
-Proof.
-  unfold char_match. simpl. unfold NaiveEngineParameters.Character.canonicalize, b, c. simpl.
-  destruct RegExpRecord.ignoreCase; reflexivity.
-Qed.
-
-Lemma charmatch_cb:
-  char_match rer c (CdSingle b) = false.
-Proof.
-  unfold char_match. simpl. unfold NaiveEngineParameters.Character.canonicalize, b, c. simpl.
-  destruct RegExpRecord.ignoreCase; reflexivity.
-Qed.
-
 
 
 (** * Figure 2 of the paper  *)
@@ -64,12 +50,9 @@ Example fig2_tree: tree :=
        (Read a (Read b Mismatch))).
 
 Theorem fig2_is_tree:
-  is_tree rer [Areg fig2_regex] fig2_input GroupMap.empty forward fig2_tree.
+  is_tree (rer_of fig2_regex) [Areg fig2_regex] fig2_input GroupMap.empty forward fig2_tree.
 Proof.
-  unfold fig2_input.
-  repeat (econstructor; simpl; try rewrite charmatch_same).
-  2: { rewrite charmatch_bc; auto. }
-  rewrite charmatch_bc. auto.
+  apply compute_tr_eq_is_tree. reflexivity.
 Qed.
 
 (* On page 8, right before section 3.2 *)
@@ -106,21 +89,15 @@ Example fig6_2_tree: tree :=
     (Choice (Read a (Read b Match)) (Read a (Read b Mismatch))).
 
 Theorem fig6_1_is_tree:
-  is_tree rer [Areg fig6_1_regex] fig6_input GroupMap.empty forward fig6_1_tree.
+  is_tree (rer_of fig6_1_regex) [Areg fig6_1_regex] fig6_input GroupMap.empty forward fig6_1_tree.
 Proof.
-  unfold fig6_input.
-  repeat (econstructor; simpl; try rewrite charmatch_same).
-  2: { rewrite charmatch_cb. auto. }
-  rewrite charmatch_bc. auto.
+  apply compute_tr_eq_is_tree. reflexivity.
 Qed.
 
 Theorem fig6_2_is_tree:
-  is_tree rer [Areg fig6_2_regex] fig6_input GroupMap.empty forward fig6_2_tree.
+  is_tree (rer_of fig6_2_regex) [Areg fig6_2_regex] fig6_input GroupMap.empty forward fig6_2_tree.
 Proof.
-  unfold fig6_input.
-  repeat (econstructor; simpl; try rewrite charmatch_same).
-  2: { rewrite charmatch_cb. auto. }
-  rewrite charmatch_bc. auto.
+  apply compute_tr_eq_is_tree. reflexivity.
 Qed.
 
 (* The two trees have different results *)

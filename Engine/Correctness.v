@@ -37,6 +37,7 @@ Qed.
 
 Section Correctness.
   Context {params: LindenParameters}.
+  Context {VMS: VMSeen}.
   Context (rer: RegExpRecord).
 
 Definition trc_pike_tree := @trc pike_tree_state pike_tree_step.

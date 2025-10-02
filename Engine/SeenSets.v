@@ -28,7 +28,7 @@ Class TSeen (params:LindenParameters) :=
 
 (* one instanciation using lists, but you could use anything else *)
 #[refine]
-Instance TS (params:LindenParameters) : TSeen params :=
+Instance TSlist (params:LindenParameters) : TSeen params :=
   { seentrees := list tree;
     
     initial_seentrees := [];
@@ -65,13 +65,13 @@ Class VMSeen :=
 
 (* one instantiation using lists, but you could use anything else *)
 Definition lblbool_eq_dec : forall (l1 l2 : (label*LoopBool)), { l1 = l2 } + { l1 <> l2 }.
-Proof. repeat decide equality. Qed.
+Proof. repeat decide equality. Defined.
   
 Definition lblbool_eqb l1 l2 : bool :=
   match lblbool_eq_dec l1 l2 with | left _ => true | _ => false end.
   
 #[refine]
-  Instance VMS : VMSeen :=
+  Instance VMSlist : VMSeen :=
   { seenpcs := list (label * LoopBool);
 
     initial_seenpcs := [];
