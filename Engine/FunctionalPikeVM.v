@@ -6,7 +6,7 @@ Import ListNotations.
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics NFA.
 From Linden Require Import BooleanSemantics PikeSubset.
-From Linden Require Import PikeVM Correctness.
+From Linden Require Import PikeVM Correctness SeenSets.
 From Linden Require Import Parameters.
 From Warblre Require Import Base RegExpRecord.
 From Linden Require Import FunctionalUtils FunctionalSemantics.
@@ -206,10 +206,10 @@ Section Example.
 
 Ltac simpl_step:=
    match goal with
-   | [ |- context[VMS.lblbool_eqb ?l1 ?l2] ] => unfold VMS.lblbool_eqb
-   | [ |- context[VMS.lblbool_eq_dec ?l1 ?l2] ] => 
+   | [ |- context[lblbool_eqb ?l1 ?l2] ] => unfold lblbool_eqb
+   | [ |- context[lblbool_eq_dec ?l1 ?l2] ] => 
        let H := fresh "H" in
-       destruct (VMS.lblbool_eq_dec l1 l2) as [H|H];
+       destruct (lblbool_eq_dec l1 l2) as [H|H];
        auto; try inversion H
    | [ |- context[orb false ?b] ] => simpl orb
    | [ |- context[orb ?b false] ] => simpl orb
