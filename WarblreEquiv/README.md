@@ -30,7 +30,6 @@ The development is organized as follows:
 
 - CharDescrCharSet.v: equivalence between character descriptors and CharSets
 - LWParameters.v: we instantiate the Warblre typeclasses (https://github.com/epfl-systemf/Warblre/blob/main/mechanization/spec/Parameters.v ) to be able to use the character axiomatization of Linden in Warblre.
-- GroupMapLemmas.v: lemmas about group maps TODO: move closer to definition?
 - ListLemmas.v, WarblreLemmas.v: lemmas used in proofs
 - LKFactorization.v: factorization of lookaround cases of regexp compilation in Warblre
 - MSInput.v: linking Warblre MatchStates and Linden inputs
