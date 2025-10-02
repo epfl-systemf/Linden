@@ -77,6 +77,9 @@ Section Tree.
     - apply Character.eq_dec.
     - apply string_eq_dec.
   Qed.
+
+  Definition tree_eqb (t1 t2:tree) : bool :=
+  match tree_eq_dec t1 t2 with | left _ => true | _ => false end.
   
   (** ** Maximum group ID of a tree *)
   (* Maximum group ID of a list of group IDs *)

@@ -16,57 +16,57 @@ From Linden Require Import PikeSubset.
 From Linden Require Import Parameters.
 From Warblre Require Import Base.
 
-(** * Seen Sets  *)
+(** * Seen Sets of Trees  *)
+(* The PikeTree algorithm needs to maintain a set of seen trees *)
+(* Our definitions are parameterized by an inmplementation of such sets. *)
+
 (* what we need from these sets is just these few definitions and properties *)
-(*Module Type TSeen.
-  Parameter seentrees: Type.
-  Parameter initial_seentrees: seentrees.
-  Parameter add_seentrees: seentrees -> tree -> seentrees.
-  Parameter inseen : seentrees -> tree -> bool.
-  
-  Axiom in_add:
-    forall seen t1 t2,
-      inseen (add_seentrees seen t2) t1 = true <->
-        t1 = t2 \/ inseen seen t1 = true.
-  
-  Axiom initial_nothing:
-    forall t, inseen initial_seentrees t = false.
-End TSeen.*)
+Class TSeen (params:LindenParameters) :=
+  make {
+      seentrees: Type;
+      initial_seentrees: seentrees;
+      add_seentrees: seentrees -> tree -> seentrees;
+      inseen : seentrees -> tree -> bool;
+      (* Axiomatization of the seen set *)
+      in_add: forall seen t1 t2,
+        inseen (add_seentrees seen t2) t1 = true <->
+          t1 = t2 \/ inseen seen t1 = true;
+      initial_nothing: forall t,
+        inseen initial_seentrees t = false;
+    }.
+
+(* one instanciation using lists, but you could use anything else *)
+  #[refine]
+Instance TS (params:LindenParameters) : TSeen params :=
+  { seentrees := list tree;
+    
+    initial_seentrees := [];
+    
+    add_seentrees (s:list tree) (t:tree) := t::s;
+    
+    inseen (s:list tree) (t:tree) :=
+      List.existsb (fun x => tree_eqb x t) s;
+  }.
+(* in_add *)
+- intros seen t1 t2. simpl. unfold tree_eqb. destruct (tree_eq_dec t2 t1) as [H1|H2];
+    subst; split; intros; auto.
+  destruct H as [Heq|Hin]; auto.
+(* initial_nothing *)
+- auto.
+Defined.
+
 
 Section PikeTree.
   Context {params: LindenParameters}.
-(* one instanciation using lists, but you could use anything else *)
-(* Module TS <: TSeen. *)
-  Definition seentrees: Type := list tree.
-  Definition initial_seentrees : seentrees := [].
-  Definition add_seentrees (s:seentrees) (t:tree) := t::s.
-  Definition tree_eqb (t1 t2:tree) : bool :=
-    match tree_eq_dec t1 t2 with | left _ => true | _ => false end.
-  Definition inseen (s:seentrees) (t:tree) : bool :=
-    List.existsb (fun x => tree_eqb x t) s.
-
-  Theorem in_add:
-    forall seen t1 t2,
-      inseen (add_seentrees seen t2) t1 = true <->
-        t1 = t2 \/ inseen seen t1 = true.
-  Proof.
-    intros seen t1 t2. simpl. unfold tree_eqb. destruct (tree_eq_dec t2 t1) as [H1|H2];
-      subst; split; intros; auto.
-    destruct H as [Heq|Hin]; auto.
-  Qed.
-
-  Theorem initial_nothing:
-    forall t, inseen initial_seentrees t = false.
-  Proof. auto. Qed.
-(* End TS. *)
+  Context {TS: TSeen params}.
 
 
-(* Definition seentrees := TS.seentrees.
-Definition initial_seentrees := TS.initial_seentrees.
-Definition add_seentrees := TS.add_seentrees.
-Definition inseen := TS.inseen. 
-Definition in_add := TS.in_add.
-Definition initial_nothing := TS.initial_nothing. *)
+  (* Definition seentrees := TS.seentrees. *)
+  (* Definition initial_seentrees := TS.initial_seentrees. *)
+  (* Definition add_seentrees := TS.add_seentrees. *)
+  (* Definition inseen := TS.inseen.  *)
+  (* Definition in_add := TS.in_add. *)
+  (* Definition initial_nothing := TS.initial_nothing. *)
   Global Opaque seentrees initial_seentrees add_seentrees inseen in_add initial_nothing.
 
 (** * Pike Tree - tree steps  *)
