@@ -639,16 +639,28 @@ Section Congruence.
 
   (** * Observational Consequence on Backtracking Results  *)
 
+  Lemma observe_equivalence_gen:
+    forall r1 r2 dir,
+      r1 ≅[rer][dir] r2 ->
+      forall inp gm t1 t2,
+        is_tree rer [Areg r1] inp gm dir t1 ->
+        is_tree rer [Areg r2] inp gm dir t2 ->
+        tree_res t1 gm inp dir = tree_res t2 gm inp dir.
+  Proof.
+    intros r1 r2 dir EQUIV inp gm t1 t2 TREE1 TREE2.
+    unfold tree_equiv_dir, actions_equiv_dir in EQUIV. apply proj2 in EQUIV.
+    specialize (EQUIV inp gm t1 t2 TREE1 TREE2).
+    unfold tree_equiv_tr_dir in EQUIV.
+    apply equiv_head in EQUIV. do 2 rewrite first_tree_leaf. auto.
+  Qed.
+
   Theorem observe_equivalence:
     forall r1 r2
       (EQUIV: r1 ≅[rer][forward] r2),
       observ_equiv rer r1 r2.
   Proof.
     intros r1 r2 EQUIV inp t1 t2 TREE1 TREE2.
-    unfold tree_equiv_dir in EQUIV. destruct EQUIV as [_ EQUIV].
-    specialize (EQUIV _ _ _ _ TREE1 TREE2).
-    unfold first_leaf. rewrite first_tree_leaf. rewrite first_tree_leaf.
-    apply equiv_head. auto.
+    unfold first_leaf. eauto using observe_equivalence_gen.
   Qed.
 
 
@@ -1289,198 +1301,52 @@ Section Congruence.
   Qed.
 
 
-  (* Lemma for lookaheads *)
-  Lemma regex_equiv_ctx_lookahead:
-    forall r1 r2,
-      r1 ≅[rer][forward] r2 ->
-      forall dir,
-        (Lookaround LookAhead r1) ≅[rer][dir] (Lookaround LookAhead r2).
+  (* Lemmas for lookarounds *)
+  Lemma equiv_lk_result_same:
+    forall lk r1 r2,
+      r1 ≅[rer][lk_dir lk] r2 ->
+      forall inp gm treelk1 treelk2,
+        is_tree rer [Areg r1] inp gm (lk_dir lk) treelk1 ->
+        is_tree rer [Areg r2] inp gm (lk_dir lk) treelk2 ->
+        lk_result lk treelk1 gm inp = lk_result lk treelk2 gm inp.
   Proof.
-    intros r1 r2 EQUIV dir. unfold tree_equiv_dir in *.
-    destruct EQUIV as [DEF_GROUPS EQUIV]. split; auto.
-    intros inp gm t1 t2 TREE1 TREE2.
-    inversion TREE1; subst; inversion TREE2; subst.
-    - (* Both lookaheads succeed *)
-      specialize (EQUIV _ _ _ _ TREELK TREELK0) as EQUIV_LK.
-      unfold lk_result in RES_LK, RES_LK0. simpl in *.
-      unfold tree_equiv_tr_dir in *. simpl.
-      rewrite first_tree_leaf in RES_LK, RES_LK0.
-      inversion EQUIV_LK; subst; auto.
-      + reflexivity.
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + rewrite <- H1 in RES_LK. rewrite <- H2 in RES_LK0. simpl in *.
-        injection RES_LK as ->. injection RES_LK0 as <-. inversion TREECONT; subst. inversion TREECONT0; subst.
-        simpl. reflexivity.
-    - (* Impossible case *)
-      exfalso.
-      unfold lk_result in *. simpl in *.
-      destruct (tree_res treelk gm inp forward) as [[inp1 res1]|] eqn:RES1; inversion RES_LK; subst.
-      destruct (tree_res treelk0 gm inp forward) as [[inp2 res2]|] eqn:RES2; inversion FAIL_LK; subst.
-      clear RES_LK FAIL_LK. rewrite first_tree_leaf in RES1, RES2.
-      specialize (EQUIV _ _ _ _ TREELK TREELK0). unfold tree_equiv_tr_dir in EQUIV.
-      inversion EQUIV; subst; auto.
-      + rewrite <- H1 in RES1. inversion RES1.
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + rewrite <- H2 in RES2. inversion RES2.
-    - (* Impossible case *)
-      exfalso.
-      unfold lk_result in *. simpl in *.
-      destruct (tree_res treelk gm inp forward) as [[inp1 res1]|] eqn:RES1; inversion FAIL_LK; subst.
-      destruct (tree_res treelk0 gm inp forward) as [[inp2 res2]|] eqn:RES2; inversion RES_LK; subst.
-      clear RES_LK FAIL_LK. rewrite first_tree_leaf in RES1, RES2.
-      specialize (EQUIV _ _ _ _ TREELK TREELK0). unfold tree_equiv_tr_dir in EQUIV.
-      inversion EQUIV; subst; auto.
-      + rewrite <- H2 in RES2. inversion RES2.
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + rewrite <- H1 in RES1. inversion RES1.
-    - (* Both lookaheads fail *)
-      unfold tree_equiv_tr_dir. simpl. reflexivity.
+    intros lk r1 r2 EQUIV inp gm treelk1 treelk2 TREE1 TREE2.
+    unfold lk_result.
+    rewrite observe_equivalence_gen with (r1 := r1) (r2 := r2) (t2 := treelk2) by auto. reflexivity.
   Qed.
 
-  (* Lemma for lookbehinds *)
-  Lemma regex_equiv_ctx_lookbehind:
-    forall r1 r2,
-      r1 ≅[rer][backward] r2 ->
-      forall dir,
-        (Lookaround LookBehind r1) ≅[rer][dir] (Lookaround LookBehind r2).
-  Proof. (* Almost exactly the same proof as above; LATER factorize? *)
-    intros r1 r2 EQUIV dir. unfold tree_equiv_dir in *.
-    destruct EQUIV as [DEF_GROUPS EQUIV]. split; auto.
-    intros inp gm t1 t2 TREE1 TREE2.
-    inversion TREE1; subst; inversion TREE2; subst.
-    - (* Both lookaheads succeed *)
-      specialize (EQUIV _ _ _ _ TREELK TREELK0) as EQUIV_LK.
-      unfold lk_result in RES_LK, RES_LK0. simpl in *.
-      unfold tree_equiv_tr_dir in *. simpl.
-      rewrite first_tree_leaf in RES_LK, RES_LK0.
-      inversion EQUIV_LK; subst; auto.
-      + reflexivity.
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + rewrite <- H1 in RES_LK. rewrite <- H2 in RES_LK0. simpl in *.
-        injection RES_LK as ->. injection RES_LK0 as <-. inversion TREECONT; subst. inversion TREECONT0; subst.
-        simpl. reflexivity.
-    - (* Impossible case *)
-      exfalso.
-      unfold lk_result in *. simpl in *.
-      destruct (tree_res treelk gm inp backward) as [[inp1 res1]|] eqn:RES1; inversion RES_LK; subst.
-      destruct (tree_res treelk0 gm inp backward) as [[inp2 res2]|] eqn:RES2; inversion FAIL_LK; subst.
-      clear RES_LK FAIL_LK. rewrite first_tree_leaf in RES1, RES2.
-      specialize (EQUIV _ _ _ _ TREELK TREELK0). unfold tree_equiv_tr_dir in EQUIV.
-      inversion EQUIV; subst; auto.
-      + rewrite <- H1 in RES1. inversion RES1.
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + rewrite <- H2 in RES2. inversion RES2.
-    - (* Impossible case *)
-      exfalso.
-      unfold lk_result in *. simpl in *.
-      destruct (tree_res treelk gm inp backward) as [[inp1 res1]|] eqn:RES1; inversion FAIL_LK; subst.
-      destruct (tree_res treelk0 gm inp backward) as [[inp2 res2]|] eqn:RES2; inversion RES_LK; subst.
-      clear RES_LK FAIL_LK. rewrite first_tree_leaf in RES1, RES2.
-      specialize (EQUIV _ _ _ _ TREELK TREELK0). unfold tree_equiv_tr_dir in EQUIV.
-      inversion EQUIV; subst; auto.
-      + rewrite <- H2 in RES2. inversion RES2.
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + rewrite <- H1 in RES1. inversion RES1.
-    - (* Both lookaheads fail *)
-      unfold tree_equiv_tr_dir. simpl. reflexivity.
-  Qed.
-
-  (* Lemma for negative lookaheads *)
-  Lemma regex_equiv_ctx_neglookahead:
-    forall r1 r2,
-      r1 ≅[rer][forward] r2 ->
-      forall dir,
-        (Lookaround NegLookAhead r1) ≅[rer][dir] (Lookaround NegLookAhead r2).
+  Lemma tree_leaves_lk:
+    forall lk tlk t1 gm inp dir,
+      tree_leaves (LK lk tlk t1) gm inp dir =
+        match lk_result lk tlk gm inp with
+        | Some gm_res => tree_leaves t1 gm_res inp dir
+        | None => [] (* should not happen *)
+        end.
   Proof.
-    intros r1 r2 EQUIV dir. unfold tree_equiv_dir in *.
-    destruct EQUIV as [DEF_GROUPS EQUIV]. split; auto.
-    intros inp gm t1 t2 TREE1 TREE2.
-    inversion TREE1; subst; inversion TREE2; subst.
-    - (* Both lookaheads succeed *)
-      unfold tree_equiv_tr_dir. simpl.
-      specialize (EQUIV _ _ _ _ TREELK TREELK0). unfold tree_equiv_tr_dir in EQUIV.
-      inversion EQUIV; subst; auto.
-      + inversion TREECONT; subst. inversion TREECONT0; subst. reflexivity.
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + reflexivity.
-    - (* Impossible case *)
-      exfalso.
-      unfold lk_result in *. simpl in *.
-      destruct (tree_res treelk gm inp forward) as [[inp1 res1]|] eqn:RES1; inversion RES_LK; subst.
-      destruct (tree_res treelk0 gmlk inp forward) as [[inp2 res2]|] eqn:RES2; inversion FAIL_LK; subst.
-      clear RES_LK FAIL_LK. rewrite first_tree_leaf in RES1, RES2.
-      specialize (EQUIV _ _ _ _ TREELK TREELK0). unfold tree_equiv_tr_dir in EQUIV.
-      inversion EQUIV; subst; auto.
-      + rewrite <- H2 in RES2. inversion RES2.
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + rewrite <- H1 in RES1. inversion RES1.
-    - (* Impossible case *)
-      exfalso.
-      unfold lk_result in *. simpl in *.
-      destruct (tree_res treelk gm inp forward) as [[inp1 res1]|] eqn:RES1; inversion FAIL_LK; subst.
-      destruct (tree_res treelk0 gm inp forward) as [[inp2 res2]|] eqn:RES2; inversion RES_LK; subst.
-      clear RES_LK FAIL_LK. rewrite first_tree_leaf in RES1, RES2.
-      specialize (EQUIV _ _ _ _ TREELK TREELK0). unfold tree_equiv_tr_dir in EQUIV.
-      inversion EQUIV; subst; auto.
-      + rewrite <- H1 in RES1. inversion RES1.
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + rewrite <- H2 in RES2. inversion RES2.
-    - (* Both lookaheads fail *)
-      unfold tree_equiv_tr_dir. simpl. reflexivity.
+    intros. unfold lk_result. simpl.
+    rewrite first_tree_leaf.
+    destruct positivity; destruct tree_leaves as [ | [inp' gm']]; simpl; auto.
   Qed.
 
-  (* Lemma for negative lookbehinds *)
-  Lemma regex_equiv_ctx_neglookbehind:
-    forall r1 r2,
-      r1 ≅[rer][backward] r2 ->
+  Lemma regex_equiv_ctx_lookaround:
+    forall r1 r2 lk,
+      r1 ≅[rer][lk_dir lk] r2 ->
       forall dir,
-        (Lookaround NegLookBehind r1) ≅[rer][dir] (Lookaround NegLookBehind r2).
-  Proof. (* Almost exactly the same proof as above *)
-    intros r1 r2 EQUIV dir. unfold tree_equiv_dir in *.
+        (Lookaround lk r1) ≅[rer][dir] (Lookaround lk r2).
+  Proof.
+    intros r1 r2 lk EQUIV dir. unfold tree_equiv_dir in *.
     destruct EQUIV as [DEF_GROUPS EQUIV]. split; auto.
     intros inp gm t1 t2 TREE1 TREE2.
     inversion TREE1; subst; inversion TREE2; subst.
     - (* Both lookaheads succeed *)
-      unfold tree_equiv_tr_dir. simpl.
-      specialize (EQUIV _ _ _ _ TREELK TREELK0). unfold tree_equiv_tr_dir in EQUIV.
-      inversion EQUIV; subst; auto.
-      + inversion TREECONT; subst. inversion TREECONT0; subst. reflexivity.
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + reflexivity.
+      pose proof equiv_lk_result_same lk r1 r2 (conj DEF_GROUPS EQUIV) _ _ _ _ TREELK TREELK0 as RES_LK_EQ.
+      unfold tree_equiv_tr_dir. do 2 rewrite tree_leaves_lk.
+      rewrite <- RES_LK_EQ. rewrite RES_LK.
+      inversion TREECONT; subst. inversion TREECONT0; subst. reflexivity.
     - (* Impossible case *)
-      exfalso.
-      unfold lk_result in *. simpl in *.
-      destruct (tree_res treelk gm inp backward) as [[inp1 res1]|] eqn:RES1; inversion RES_LK; subst.
-      destruct (tree_res treelk0 gmlk inp backward) as [[inp2 res2]|] eqn:RES2; inversion FAIL_LK; subst.
-      clear RES_LK FAIL_LK. rewrite first_tree_leaf in RES1, RES2.
-      specialize (EQUIV _ _ _ _ TREELK TREELK0). unfold tree_equiv_tr_dir in EQUIV.
-      inversion EQUIV; subst; auto.
-      + rewrite <- H2 in RES2. inversion RES2.
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + rewrite <- H1 in RES1. inversion RES1.
+      exfalso. pose proof equiv_lk_result_same lk r1 r2 (conj DEF_GROUPS EQUIV) _ _ _ _ TREELK TREELK0. congruence.
     - (* Impossible case *)
-      exfalso.
-      unfold lk_result in *. simpl in *.
-      destruct (tree_res treelk gm inp backward) as [[inp1 res1]|] eqn:RES1; inversion FAIL_LK; subst.
-      destruct (tree_res treelk0 gm inp backward) as [[inp2 res2]|] eqn:RES2; inversion RES_LK; subst.
-      clear RES_LK FAIL_LK. rewrite first_tree_leaf in RES1, RES2.
-      specialize (EQUIV _ _ _ _ TREELK TREELK0). unfold tree_equiv_tr_dir in EQUIV.
-      inversion EQUIV; subst; auto.
-      + rewrite <- H1 in RES1. inversion RES1.
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + unfold is_seen in SEEN. rewrite existsb_exists in SEEN. destruct SEEN as [x [[] _]].
-      + rewrite <- H2 in RES2. inversion RES2.
+      exfalso. pose proof equiv_lk_result_same lk r1 r2 (conj DEF_GROUPS EQUIV) _ _ _ _ TREELK TREELK0. congruence.
     - (* Both lookaheads fail *)
       unfold tree_equiv_tr_dir. simpl. reflexivity.
   Qed.
@@ -1586,17 +1452,17 @@ Section Congruence.
       intro dir. simpl.
       apply regex_equiv_ctx_samedir with (ctx := CQuantified _ _ _ CHole); auto.
     - unfold tree_equiv in *. destruct lk.
-      + simpl. apply regex_equiv_ctx_lookahead.
+      + simpl. apply regex_equiv_ctx_lookaround.
         apply ctx_dir_lookahead_fwd_inv in Hctxforward. destruct Hctxforward.
         * auto.
         * apply regex_equiv_ctx_samedir; auto.
-      + simpl. apply regex_equiv_ctx_lookbehind.
+      + simpl. apply regex_equiv_ctx_lookaround.
         apply ctx_dir_lookbehind_fwd_inv in Hctxforward. auto.
-      + simpl. apply regex_equiv_ctx_neglookahead.
+      + simpl. apply regex_equiv_ctx_lookaround.
         apply ctx_dir_neglookahead_fwd_inv in Hctxforward. destruct Hctxforward.
         * auto.
         * apply regex_equiv_ctx_samedir; auto.
-      + simpl. apply regex_equiv_ctx_neglookbehind.
+      + simpl. apply regex_equiv_ctx_lookaround.
         apply ctx_dir_neglookbehind_fwd_inv in Hctxforward. auto.
     - specialize (IHctx Hctxforward).
       intro dir. simpl.
@@ -1630,15 +1496,15 @@ Section Congruence.
       intro dir. simpl.
       apply regex_equiv_ctx_samedir with (ctx := CQuantified _ _ _ CHole); auto.
     - unfold tree_equiv in *. destruct lk; try discriminate.
-      + simpl. apply regex_equiv_ctx_lookahead.
+      + simpl. apply regex_equiv_ctx_lookaround.
         apply ctx_dir_lookahead_bwd_inv in Hctxbackward. auto.
-      + simpl. apply regex_equiv_ctx_lookbehind.
+      + simpl. apply regex_equiv_ctx_lookaround.
         apply ctx_dir_lookbehind_bwd_inv in Hctxbackward. destruct Hctxbackward.
         * auto.
         * apply regex_equiv_ctx_samedir; auto.
-      + simpl. apply regex_equiv_ctx_neglookahead.
+      + simpl. apply regex_equiv_ctx_lookaround.
         apply ctx_dir_neglookahead_bwd_inv in Hctxbackward. auto.
-      + simpl. apply regex_equiv_ctx_neglookbehind.
+      + simpl. apply regex_equiv_ctx_lookaround.
         apply ctx_dir_neglookbehind_bwd_inv in Hctxbackward. destruct Hctxbackward.
         * auto.
         * apply regex_equiv_ctx_samedir; auto.
