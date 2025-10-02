@@ -62,13 +62,8 @@ Fixpoint pike_vm_loop (c:code) (pvs:pike_vm_state) (fuel:nat) : pike_vm_state :=
   end.
 
 (* an upper bound for the fuel necessary to compute a result *)
-(* For each position in the input (there are (S length (next_str input)) such positions),
-   in the worst-case the algorithm explores each (label,bool) configuration.
-   Each of these explorations may generate up to two children.
-   So we might need as many steps as 4 times the length of the bytecode (2 * 2 boolean values).
-   You need one extra step per input position for pvs_nextchar. *)
 Definition bytecode_fuel (c:code) (inp:input) : nat :=
-  4 * (2 + (length (next_str inp))) * (1 + (length c)).
+  (4 * length c) + 1 + (length (next_str inp) * (1 + 4 * length c)). 
 
 Inductive matchres : Type :=
 | OutOfFuel
