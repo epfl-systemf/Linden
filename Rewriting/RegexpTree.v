@@ -160,9 +160,9 @@ Section RegexpTree.
 
     Context (c0 c1 c2: Parameters.Character).
 
-    Hypothesis H01: Character.canonicalize rer c1 <> Character.canonicalize rer c0.
-    Hypothesis H12: Character.canonicalize rer c0 <> Character.canonicalize rer c2.
-    Hypothesis H02: Character.canonicalize rer c1 <> Character.canonicalize rer c2.
+    Hypothesis H01: Character.canonicalize rer c0 <> Character.canonicalize rer c1.
+    Hypothesis H02: Character.canonicalize rer c0 <> Character.canonicalize rer c2.
+    Hypothesis H12: Character.canonicalize rer c1 <> Character.canonicalize rer c2.
 
     Lemma atmost_bounded_nequiv: (* r{0,m}r{n} ≅ r{n,n+m} *)
       exists m n r,
@@ -438,65 +438,26 @@ Section RegexpTree.
       (Sequence (Quantified true 0 m r) (Quantified true 0 n r))
         ≅[rer] Quantified true 0 (m + n)%NoI r.
     Proof.
-      destruct m as [m|]; destruct n as [n|]; intros NO_GROUPS [].
-      (* For each of the subsections, we prove the forward then the backward direction *)
+      intros NO_GROUPS dir. split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
+      intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
+      destruct m as [m|]; destruct n as [n|]; destruct dir;
+        simpl in CONT; revert i gm tr1 tr2 CONT; simpl.
 
       (* m and n are finite *)
-      {
-        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
-        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
-        simpl in CONT. revert i gm tr1 tr2 CONT.
-        apply atmost_atmost_equiv_actions_mnat.
-      }
-      {
-        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
-        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
-        simpl in CONT. revert i gm tr1 tr2 CONT.
-        simpl. rewrite PeanoNat.Nat.add_comm.
-        apply atmost_atmost_equiv_actions_mnat.
-      }
+      - apply atmost_atmost_equiv_actions_mnat.
+      - rewrite PeanoNat.Nat.add_comm. apply atmost_atmost_equiv_actions_mnat.
 
       (* m is finite, n is infinite *)
-      {
-        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
-        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
-        simpl in CONT. revert i gm tr1 tr2 CONT.
-        simpl. apply atmost_atmost_equiv_actions_mnat.
-      }
-      {
-        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
-        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
-        simpl in CONT. revert i gm tr1 tr2 CONT.
-        simpl. apply atmost_atmost_equiv_actions_minf.
-      }
+      - apply atmost_atmost_equiv_actions_mnat.
+      - apply atmost_atmost_equiv_actions_minf.
 
       (* m is infinite, n is finite *)
-      {
-        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
-        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
-        simpl in CONT. revert i gm tr1 tr2 CONT.
-        simpl. apply atmost_atmost_equiv_actions_minf.
-      }
-      {
-        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
-        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
-        simpl in CONT. revert i gm tr1 tr2 CONT.
-        simpl. apply atmost_atmost_equiv_actions_mnat.
-      }
+      - apply atmost_atmost_equiv_actions_minf.
+      - apply atmost_atmost_equiv_actions_mnat.
 
       (* Both m and n are infinite *)
-      {
-        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
-        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
-        simpl in CONT. revert i gm tr1 tr2 CONT.
-        simpl. apply atmost_atmost_equiv_actions_minf.
-      }
-      {
-        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
-        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
-        simpl in CONT. revert i gm tr1 tr2 CONT.
-        simpl. apply atmost_atmost_equiv_actions_minf.
-      }
+      - apply atmost_atmost_equiv_actions_minf.
+      - apply atmost_atmost_equiv_actions_minf.
     Qed.
 
     (*
