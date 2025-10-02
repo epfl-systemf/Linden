@@ -37,6 +37,14 @@ Section Chars.
         match dir with forward => next | backward => pref end
     end.
 
+  (* Remaining length of an input given a direction *)
+  Definition remaining_length (inp: input) (dir: Direction): nat :=
+    let '(Input next pref) := inp in
+    match dir with
+    | forward => length next
+    | backward => length pref
+    end.
+
   Definition input_str (i: input): string :=
     match i with
     | Input next pref => List.rev pref ++ next

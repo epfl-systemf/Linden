@@ -641,7 +641,7 @@ Section Congruence.
 
   Theorem observe_equivalence:
     forall r1 r2
-      (EQUIV: tree_equiv_dir rer forward r1 r2),
+      (EQUIV: r1 ≅[rer][forward] r2),
       observ_equiv rer r1 r2.
   Proof.
     intros r1 r2 EQUIV inp t1 t2 TREE1 TREE2.
@@ -993,15 +993,6 @@ Section Congruence.
     - inversion TREECONT; subst. simpl. constructor; auto.
     - constructor.
   Qed.
-
-  (* Remaining length of an input given a direction *)
-  (* TODO Can probably be moved somewhere else *)
-  Definition remaining_length (inp: input) (dir: Direction): nat :=
-    let '(Input next pref) := inp in
-    match dir with
-    | forward => length next
-    | backward => length pref
-    end.
 
 
   (** *** The quantifier lemmas *)
