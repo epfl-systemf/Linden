@@ -206,10 +206,10 @@ Section Example.
 
 Ltac simpl_step:=
    match goal with
-   | [ |- context[VMS.lblbool_eqb ?l1 ?l2] ] => unfold VMS.lblbool_eqb
-   | [ |- context[VMS.lblbool_eq_dec ?l1 ?l2] ] => 
+   | [ |- context[lblbool_eqb ?l1 ?l2] ] => unfold lblbool_eqb
+   | [ |- context[lblbool_eq_dec ?l1 ?l2] ] => 
        let H := fresh "H" in
-       destruct (VMS.lblbool_eq_dec l1 l2) as [H|H];
+       destruct (lblbool_eq_dec l1 l2) as [H|H];
        auto; try inversion H
    | [ |- context[orb false ?b] ] => simpl orb
    | [ |- context[orb ?b false] ] => simpl orb

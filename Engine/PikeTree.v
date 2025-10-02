@@ -36,7 +36,7 @@ Class TSeen (params:LindenParameters) :=
     }.
 
 (* one instanciation using lists, but you could use anything else *)
-  #[refine]
+#[refine]
 Instance TS (params:LindenParameters) : TSeen params :=
   { seentrees := list tree;
     

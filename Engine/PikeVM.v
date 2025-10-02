@@ -14,67 +14,52 @@ From Warblre Require Import Base RegExpRecord.
 
 (** * Sets of seen pcs *)
 
-Module Type VMSeen.
-  (* remembering pairs of (pc, loopbool) that has been handled at the current input *)
-  Parameter seenpcs: Type.
-  Parameter initial_seenpcs: seenpcs.
-  Parameter add_seenpcs: seenpcs -> label -> LoopBool -> seenpcs.
-  Parameter inseenpc : seenpcs -> label -> LoopBool -> bool.
-
-  Axiom inpc_add:
-    forall seen pc1 b1 pc2 b2,
-      inseenpc (add_seenpcs seen pc2 b2) pc1 b1 = true <->
-        ((pc1,b1) = (pc2,b2)) \/ inseenpc seen pc1 b1 = true.
-  
-  Axiom initial_nothing_pc:
-    forall pc b, inseenpc initial_seenpcs pc b = false.
-
-End VMSeen.
+Class VMSeen :=
+  make {
+      seenpcs: Type;
+      initial_seenpcs: seenpcs;
+      add_seenpcs: seenpcs -> label -> LoopBool -> seenpcs;
+      inseenpc : seenpcs -> label -> LoopBool -> bool;
+      (* Axiomatization of the seen set *)
+      inpc_add: forall seen pc1 b1 pc2 b2,
+        inseenpc (add_seenpcs seen pc2 b2) pc1 b1 = true <->
+          ((pc1,b1) = (pc2,b2)) \/ inseenpc seen pc1 b1 = true;
+      initial_nothing_pc: forall pc b,
+        inseenpc initial_seenpcs pc b = false;
+    }.
 
 (* one instantiation using lists, but you could use anything else *)
-Module VMS <: VMSeen.
-  Definition seenpcs: Type := list (label * LoopBool).
-  Definition initial_seenpcs : seenpcs := [].
-  Definition add_seenpcs (s:seenpcs) (l:label) (b:LoopBool) := (l,b)::s.
-
-  Definition lblbool_eq_dec : forall (l1 l2 : (label*LoopBool)), { l1 = l2 } + { l1 <> l2 }.
-  Proof. repeat decide equality. Qed.
+Definition lblbool_eq_dec : forall (l1 l2 : (label*LoopBool)), { l1 = l2 } + { l1 <> l2 }.
+Proof. repeat decide equality. Qed.
   
-  Definition lblbool_eqb l1 l2 : bool :=
-    match lblbool_eq_dec l1 l2 with | left _ => true | _ => false end.
-  Definition inseenpc (s:seenpcs) (l:label) (b:LoopBool) : bool :=
-    List.existsb (fun x => lblbool_eqb x (l,b)) s.
+Definition lblbool_eqb l1 l2 : bool :=
+  match lblbool_eq_dec l1 l2 with | left _ => true | _ => false end.
+  
+#[refine]
+  Instance VMS : VMSeen :=
+  { seenpcs := list (label * LoopBool);
 
-  Theorem inpc_add:
-    forall seen pc1 b1 pc2 b2,
-      inseenpc (add_seenpcs seen pc2 b2) pc1 b1 = true <->
-        ((pc1,b1) = (pc2,b2)) \/ inseenpc seen pc1 b1 = true.
-  Proof.
-    intros seen pc1 b1 pc2 b2. simpl. unfold lblbool_eqb. destruct (lblbool_eq_dec (pc2,b2) (pc1,b1)) as [H1|H2];
+    initial_seenpcs := [];
+
+    add_seenpcs (s:list(label*LoopBool)) (l:label) (b:LoopBool) := (l,b)::s;
+
+    inseenpc (s:list(label*LoopBool)) (l:label) (b:LoopBool) :=
+      List.existsb (fun x => lblbool_eqb x (l,b)) s;
+  }.
+(* inpc_add *)
+- intros seen pc1 b1 pc2 b2. simpl. unfold lblbool_eqb.
+  destruct (lblbool_eq_dec (pc2,b2) (pc1,b1)) as [H1|H2];
       subst; split; intros; auto.
-    destruct H as [Heq|Hin]; auto.
-  Qed.
-
-  Theorem initial_nothing_pc:
-    forall pc b, inseenpc initial_seenpcs pc b = false.
-  Proof. auto. Qed.
-
-End VMS.
+  destruct H as [Heq|Hin]; auto.
+(* initial_nothing_pc *)
+- auto.
+Defined.
 
 
 Section PikeVM.
   Context {params: LindenParameters}.
+  Context {VMS: VMSeen}.
   Context (rer: RegExpRecord).
-
-(** * Seen set instantiation  *)
-Definition seenpcs := VMS.seenpcs.
-Definition initial_seenpcs := VMS.initial_seenpcs.
-Definition add_seenpcs := VMS.add_seenpcs.
-Definition inseenpc := VMS.inseenpc. 
-Definition inpc_add := VMS.inpc_add.
-Definition initial_nothing_pc := VMS.initial_nothing_pc.
-(* Global Opaque seenpcs initial_seenpcs add_seenpcs inseenpc inpc_add initial_nothing_pc. *)
-
   
 (** * PikeVM threads  *)
 
