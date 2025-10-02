@@ -9,51 +9,8 @@ Import ListNotations.
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics NFA.
 From Linden Require Import BooleanSemantics PikeSubset.
-From Linden Require Import Parameters.
+From Linden Require Import Parameters SeenSets.
 From Warblre Require Import Base RegExpRecord.
-
-(** * Sets of seen pcs *)
-
-Class VMSeen :=
-  make {
-      seenpcs: Type;
-      initial_seenpcs: seenpcs;
-      add_seenpcs: seenpcs -> label -> LoopBool -> seenpcs;
-      inseenpc : seenpcs -> label -> LoopBool -> bool;
-      (* Axiomatization of the seen set *)
-      inpc_add: forall seen pc1 b1 pc2 b2,
-        inseenpc (add_seenpcs seen pc2 b2) pc1 b1 = true <->
-          ((pc1,b1) = (pc2,b2)) \/ inseenpc seen pc1 b1 = true;
-      initial_nothing_pc: forall pc b,
-        inseenpc initial_seenpcs pc b = false;
-    }.
-
-(* one instantiation using lists, but you could use anything else *)
-Definition lblbool_eq_dec : forall (l1 l2 : (label*LoopBool)), { l1 = l2 } + { l1 <> l2 }.
-Proof. repeat decide equality. Qed.
-  
-Definition lblbool_eqb l1 l2 : bool :=
-  match lblbool_eq_dec l1 l2 with | left _ => true | _ => false end.
-  
-#[refine]
-  Instance VMS : VMSeen :=
-  { seenpcs := list (label * LoopBool);
-
-    initial_seenpcs := [];
-
-    add_seenpcs (s:list(label*LoopBool)) (l:label) (b:LoopBool) := (l,b)::s;
-
-    inseenpc (s:list(label*LoopBool)) (l:label) (b:LoopBool) :=
-      List.existsb (fun x => lblbool_eqb x (l,b)) s;
-  }.
-(* inpc_add *)
-- intros seen pc1 b1 pc2 b2. simpl. unfold lblbool_eqb.
-  destruct (lblbool_eq_dec (pc2,b2) (pc1,b1)) as [H1|H2];
-      subst; split; intros; auto.
-  destruct H as [Heq|Hin]; auto.
-(* initial_nothing_pc *)
-- auto.
-Defined.
 
 
 Section PikeVM.

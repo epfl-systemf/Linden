@@ -7,7 +7,7 @@ From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeSubset.
-From Linden Require Import TreeRep.
+From Linden Require Import TreeRep SeenSets.
 From Linden Require Import Parameters.
 From Warblre Require Import Base RegExpRecord.
 
@@ -636,8 +636,7 @@ Proof.
   eapply tt_same_interm in TT1; eauto. simpl in TT1. auto.
 Qed.
 
-(** * Seen Lemmas *)
-
+(** * Seen Inclusion Lemmas *)
 
 Lemma initial_inclusion:
   forall c inp current currentpc,

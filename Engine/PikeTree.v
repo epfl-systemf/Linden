@@ -12,49 +12,9 @@ Import ListNotations.
 Require Import Lia.
 
 From Linden Require Import Regex Chars Groups Tree.
-From Linden Require Import PikeSubset.
+From Linden Require Import PikeSubset SeenSets.
 From Linden Require Import Parameters.
 From Warblre Require Import Base.
-
-(** * Seen Sets of Trees  *)
-(* The PikeTree algorithm needs to maintain a set of seen trees *)
-(* Our definitions are parameterized by an inmplementation of such sets. *)
-
-(* what we need from these sets is just these few definitions and properties *)
-Class TSeen (params:LindenParameters) :=
-  make {
-      seentrees: Type;
-      initial_seentrees: seentrees;
-      add_seentrees: seentrees -> tree -> seentrees;
-      inseen : seentrees -> tree -> bool;
-      (* Axiomatization of the seen set *)
-      in_add: forall seen t1 t2,
-        inseen (add_seentrees seen t2) t1 = true <->
-          t1 = t2 \/ inseen seen t1 = true;
-      initial_nothing: forall t,
-        inseen initial_seentrees t = false;
-    }.
-
-(* one instanciation using lists, but you could use anything else *)
-#[refine]
-Instance TS (params:LindenParameters) : TSeen params :=
-  { seentrees := list tree;
-    
-    initial_seentrees := [];
-    
-    add_seentrees (s:list tree) (t:tree) := t::s;
-    
-    inseen (s:list tree) (t:tree) :=
-      List.existsb (fun x => tree_eqb x t) s;
-  }.
-(* in_add *)
-- intros seen t1 t2. simpl. unfold tree_eqb. destruct (tree_eq_dec t2 t1) as [H1|H2];
-    subst; split; intros; auto.
-  destruct H as [Heq|Hin]; auto.
-(* initial_nothing *)
-- auto.
-Defined.
-
 
 Section PikeTree.
   Context {params: LindenParameters}.
