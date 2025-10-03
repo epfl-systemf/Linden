@@ -9,9 +9,6 @@ Section ForcedQuant.
   Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
 
-  (* TODO: I'm not sure this is how we should proceed. *)
-  (* Or if this is, we are lacking better lemmas to relate actions_equiv_dir to tree_equiv *)
-
   Theorem forced_actions:
     forall r n dir,
       actions_equiv_dir rer dir [Areg (Quantified true n (NoI.N 0) r)] [Areg (Quantified false n (NoI.N 0) r)].

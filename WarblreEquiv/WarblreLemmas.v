@@ -97,23 +97,3 @@ Proof.
   intros x l idxs lupd i Hupdsucc Hin default.
   apply (proj2 (batch_update_spec x l idxs lupd i Hupdsucc default)). auto.
 Qed.
-
-
-(* Generalization of Warblre.props.StrictlyNullable.capture_reset_preserve_validity to arbitrary parenthesis indexes and counts.
-   Any successful capture reset preserves validity of MatchStates.*)
-Lemma capture_reset_preserve_validity `{specParameters: Parameters}:
-  forall parenIndex parenCount (rer:RegExpRecord)
-    (x:MatchState) (VALID: Valid (MatchState.input x) rer x)
-    (xupd: list (option CaptureRange))
-    (UPD: @List.Update.Nat.Batch.update _ Errors.MatchError Errors.match_assertion_error None (MatchState.captures x) (List.Range.Nat.Bounds.range (parenIndex + 1 - 1) (parenIndex + parenCount + 1 - 1)) = Success xupd),
-    Valid (MatchState.input x) rer (match_state (MatchState.input x) (MatchState.endIndex x) xupd).
-Proof.
-  intros r ctx rer x VALID xupd UPD.
-  apply change_captures with (cap:=MatchState.captures x).
-    - apply List.Update.Nat.Batch.success_length in UPD. rewrite <- UPD.
-      destruct VALID as [_ [_ [LENGTH _]]]. auto.
-    - destruct VALID as [_ [_ [_ FORALL]]].
-      eapply List.Update.Nat.Batch.prop_preservation; eauto.
-      apply Match.CaptureRange.vCrUndefined.
-    - destruct x. now simpl in *.
-Qed.

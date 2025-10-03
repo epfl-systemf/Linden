@@ -16,8 +16,6 @@ Section EquivLemmas.
   Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
 
-  (** * Moved from LWEquivTreeLemmas.v; TODO reorganize *)
-
 
   (* Lemma to determine the list of defined groups of a Linden regex. *)
   Lemma equiv_def_groups:
@@ -96,6 +94,8 @@ Section EquivLemmas.
     exact (equiv_def_groups _ _ _ _ _ nil Hequiv Hnum_groups).
   Qed.
 
+
+  (** * Lemmas about character matching *)
 
   (* Lemma linking the character matching conditions of Linden and Warblre. *)
   Lemma char_match_warblre:
@@ -357,7 +357,6 @@ Section EquivLemmas.
     intros ms inp Hend Hmatches.
     inversion Hmatches as [s end_ind cap next pref Hlenpref Heqs Heqms Heqinp].
     subst ms. simpl in *.
-    (*assert (Hoob': end_ind + 1 > length s) by lia.*)
     apply (f_equal (length (A := Character))) in Heqs.
     rewrite List.app_length in Heqs.
     rewrite List.rev_length in Heqs.
@@ -559,6 +558,8 @@ Section EquivLemmas.
       exfalso. simpl in Hlenpref. subst end_ind. simpl in *. lia.
   Qed.
 
+
+
   (* If wgreedylazy is equivalent to greedy, then compiling a corresponding quantifier yields the boolean greedy. *)
   Lemma compilequant_greedy:
     forall (wquant: Patterns.QuantifierPrefix) (wgreedylazy: Patterns.QuantifierPrefix -> Patterns.Quantifier) (lquant: bool -> regex -> regex) (greedy: bool),
@@ -568,6 +569,7 @@ Section EquivLemmas.
     intros wquant wgreedylazy lquant greedy Hequivgreedy Hequivquant.
     inversion Hequivgreedy; inversion Hequivquant; reflexivity.
   Qed.
+
 
   (** ** Lemmas for word boundary matching *)
 
@@ -943,9 +945,7 @@ Section EquivLemmas.
 
     - (* Quantified *)
       intros gm0 inp dir0 t. simpl.
-      (* Annoying but should be okay *)
       destruct min as [|min'].
-      (*1: destruct delta as [[|n']|].*)
       1: destruct (delta =? NoI.N 0)%NoI eqn:Hdeltazero.
       + (* Done *)
         rewrite NumericLemmas.noi_eqb_eq in Hdeltazero. subst delta.
