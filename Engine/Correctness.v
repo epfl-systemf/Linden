@@ -8,7 +8,7 @@ From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeEquiv PikeSubset.
 From Linden Require Import EquivMain RegexpTranslation GroupMapMS.
-From Linden Require Import ResultTranslation FunctionalUtils.
+From Linden Require Import ResultTranslation FunctionalUtils SeenSets.
 From Linden Require Import Parameters.
 From Warblre Require Import Base Semantics Result RegExpRecord StaticSemantics.
 Import Result.Notations.
@@ -37,6 +37,7 @@ Qed.
 
 Section Correctness.
   Context {params: LindenParameters}.
+  Context {VMS: VMSeen}.
   Context (rer: RegExpRecord).
 
 Definition trc_pike_tree := @trc pike_tree_state pike_tree_step.

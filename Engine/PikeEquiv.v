@@ -7,13 +7,15 @@ From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeSubset.
-From Linden Require Import TreeRep.
+From Linden Require Import TreeRep SeenSets.
 From Linden Require Import Parameters.
 From Warblre Require Import Base RegExpRecord.
 
 
 Section PikeEquiv.
   Context {params: LindenParameters}.
+  Context {TS: TSeen params}.
+  Context {VMS: VMSeen}.
   Context (rer: RegExpRecord).
 
 (** * Simulation Invariant  *)
@@ -635,8 +637,7 @@ Proof.
   eapply tt_same_interm in TT1; eauto. simpl in TT1. auto.
 Qed.
 
-(** * Seen Lemmas *)
-
+(** * Seen Inclusion Lemmas *)
 
 Lemma initial_inclusion:
   forall c inp current currentpc,
@@ -654,7 +655,7 @@ Lemma add_inclusion:
 Proof.
   intros treeseen threadseen c inp t pc gm b nextcurrent nextpc INCL TT.
   unfold seen_inclusion in *.
-  intros pc0 b0 SEEN. simpl in SEEN. apply inpc_add in SEEN. destruct SEEN as [EQ|SEEN].
+  intros pc0 b0 SEEN. apply inpc_add in SEEN. destruct SEEN as [EQ|SEEN].
   - inversion EQ. subst. left. exists t. exists gm. split; auto. apply in_add. left. auto.
   - specialize (INCL pc0 b0 SEEN).      
     destruct INCL as [[ts [gms [SEENs TTs]]] | [ST [ts [gms [GEQ [EQ TTS]]]]]].

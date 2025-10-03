@@ -34,6 +34,12 @@ Section Utilities.
     eauto using is_tree_determ, compute_tr_is_tree.
   Qed.
 
+  Lemma compute_tr_eq_is_tree {actions i gm dir} :
+    forall {tr}, tr = compute_tr actions i gm dir -> is_tree rer actions i gm dir tr.
+  Proof.
+    intros. subst. apply compute_tr_is_tree.
+  Qed.
+
   Lemma compute_tr_ind {actions i gm dir P} :
     P (compute_tr actions i gm dir) ->
     forall {tr}, is_tree rer actions i gm dir tr -> P tr.

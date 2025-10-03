@@ -82,6 +82,14 @@ Section Regex.
     | Backreference _ => []
     end.
 
+  Fixpoint max_group (r:regex) : group_id :=
+    match r with
+    | Epsilon | Character _  | Anchor _ | Backreference _ => 0
+    | Sequence r1 r2 | Disjunction r1 r2 => max (max_group r1) (max_group r2)
+    | Quantified _ _ _ r | Lookaround _ r => max_group r
+    | Group id r => max id (max_group r)
+    end.
+
   (** * Common Quantifiers  *)
   (* r* *)
   Definition greedy_star (r:regex) : regex :=
