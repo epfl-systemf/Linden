@@ -1,0 +1,62 @@
+#cloud-config
+autoinstall:
+  version: 1
+
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+    variant: ''
+
+  apt:
+    geoip: false
+    primary:
+      - arches: [default]
+        uri: http://archive.ubuntu.com/ubuntu/
+
+  # Configure the desktop environment
+  # https://github.com/canonical/autoinstall-desktop
+  packages:
+    - ubuntu-desktop
+  snaps:
+    - name: gnome-46-2404
+    - name: chromium
+  storage:
+    layout:
+      name: direct
+
+  # Configure main user account
+  # password: mkpasswd -m sha-512 ubuntu artifact
+  identity:
+    hostname: artifact
+    realname: ubuntu
+    username: ubuntu
+    password: "$6$artifact$646pHtaZgzArzK.GBnL0Qlm9C.tllACwvOEsgZROsMJfJE3RDdAQWLtRUbX8sWeRkw3yuqcouGPNBJDBJCyG/0"
+
+  # Enable SSH
+  ssh:
+    allow-pw: true
+    install-server: true
+
+  user-data:
+    write_files:
+      # Enable passwordless sudo
+      - path: /etc/sudoers.d/ubuntu
+        owner: 'root:root'
+        permissions: '0440'
+        content: 'ubuntu ALL=(ALL) NOPASSWD:ALL'
+    runcmd:
+      # Snap doesn't seem to play well with `curtin in-target`, so run it here.
+      - snap alias chromium chromium-browser
+
+  # Final VM-specific config
+  # https://github.com/canonical/autoinstall-desktop
+  late-commands:
+    # Force software updates
+    - curtin in-target -- apt-get update -y
+    - curtin in-target -- apt-get upgrade -y
+    # Disable the welcome screen
+    - curtin in-target -- apt-get remove -y gnome-initial-setup
+    # Remove unnecessary packages
+    - curtin in-target -- apt-get remove -y thunderbird rhythmbox libreoffice-*
+    # Remove unnecessary dependencies
+    - curtin in-target -- apt-get autoremove -y
