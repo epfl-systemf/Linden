@@ -160,9 +160,9 @@ Section RegexpTree.
 
     Context (c0 c1 c2: Parameters.Character).
 
-    Hypothesis H01: Character.canonicalize rer c1 <> Character.canonicalize rer c0.
-    Hypothesis H12: Character.canonicalize rer c0 <> Character.canonicalize rer c2.
-    Hypothesis H02: Character.canonicalize rer c1 <> Character.canonicalize rer c2.
+    Hypothesis H01: Character.canonicalize rer c0 <> Character.canonicalize rer c1.
+    Hypothesis H02: Character.canonicalize rer c0 <> Character.canonicalize rer c2.
+    Hypothesis H12: Character.canonicalize rer c1 <> Character.canonicalize rer c2.
 
     Lemma atmost_bounded_nequiv: (* r{0,m}r{n} ≅ r{n,n+m} *)
       exists m n r,
@@ -176,9 +176,37 @@ Section RegexpTree.
       inversion 1.
     Qed.
 
+
+    (** * Proving r{0,m}r{0,n} ≅ r{0,m+n} *)
+    (* We reason by induction on either m (if m is finite) or the remaining length
+    of the input to match (if m is infinite). *)
+    (* In the inductive case, the trees of r{0,m+1}r{0,n} and r{0,m+1+n} have
+    the following form: *)
+    (*
+            r{0,m+1}r{0,n}                             r{0,m+1+n}
+                Choice                                   Choice
+               /       \                                /      \
+              /          \                             /        \
+        r{0,m}r{0,n}     r{0,n}                  r{0,m+n}      Match
+                         Choice
+                        /       \
+                      /          \
+                r{0,n-1}        Match
+    *)
+    (* By induction hypothesis, the leaves of the subtrees r{0,m}r{0,n}
+    and r{0,m+n} are equivalent. *)
+    (* On the left, however, we have an extra branch, r{0,n-1}. We then argue
+    that since n-1 < m+n, the leaves of that branch are included in the
+    leaves of the branch r{0,m+n}, and hence are duplicates of the leaves of
+    r{0,m+n}, so the equivalence holds. *)
+
+    (* Inclusion of lists (viewed as sets) *)
     Definition incl {A} (a b: list A) :=
       forall x, In x a -> In x b.
 
+    (* Function inclusion with propositional functions: when for all a, f1(a) ⊆ f2(a). *)
+    (* We will use this notion with f1 := act_from_leaf [r{0,n-1}] and
+    f2 := act_from_leaf [r{0,m+n}]. *)
     Definition funct_incl {A B} (f1 f2: A -> list B -> Prop) :=
       forall a l1 l2, f1 a l1 -> f2 a l2 -> incl l1 l2.
 
@@ -201,6 +229,8 @@ Section RegexpTree.
         + apply in_or_app. right. unfold incl in IHFM1. auto.
     Qed.
 
+    (* The inclusion lemma: for all m and d, the leaves of r{0,m} are
+    included in those of r{0,m+d}. *)
     Lemma atmost_leaves_incl' (m: nat) (d: non_neg_integer_or_inf) r:
       forall inp gm dir tm tn,
         is_tree rer [Areg (Quantified true 0 m r)] inp gm dir tm ->
@@ -238,6 +268,7 @@ Section RegexpTree.
         + apply in_or_app. auto. 
     Qed.
 
+    (* Specialization to d = n-m *)
     Corollary atmost_leaves_incl_nat (m n: nat) r:
       m <= n ->
       forall inp gm dir tm tn,
@@ -249,6 +280,7 @@ Section RegexpTree.
       simpl. replace (m + (n - m)) with n by lia. auto.
     Qed.
 
+    (* Specialization to d = +∞ *)
     Corollary atmost_leaves_incl_infty (m: nat) r:
       forall inp gm dir tm tn,
         is_tree rer [Areg (Quantified true 0 m r)] inp gm dir tm ->
@@ -438,73 +470,27 @@ Section RegexpTree.
       (Sequence (Quantified true 0 m r) (Quantified true 0 n r))
         ≅[rer] Quantified true 0 (m + n)%NoI r.
     Proof.
-      destruct m as [m|]; destruct n as [n|]; intros NO_GROUPS [].
-      (* For each of the subsections, we prove the forward then the backward direction *)
+      intros NO_GROUPS dir. split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
+      intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
+      destruct m as [m|]; destruct n as [n|]; destruct dir;
+        simpl in CONT; revert i gm tr1 tr2 CONT; simpl.
 
       (* m and n are finite *)
-      {
-        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
-        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
-        simpl in CONT. revert i gm tr1 tr2 CONT.
-        apply atmost_atmost_equiv_actions_mnat.
-      }
-      {
-        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
-        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
-        simpl in CONT. revert i gm tr1 tr2 CONT.
-        simpl. rewrite PeanoNat.Nat.add_comm.
-        apply atmost_atmost_equiv_actions_mnat.
-      }
+      - apply atmost_atmost_equiv_actions_mnat.
+      - rewrite PeanoNat.Nat.add_comm. apply atmost_atmost_equiv_actions_mnat.
 
       (* m is finite, n is infinite *)
-      {
-        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
-        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
-        simpl in CONT. revert i gm tr1 tr2 CONT.
-        simpl. apply atmost_atmost_equiv_actions_mnat.
-      }
-      {
-        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
-        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
-        simpl in CONT. revert i gm tr1 tr2 CONT.
-        simpl. apply atmost_atmost_equiv_actions_minf.
-      }
+      - apply atmost_atmost_equiv_actions_mnat.
+      - apply atmost_atmost_equiv_actions_minf.
 
       (* m is infinite, n is finite *)
-      {
-        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
-        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
-        simpl in CONT. revert i gm tr1 tr2 CONT.
-        simpl. apply atmost_atmost_equiv_actions_minf.
-      }
-      {
-        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
-        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
-        simpl in CONT. revert i gm tr1 tr2 CONT.
-        simpl. apply atmost_atmost_equiv_actions_mnat.
-      }
+      - apply atmost_atmost_equiv_actions_minf.
+      - apply atmost_atmost_equiv_actions_mnat.
 
       (* Both m and n are infinite *)
-      {
-        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
-        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
-        simpl in CONT. revert i gm tr1 tr2 CONT.
-        simpl. apply atmost_atmost_equiv_actions_minf.
-      }
-      {
-        split. 1: { simpl. rewrite NO_GROUPS. reflexivity. }
-        intros i gm tr1 tr2 TREE1. inversion TREE1; subst. clear TREE1. rewrite app_nil_r in CONT.
-        simpl in CONT. revert i gm tr1 tr2 CONT.
-        simpl. apply atmost_atmost_equiv_actions_minf.
-      }
+      - apply atmost_atmost_equiv_actions_minf.
+      - apply atmost_atmost_equiv_actions_minf.
     Qed.
-
-    (*
-    Definition atmost_lazy_atmost_lazy_nequiv: (* r{0,m}?r{0,n}? ≇ r{0,m+n}? *)
-      exists (m n: nat) r,
-        (Sequence (Quantified false 0 m r) (Quantified false 0 n r))
-          ≇[rer] Quantified false 0 (m + n) r.
-    *)
   End BoundedRepetitions.
 
 (*|
