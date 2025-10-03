@@ -13,12 +13,12 @@ Section NFA.
   (** * NFA Bytecode *)
   (* the bytecode generated for the PikeVM algorithm *)
 
-  Definition label : Type := nat.
 
+  Definition label : Type := nat.
+  
   Inductive bytecode: Type :=
   | Accept
   | Consume: char_descr -> bytecode
-  | CheckAnchor: anchor -> bytecode
   | Jmp: label -> bytecode
   | Fork: label -> label -> bytecode
   | SetRegOpen: group_id -> bytecode
@@ -27,7 +27,7 @@ Section NFA.
   | BeginLoop: bytecode
   | EndLoop: label -> bytecode    (* also contains the backedge instead of adding a jump *)
   | KillThread: bytecode         (* for unsupported features *)
-  .
+.
 
   Definition code : Type := list bytecode.
 
@@ -97,7 +97,7 @@ Section NFA.
 
   Definition next_pcs (pc:label) (b:bytecode) : list label :=
     match b with
-    | Consume _ | CheckAnchor _ | SetRegOpen _ | SetRegClose _ | ResetRegs _ | BeginLoop => [S pc]
+    | Consume _ | SetRegOpen _ | SetRegClose _ | ResetRegs _ | BeginLoop => [S pc]
     | Accept | KillThread => []
     | Jmp l | EndLoop l => [l]
     | Fork l1 l2 => [l1; l2]
@@ -129,7 +129,6 @@ Section NFA.
     | Group gid r1 =>
         let (bc1, f1) := compile r1 (S fresh) in
         ([SetRegOpen gid] ++ bc1 ++ [SetRegClose gid], S f1)
-    | Anchor a => ([CheckAnchor a], S fresh)
     | _ => ([KillThread], S fresh) (* unsupported features *)
     end.
 
@@ -178,10 +177,6 @@ Section NFA.
       (NFA1: nfa_rep r1 c (S start) end1)
       (CLOSE: get_pc c end1 = Some (SetRegClose gid)),
       nfa_rep (Group gid r1) c start (S end1)
-  | nfa_rep_anchor:
-    forall c a lbl
-      (CHECK: get_pc c lbl = Some (CheckAnchor a)),
-      nfa_rep (Anchor a) c lbl (S lbl)
   | nfa_unsupported:
     forall c r lbl
       (UNSUPPORTED: ~ pike_regex r)
@@ -310,7 +305,9 @@ Section NFA.
       + replace (prev ++ SetRegOpen id :: bc1 ++ [SetRegClose id]) with ((prev ++ SetRegOpen id :: bc1) ++ [SetRegClose id]).
         2:{ rewrite <- app_assoc. auto. }
         apply get_first_0. apply fresh_correct in COMP1. subst. rewrite app_length. simpl. lia.
-    - inversion H. subst. constructor. apply get_first.
+    - inversion H. subst. apply nfa_unsupported.
+      + unfold not. intros. inversion H0.
+      + rewrite get_first. simpl. auto.
     - inversion H. subst. apply nfa_unsupported.
       + unfold not. intros. inversion H0.
       + rewrite get_first. simpl. auto.
@@ -418,20 +415,19 @@ Ltac stutter :=
   end.
 
 Ltac invert_rep :=
-   match goal with
-   | [ H : actions_rep (Areg _ :: _) _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
-   | [ H : actions_rep (Aclose _ :: _) _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
-   | [ H : actions_rep (Acheck _ :: _) _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
-   | [ H : actions_rep [] _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
-   | [ H : action_rep (Areg _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
-   | [ H : action_rep (Aclose _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
-   | [ H : action_rep (Acheck _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
-   | [ H : nfa_rep (Epsilon) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
-   | [ H : nfa_rep (Regex.Character _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
-   | [ H : nfa_rep (Disjunction _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
-   | [ H : nfa_rep (Sequence _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
-   | [ H : nfa_rep (Quantified _ _ _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
-   | [ H : nfa_rep (Group _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
-   | [ H : nfa_rep (Anchor _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
-   | _ => try no_stutter
-   end.
+  match goal with
+  | [ H : actions_rep (Areg _ :: _) _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+  | [ H : actions_rep (Aclose _ :: _) _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+  | [ H : actions_rep (Acheck _ :: _) _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+  | [ H : actions_rep [] _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+  | [ H : action_rep (Areg _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+  | [ H : action_rep (Aclose _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+  | [ H : action_rep (Acheck _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+  | [ H : nfa_rep (Epsilon) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+  | [ H : nfa_rep (Regex.Character _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+  | [ H : nfa_rep (Disjunction _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+  | [ H : nfa_rep (Sequence _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+  | [ H : nfa_rep (Quantified _ _ _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+  | [ H : nfa_rep (Group _ _) _ _ _ |- _ ] => inversion H; clear H; subst; try no_stutter
+  | _ => try no_stutter
+  end.

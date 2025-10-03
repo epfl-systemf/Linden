@@ -64,17 +64,6 @@ Inductive tree_rep: tree -> code -> label -> input -> LoopBool -> Prop :=
     (RESET: get_pc code pc = Some (ResetRegs gidl))
     (TR: tree_rep t code (S pc) inp b),
     tree_rep (GroupAction (Reset gidl) t) code pc inp b
-| tr_anchor:
-  forall code pc inp b a t
-    (ANCHOR: get_pc code pc = Some (CheckAnchor a))
-    (CHECK: anchor_satisfied rer a inp = true)
-    (TR: tree_rep t code (S pc) inp b),
-    tree_rep (AnchorPass a t) code pc inp b
-| tr_anchorfail:
-  forall code pc inp b a
-    (ANCHOR: get_pc code pc = Some (CheckAnchor a))
-    (CHECK: anchor_satisfied rer a inp = false),
-    tree_rep Mismatch code pc inp b
 | tr_readfail:
   forall code pc inp b cd
     (CONSUME: get_pc code pc = Some (Consume cd))
@@ -131,12 +120,6 @@ Proof.
   - inversion H0; subst; auto; same_instr.
     specialize (IHtree_rep _ TR) as EQT.
     subst. split; auto.
-  - inversion H0; subst; auto; same_instr;
-      rewrite CHECK0 in CHECK; inversion CHECK; subst.
-    specialize (IHtree_rep _ TR) as EQT.
-    subst. split; auto.
-  - inversion H0; subst; auto; same_instr.
-    rewrite CHECK0 in CHECK. discriminate.
   - inversion H0; subst; auto; same_instr.
     rewrite READ0 in READ. inversion READ.
   - inversion H0; subst; auto; same_instr.
@@ -258,20 +241,9 @@ Proof.
     eapply IHTREE; eauto. pike_subset.
     repeat (econstructor; eauto).
   (* anchor *)
-  - remember (Areg (Anchor a) :: cont) as anchorcont.
-    induction ACT; inversion Heqanchorcont; subst;
-      try solve[eapply tr_jmp; eauto]; clear IHACT.
-    invert_rep. inversion NFA; subst.
-    2: { in_subset. }
-    eapply tr_anchor; eauto.
-    eapply IHTREE; eauto. pike_subset.
+  - pike_subset.
   (* anchor fail *)
-  - remember (Areg (Anchor a) :: cont) as charcont.
-    induction ACT; inversion Heqcharcont; subst;
-      try solve[eapply tr_jmp; eauto]; clear IHACT.
-    invert_rep. inversion NFA; subst.
-    2: { in_subset. }
-    eapply tr_anchorfail; eauto.
+  - pike_subset.
 Qed.
 
 

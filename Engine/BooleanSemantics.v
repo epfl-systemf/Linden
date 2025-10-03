@@ -293,10 +293,8 @@ Proof.
     { inversion H1. inversion H0. subst. repeat progress (constructor; auto). }
     apply encode_next in ENCODE.
     apply encode_next. apply encode_close. auto.
-  - apply encode_next in ENCODE.
-    econstructor; eauto.
 Qed.
-
+    
 Corollary boolean_correct:
   forall r inp t,
     pike_regex r ->

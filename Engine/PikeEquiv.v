@@ -235,7 +235,7 @@ Proof.
     repeat (econstructor; eauto). pike_subset.
   - pike_subset.
   - destruct greedy; inversion CHOICE.
-  - repeat invert_rep. simpl. rewrite CHECK. rewrite ANCHOR. auto.
+  - pike_subset.
 Qed.
 
 Theorem generate_checkpass:
@@ -256,29 +256,6 @@ Proof.
     repeat (econstructor; eauto). pike_subset.
   - pike_subset.
   - destruct greedy; inversion CHOICE.
-Qed.
-
-Theorem generate_anchorpass:
-  forall tree gm inp code pc b a
-    (TT: tree_thread code inp (AnchorPass a tree, gm) (pc, gm, b))
-    (NOSTUTTER: stutters pc code = false),
-    epsilon_step rer (pc, gm, b) code inp = EpsActive [(pc+1,gm,b)] /\
-      tree_thread code inp (tree,gm) (pc+1,gm,b).
-Proof.
-  intros tree gm inp code pc b a TT NOSTUTTER.
-  inversion TT; subst; try no_stutter.
-  remember (AnchorPass a tree) as TANCHOR.
-  induction TREE; intros; subst; try inversion HeqTANCHOR; subst.
-  - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
-  - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
-    repeat (econstructor; eauto). pike_subset.
-  - repeat invert_rep.
-  - destruct greedy; inversion CHOICE.
-  - repeat invert_rep. simpl. rewrite CHECK. rewrite ANCHOR. split; auto.
-    eapply tt_eq; eauto.
-    2: { pike_subset. }
-    replace (pc+1) with (S pc) by lia. 
-    assumption.
 Qed.
 
 
@@ -364,9 +341,9 @@ Proof.
   - eapply generate_checkpass in TT as [nextpc [STEP EQ]]; auto.
     exists [(nextpc,gm,CanExit)]. split; eauto.
     constructor; auto. constructor.
-  - eapply generate_anchorpass in TT as [STEP EQ]; auto.
-    exists [(pc+1,gm,b)]. split; eauto.
-    constructor; auto. constructor.
+  - inversion TT; subst; try no_stutter.
+    eapply subset_semantics in TREE as SUBSETTREE; auto.
+    inversion SUBSETTREE.
   - destruct g.
     + eapply generate_open in TT as [STEP EQ]; auto.
       exists [(pc+1,GroupMap.open (idx inp) g gm,b)]. split; eauto.
@@ -471,16 +448,8 @@ Proof.
     exists pcstart. exists b. split; try split; try lia.
     * simpl. rewrite JMP. auto.
     * apply tt_eq with (actions:=Areg (Group gid r1):: cont); try constructor; auto; pike_subset.
-  - invert_rep.
-    { invert_rep. invert_rep; try in_subset; try stutter. }
-    exists pcstart. exists b. split; try split; try lia.
-    + simpl. rewrite JMP. auto.
-    + apply tt_eq with (actions:=Areg (Anchor a) :: cont); try constructor; auto; pike_subset.
-  - invert_rep.
-    { invert_rep. invert_rep; try in_subset; try stutter. }
-    exists pcstart. exists b. split; try split; try lia.
-    + simpl. rewrite JMP. auto.
-    + apply tt_eq with (actions:=Areg (Anchor a) :: cont); try constructor; auto; pike_subset.
+  - pike_subset.
+  - pike_subset.
 Qed.
 
 
@@ -543,7 +512,6 @@ Qed.
 Inductive start_rep: bytecode -> Prop :=
 | start_accept: start_rep Accept
 | start_cons: forall cd, start_rep (Consume cd)
-| start_chkanch: forall a, start_rep (CheckAnchor a)
 | start_jmp: forall lbl, start_rep (Jmp lbl)
 | start_fork: forall l1 l2, start_rep (Fork l1 l2)
 | start_open: forall gid, start_rep (SetRegOpen gid)
@@ -782,8 +750,6 @@ Proof.
     { subst. rewrite CLOSE in GET. inversion GET. }
     (* in r1 *)
     apply IHREP; auto.
-  - assert (pc = lbl) by lia. subst.
-    rewrite CHECK in GET. inversion GET.
   - assert (pc = lbl) by lia. subst.
     rewrite KILL in GET. inversion GET.
 Qed.
