@@ -10,3 +10,7 @@ _build
 _opam
 \#*.*\#
 *.v~
+
+artifact-vm/artifact
+artifact-vm/output
+artifact-vm/linden.tar

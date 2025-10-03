@@ -2,7 +2,7 @@
 
 
 linden.tar: FORCE
-	cd ../../; git archive -o etc/artifact/$@ popl26_artifact
+	cd ../; git archive -o artifact-vm/$@ popl26_artifact
 
 artifact: linden.tar
 	mkdir -p artifact

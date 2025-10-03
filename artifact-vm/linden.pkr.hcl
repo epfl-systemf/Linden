@@ -21,9 +21,9 @@ source "virtualbox-iso" "ubuntu" {
   headless             = "false"
   guest_additions_mode = "disable"
 
-  # Useful for debugging
-  keep_registered = true
-  skip_export     = true
+  # Useful for debugging if both changed to true
+  keep_registered = false
+  skip_export     = false
 
   ssh_username     = "ubuntu"
   ssh_password     = "ubuntu"
