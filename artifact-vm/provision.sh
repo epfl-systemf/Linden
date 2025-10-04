@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Install artifact dependencies and files in current folder
-# Must be run in the folder that contains provision.sh
+# Install artifact dependencies and files in Desktop/artifact
 
 set -e
 
@@ -28,9 +27,6 @@ loud() {
     local sep="${blue}$(printf "%${#msg}s" | tr " " "${msg:0:1}")${reset}"
     printf "${sep}\n${blue}%s${reset}\n${sep}\n" "$msg"
 }
-
-loud $(pwd)
-loud $(ls ~/Desktop/)
 
 #############################################
 loud "= Confirm that artifact is available ="
@@ -75,6 +71,7 @@ rm code.deb
 # wget --compression=auto -O vscoq.vsix https://marketplace.visualstudio.com/_apis/public/gallery/publishers/coq-community/vsextensions/vscoq1/latest/vspackage # from VS Code marketplace
 wget --compression=auto -O vscoq.vsix https://open-vsx.org/api/coq-community/vscoq1/0.5.0/file/coq-community.vscoq1-0.5.0.vsix # from open-vsx
 code --install-extension vscoq.vsix
+rm vscoq.vsix
 
 ################################################
 loud "= Install Proof General and company-coq ="
