@@ -51,6 +51,10 @@ autoinstall:
   # Final VM-specific config
   # https://github.com/canonical/autoinstall-desktop
   late-commands:
+    # Let NetworkManager handle network
+    - rm /target/etc/systemd/system/network-online.target.wants/systemd-networkd-wait-online.service
+    - rm /target/etc/systemd/system/sockets.target.wants/systemd-networkd.socket
+    - rm /target/etc/systemd/system/multi-user.target.wants/systemd-networkd.service
     # Force software updates
     - curtin in-target -- apt-get update -y
     - curtin in-target -- apt-get upgrade -y

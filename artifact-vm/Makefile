@@ -31,4 +31,6 @@ clean:
 
 vm: output/packer/linden.ova
 
+archive: output/linden.tar.gz
+
 FORCE:
