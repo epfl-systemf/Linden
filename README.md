@@ -30,7 +30,7 @@ Open a terminal, cd into the artifact directory at `~/Desktop/artifact`, then ru
 
 The proofs are already pre-built. To build them again, run `dune clean` followed by `dune build` from the root directory of the artifact. `dune build` should take less than two minutes to run. Then, to step through any proofs you would like to, you can either use Visual Studio Code with VSCoq or Emacs with Proof General and company-coq, which are pre-installed in the VM.  
 To use Visual Studio Code, run `code .` *in the terminal you opened* (from `~/Desktop/artifact`), then open the Rocq file you are interested in and type `Alt+↓` to step forward or `Alt+↑` to step backwards.  
-To use Emacs, run `emacs` *in the terminal you opened* (from `~/Desktop/artifact`), then open the Rocq file you are interested in and type `Ctrl+C n` to step forward and `Ctrl+C b` to step backwards. TODO Check
+To use Emacs, run `emacs` *in the terminal you opened* (from `~/Desktop/artifact`), then open the Rocq file you are interested in and type `Ctrl+C Ctrl+N` to step forward and `Ctrl+C Ctrl+U` to step backwards.
 
 #### If you are running locally
 
