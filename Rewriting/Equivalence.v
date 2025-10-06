@@ -1084,7 +1084,7 @@ Section Congruence.
 
   (* Free quantifier case *)
   (* If r1 ≅ r2, then r1{0, Δ, p} ≅ r2{0, Δ, p} for all Δ and p. *)
-  (* TODO? Try to make the proof simpler *)
+  (* LATER? Try to make the proof simpler *)
   Lemma regex_equiv_quant_free:
     forall r1 r2 dir,
       tree_equiv_dir rer dir r1 r2 ->

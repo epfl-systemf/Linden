@@ -45,16 +45,8 @@ Section RegexpTranslation.
     fst (buildnm' wr [] 0).
   
   (* Computes the number of capture groups of the regex r. *)
-  Fixpoint num_groups (r: regex): nat := (* actually len (def_groups r); TODO replace later or prove lemma *)
-    match r with
-    | Epsilon | Character _ => 0
-    | Disjunction r1 r2 => num_groups r1 + num_groups r2
-    | Sequence r1 r2 => num_groups r1 + num_groups r2
-    | Quantified _ _ _ r1 => num_groups r1
-    | Group _ r1 => S (num_groups r1)
-    | Lookaround _ r1 => num_groups r1
-    | Anchor _ | Backreference _ => 0
-    end.
+  Definition num_groups (r: regex): nat :=
+    List.length (def_groups r).
 
   (* Equivalence of greedy/lazy quantifier prefixes. *)
   Inductive equiv_greedylazy: (Patterns.QuantifierPrefix -> Patterns.Quantifier) -> bool -> Prop :=
@@ -233,11 +225,13 @@ Section RegexpTranslation.
         cc cd n Hequivcc |
         n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
         n wr1 wr2 lr1 lr2 Hequiv1 IH1 Hequiv2 IH2 |
-        n wr lr wquant lquant wgreedylazy greedy Hequiv IH Hequivquant Hequivgreedy |
+        n wr lr wquant lquant wgreedylazy greedy nm Hequiv IH Hequivquant Hequivgreedy |
         name n wr lr Hequiv IH |
         name n wr lr Hequiv IH |
         n nm wr lr wlk llk Hequiv IH Hequivlk |
-        n nm wr lanchor Hanchequiv]; simpl; try lia; try reflexivity.
+        n nm wr lanchor Hanchequiv]; unfold num_groups in *; simpl; try lia; try reflexivity.
+      - rewrite app_length. lia.
+      - rewrite app_length. lia.
       - inversion Hequivquant; inversion Hequivgreedy; auto.
       - inversion Hequivlk; auto.
       - inversion Hanchequiv; auto.
