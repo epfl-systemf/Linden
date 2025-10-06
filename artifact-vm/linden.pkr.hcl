@@ -14,8 +14,8 @@ source "virtualbox-iso" "ubuntu" {
   output_directory = "output/packer"
 
   cpus                 = "4"
-  memory               = "12288" # 8192
-  disk_size            = "65536"
+  memory               = "8192"
+  disk_size            = "32768"
   gfx_controller       = "vmsvga"
   gfx_vram_size        = "32"
   headless             = "false"
@@ -63,7 +63,7 @@ build {
 
   # Copy artifact files
   provisioner "file" {
-    source      = "artifact"
+    source      = "linden.tar"
     destination = "/home/ubuntu/Desktop/"
   }
 

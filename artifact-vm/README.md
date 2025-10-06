@@ -12,8 +12,6 @@ To install VirtualBox, download it from https://www.virtualbox.org/wiki/Linux_Do
 
 To install yamllint and xorriso on Ubuntu, run `sudo apt install yamllint xorriso`.
 
-Reboot after installing the software.
-
 ## Creating the image
 
 Run `make vm` (with an Internet connection available).

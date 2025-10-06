@@ -28,11 +28,15 @@ loud() {
     printf "${sep}\n${blue}%s${reset}\n${sep}\n" "$msg"
 }
 
-#############################################
-loud "= Confirm that artifact is available ="
-#############################################
+###########################
+loud "= Extract artifact ="
+###########################
 
-cd Desktop/artifact
+cd Desktop
+mkdir artifact
+cd artifact
+tar xvf ../linden.tar
+rm ../linden.tar
 
 ###########################################
 loud "= Install required system packages ="
