@@ -25,9 +25,9 @@ Some of the correspondences in the correspondence table are not exact due to sim
 ### Development structure
 
 The Rocq files are split into five folders:
-- `Semantics`: definition of regexes and their semantics
-- `Engine`: formalizing and proving correct the PikeVM algorithm
-- `WarblreEquiv`: proving the equivalence between the Linden semantics and the [Warblre semantics](https://github.com/epfl-systemf/Warblre)
+- `Semantics`: definition of regexes and their semantics (Sections 2 and 3 of the paper)
+- `Engine`: formalizing and proving correct the PikeVM algorithm (Section 6 of the paper)
+- `WarblreEquiv`: proving the equivalence between the Linden semantics and the [Warblre semantics](https://github.com/epfl-systemf/Warblre) (Section 4 of the paper)
 - `Rewriting`: proving that a notion of regex equivalence allows rewrites under a context (Section 5 of the paper)
 - `Utils`: canonical group maps
 
