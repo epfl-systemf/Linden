@@ -18,16 +18,18 @@ Or you can run our code locally, without needing a VM. These last two options ar
 
 The artifact consists of our Rocq development for the definitions, theorems, proofs and relevant examples contained in the paper.
 
-The correspondence between each definition and theorem in the paper and their Rocq counterpart is described in [`correspondence_table.pdf`](correspondence_table.pdf). *The table was updated compared to the one present in the paper; the updates will be reflected in the final version of the paper.* A table of correspondences for theorems only can also be found [below](#factual-claim-4-mechanization).
-
-Some of the correspondences in the correspondence table are not exact due to simplifications in the paper for legibility and understandability; the differences are documented in [`correspondence_notes.md`](correspondence_notes.md).
+In the paper submission, Appendix A defines a correspondence table, relating each definition and theorem in the paper to their Rocq counterpart.  
+However, the code has since being reorganized, and some entries in that table are outdated.  
+Un up-to-date version of this correspondence table is available in this artifact in [`correspondence_table.pdf`](correspondence_table.pdf).  
+Some of the correspondences in the correspondence table are not exact due to simplifications in the paper for legibility and understandability; the differences are documented in [`correspondence_notes.md`](correspondence_notes.md).  
+A smaller table of correspondences for theorems only can also be found [below](#factual-claim-1-mechanization).
 
 ### Development structure
 
 The Rocq files are split into five folders:
-- `Semantics`: definition of regexes and their semantics
-- `Engine`: formalizing and proving correct the PikeVM algorithm
-- `WarblreEquiv`: proving the equivalence between the Linden semantics and the [Warblre semantics](https://github.com/epfl-systemf/Warblre)
+- `Semantics`: definition of regexes and their semantics (Sections 2 and 3 of the paper)
+- `Engine`: formalizing and proving correct the PikeVM algorithm (Section 6 of the paper)
+- `WarblreEquiv`: proving the equivalence between the Linden semantics and the [Warblre semantics](https://github.com/epfl-systemf/Warblre) (Section 4 of the paper)
 - `Rewriting`: proving that a notion of regex equivalence allows rewrites under a context (Section 5 of the paper)
 - `Utils`: canonical group maps
 
@@ -140,7 +142,7 @@ Check that this theorem does not rely on unproven facts other than a Rocq axiom,
 
 **To verify this claim:**
 
-The correspondence table ([`correspondence_table.pdf`](correspondence_table.pdf) (TODO)) provides an exhaustive matching between the definitions and theorems shown in the paper and their Rocq counterparts, in the order of appearance in the paper. The correspondences for theorems are listed below. You can read the paper and refer to the correspondence table (either the full one or the abridged one) and the Rocq development whenever you encounter a definition or a theorem.
+The correspondence table ([`correspondence_table.pdf`](correspondence_table.pdf)) provides an exhaustive matching between the definitions and theorems shown in the paper and their Rocq counterparts, in the order of appearance in the paper. The correspondences for theorems are listed below. You can read the paper and refer to the correspondence table (either the full one or the abridged one) and the Rocq development whenever you encounter a definition or a theorem.
 
 The most important theorems are Theorems 4, 5, 6, 7 and 16; these were reviewed while checking the previous claims. Feel free to review the other theorems below or other definitions in the full correspondence table if time permits.
 
