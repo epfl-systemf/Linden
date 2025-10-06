@@ -77,7 +77,7 @@ After following the instructions in [section "[Optional appendix] Local setup", 
 
 **To verify this claim:**
 
-The correspondence table ([`correspondence_table.pdf`](correspondence_table.pdf) (TODO)) provides an exhaustive matching between the definitions and theorems shown in the paper and their Rocq counterparts, in the order of appearance in the paper. The correspondences for theorems are listed below. You can read the paper and refer to the correspondence table (either the full one or the abridged one) and the Rocq development whenever you encounter a definition or a theorem.
+The correspondence table ([`correspondence_table.pdf`](correspondence_table.pdf)) provides an exhaustive matching between the definitions and theorems shown in the paper and their Rocq counterparts, in the order of appearance in the paper. The correspondences for theorems are listed below. You can read the paper and refer to the correspondence table (either the full one or the abridged one) and the Rocq development whenever you encounter a definition or a theorem.
 
 The most important theorems are Theorems 4, 5, 6, 7 and 16. Feel free to review the other theorems below or other definitions in the full correspondence table if time permits.
 
@@ -130,7 +130,7 @@ Check that the faithfulness theorem applies to all regexes: look at the regex tr
 
 **To verify this claim:**
 
-This claim is supported by several theorems proven in the Rocq development, namely `regex_equiv_ctx_samedir`, `regex_equiv_ctx_forward`, `regex_equiv_ctx_backward`, `observe_equivalence` in [Rewriting/Equivalence.v](Rewriting/Equivalence.v), and all the theorems relating to Figure 5 in the [correspondence table](path/to/correspondence_table.pdf). Read the theorem statements, then check that all these theorems proof-check by running `dune build` from the project root and optionally stepping through the proofs afterwards. The command `dune build` should take at most two minutes to run from a clean state.
+This claim is supported by several theorems proven in the Rocq development, namely `regex_equiv_ctx_samedir`, `regex_equiv_ctx_forward`, `regex_equiv_ctx_backward`, `observe_equivalence` in [Rewriting/Equivalence.v](Rewriting/Equivalence.v), and all the theorems relating to Figure 5 in the [correspondence table](correspondence_table.pdf). Read the theorem statements, then check that all these theorems proof-check by running `dune build` from the project root and optionally stepping through the proofs afterwards. The command `dune build` should take at most two minutes to run from a clean state.
 
 Check that these theorems do not rely on unproven facts, by running `Print Assumptions thm.` after the `Qed.` of each theorem `thm` (a discussion of the section variables can be found in section [Factual claim 1: mechanization](#factual-claim-1-mechanization)).
 
