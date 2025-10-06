@@ -18,9 +18,11 @@ Or you can run our code locally, without needing a VM. These last two options ar
 
 The artifact consists of our Rocq development for the definitions, theorems, proofs and relevant examples contained in the paper.
 
-The correspondence between each definition and theorem in the paper and their Rocq counterpart is described in [`correspondence_table.pdf`](correspondence_table.pdf) (TODO). A table of correspondences for theorems only can also be found [below](#factual-claim-1-mechanization).
-
-Some of the correspondences in the correspondence table are not exact due to simplifications in the paper for legibility and understandability; the differences are documented in [`correspondence_notes.md`](correspondence_notes.md).
+In the paper submission, Appendix A defines a correspondence table, relating each definition and theorem in the paper to their Rocq counterpart.  
+However, the code has since being reorganized, and some entries in that table are outdated.  
+Un up-to-date version of this correspondence table is available in this artifact in [`correspondence_table.pdf`](correspondence_table.pdf).  
+Some of the correspondences in the correspondence table are not exact due to simplifications in the paper for legibility and understandability; the differences are documented in [`correspondence_notes.md`](correspondence_notes.md).  
+A smaller table of correspondences for theorems only can also be found [below](#factual-claim-1-mechanization).
 
 ### Development structure
 
