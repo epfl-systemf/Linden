@@ -16,7 +16,7 @@ Some simplifications were made in the paper compared to the Rocq development to 
 - Theorem 4, `WarblreEquiv/EquivMain.v`, `equiv_main_reconstruct`: the Rocq theorem takes into account the two previous points, specifying group index 0 and the right name map for `warblre_to_linden` and the right number of capture groups for `to_MatchState`.
 - Sometimes, for convenience, we don't use ⇃r_w⇂ to refer to the Linden version of Warblre regex r_w, but instead use an inductive syntactic equivalence relation $r_w \sim r_l$. For instance, the intermediate lemma of Section 4 does not relate to $r_w$ but to an equivalent regex.  
 We proved that the lowering function ⇃r_w⇂ verifies $r_w \sim \downharpoonleft r_w \downharpoonright$ ([WarblreEquiv/RegexpTranslation.v](WarblreEquiv/RegexpTranslation.v), theorem `warblre_to_linden_sound_root`).
-- Regex equivalence (rewriting) is defined in terms of the is_tree predicate, not in terms of compute_tree or compute_tr; the two are equivalent (TODO name of the theorem).
+- Regex equivalence (rewriting) is defined in terms of the is_tree predicate, not in terms of compute_tree or compute_tr; the two are equivalent (theorem `tree_equiv_compute_dir_iff` in [Rewriting/Equivalence.v](Rewriting/Equivalence.v)).
 - Quantifier merging: we didn't prove the theorems relating to quantifiers of the form {0, Δ, p} with both p = ⊤ and p = ⊥. Instead we argue that the missing theorems are immediate corollaries of the proved theorems and forced_equiv -> TODO? If we have time: rephrase the theorems so that they mention an arbitrary p
 - Figure 10, `Engine/NFA.v`, `bytecode`:
   - Jump in the paper corresponds to Jmp in the code.
