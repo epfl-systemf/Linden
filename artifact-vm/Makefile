@@ -1,5 +1,5 @@
 linden.tar: FORCE
-	cd ../; tar cvf artifact-vm/linden.tar Engine Rewriting Semantics Utils WarblreEquiv _CoqProject dune dune-project linden.opam *.md
+	cd ../; tar -cvf artifact-vm/linden.tar --exclude="_build" --exclude="_opam" --exclude="artifact-vm" *
 
 autoinstall/user-data: FORCE
 	yamllint -d relaxed $@
