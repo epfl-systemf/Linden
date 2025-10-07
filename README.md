@@ -9,6 +9,9 @@ The VM username is `ubuntu`.  The password is also `ubuntu`.
 The artifact directory is `~/Desktop/artifact`.
 You may want to change the VM's display resolution after starting it (in Ubuntu's settings menu).
 
+Occasionally, the screen may get stuck when trying to log in (right before or right after). If this happens using VirtualBox, press `Host key+F2` then `Host key+F1` if you have not input your password yet, or `Host key+F1` then `Host key+F2` if you did. The host key is by default the right Ctrl key.  
+Otherwise, you can also gracefully shut down the VM (File -> Close... -> Send the shutdown signal) and start it again.
+
 We are applying for the Available, Functional and Reusable badges.
 
 Optionally, as an alternative if you prefer to recreate a fresh environment, we have an automated Packer script to rebuild and reprovision the VM from scratch, making the whole setup automatically reproducible.
