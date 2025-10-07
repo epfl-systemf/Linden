@@ -263,7 +263,7 @@ Section Utilities.
     eauto using compute_is_tree.
   Qed.
 
-  (* TODO compute_tr_dep_unfold?? *)
+  (* LATER: we could also try to define `compute_tr_dep_unfold` like `compute_tr_unfold` *)
   Lemma compute_tr_dep_reg_is_tree {r i gm dir} :
     is_tree rer [Areg r] i gm dir (compute_tr_dep [Areg r] i gm dir).
   Proof.
