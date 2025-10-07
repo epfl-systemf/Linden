@@ -3,6 +3,7 @@
 Welcome to our artifact!
 
 The simplest way to evaluate this artifact is to download the VM (`linden.ova`) from Zenodo and follow the instructions below.
+The VM image can be imported in VirtualBox; we tested version 7.2.2 on an Ubuntu 24.04 LTS host OS.
 
 The VM username is `ubuntu`.  The password is also `ubuntu`.
 The artifact directory is `~/Desktop/artifact`.
@@ -193,7 +194,9 @@ Our VM is automatically generated from a textual description, using a [Packer](h
 3. Unzip `linden.tar.gz` and navigate to `artifact-vm/`
 4. Run `make vm`
 
-The last command will download the Ubuntu 24.04 ISO image, automatically set it up in a fresh VM, provision the VM by copying our code into it, installing dependencies and code editors with extensions, and compiling our code, leaving you with a brand new VM ready for artifact evaluation. This is the process we used to create the VM on Zenodo.
+The last command will download the Ubuntu 24.04 ISO image, automatically set it up in a fresh VM, and provision the VM by copying our code into it, installing dependencies and code editors with extensions, and compiling our code, leaving you with a brand new VM ready for artifact evaluation. This is the process we used to create the VM on Zenodo.
+
+The entire process should take between 30 minutes and one hour to complete (possibly longer depending on your Internet connection speed). Do not interact with the VM while Packer is running (e.g. when the VM asks whether to continue with autoinstall, Packer will eventually input "yes" by itself).
 
 ### Without a VM
 
