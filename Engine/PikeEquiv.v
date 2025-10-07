@@ -362,7 +362,7 @@ Proof.
     inversion SUBSETTREE.
 Qed.
 
-(* TODO: simplify/automate this proof *)
+(* LATER: simplify/automate this proof *)
 (* in the case where we are at a stuttering step, we show that we still preserve the invariant *)
 Theorem stutter_step:
   forall tree gm inp code pc b
