@@ -3,7 +3,7 @@
 Welcome to our artifact!
 
 The simplest way to evaluate this artifact is to download the VM (`linden.ova`) from Zenodo and follow the instructions below.
-The VM image can be imported in VirtualBox; we tested version 7.2.2 on an Ubuntu 24.04 LTS host OS.
+The VM image can be imported in VirtualBox; we tested version 7.2.2 on an Ubuntu 24.04 LTS host OS with an x86-64 host CPU.
 
 The VM username is `ubuntu`.  The password is also `ubuntu`.
 The artifact directory is `~/Desktop/artifact`.
@@ -14,8 +14,12 @@ Otherwise, you can also gracefully shut down the VM (File -> Close... -> Send th
 
 We are applying for the Available, Functional and Reusable badges.
 
-Optionally, as an alternative if you prefer to recreate a fresh environment, we have an automated Packer script to rebuild and reprovision the VM from scratch, making the whole setup automatically reproducible.
-Or you can run our code locally, without needing a VM. These last two options are described in section [Local setup](#optional-appendix-local-setup) at the bottom of this file.
+Optionally, as an alternative if you prefer to recreate a fresh environment, we have an automated Packer script to rebuild and reprovision the VM from scratch, making the whole setup automatically reproducible. This option is described in `artifact-vm/README.md` in the `linden.tar.gz` archive that you can download from Zenodo.  
+Or you can run our code locally, without needing a VM. This option is described in `INSTALL.md` in the `linden.tar.gz` archive.
+
+In this README.md, any reference to a file `path/to/file.ext` in the artifact refers to either:
+- the file `~/Desktop/artifact/path/to/file.ext` in the VM, or
+- the file `path/to/file.ext` in the `linden.tar.gz` archive that you can download from Zenodo.
 
 
 ## Description of artifact
@@ -125,7 +129,7 @@ Check that the faithfulness theorem applies to all regexes: look at the regex tr
 
 **To verify this claim:**
 
-This claim is supported by several theorems proven in the Rocq development, namely `regex_equiv_ctx_samedir`, `regex_equiv_ctx_forward`, `regex_equiv_ctx_backward`, `observe_equivalence` in [Rewriting/Equivalence.v](Rewriting/Equivalence.v), and all the theorems relating to Figure 5 in the [correspondence table](path/to/correspondence_table.pdf). Read the theorem statements, then check that all these theorems proof-check by running `dune build` from the project root and optionally stepping through the proofs afterwards. The command `dune build` should take at most two minutes to run from a clean state.
+This claim is supported by several theorems proven in the Rocq development, namely `regex_equiv_ctx_samedir`, `regex_equiv_ctx_forward`, `regex_equiv_ctx_backward`, `observe_equivalence` in [Rewriting/Equivalence.v](Rewriting/Equivalence.v), and all the theorems relating to Figure 5 in the [correspondence table](correspondence_table.pdf). Read the theorem statements, then check that all these theorems proof-check by running `dune build` from the project root and optionally stepping through the proofs afterwards. The command `dune build` should take at most two minutes to run from a clean state.
 
 Check that these theorems do not rely on unproven facts, by running `Print Assumptions thm.` after the `Qed.` of each theorem `thm` as described in [the preliminary notes above](#preliminary-notes) (a discussion of the section variables can also be found there).
 
@@ -184,52 +188,3 @@ This exercise is located in the file `Semantics/Exercise.v`. Follow the instruct
 ## Thank you!
 
 Thank you so much for reviewing our artifact!
-
-
-## [Optional appendix] Local setup
-
-Our VM is automatically generated from a textual description, using a [Packer](https://www.packer.io/) script (Packer is a tool for “images as code”, used to build reproducible VM images, containers, etc.).
-
-### To rebuild the VM automatically
-
-1. [Install VirtualBox](https://www.virtualbox.org/manual/ch02.html)
-2. [Install Packer](https://developer.hashicorp.com/packer/install) ≥ v1.10.2, `yamllint` (from `apt` package `yamllint`) and `xorriso` (from `apt` package `xorriso`)
-3. Unzip `linden.tar.gz` and navigate to `artifact-vm/`
-4. Run `make vm`
-
-The last command will download the Ubuntu 24.04 ISO image, automatically set it up in a fresh VM, and provision the VM by copying our code into it, installing dependencies and code editors with extensions, and compiling our code, leaving you with a brand new VM ready for artifact evaluation. This is the process we used to create the VM on Zenodo.
-
-The entire process should take between 30 minutes and one hour to complete (possibly longer depending on your Internet connection speed). Do not interact with the VM while Packer is running (e.g. when the VM asks whether to continue with autoinstall, Packer will eventually input "yes" by itself).
-
-### Without a VM
-
-If you wish to run our development on your own machine without a VM, this is possible. To do so, use the following instructions; you will need [opam](https://opam.ocaml.org/). TODO Mac OS, Windows?
-
-1. Clone the code repository, then cd into it:
-
-   ```
-   git clone -b popl26_artifact https://github.com/epfl-systemf/Linden.git
-   cd Linden
-   ```
-
-2. Create a local [opam](https://opam.ocaml.org/) switch:
-
-   ```
-   opam switch --no-install create .
-   ```
-
-   This should take 2 to 5 minutes approximately.
-
-3. Pin the version of Warblre:
-
-   ```
-   opam pin add warblre https://github.com/epfl-systemf/Warblre.git#a1ffc3f2e47d942ad9e1194dfb71f0783ead6d8a
-   ```
-
-   Answer `y` when asked whether to create package `warblre` as a new package.
-
-   This should take 4 to 10 minutes approximately.
-
-4. Run `eval $(opam env)`.
-
-5. Build all proofs with `dune build`. This should take a minute or two.
