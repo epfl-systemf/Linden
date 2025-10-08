@@ -6,10 +6,11 @@ From Linden Require Import Groups.
 From Linden Require Import Parameters.
 From Warblre Require Import Base.
 
-(* The subset of JavaScript regexes supported by this development. *)
-(* The semantics come from JavaScript:
-   for instance, the star termination criteria is not the same as in other languages
-   and capture groups are reset at each iteration *)
+(** * Abstract syntax tree of JavaScript regexes *)
+(* This abstract syntax tree slightly differs from Warblre's AST in order to
+make it simpler to express the semantics and for a bit more simplicity. *)
+(* Nonetheless, all Warblre regexes can be expressed using this AST; see
+WarblreEquiv/RegexpTranslation.v . *)
 
 (** ** We use Warblre's directions *)
 

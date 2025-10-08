@@ -3,6 +3,7 @@ From Warblre Require Import RegExpRecord Typeclasses.
 From Coq Require Import List.
 Import ListNotations.
 
+(** * Equivalence of lists of leaves: definition and lemmas *)
 
 Section Preparation.
   Context {params: LindenParameters}.

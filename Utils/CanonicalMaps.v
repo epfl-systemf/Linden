@@ -1,5 +1,8 @@
 From Coq Require Import Eqdep_dec List Permutation SetoidList Bool RelationClasses.
 
+(** Canonical maps *)
+(* Maps for which for all maps m1 and m2, we have Equal m1 m2 <-> m1 = m2. *)
+
 Module ProofIrrelevance.
   Class InvDec (P: Prop) := {
       Pb: bool;

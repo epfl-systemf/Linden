@@ -3,6 +3,8 @@ From Warblre Require Import Base RegExpRecord.
 From Linden Require Import Regex Chars Groups Tree Semantics FunctionalSemantics ComputeIsTree Parameters.
 Import ListNotations.
 
+(** * Some utilities related to the functional version of the semantics *)
+
 Section Utilities.
   Context {params: LindenParameters}.
   Context (rer: RegExpRecord).

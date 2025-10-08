@@ -6,10 +6,13 @@ From Coq Require Import Lia.
 
 Local Open Scope result_flow.
 
+(** Equivalence between character descriptors and CharSets *)
+
 Section CharDescrCharSet.
   Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
   
+  (* Definition *)
   Definition equiv_cd_charset (cd: char_descr) (charset: CharSet) :=
     forall c: Character, char_match rer c cd = CharSet.exist_canonicalized rer charset (Character.canonicalize rer c).
 

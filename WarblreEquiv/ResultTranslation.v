@@ -3,6 +3,8 @@ From Warblre Require Import Notation.
 Import Notation.
 Import ZArith PeanoNat.
 
+(** * Translating Linden matching results back into Warblre results *)
+
 Section ResultTranslation.
   Context {params: LindenParameters}.
 

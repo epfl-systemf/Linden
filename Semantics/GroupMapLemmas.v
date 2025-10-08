@@ -1,6 +1,8 @@
 From Linden Require Import Groups Tactics.
 From Coq Require Import List DecidableClass Lia PeanoNat.
 
+(** * Lemmas related to group maps *)
+
 Lemma gm_find_empty:
   forall gid, GroupMap.find gid GroupMap.empty = None.
 Proof.

@@ -10,7 +10,8 @@ Require Import List.
 Import ListNotations.
 Require Import PeanoNat Lia.
 
-(** * Relation defining equivalence between Warblre regexes and Linden regexes *)
+(** * Syntactic equivalence between Warblre regexes and Linden regexes
+and translation from Warblre to Linden regexes *)
 
 Section RegexpTranslation.
   Context {params: LindenParameters}.

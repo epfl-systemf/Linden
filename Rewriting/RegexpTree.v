@@ -1,5 +1,5 @@
 From Linden Require Import ProofSetup.
-From Linden.Rewriting Require Import Examples FlatMap.
+From Linden.Rewriting Require Import Examples FlatMap ForcedQuant.
 
 Coercion nat_to_N (n: nat) := NoI.N n.
 
@@ -125,7 +125,7 @@ Section RegexpTree.
         { symmetry.
           eapply sequence_assoc_equiv. }
         eapply seq_equiv_dir.
-        apply quantified_delta0_greedy_irrelevant.
+        apply forced_equiv.
         auto.
     Qed.
 
@@ -155,7 +155,7 @@ Section RegexpTree.
         { eapply sequence_assoc_equiv. }
         eapply seq_equiv_dir.
         auto.
-        apply quantified_delta0_greedy_irrelevant.
+        apply forced_equiv.
     Qed.
 
     Context (c0 c1 c2: Parameters.Character).

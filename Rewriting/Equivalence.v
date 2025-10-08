@@ -6,6 +6,9 @@ From Linden Require Import Regex Chars Groups Tree Semantics
 
 Export ListNotations.
 
+(** * Leaves equivalence of regexes: definition and proof that it allows
+rewriting under a context *)
+
 Section Definitions.
   Context {params: LindenParameters}.
   Context (rer: RegExpRecord).

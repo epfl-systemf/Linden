@@ -1,3 +1,6 @@
+(** Importing this module will bring into the context definitions, theorems and
+tactics useful to perform rewriting proofs. *)
+
 From Coq Require Export List Lia.
 From Warblre Require Export Base RegExpRecord.
 From Linden Require Export Regex Chars Groups Tree Semantics FunctionalSemantics FunctionalUtils ComputeIsTree.

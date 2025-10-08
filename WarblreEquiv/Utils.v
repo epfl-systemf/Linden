@@ -2,6 +2,8 @@ From Coq Require Import List.
 Import ListNotations.
 From Warblre Require Import Typeclasses.
 
+(** * Utilities (currently only boolean version of belonging to a list) *)
+
 Module List.
   Definition inb {A} `{EqDec A} (x: A) (l: list A): bool :=
     if in_dec EqDec.eq_dec x l then true else false.

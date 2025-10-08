@@ -2,6 +2,9 @@ From Warblre Require Import Inst API Parameters RegExpRecord.
 Import NaiveEngine.
 From Linden Require Import Parameters.
 
+(** * Instantiating the LindenParameters typeclass used in the development
+using a naive instantiation of Warblre typeclasses *)
+
 Instance character_class: Character.class := @Parameters.character_class parameters.
 
 Lemma canonicalize_casesenst: forall rer chr, RegExpRecord.ignoreCase rer = false -> Character.canonicalize rer chr = chr.

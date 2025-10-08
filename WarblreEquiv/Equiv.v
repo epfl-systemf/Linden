@@ -13,6 +13,8 @@ From Coq Require Import ZArith PeanoNat Lia RelationClasses.
 
 Local Open Scope result_flow.
 
+(** * Core of the equivalence proof *)
+
 Section Equiv.
   Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
