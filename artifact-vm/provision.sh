@@ -86,6 +86,11 @@ cat > ~/.emacs <<EOF
 ;; (setq gnutls-algorithm-priority "NORMAL:-VERS-TLS1.3") ; see remark below
 (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
 (package-initialize)
+;; Hide Proof General and company-coq compilation warnings
+(custom-set-variables
+ '(native-comp-async-report-warnings-errors 'silent))
+(custom-set-faces
+ )
 EOF
 emacs --batch --eval "(progn (require 'package) (add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t) (package-refresh-contents) (package-install 'proof-general) (package-install 'company-coq))"
 
