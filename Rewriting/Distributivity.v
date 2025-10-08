@@ -1,5 +1,9 @@
 From Linden.Rewriting Require Import ProofSetup.
 
+(** * Distributivity of sequence over disjunction *)
+(* This distributivity is only valid in one direction depending on whether we
+distribute on the right or on the left. *)
+
 Module Right.
   Section EquivalenceProof.
     Context {params: LindenParameters}.

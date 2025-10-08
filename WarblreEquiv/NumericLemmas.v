@@ -1,6 +1,7 @@
 From Warblre Require Import Numeric.
 From Coq Require Import Lia.
 
+(** * Lemmas about Warblre's `non_neg_integer_or_inf` (NoI) *)
 
 (* The plus one operation is injective *)
 Lemma plus_one_inj:

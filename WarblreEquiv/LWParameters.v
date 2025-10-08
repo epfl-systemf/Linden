@@ -8,7 +8,7 @@ Import Utils.List.
 Local Open Scope bool_scope.
 
 
-(** * Instantiation of Warblre typeclasses String, Property (Unicode) *)
+(** * Instantiation of Warblre typeclasses String, *Marker and Parameters *)
 
 Section LWParameters.
   Context {params: LindenParameters}.

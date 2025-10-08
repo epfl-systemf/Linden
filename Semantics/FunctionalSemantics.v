@@ -10,7 +10,8 @@ From Linden Require Import Parameters.
 From Warblre Require Import Numeric Base RegExpRecord.
 
 From Coq Require Import Lia DecidableClass.
-(* From Coq Require Import Program. *)
+
+(** * Functional version of the inductive semantics *)
 
 Section FunctionalSemantics.
   Context {params: LindenParameters}.

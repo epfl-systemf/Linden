@@ -12,6 +12,8 @@ Import Patterns.
 Local Open Scope bool_scope.
 Local Open Scope result_flow.
 
+(** * Equivalence lemmas *)
+
 Section EquivLemmas.
   Context {params: LindenParameters}.
   Context (rer: RegExpRecord).

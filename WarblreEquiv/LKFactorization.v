@@ -9,7 +9,9 @@ Import ListNotations.
 Local Open Scope result_flow.
 Local Open Scope bool_scope.
 
-(* We factorize lookarounds as a pair of a Direction and a boolean (positivity). *)
+(** * Factorization of lookarounds as a pair of a Direction and a boolean (positivity) *)
+(* Code for matching each of the four kinds of lookarounds is duplicated in Warblre.
+We factorize it in this file *)
 
 Section LKFactorization.
   Context {params: LindenParameters}.
@@ -87,7 +89,7 @@ Section LKFactorization.
   Qed.
 
 
-  (** ** Some utility lemmas*)
+  (** ** Some utility lemmas *)
 
   Lemma equiv_lookaround_dir_pos:
     forall wlk llk,

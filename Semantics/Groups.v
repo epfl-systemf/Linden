@@ -1,5 +1,5 @@
-(* Defining Capture Groups Registers *)
-(* Keeping an index of when was a group opened and closed *)
+(* Defining Capture Group Registers *)
+(* Keeping an index of when a group was opened and closed *)
 
 Require Import List Lia.
 Import ListNotations.

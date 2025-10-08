@@ -7,6 +7,8 @@ From Coq Require Import ZArith List.
 Import Notation.
 Import Match.
 
+(** * Equivalence definitions *)
+
 Section EquivDef.
   Context {params: LindenParameters}.
   Context (rer: RegExpRecord).

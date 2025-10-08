@@ -2,6 +2,9 @@ From Linden Require Import Semantics FunctionalSemantics Chars StrictSuffix Para
 From Warblre Require Import Parameters Base RegExpRecord.
 From Coq Require Import Lia List.
 
+(** * Proving that the functional version of the semantics, compute_tree,
+yields trees that respect the inductive semantics *)
+
 Section ComputeIsTree.
   Context {params: LindenParameters}.
   Context (rer: RegExpRecord).

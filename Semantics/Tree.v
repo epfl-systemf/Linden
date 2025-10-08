@@ -5,9 +5,10 @@ From Linden Require Import Regex Chars Groups Parameters LWParameters.
 From Coq Require Import PeanoNat.
 From Warblre Require Import Typeclasses Parameters Base.
 
+(** * Backtracking trees *)
 
 (* A tree represents all the possible paths that could be explored by a backtracking engine *)
-(* Its nodes are made out of actions: manipulating groups, choosing between 2 branches etc *)
+(* Its nodes are made out of actions: manipulating groups, choosing between 2 branches, etc. *)
 (* Branches of the tree are ordered by priority: the leftmost branch is the top priority behavior *)
 
 (** * Chaining optional results  *)
@@ -52,7 +53,7 @@ Lemma seqop_assoc:
     seqop o1 (seqop o2 o3) = seqop (seqop o1 o2) o3.
 Proof. intros. unfold seqop. destruct o1; destruct o2; auto. Qed.
 
-(** * Priority Trees  *)
+(** * Backtracking trees  *)
 
 
 Section Tree.

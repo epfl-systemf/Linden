@@ -10,6 +10,7 @@ From Linden Require Import StrictSuffix.
 From Linden Require Import Parameters LWParameters.
 From Coq Require Import Lia.
 
+(** * Inductive semantics of JavaScript regexes *)
 (* This relates a regex and a string to their backtracking tree *)
 
 

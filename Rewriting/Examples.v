@@ -1,5 +1,7 @@
 From Linden Require Import ProofSetup.
 
+(** * A few examples of regex rewrites *)
+
 Section Utilities.
   Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
@@ -143,24 +145,5 @@ Section Examples.
     inversion TREE2; subst.
     2: { destruct plus; discriminate. }
     replace t2 with t1 by eauto using is_tree_determ. reflexivity.
-  Qed.
-
-  Lemma quantified_delta0_greedy_irrelevant r:
-    forall n,
-      Quantified true n 0 r ≅[rer] Quantified false n 0 r.
-  Proof.
-    induction n as [|n IHn].
-    - tree_equiv_rw; compute_tr_simpl. reflexivity.
-    - intro dir. specialize (IHn dir).
-      split. 1: reflexivity.
-      intros i gm tr1 tr2 TREE1 TREE2.
-      inversion TREE1; subst. inversion TREE2; subst. clear TREE1 TREE2.
-      unfold tree_equiv_tr_dir. simpl.
-      remember (GroupMap.reset _ gm) as gm'. clear gm Heqgm'.
-      revert i gm' titer titer0 ISTREE1 ISTREE0.
-      change (actions_equiv_dir rer dir [Areg r; Areg (Quantified true n 0 r)] [Areg r; Areg (Quantified false n 0 r)]).
-      apply app_eq_left with (acts := [Areg r]).
-      unfold actions_equiv_dir. intros inp gm t1 t2 TREE1 TREE2.
-      apply IHn; auto.
   Qed.
 End Examples.
