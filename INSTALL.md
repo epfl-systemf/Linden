@@ -33,6 +33,4 @@ If you wish to run our development on your own machine without a VM, this is pos
 
 5. Build all proofs with `dune build`. This should take a minute or two.
 
-## Troubleshooting
-
-TODO
+You can then open your code editor to browse the proofs. Make sure to run your code editor in the environment set by the `eval $(opam env)` command above (step 4).

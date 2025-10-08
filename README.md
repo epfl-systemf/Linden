@@ -61,7 +61,7 @@ To use Emacs, run `emacs .` *in the terminal you opened* (from `~/Desktop/artifa
 
 #### If you are running locally
 
-After following the instructions in [section "[Optional appendix] Local setup", subsection "Without a VM"](#without-a-vm), you should have a local Opam switch in the artifact directory as well as the proofs built. Use the Opam switch, e.g. by opening a terminal, cd'ing into the artifact directory and running `eval $(opam env)`, to run any Coq IDE you would like to step through the proofs. TODO Mac OS, Windows?
+After following the instructions in [section "[Optional appendix] Local setup", subsection "Without a VM"](#without-a-vm), you should have a local Opam switch in the artifact directory as well as the proofs built. Use the Opam switch, e.g. by opening a terminal, cd'ing into the artifact directory and running `eval $(opam env)`, to run any Coq IDE you would like to step through the proofs.
 
 ## Summary of claims and experimental results
 
