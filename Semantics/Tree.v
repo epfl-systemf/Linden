@@ -261,9 +261,7 @@ Section Tree.
   (** * Group Map irrelevance  *)
   (* finding a match does not depend on the initial group map *)
   (* we could phrase a stronger theorem about how to relate the two results *)
-  (* but for now I only need to differentiate when there is no results from when there is one *)
-
-  (* warning: actually so far I don't need this theorem *)
+  (* but for now we only need to differentiate when there is no results from when there is one *)
 
   (* Group map irrelevance property for a given tree. *)
   Definition leaves_group_map_indep_prop (t: tree): Prop :=
