@@ -1,4 +1,4 @@
-(** Importing this module will bring into the context definitions, theorems and
+(** * Importing this module will bring into the context definitions, theorems and
 tactics useful to perform rewriting proofs. *)
 
 From Coq Require Export List Lia.
