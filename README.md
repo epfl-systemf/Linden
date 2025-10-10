@@ -75,8 +75,6 @@ After following the instructions in [section "[Optional appendix] Local setup", 
 
 - Factual claim 4: mechanization. Our formal semantics, definitions and proofs are fully mechanized in the Rocq proof assistant.
 
-**Claims not supported by the artifact:** This artifact does not support the claim that the semantics is practical; this claim is supported by the two applications of the semantics presented in the paper, namely regex rewriting and the verification of the PikeVM.
-
 
 ## Step-by-step instructions
 
