@@ -157,10 +157,10 @@ Definition chain_literals (l1 l2 : literal) : literal :=
   | Impossible => Impossible
   end.
 
-Fixpoint repeat_literal (l: literal) (n: nat) : literal :=
+Fixpoint repeat_literal (l: literal) (base: literal) (n: nat) : literal :=
   match n with
-  | 0 => Unknown
-  | S n' => chain_literals l (repeat_literal l n')
+  | 0 => base
+  | S n' => chain_literals l (repeat_literal l base n')
   end.
 
 Lemma chain_literals_assoc:
@@ -266,8 +266,8 @@ Fixpoint extract_literal (r: regex) : literal :=
   | Regex.Character cd => extract_literal_char cd
   | Disjunction r1 r2 => merge_literals (extract_literal r1) (extract_literal r2)
   | Sequence r1 r2 => chain_literals (extract_literal r1) (extract_literal r2)
-  | Quantified _ 0 (NoI.N 0) r1 => Nothing
-  | Quantified _ min _ r1 => repeat_literal (extract_literal r1) min
+  | Quantified _ min (NoI.N 0) r1 => repeat_literal (extract_literal r1) Nothing min
+  | Quantified _ min _ r1 => repeat_literal (extract_literal r1) Unknown min
   | Lookaround _ r1 => Unknown (* TODO: possible by merging the literals around but that requires a different way of computing literals. For instance /(?=abc)p/ => None, /(?<=abc)c/ => 'c' (but not exact nor prefix) *)
   | Group _ r1 => extract_literal r1
   | Anchor _ => Nothing (* TODO: can be used to detect impossible matches, like /\b\B/, but this requires restructuring this function *)
@@ -408,19 +408,20 @@ Proof.
   - simpl. rewrite <-chain_literals_assoc.
     eauto.
   (* tree_quant_forced *)
-  - simpl. rewrite <-chain_literals_assoc.
+  - simpl.
     destruct min.
     (* min = 0 *)
-    + destruct plus. destruct n. 
-      (* max > min *)
-      2, 3: eapply IHHtree; eauto.
+    + destruct plus. destruct n.
+      (* max > 0 *)
+      2, 3: rewrite <- chain_literals_assoc; eapply IHHtree; eauto.
       (* min = max = 0 *)
       simpl in *. destruct extract_actions_literal; destruct extract_literal; simpl;
-        try rewrite app_nil_r;
-        (eapply starts_with_app_left; eapply IHHtree; eauto) ||
-        eauto.
-    (* min > 0 *)
-    + eauto.
+      try rewrite app_nil_r;
+      (eapply starts_with_app_left; eapply IHHtree; eauto) ||
+      eauto.
+      (* min > 0 *)
+    + destruct plus. destruct n.
+      all: rewrite <- chain_literals_assoc; eapply IHHtree; eauto.
   (* tree_quant_free *)
   - simpl.
     destruct plus; destruct extract_actions_literal; constructor.
