@@ -13,7 +13,7 @@ Section Prefix.
 Ltac wt_eq := repeat match goal with
   | [ H: (?x ==? ?y)%wt = true |- _ ] => rewrite EqDec.inversion_true in H; subst
   | [ H: (?x ==? ?y)%wt = false |- _ ] => rewrite EqDec.inversion_false in H
-  | [ |- context[(?x ==? ?y)%wt] ] => let Hname := fresh "Heq" in destruct (x ==? y)%wt eqn:Hname
+  | [ |- context[(?x ==? ?y)%wt] ] => destruct (x ==? y)%wt eqn:?Heq
 end.
 
 
@@ -97,12 +97,9 @@ Definition input_search {strs: StrSearch} (p: string) (inp: input): option input
 Lemma input_search_strict_suffix {strs: StrSearch}:
   forall i1 i2 p, Some i2 = input_search p i1 -> i2 = i1 \/ strict_suffix i2 i1 forward.
 Proof.
-  intros i1 i2 p H. unfold input_search in H.
+  unfold input_search; intros until p.
 
-  destruct str_search.
-  - eapply advance_input_n_suffix.
-    injection H. eauto.
-  - discriminate H.
+  destruct str_search; intros [=]; eauto using advance_input_n_suffix.
 Qed.
 
 Lemma input_search_starts_with {strs: StrSearch}:
@@ -126,7 +123,7 @@ Admitted.
 Inductive literal : Type :=
 | Exact (s : string) (* the entire match is exactly `s` *)
 | Prefix (s : string) (* the match starts with `s` *)
-| Impossible. (* this indicates the match cannot exist, as opposed to Prefix [] which means we do not know anything about the match *)
+| Impossible. (* this indicates a match cannot exist, as opposed to Prefix [] which means we do not know anything about the match *)
 
 Notation Nothing := (Exact []).
 Notation Unknown := (Prefix []).
@@ -167,9 +164,8 @@ Lemma chain_literals_assoc:
   forall l1 l2 l3,
     chain_literals l1 (chain_literals l2 l3) = chain_literals (chain_literals l1 l2) l3.
 Proof.
-  intros l1 l2 l3.
-  destruct l1; destruct l2; destruct l3; simpl; try reflexivity.
-  all: f_equal; rewrite app_assoc; reflexivity.
+  destruct l1, l2, l3; simpl.
+  all: rewrite ?app_assoc; reflexivity.
 Qed.
 
 (* the longest string that is a prefix of both strings *)
@@ -186,13 +182,9 @@ Definition merge_literals (l1 l2 : literal) : literal :=
 Lemma starts_with_common_prefix: forall s1 s2,
   starts_with (common_prefix s1 s2) s1.
 Proof.
-  intro s1.
-  induction s1.
+  induction s1; simpl.
   - reflexivity.
-  - destruct s2 eqn:Heqs2. subst. constructor.
-    simpl. wt_eq.
-    + apply starts_with_cons_iff. auto.
-    + constructor.
+  - destruct s2; wt_eq; constructor; auto.
 Qed.
 
 Lemma starts_with_chain_merge_literals: forall l1 l2 l3,
@@ -205,8 +197,8 @@ Proof.
       starts_with (prefix (chain_literals l1 l3)) (prefix (chain_literals l2 l3))
     does not hold (consider l1 = Exact [], l2 = Impossible)
     thus this lemma focuses on the specific case of merging literals *)
-  intros.
-  unfold merge_literals. wt_eq.
+  unfold merge_literals; intros.
+  wt_eq.
   - reflexivity.
   - destruct l3; try constructor; simpl.
     + destruct l1; simpl.
@@ -223,20 +215,16 @@ Lemma common_prefix_comm:
   forall s1 s2,
     common_prefix s1 s2 = common_prefix s2 s1.
 Proof.
-  intros s1.
-  induction s1; destruct s2; simpl; try reflexivity.
-  wt_eq; congruence.
+  induction s1; destruct s2; simpl; wt_eq; congruence.
 Qed.
 
 Lemma merge_literals_comm:
   forall l1 l2,
     merge_literals l1 l2 = merge_literals l2 l1.
 Proof.
-  intros l1 l2.
-  unfold merge_literals.
+  unfold merge_literals; intros.
   wt_eq; try congruence.
-  f_equal.
-  apply common_prefix_comm.
+  rewrite common_prefix_comm; reflexivity.
 Qed.
 
 (* extracting literals from a character description *)
@@ -308,8 +296,7 @@ Section LiteralExtraction.
 Lemma char_match_range_same: forall c l,
   char_match rer c (CdRange l l) = true -> c = l.
 Proof.
-  intros.
-  unfold char_match in *. unfold char_match' in *.
+  unfold char_match, char_match'. intros ? ? H.
   rewrite
     Character.numeric_pseudo_bij,
     CharSet.exist_canonicalized_equiv,
@@ -386,7 +373,7 @@ Proof.
     try solve[(constructor || simpl; destruct (extract_actions_literal cont); constructor)];
     (* the literal is that of the rest of the actions *)
     try solve[simpl in *;
-    destruct (extract_actions_literal cont); eapply IHHtree; eauto with prefix];
+      destruct (extract_actions_literal cont); eapply IHHtree; eauto with prefix];
     (* mismatch violating tree_res result *)
     try discriminate Hleaf.
   
