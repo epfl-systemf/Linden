@@ -823,4 +823,81 @@ Proof.
 Qed.
 
 End Literal.
+
+From Linden Require Import FunctionalPikeVM PikeSubset SeenSets.
+From Linden Require Import Correctness.
+Section PrefixedEngine.
+  Context (rer: RegExpRecord).
+  Context {VMS: VMSeen}.
+
+(* interface of an executable engine *)
+Class Engine := {
+  exec: regex -> input -> option leaf;
+
+  (* asserts the supported subset of regexes *)
+  supported_regex: regex -> Prop;
+
+  (* the execution follows the backtracking tree semantics *)
+  exec_correct: forall r inp tree ol,
+    supported_regex r ->
+    exec r inp = ol ->
+    is_tree rer [Areg r] inp Groups.GroupMap.empty forward tree ->
+    first_leaf tree inp = ol
+}.
+
+(* for each input position we run the engine and return the earliest match *)
+Program Fixpoint search_from {engine:Engine} (r: regex) (inp: input)
+  {measure (length (next_str inp))} : option leaf :=
+  match (exec r inp) with
+  | Some leaf => Some leaf
+  | None =>
+      match advance_input inp forward with
+      | None => None
+      | Some nextinp => search_from r nextinp
+      end
+  end.
+Next Obligation.
+  unfold advance_input in Heq_anonymous.
+  destruct inp, next; inversion Heq_anonymous.
+  simpl. lia.
+Qed.
+
+(* the string-quadratic algorithm described in RegExpBuiltinExec *)
+Definition BuiltinExec {engine:Engine} (r:regex) (inp:input) : option leaf :=
+  search_from r inp.
+
+(* prefixed version *)
+Definition BuiltinExecPrefixed {strs:StrSearch} {engine:Engine} (r:regex) (inp:input) : option leaf :=
+  let p := prefix (extract_literal r) in
+  (* we skip the initial input that does not match the prefix *)
+  match (input_search p inp) with
+  | None => None (* if prefix is not present anywhere, then we cannot match *)
+  | Some start => search_from r start
+  end.
+
+(* the prefixed version returns identical results to the non-prefixed one *)
+Theorem builtin_exec_equiv {strs:StrSearch} {engine:Engine}:
+  forall r inp,
+    BuiltinExec r inp = BuiltinExecPrefixed r inp.
+Proof.
+Admitted.
+
+(* we show that the PikeVM fits the scheme of an engine *)
+#[refine]
+Instance PikeVMEngine: Engine := {
+  exec r inp := match pike_vm_match rer r inp with
+                | OutOfFuel => None
+                | Finished res => res
+                end;
+  supported_regex := pike_regex;
+}.
+  (* exec_correct *)
+  intros r inp tree ol Hsubset Hexec Htree.
+  destruct pike_vm_match eqn:Hmatch.
+  - admit. (* TODO: unclear how to handle OutOfFuel *)
+  - subst. symmetry. eauto using pike_vm_match_correct, pike_vm_correct.
+Admitted.
+
+
+End PrefixedEngine.
 End Prefix.
