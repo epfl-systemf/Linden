@@ -893,14 +893,14 @@ Definition pref_str (i: input) : string :=
   end.
 
 (* the string-quadratic algorithm described in RegExpBuiltinExec *)
-Definition BuiltinExec {engine:Engine} (r:regex) (input:string) : option leaf :=
-  search_from r input [].
+Definition BuiltinExec {engine:Engine} (r:regex) (inp:input) : option leaf :=
+  search_from r (next_str inp) (pref_str inp).
 
 (* prefixed version *)
-Definition BuiltinExecPrefixed {strs:StrSearch} {engine:Engine} (r:regex) (input:string) : option leaf :=
+Definition BuiltinExecPrefixed {strs:StrSearch} {engine:Engine} (r:regex) (inp:input) : option leaf :=
   let p := prefix (extract_literal r) in
   (* we skip the initial input that does not match the prefix *)
-  match (input_search p (Input input [])) with
+  match (input_search p inp) with
   | None => None (* if prefix is not present anywhere, then we cannot match *)
   | Some i => search_from r (next_str i) (pref_str i)
   end.
@@ -938,17 +938,14 @@ Proof.
 Qed.
 
 Theorem builtin_exec_equiv {strs:StrSearch} {engine:Engine}:
-  forall r input,
+  forall r inp,
     supported_regex r ->
-    BuiltinExec r input = BuiltinExecPrefixed r input.
+    BuiltinExec r inp = BuiltinExecPrefixed r inp.
 Proof.
-  intros r input Hsubset.
+  intros r inp Hsubset.
   unfold BuiltinExec, BuiltinExecPrefixed.
   destruct input_search eqn:Hsearch.
-  - remember (Input input []) as inp.
-    replace input with (next_str inp) by (subst; reflexivity).
-    replace [] with (pref_str inp) by (subst; reflexivity).
-    assert (input_prefix inp i). {
+  - assert (input_prefix inp i). {
       apply input_search_strict_suffix in Hsearch.
       now rewrite <-input_prefix_strict_suffix in Hsearch.
     }
