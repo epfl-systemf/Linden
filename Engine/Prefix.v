@@ -14,6 +14,9 @@ From Linden Require Import Parameters LWParameters.
 From Linden Require Import StrictSuffix.
 From Warblre Require Import Base RegExpRecord.
 
+From Linden Require Import PikeSubset SeenSets.
+From Linden Require Import Correctness.
+
 Section Prefix.
   Context {params: LindenParameters}.
 
@@ -824,11 +827,10 @@ Qed.
 
 End Literal.
 
-From Linden Require Import FunctionalPikeVM PikeSubset SeenSets.
-From Linden Require Import Correctness.
 Section PrefixedEngine.
   Context (rer: RegExpRecord).
   Context {VMS: VMSeen}.
+  Context (no_i_flag : RegExpRecord.ignoreCase rer = false).
 
 (* interface of an executable engine *)
 Class Engine := {
@@ -838,11 +840,12 @@ Class Engine := {
   supported_regex: regex -> Prop;
 
   (* the execution follows the backtracking tree semantics *)
-  exec_correct: forall r inp tree ol,
+  exec_correct: forall r inp ol,
     supported_regex r ->
-    exec r inp = ol ->
-    is_tree rer [Areg r] inp Groups.GroupMap.empty forward tree ->
-    first_leaf tree inp = ol
+      ((exists tree,
+        is_tree rer [Areg r] inp Groups.GroupMap.empty forward tree /\
+        first_leaf tree inp = ol) <->
+      exec r inp = ol)
 }.
 
 (* for each input position we run the engine and return the earliest match *)
@@ -882,6 +885,9 @@ Theorem builtin_exec_equiv {strs:StrSearch} {engine:Engine}:
 Proof.
 Admitted.
 
+(* TODO: replace with theorem where the fuel is derived from the complexity of the PikeVM *)
+Axiom pike_vm_fuel: forall r inp, pike_vm_match rer r inp <> OutOfFuel.
+
 (* we show that the PikeVM fits the scheme of an engine *)
 #[refine]
 Instance PikeVMEngine: Engine := {
@@ -892,11 +898,18 @@ Instance PikeVMEngine: Engine := {
   supported_regex := pike_regex;
 }.
   (* exec_correct *)
-  intros r inp tree ol Hsubset Hexec Htree.
-  destruct pike_vm_match eqn:Hmatch.
-  - admit. (* TODO: unclear how to handle OutOfFuel *)
-  - subst. symmetry. eauto using pike_vm_match_correct, pike_vm_correct.
-Admitted.
+  intros r inp ol Hsubset.
+  destruct pike_vm_match eqn:Hmatch; [pose proof pike_vm_fuel r inp; contradiction|].
+  split.
+  - intros [tree [Htree Hleaf]].
+    subst. eauto using pike_vm_match_correct, pike_vm_correct.
+  - intros ?; subst.
+    pose proof (is_tree_productivity r inp Groups.GroupMap.empty forward) as [tree Htree].
+    exists tree.
+    split.
+    + eassumption.
+    + symmetry. eauto using pike_vm_match_correct, pike_vm_correct.
+Qed.
 
 
 End PrefixedEngine.
