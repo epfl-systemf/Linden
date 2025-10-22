@@ -6,6 +6,9 @@ From Linden Require Import Parameters LWParameters.
 From Linden Require Import StrictSuffix.
 From Warblre Require Import Base RegExpRecord.
 
+From Linden Require Import PikeSubset SeenSets.
+From Linden Require Import Correctness.
+
 Section Prefix.
   Context {params: LindenParameters}.
 
@@ -79,11 +82,11 @@ Class StrSearch := {
   str_search : string -> string -> option nat;
 
   (* the found position starts with the searched substring *)
-  starts_with_ss: forall s ss i, str_search s ss = Some i -> starts_with ss (List.skipn i s);
+  starts_with_ss: forall s ss i, str_search ss s = Some i -> starts_with ss (List.skipn i s);
   (* there is no earlier position that starts with the searched substring *)
-  no_earlier_ss: forall s ss i, str_search s ss = Some i -> forall i', i' < i -> ~ (starts_with ss (List.skipn i' s));
+  no_earlier_ss: forall s ss i, str_search ss s = Some i -> forall i', i' < i -> ~ (starts_with ss (List.skipn i' s));
   (* if the substring is not found, it cannot appear at any position of the haystack *)
-  not_found: forall s ss, str_search s ss = None -> forall i, i < length s -> ~ (starts_with ss (List.skipn i s))
+  not_found: forall s ss, str_search ss s = None -> forall i, i < length s -> ~ (starts_with ss (List.skipn i s))
 }.
 
 (* substring search operating on inputs rather than strings *)
@@ -109,7 +112,7 @@ Admitted.
 
 
 Lemma input_search_no_earlier {strs: StrSearch}:
-  forall a1 b1 a2 b2 p, input_search p (Input a1 b1) = Some (Input a2 b2) -> forall s1 s2, a1 = s1 ++ s2 ++ a2 -> ~ (starts_with p s2).
+  forall a1 b1 a2 b2 p, input_search p (Input a1 b1) = Some (Input a2 b2) -> forall s1 s2, a1 = s1 ++ s2 ++ a2 -> ~ (starts_with p (s2 ++ a2)).
 Proof.
 Admitted.
 
@@ -358,12 +361,12 @@ Qed.
 
 (* generalization of extract_literal_prefix on the group map and the list of actions *)
 Lemma extract_literal_prefix_general:
-  forall acts tree inp gm result,
+  forall acts tree inp gm,
     is_tree rer acts inp Groups.GroupMap.empty forward tree ->
-    tree_res tree gm inp forward = Some result ->
+    (exists result, tree_res tree gm inp forward = Some result) ->
     starts_with (prefix (extract_actions_literal acts)) (next_str inp).
 Proof.
-  intros acts tree inp gm result Htree Hleaf.
+  intros acts tree inp gm Htree [result Hleaf].
 
   remember (forward) as dir.
   generalize dependent result.
@@ -425,22 +428,43 @@ Qed.
 
 (* main theorem: every match starts with the extracted literal *)
 Theorem extract_literal_prefix:
-  forall r tree inp result,
+  forall r tree inp,
     is_tree rer [Areg r] inp Groups.GroupMap.empty forward tree ->
-    first_leaf tree inp = Some result ->
+    (exists result, first_leaf tree inp = Some result) ->
     starts_with (prefix (extract_literal r)) (next_str inp).
 Proof.
   intros.
   rewrite <- (extract_actions_literal_regex r).
   eapply extract_literal_prefix_general; eassumption.
 Qed.
+
+Lemma is_none_iff_not_exists_some:
+  forall {A: Type} (o: option A),
+    o = None <-> ~ (exists x: A, o = Some x).
+Proof.
+  split; intro H.
+  - intros [? ?]. now subst.
+  - destruct o; [exfalso|]; eauto.
+Qed.
+
+(* the contraposition of extract_literal_prefix *)
+Corollary extract_literal_prefix_contra:
+  forall r tree inp,
+    is_tree rer [Areg r] inp Groups.GroupMap.empty forward tree ->
+    ~(starts_with (prefix (extract_literal r)) (next_str inp)) ->
+    first_leaf tree inp = None.
+Proof.
+  intros r tree inp Htree Hnot.
+  rewrite is_none_iff_not_exists_some; intro Hsome.
+  eauto using extract_literal_prefix.
+Qed.
+
 End LiteralExtraction.
 
-From Linden Require Import FunctionalPikeVM PikeSubset SeenSets.
-From Linden Require Import Correctness.
 Section PrefixedEngine.
   Context (rer: RegExpRecord).
   Context {VMS: VMSeen}.
+  Context (no_i_flag : RegExpRecord.ignoreCase rer = false).
 
 (* interface of an executable engine *)
 Class Engine := {
@@ -450,11 +474,12 @@ Class Engine := {
   supported_regex: regex -> Prop;
 
   (* the execution follows the backtracking tree semantics *)
-  exec_correct: forall r inp tree ol,
+  exec_correct: forall r inp ol,
     supported_regex r ->
-    exec r inp = ol ->
-    is_tree rer [Areg r] inp Groups.GroupMap.empty forward tree ->
-    first_leaf tree inp = ol
+      ((exists tree,
+        is_tree rer [Areg r] inp Groups.GroupMap.empty forward tree /\
+        first_leaf tree inp = ol) <->
+      exec r inp = ol)
 }.
 
 (* for each input position we run the engine and return the earliest match *)
@@ -494,6 +519,9 @@ Theorem builtin_exec_equiv {strs:StrSearch} {engine:Engine}:
 Proof.
 Admitted.
 
+(* TODO: replace with theorem where the fuel is derived from the complexity of the PikeVM *)
+Axiom pike_vm_fuel: forall r inp, pike_vm_match rer r inp <> OutOfFuel.
+
 (* we show that the PikeVM fits the scheme of an engine *)
 #[refine]
 Instance PikeVMEngine: Engine := {
@@ -504,11 +532,18 @@ Instance PikeVMEngine: Engine := {
   supported_regex := pike_regex;
 }.
   (* exec_correct *)
-  intros r inp tree ol Hsubset Hexec Htree.
-  destruct pike_vm_match eqn:Hmatch.
-  - admit. (* TODO: unclear how to handle OutOfFuel *)
-  - subst. symmetry. eauto using pike_vm_match_correct, pike_vm_correct.
-Admitted.
+  intros r inp ol Hsubset.
+  destruct pike_vm_match eqn:Hmatch; [pose proof pike_vm_fuel r inp; contradiction|].
+  split.
+  - intros [tree [Htree Hleaf]].
+    subst. eauto using pike_vm_match_correct, pike_vm_correct.
+  - intros ?; subst.
+    pose proof (is_tree_productivity r inp Groups.GroupMap.empty forward) as [tree Htree].
+    exists tree.
+    split.
+    + eassumption.
+    + symmetry. eauto using pike_vm_match_correct, pike_vm_correct.
+Qed.
 
 
 End PrefixedEngine.
