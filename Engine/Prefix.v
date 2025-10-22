@@ -15,7 +15,7 @@ From Linden Require Import StrictSuffix.
 From Warblre Require Import Base RegExpRecord.
 
 From Linden Require Import PikeSubset SeenSets.
-From Linden Require Import Correctness.
+From Linden Require Import Correctness FunctionalPikeVM.
 
 Section Prefix.
   Context {params: LindenParameters}.
@@ -848,41 +848,114 @@ Class Engine := {
       exec r inp = ol)
 }.
 
-(* for each input position we run the engine and return the earliest match *)
-Program Fixpoint search_from {engine:Engine} (r: regex) (inp: input)
-  {measure (length (next_str inp))} : option leaf :=
-  match (exec r inp) with
-  | Some leaf => Some leaf
-  | None =>
-      match advance_input inp forward with
-      | None => None
-      | Some nextinp => search_from r nextinp
-      end
-  end.
-Next Obligation.
-  unfold advance_input in Heq_anonymous.
-  destruct inp, next; inversion Heq_anonymous.
-  simpl. lia.
+(* relation that one input is a non-strict prefix of another *)
+Inductive input_prefix : input -> input -> Prop :=
+| ip_eq : forall inp, input_prefix inp inp
+| ip_prev : forall inp1 inp2 inp3,
+    advance_input inp1 forward = Some inp2 ->
+    input_prefix inp2 inp3 ->
+    input_prefix inp1 inp3.
+
+Lemma ip_prev':
+  forall inp1 inp2 inp3,
+    input_prefix inp1 inp2 ->
+    advance_input inp2 forward = Some inp3 ->
+    input_prefix inp1 inp3.
+Proof. induction 1; eauto using ip_prev, ip_eq. Qed.
+
+(* equivalence between input_prefix and strict_suffix *)
+Lemma input_prefix_strict_suffix:
+  forall i1 i2,
+    input_prefix i1 i2 <->
+      i2 = i1 \/ strict_suffix i2 i1 forward.
+Proof.
+  split; intros H.
+  - induction H; [auto|].
+    destruct IHinput_prefix; subst; eauto using ss_advance, ss_next'.
+  - destruct H; [subst; auto using ip_eq|].
+    remember forward as dir.
+    induction H; subst; eauto using ip_eq, ip_prev, ip_prev'.
 Qed.
 
-(* the string-quadratic algorithm described in RegExpBuiltinExec *)
-Definition BuiltinExec {engine:Engine} (r:regex) (inp:input) : option leaf :=
-  search_from r inp.
-
-(* prefixed version *)
-Definition BuiltinExecPrefixed {strs:StrSearch} {engine:Engine} (r:regex) (inp:input) : option leaf :=
-  let p := prefix (extract_literal r) in
-  (* we skip the initial input that does not match the prefix *)
-  match (input_search p inp) with
-  | None => None (* if prefix is not present anywhere, then we cannot match *)
-  | Some start => search_from r start
+(* for each input position we run the engine and return the earliest match *)
+Fixpoint search_from {engine:Engine} (r: regex) (next: string) (prev: string): option leaf :=
+  match (exec r (Input next prev)) with
+  | Some leaf => Some leaf
+  | None => match next with
+            | [] => None
+            | c::t => search_from r t (c::prev)
+            end
   end.
 
-(* the prefixed version returns identical results to the non-prefixed one *)
-Theorem builtin_exec_equiv {strs:StrSearch} {engine:Engine}:
-  forall r inp,
-    BuiltinExec r inp = BuiltinExecPrefixed r inp.
+Definition pref_str (i: input) : string :=
+  match i with
+  | Input _ pref => pref
+  end.
+
+(* the string-quadratic algorithm described in RegExpBuiltinExec *)
+Definition BuiltinExec {engine:Engine} (r:regex) (input:string) : option leaf :=
+  search_from r input [].
+
+(* prefixed version *)
+Definition BuiltinExecPrefixed {strs:StrSearch} {engine:Engine} (r:regex) (input:string) : option leaf :=
+  let p := prefix (extract_literal r) in
+  (* we skip the initial input that does not match the prefix *)
+  match (input_search p (Input input [])) with
+  | None => None (* if prefix is not present anywhere, then we cannot match *)
+  | Some i => search_from r (next_str i) (pref_str i)
+  end.
+
+Lemma search_from_before_jump_eq {strs:StrSearch} {engine:Engine}:
+  forall i r inp inp',
+    supported_regex r ->
+    input_search (prefix (extract_literal r)) inp = Some inp' ->
+    input_prefix i inp' ->
+    input_prefix inp i ->
+    search_from r (next_str i) (pref_str i) = search_from r (next_str inp') (pref_str inp').
 Proof.
+  intros i r inp inp' Hsubset Hsearch Hprefix Hlow.
+  induction Hprefix.
+  - reflexivity.
+  - pose proof H as Hadvance.
+    specialize (IHHprefix Hsearch).
+    unfold advance_input in H. destruct inp1 as [next1 pref1] eqn:Hinp1, next1 eqn:Hnext1; [easy|].
+    inversion H. rewrite <-H1 in IHHprefix.
+
+    assert (Hnone: exec r (Input (t :: s) pref1) = None). {
+      assert (Hbetween: input_between inp inp3 inp1). {
+        rewrite input_prefix_strict_suffix in Hprefix, Hlow.
+        split; destruct Hprefix, Hlow; subst; eauto using ss_next', ss_advance.
+      }
+
+      subst.
+      pose proof (is_tree_productivity r (Input (t :: s) pref1) Groups.GroupMap.empty forward) as [tree Htree].
+      rewrite <-exec_correct; [|assumption].
+      eauto using input_search_no_earlier, extract_literal_prefix_contra.
+    }
+    simpl.
+    rewrite Hnone.
+    eauto using ip_prev'.
+Qed.
+
+Theorem builtin_exec_equiv {strs:StrSearch} {engine:Engine}:
+  forall r input,
+    supported_regex r ->
+    BuiltinExec r input = BuiltinExecPrefixed r input.
+Proof.
+  intros r input Hsubset.
+  unfold BuiltinExec, BuiltinExecPrefixed.
+  destruct input_search eqn:Hsearch.
+  - remember (Input input []) as inp.
+    replace input with (next_str inp) by (subst; reflexivity).
+    replace [] with (pref_str inp) by (subst; reflexivity).
+    assert (input_prefix inp i). {
+      apply input_search_strict_suffix in Hsearch.
+      now rewrite <-input_prefix_strict_suffix in Hsearch.
+    }
+    assert (input_prefix inp inp) by (apply ip_eq).
+    eapply search_from_before_jump_eq; eassumption.
+  - (* needed lemma: input_search lit inp = None -> forall inp', (inp' < inp \/ inp' = inp) -> exec r inp' = None *)
+    admit.
 Admitted.
 
 (* TODO: replace with theorem where the fuel is derived from the complexity of the PikeVM *)
