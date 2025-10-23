@@ -256,28 +256,6 @@ Section StrictSuffix.
       apply is_strict_suffix_correct in His_ss. contradiction.
   Qed.
 
-  Theorem strict_suffix_current:
-    forall inp1 inp2 dir,
-      strict_suffix inp1 inp2 dir ->
-      length (current_str inp1 dir) < length (current_str inp2 dir).
-  Proof.
-    intros [next1 pref1] [next2 pref2] dir H.
-    rewrite <- is_strict_suffix_correct in H.
-    unfold is_strict_suffix in H. destruct dir.
-    - generalize dependent pref2. induction next2; intros.
-      { inversion H. }
-      simpl. simpl in IHnext2. simpl in H.
-      destruct ((Input next2 (a :: pref2) ==? Input next1 pref1)%wt) eqn:INPEQ.
-      + rewrite EqDec.inversion_true in INPEQ. inversion INPEQ. subst. lia.
-      + apply IHnext2 in H. lia.
-    - generalize dependent next2. induction pref2; intros.
-      { inversion H. }
-      simpl. simpl in IHpref2. simpl in H.
-      destruct ((Input (a::next2) pref2 ==? Input next1 pref1)%wt) eqn:INPEQ.
-      + rewrite EqDec.inversion_true in INPEQ. inversion INPEQ. subst. lia.
-      + apply IHpref2 in H. lia.
-  Qed.
-
   Theorem read_suffix:
     forall inp dir nextinp,
       advance_input inp dir = Some nextinp ->
@@ -296,7 +274,7 @@ Section StrictSuffix.
     - destruct pref2; inversion H. simpl. auto.
   Qed.
 
-  Lemma ss_length_lt:
+  Lemma strict_suffix_current:
     forall inp1 inp2 dir,
       strict_suffix inp1 inp2 dir -> length (current_str inp1 dir) < length (current_str inp2 dir).
   Proof.
@@ -408,7 +386,7 @@ Section StrictSuffix.
       strict_suffix inp1 inp2 dir -> inp1 <> inp2.
   Proof.
     intros inp1 inp2 dir Hss Habs. subst inp2.
-    pose proof ss_length_lt inp1 inp1 dir Hss. lia.
+    pose proof strict_suffix_current inp1 inp1 dir Hss. lia.
   Qed.
 
 End StrictSuffix.
