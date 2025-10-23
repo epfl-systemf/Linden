@@ -91,7 +91,7 @@ Class StrSearch := {
 
 (* substring search operating on inputs rather than strings *)
 Definition input_search {strs: StrSearch} (p: string) (inp: input): option input :=
-  match str_search (next_str inp) p with
+  match str_search p (next_str inp) with
   | Some i => Some (advance_input_n inp i forward)
   | None => None
   end.
@@ -108,7 +108,13 @@ Qed.
 Lemma input_search_starts_with {strs: StrSearch}:
   forall i1 i2 p, input_search p i1 = Some i2 -> starts_with p (next_str i2).
 Proof.
-Admitted.
+  unfold input_search.
+  intros i1 i2 p H.
+  destruct str_search as [n|] eqn:Hsearch; [|discriminate].
+  injection H as <-.
+  destruct i1. simpl.
+  eauto using starts_with_ss.
+Qed.
 
 (* low inclusive, high exclusive *)
 Notation input_between ilow ihigh i := ((i = ilow \/ strict_suffix i ilow forward) /\ strict_suffix ihigh i forward).
