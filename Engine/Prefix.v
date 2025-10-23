@@ -937,6 +937,36 @@ Proof.
     eauto using ip_prev'.
 Qed.
 
+Lemma input_search_exec_none {strs:StrSearch} {engine:Engine}:
+  forall i r inp,
+    supported_regex r ->
+    input_search (prefix (extract_literal r)) inp = None ->
+    input_prefix inp i ->
+    exec r i = None.
+Proof.
+  intros i r inp Hsubset Hsearch Hlow.
+  rewrite input_prefix_strict_suffix in Hlow.
+  rewrite <-exec_correct; [|assumption].
+  pose proof (is_tree_productivity r i Groups.GroupMap.empty forward) as [tree Htree].
+  eauto using input_search_not_found, extract_literal_prefix_contra.
+Qed.
+
+Lemma search_from_none_prefix {strs:StrSearch} {engine:Engine}:
+  forall i r inp,
+    supported_regex r ->
+    input_search (prefix (extract_literal r)) inp = None ->
+    input_prefix inp i ->
+    search_from r (next_str i) (pref_str i) = None.
+Proof.
+  intros [next pref] r inp Hsubset Hsearch Hprefix.
+  generalize dependent pref.
+  induction next; intros pref Hprefix.
+  - simpl; erewrite input_search_exec_none; eauto using ip_eq.
+  - simpl in *.
+    erewrite IHnext. erewrite input_search_exec_none.
+    all: eauto using ip_prev'.
+Qed.
+
 Theorem builtin_exec_equiv {strs:StrSearch} {engine:Engine}:
   forall r inp,
     supported_regex r ->
@@ -949,11 +979,9 @@ Proof.
       apply input_search_strict_suffix in Hsearch.
       now rewrite <-input_prefix_strict_suffix in Hsearch.
     }
-    assert (input_prefix inp inp) by (apply ip_eq).
-    eapply search_from_before_jump_eq; eassumption.
-  - (* needed lemma: input_search lit inp = None -> forall inp', (inp' < inp \/ inp' = inp) -> exec r inp' = None *)
-    admit.
-Admitted.
+    eapply search_from_before_jump_eq; eauto using ip_eq.
+  - eapply search_from_none_prefix; eauto using ip_eq.
+Qed.
 
 (* TODO: replace with theorem where the fuel is derived from the complexity of the PikeVM *)
 Axiom pike_vm_fuel: forall r inp, pike_vm_match rer r inp <> OutOfFuel.
@@ -980,7 +1008,6 @@ Instance PikeVMEngine: Engine := {
     + eassumption.
     + symmetry. eauto using pike_vm_match_correct, pike_vm_correct.
 Qed.
-
 
 End PrefixedEngine.
 End Prefix.
