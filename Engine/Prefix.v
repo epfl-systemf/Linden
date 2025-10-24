@@ -17,6 +17,7 @@ Ltac wt_eq := repeat match goal with
   | [ H: (?x ==? ?y)%wt = true |- _ ] => rewrite EqDec.inversion_true in H; subst
   | [ H: (?x ==? ?y)%wt = false |- _ ] => rewrite EqDec.inversion_false in H
   | [ |- context[(?x ==? ?y)%wt] ] => destruct (x ==? y)%wt eqn:?Heq
+  | [ H: context[(?x ==? ?y)%wt] |- _ ] => destruct (x ==? y)%wt eqn:?Heq
 end.
 
 
@@ -184,6 +185,17 @@ Proof.
   all: rewrite ?app_assoc; reflexivity.
 Qed.
 
+Lemma chain_literals_impossible:
+  forall l1 l2,
+    chain_literals l1 l2 = Impossible <-> (l1 = Impossible \/ l2 = Impossible).
+Proof.
+  intros. split; intro H.
+  - destruct l1, l2; (easy || auto).
+  - destruct H as [H | H]; subst.
+    + easy.
+    + destruct l1; easy.
+Qed.
+
 (* the longest string that is a prefix of both strings *)
 Fixpoint common_prefix (s1 s2 : string) : string :=
   match s1, s2 with
@@ -241,6 +253,15 @@ Proof.
   unfold merge_literals; intros.
   wt_eq; try congruence.
   rewrite common_prefix_comm; reflexivity.
+Qed.
+
+Lemma merge_literals_impossible:
+  forall l1 l2,
+    merge_literals l1 l2 = Impossible <-> (l1 = Impossible /\ l2 = Impossible).
+Proof.
+  unfold merge_literals; intros. split; intros.
+  - wt_eq; easy.
+  - destruct H; wt_eq; subst; easy.
 Qed.
 
 (* extracting literals from a character description *)
@@ -430,6 +451,98 @@ Proof.
     destruct plus; destruct extract_actions_literal; constructor.
 Qed.
 
+Lemma extract_literal_char_impossible_tree_res:
+  forall cont cd c inp gm,
+    extract_literal_char cd = Impossible ->
+    char_match rer c cd = true ->
+    tree_res cont gm inp forward = None.
+Proof.
+  intros cont cd c inp gm Hextract Hmatch.
+  induction cd;
+    (* the cd does not produce Impossible *)
+    try solve[discriminate].
+  
+  - (* CdRange *)
+    simpl in Hextract. wt_eq; discriminate.
+  - (* CdUnion *)
+    simpl in Hextract.
+    apply merge_literals_impossible in Hextract as [Hcd1 Hcd2].
+
+    unfold char_match in *. simpl in Hmatch.
+    apply Bool.orb_prop in Hmatch as [Hm1 | Hm2]; eauto.
+Qed.
+
+Lemma extract_literal_impossible_general:
+  forall acts tree inp gm,
+    is_tree rer acts inp Groups.GroupMap.empty forward tree ->
+    extract_actions_literal acts = Impossible ->
+    tree_res tree gm inp forward = None.
+Proof.
+  intros acts tree inp gm Htree Hextract.
+
+  remember (forward) as dir.
+  generalize dependent gm.
+  induction Htree; intros; subst;
+    (* the result is that of the rest of the actions *)
+    try solve[simpl in *; destruct (extract_actions_literal cont); eauto].
+  
+  (* tree_done *)
+  - discriminate.
+  (* tree_char *)
+  - (* there is a character to read *)
+    unfold read_char in READ. destruct inp, next; [discriminate|].
+    (* the character matches *)
+    destruct char_match eqn:Hmatch; [|discriminate].
+
+    apply chain_literals_impossible in Hextract as [Hcd | Hcont].
+    + eapply extract_literal_char_impossible_tree_res; eauto.
+    + simpl. unfold advance_input'.
+      injection READ as <-. subst. eauto.
+  (* tree_disj *)
+  - simpl in Hextract. simpl. unfold seqop.
+    simpl in IHHtree1, IHHtree2. rewrite chain_literals_impossible in IHHtree1, IHHtree2.
+    apply chain_literals_impossible in Hextract as [Hmerge | Hcont].
+    + apply merge_literals_impossible in Hmerge as [Hex1 Hex2].
+      erewrite IHHtree1, IHHtree2; auto.
+    + erewrite IHHtree1, IHHtree2; auto.
+  (* tree_sequence *)
+  - simpl in Hextract, IHHtree.
+    rewrite chain_literals_assoc in IHHtree.
+    eapply IHHtree; eauto.
+  (* tree_quant_forced *)
+  - simpl in Hextract |- *.
+    apply chain_literals_impossible in Hextract as [Hrep | Hcont].
+    + destruct plus; [destruct n|];
+        apply chain_literals_impossible in Hrep as [? | ?];
+        eapply IHHtree; auto;
+        simpl; do 2 rewrite chain_literals_impossible; auto.
+    + eapply IHHtree; auto.
+      simpl; do 2 rewrite chain_literals_impossible; auto.
+  (* tree_quant_free *)
+  - assert (Hex: extract_actions_literal cont = Impossible). {
+      simpl in Hextract. destruct plus; now destruct extract_actions_literal.
+    }
+    unfold greedy_choice.
+    destruct greedy.
+    + simpl. unfold seqop.
+      rewrite IHHtree1, IHHtree2; auto.
+      simpl. rewrite Hex. destruct plus; [destruct n|]; destruct (extract_literal r1); reflexivity.
+    + simpl. unfold seqop.
+      rewrite IHHtree1, IHHtree2; auto.
+      simpl. rewrite Hex. destruct plus; [destruct n|]; destruct (extract_literal r1); reflexivity.
+  (* tree_lk *)
+  - simpl in Hextract |- *.
+    destruct extract_actions_literal eqn:Heqex in Hextract; try easy.
+     
+    rewrite IHHtree2 by auto.
+    destruct positivity.
+    + admit. (* FIXME: probably needs dir to be generalized *)
+    + now destruct tree_res.
+  (* tree_backref *)
+  - (* since there is no result on nextinp, read_backref must have failed. Contradiction. *)
+    admit.
+Admitted.
+
 Lemma extract_actions_literal_regex:
   forall r, extract_actions_literal [Areg r] = extract_literal r.
 Proof.
@@ -470,6 +583,18 @@ Proof.
   intros.
   rewrite is_none_iff_not_exists_some.
   eauto using extract_literal_prefix.
+Qed.
+
+(* extracting Impossible means there can be no match *)
+Theorem extract_literal_impossible:
+  forall r tree inp,
+    is_tree rer [Areg r] inp Groups.GroupMap.empty forward tree ->
+    extract_literal r = Impossible ->
+    first_leaf tree inp = None.
+Proof.
+  intros.
+  rewrite <- (extract_actions_literal_regex r) in *.
+  eapply extract_literal_impossible_general; eassumption.
 Qed.
 
 End LiteralExtraction.
@@ -545,12 +670,14 @@ Definition BuiltinExec {engine:Engine} (r:regex) (inp:input) : option leaf :=
 
 (* prefixed version *)
 Definition BuiltinExecPrefixed {strs:StrSearch} {engine:Engine} (r:regex) (inp:input) : option leaf :=
-  let p := prefix (extract_literal r) in
-  (* we skip the initial input that does not match the prefix *)
-  match (input_search p inp) with
-  | None => None (* if prefix is not present anywhere, then we cannot match *)
-  | Some i => search_from r (next_str i) (pref_str i)
-  end.
+  let lit := extract_literal r in
+  if lit == Impossible then None else
+    let p := prefix lit in
+    (* we skip the initial input that does not match the prefix *)
+    match (input_search p inp) with
+    | None => None (* if prefix is not present anywhere, then we cannot match *)
+    | Some i => search_from r (next_str i) (pref_str i)
+    end.
 
 Lemma is_tree_productivity: forall r inp gm dir,
   exists tree, is_tree rer [Areg r] inp gm dir tree.
@@ -618,6 +745,32 @@ Proof.
     all: eauto using ip_prev'.
 Qed.
 
+Lemma input_search_exec_impossible {strs:StrSearch} {engine:Engine}:
+  forall inp r,
+    supported_regex r ->
+    extract_literal r = Impossible ->
+    exec r inp = None.
+Proof.
+  intros inp r Hsubset Hextract.
+  rewrite <-exec_correct; [|assumption].
+  pose proof (is_tree_productivity r inp Groups.GroupMap.empty forward) as [tree Htree].
+  eauto using extract_literal_impossible.
+Qed.
+
+Lemma search_from_impossible_prefix {strs:StrSearch} {engine:Engine}:
+  forall inp r,
+    supported_regex r ->
+    extract_literal r = Impossible ->
+    search_from r (next_str inp) (pref_str inp) = None.
+Proof.
+  intros [next pref] r Hsubset Hextract.
+  generalize dependent pref.
+  induction next; intros pref.
+  - simpl; erewrite input_search_exec_impossible; eauto.
+  - simpl in *.
+    erewrite IHnext. erewrite input_search_exec_impossible; eauto.
+Qed.
+
 Theorem builtin_exec_equiv {strs:StrSearch} {engine:Engine}:
   forall r inp,
     supported_regex r ->
@@ -625,13 +778,15 @@ Theorem builtin_exec_equiv {strs:StrSearch} {engine:Engine}:
 Proof.
   intros r inp Hsubset.
   unfold BuiltinExec, BuiltinExecPrefixed.
-  destruct input_search eqn:Hsearch.
-  - assert (input_prefix inp i). {
-      apply input_search_strict_suffix in Hsearch.
-      now rewrite <-input_prefix_strict_suffix in Hsearch.
-    }
-    eapply search_from_before_jump_eq; eauto using ip_eq.
-  - eapply search_from_none_prefix; eauto using ip_eq.
+  wt_eq.
+  + eapply search_from_impossible_prefix; eauto.
+  + destruct input_search eqn:Hsearch.
+    - assert (input_prefix inp i). {
+        apply input_search_strict_suffix in Hsearch.
+        now rewrite <-input_prefix_strict_suffix in Hsearch.
+      }
+      eapply search_from_before_jump_eq; eauto using ip_eq.
+    - eapply search_from_none_prefix; eauto using ip_eq.
 Qed.
 
 (* TODO: replace with theorem where the fuel is derived from the complexity of the PikeVM *)
