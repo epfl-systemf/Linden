@@ -898,12 +898,14 @@ Definition BuiltinExec {engine:Engine} (r:regex) (inp:input) : option leaf :=
 
 (* prefixed version *)
 Definition BuiltinExecPrefixed {strs:StrSearch} {engine:Engine} (r:regex) (inp:input) : option leaf :=
-  let p := prefix (extract_literal r) in
-  (* we skip the initial input that does not match the prefix *)
-  match (input_search p inp) with
-  | None => None (* if prefix is not present anywhere, then we cannot match *)
-  | Some i => search_from r (next_str i) (pref_str i)
-  end.
+  let lit := extract_literal r in
+  if lit == Impossible then None else
+    let p := prefix lit in
+    (* we skip the initial input that does not match the prefix *)
+    match (input_search p inp) with
+    | None => None (* if prefix is not present anywhere, then we cannot match *)
+    | Some i => search_from r (next_str i) (pref_str i)
+    end.
 
 Lemma search_from_before_jump_eq {strs:StrSearch} {engine:Engine}:
   forall i r inp inp',
@@ -967,6 +969,32 @@ Proof.
     all: eauto using ip_prev'.
 Qed.
 
+Lemma input_search_exec_impossible {strs:StrSearch} {engine:Engine}:
+  forall inp r,
+    supported_regex r ->
+    extract_literal r = Impossible ->
+    exec r inp = None.
+Proof.
+  intros inp r Hsubset Hextract.
+  rewrite <-exec_correct; [|assumption].
+  pose proof (is_tree_productivity r inp Groups.GroupMap.empty forward) as [tree Htree].
+  eauto using extract_literal_impossible.
+Qed.
+
+Lemma search_from_impossible_prefix {strs:StrSearch} {engine:Engine}:
+  forall inp r,
+    supported_regex r ->
+    extract_literal r = Impossible ->
+    search_from r (next_str inp) (pref_str inp) = None.
+Proof.
+  intros [next pref] r Hsubset Hextract.
+  generalize dependent pref.
+  induction next; intros pref.
+  - simpl; erewrite input_search_exec_impossible; eauto.
+  - simpl in *.
+    erewrite IHnext. erewrite input_search_exec_impossible; eauto.
+Qed.
+
 Theorem builtin_exec_equiv {strs:StrSearch} {engine:Engine}:
   forall r inp,
     supported_regex r ->
@@ -974,13 +1002,15 @@ Theorem builtin_exec_equiv {strs:StrSearch} {engine:Engine}:
 Proof.
   intros r inp Hsubset.
   unfold BuiltinExec, BuiltinExecPrefixed.
-  destruct input_search eqn:Hsearch.
-  - assert (input_prefix inp i). {
-      apply input_search_strict_suffix in Hsearch.
-      now rewrite <-input_prefix_strict_suffix in Hsearch.
-    }
-    eapply search_from_before_jump_eq; eauto using ip_eq.
-  - eapply search_from_none_prefix; eauto using ip_eq.
+  wt_eq.
+  + eapply search_from_impossible_prefix; eauto.
+  + destruct input_search eqn:Hsearch.
+    - assert (input_prefix inp i). {
+        apply input_search_strict_suffix in Hsearch.
+        now rewrite <-input_prefix_strict_suffix in Hsearch.
+      }
+      eapply search_from_before_jump_eq; eauto using ip_eq.
+    - eapply search_from_none_prefix; eauto using ip_eq.
 Qed.
 
 (* TODO: replace with theorem where the fuel is derived from the complexity of the PikeVM *)
