@@ -1,4 +1,4 @@
-Require Import List Lia.
+Require Import List Lia RelationClasses.
 Import ListNotations.
 
 From Linden Require Import Regex Chars Semantics Tree FunctionalSemantics.
@@ -35,24 +35,16 @@ Proof.
   - destruct H. subst. auto with prefix.
 Qed.
 
-Lemma starts_with_refl:
-  forall s, starts_with s s.
-Proof. intros. induction s; auto with prefix. Qed.
-
-Lemma starts_with_trans: 
-  Relation_Definitions.transitive _ starts_with.
+Instance StartsWithPreOrder : PreOrder starts_with.
 Proof.
-  unfold Relation_Definitions.transitive.
-  intros s1 s2 s3 H1.
-
-  generalize dependent s3.
-  induction H1; intros; inversion H; auto with prefix.
+  split.
+  - (* reflexive *)
+    unfold Reflexive. intro s. induction s; auto with prefix.
+  - (* transitive *)
+    unfold Transitive. intros s1 s2 s3 H1.
+    generalize dependent s3.
+    induction H1; intros; inversion H; auto with prefix.
 Qed.
-
-#[global] Add Relation string starts_with
-  reflexivity proved by starts_with_refl
-  transitivity proved by starts_with_trans
-  as starts_with_rel.
 
 Lemma starts_with_app_right:
   forall s1 s2 s3,
@@ -73,8 +65,6 @@ Proof.
     constructor.
     eapply IH. eauto.
 Qed.
-
-Hint Resolve starts_with_refl starts_with_app_right : prefix.
 
 (** * Substring search *)
 
