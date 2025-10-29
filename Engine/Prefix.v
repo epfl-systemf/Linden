@@ -989,10 +989,7 @@ Lemma search_from_impossible_prefix {strs:StrSearch} {engine:Engine}:
 Proof.
   intros [next pref] r Hsubset Hextract.
   generalize dependent pref.
-  induction next; intros pref.
-  - simpl; erewrite input_search_exec_impossible; eauto.
-  - simpl in *.
-    erewrite IHnext. erewrite input_search_exec_impossible; eauto.
+  induction next; intros pref; simpl; erewrite input_search_exec_impossible; eauto.
 Qed.
 
 Theorem builtin_exec_equiv {strs:StrSearch} {engine:Engine}:
@@ -1034,9 +1031,8 @@ Instance PikeVMEngine: Engine := {
   - intros ?; subst.
     pose proof (is_tree_productivity r inp Groups.GroupMap.empty forward) as [tree Htree].
     exists tree.
-    split.
-    + eassumption.
-    + symmetry. eauto using pike_vm_match_correct, pike_vm_correct.
+    split; eauto.
+    symmetry. eauto using pike_vm_match_correct, pike_vm_correct.
 Qed.
 
 End PrefixedEngine.
