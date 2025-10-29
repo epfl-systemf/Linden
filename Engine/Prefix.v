@@ -526,12 +526,13 @@ Proof.
      
     rewrite IHHtree2 by auto.
     destruct positivity.
-    + admit. (* FIXME: probably needs dir to be generalized *)
+    + destruct tree_res; eauto.
+      destruct l. eauto.
     + now destruct tree_res.
   (* tree_backref *)
-  - (* since there is no result on nextinp, read_backref must have failed. Contradiction. *)
-    admit.
-Admitted.
+  - simpl in Hextract |- *. destruct extract_actions_literal; try easy.
+    erewrite <-read_backref_success_advance; eauto.
+Qed.
 
 Lemma extract_actions_literal_regex:
   forall r, extract_actions_literal [Areg r] = extract_literal r.
@@ -755,10 +756,7 @@ Lemma search_from_impossible_prefix {strs:StrSearch} {engine:Engine}:
 Proof.
   intros [next pref] r Hsubset Hextract.
   generalize dependent pref.
-  induction next; intros pref.
-  - simpl; erewrite input_search_exec_impossible; eauto.
-  - simpl in *.
-    erewrite IHnext. erewrite input_search_exec_impossible; eauto.
+  induction next; intros pref; simpl; erewrite input_search_exec_impossible; eauto.
 Qed.
 
 Theorem builtin_exec_equiv {strs:StrSearch} {engine:Engine}:
@@ -800,9 +798,8 @@ Instance PikeVMEngine: Engine := {
   - intros ?; subst.
     pose proof (is_tree_productivity r inp Groups.GroupMap.empty forward) as [tree Htree].
     exists tree.
-    split.
-    + eassumption.
-    + symmetry. eauto using pike_vm_match_correct, pike_vm_correct.
+    split; eauto.
+    symmetry. eauto using pike_vm_match_correct, pike_vm_correct.
 Qed.
 
 End PrefixedEngine.
