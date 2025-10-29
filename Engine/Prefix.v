@@ -3,7 +3,7 @@ Import ListNotations.
 
 From Linden Require Import Regex Chars Semantics Tree FunctionalSemantics.
 From Linden Require Import Parameters LWParameters.
-From Linden Require Import StrictSuffix.
+From Linden Require Import StrictSuffix FunctionalUtils.
 From Warblre Require Import Base RegExpRecord.
 
 From Linden Require Import PikeSubset SeenSets.
@@ -670,10 +670,6 @@ Definition BuiltinExecPrefixed {strs:StrSearch} {engine:Engine} (r:regex) (inp:i
     | Some i => search_from r (next_str i) (pref_str i)
     end.
 
-Lemma is_tree_productivity: forall r inp gm dir,
-  exists tree, is_tree rer [Areg r] inp gm dir tree.
-Proof. eexists. apply FunctionalUtils.compute_tr_reg_is_tree. Qed.
-
 Lemma search_from_before_jump_eq {strs:StrSearch} {engine:Engine}:
   forall i r inp inp',
     supported_regex r ->
@@ -697,7 +693,7 @@ Proof.
       }
 
       subst.
-      pose proof (is_tree_productivity r (Input (t :: s) pref1) Groups.GroupMap.empty forward) as [tree Htree].
+      pose proof (is_tree_productivity rer [Areg r] (Input (t :: s) pref1) Groups.GroupMap.empty forward) as [tree Htree].
       rewrite <-exec_correct; [|assumption].
       eauto using input_search_no_earlier, extract_literal_prefix_contra.
     }
@@ -716,7 +712,7 @@ Proof.
   intros i r inp Hsubset Hsearch Hlow.
   rewrite input_prefix_strict_suffix in Hlow.
   rewrite <-exec_correct; [|assumption].
-  pose proof (is_tree_productivity r i Groups.GroupMap.empty forward) as [tree Htree].
+  pose proof (is_tree_productivity rer [Areg r] i Groups.GroupMap.empty forward) as [tree Htree].
   eauto using input_search_not_found, extract_literal_prefix_contra.
 Qed.
 
@@ -744,7 +740,7 @@ Lemma input_search_exec_impossible {strs:StrSearch} {engine:Engine}:
 Proof.
   intros inp r Hsubset Hextract.
   rewrite <-exec_correct; [|assumption].
-  pose proof (is_tree_productivity r inp Groups.GroupMap.empty forward) as [tree Htree].
+  pose proof (is_tree_productivity rer [Areg r] inp Groups.GroupMap.empty forward) as [tree Htree].
   eauto using extract_literal_impossible.
 Qed.
 
@@ -796,7 +792,7 @@ Instance PikeVMEngine: Engine := {
   - intros [tree [Htree Hleaf]].
     subst. eauto using pike_vm_match_correct, pike_vm_correct.
   - intros ?; subst.
-    pose proof (is_tree_productivity r inp Groups.GroupMap.empty forward) as [tree Htree].
+    pose proof (is_tree_productivity rer [Areg r] inp Groups.GroupMap.empty forward) as [tree Htree].
     exists tree.
     split; eauto.
     symmetry. eauto using pike_vm_match_correct, pike_vm_correct.

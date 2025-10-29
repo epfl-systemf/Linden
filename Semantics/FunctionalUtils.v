@@ -28,6 +28,10 @@ Section Utilities.
     eauto using compute_tr_is_tree.
   Qed.
 
+  Theorem is_tree_productivity: forall acts inp gm dir,
+    exists tree, is_tree rer acts inp gm dir tree.
+  Proof. eexists. apply compute_tr_is_tree. Qed.
+
   Lemma is_tree_eq_compute_tr {actions i gm dir} :
     forall {tr}, is_tree rer actions i gm dir tr -> tr = compute_tr actions i gm dir.
   Proof.
