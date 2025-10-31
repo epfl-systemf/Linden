@@ -5,7 +5,7 @@ Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics NFA.
-From Linden Require Import BooleanSemantics PikeSubset.
+From Linden Require Import BooleanSemantics PikeSubset Prefix.
 From Linden Require Import PikeVM Correctness SeenSets Semantics.Examples.
 From Linden Require Import Parameters.
 From Warblre Require Import Base RegExpRecord.
@@ -124,7 +124,7 @@ Proof.
   - constructor.
 Qed.
 
-(* when the function finishes, it retruns the correct result *)
+(* when the function finishes, it returns the correct result *)
 Theorem pike_vm_match_correct:
   forall r inp result,
     pike_vm_match r inp = Finished result ->
@@ -141,6 +141,31 @@ Lemma unroll_loop:
     pike_vm_loop code (PVS inp active best blocked seen) (S fuel) =
       pike_vm_loop code (pike_vm_func_step code (PVS inp active best blocked seen)) fuel.
 Proof. auto. Qed.
+
+(* TODO: replace with theorem where the fuel is derived from the complexity of the PikeVM *)
+Axiom pike_vm_fuel: forall r inp, pike_vm_match r inp <> OutOfFuel.
+
+(* we show that the PikeVM fits the scheme of an engine *)
+#[refine]
+Instance PikeVMEngine: Engine rer := {
+  exec r inp := match pike_vm_match r inp with
+                | OutOfFuel => None
+                | Finished res => res
+                end;
+  supported_regex := pike_regex;
+}.
+  (* exec_correct *)
+  intros r inp ol Hsubset.
+  destruct pike_vm_match eqn:Hmatch; [pose proof pike_vm_fuel r inp; contradiction|].
+  split.
+  - intros [tree [Htree Hleaf]].
+    subst. eauto using pike_vm_match_correct, pike_vm_correct.
+  - intros ?; subst.
+    pose proof (is_tree_productivity rer [Areg r] inp Groups.GroupMap.empty forward) as [tree Htree].
+    exists tree.
+    split; eauto.
+    symmetry. eauto using pike_vm_match_correct, pike_vm_correct.
+Qed.
 
 End FunctionalPikeVM.
 

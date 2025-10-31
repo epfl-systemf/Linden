@@ -108,8 +108,10 @@ Inductive pike_vm_state : Type :=
 | PVS (inp:input) (active: list thread) (best: option leaf) (blocked: list thread) (seen: seenpcs)
 | PVS_final (best: option leaf).
 
+Definition pike_vm_initial_thread : thread := (0, GroupMap.empty, CanExit).
+
 Definition pike_vm_initial_state (inp:input) : pike_vm_state :=
-  PVS inp [(0,GroupMap.empty,CanExit)] None [] initial_seenpcs.
+  PVS inp [pike_vm_initial_thread] None [] initial_seenpcs.
 
 (* small-step semantics for the PikeVM algorithm *)
 Inductive pike_vm_step (c:code): pike_vm_state -> pike_vm_state -> Prop :=

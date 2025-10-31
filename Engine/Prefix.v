@@ -7,7 +7,7 @@ From Linden Require Import StrictSuffix FunctionalUtils.
 From Warblre Require Import Base RegExpRecord.
 
 From Linden Require Import PikeSubset SeenSets.
-From Linden Require Import Correctness FunctionalPikeVM.
+From Linden Require Import Correctness.
 
 Section Prefix.
   Context {params: LindenParameters}.
@@ -771,31 +771,6 @@ Proof.
       }
       eapply search_from_before_jump_eq; eauto using ip_eq.
     - eapply search_from_none_prefix; eauto using ip_eq.
-Qed.
-
-(* TODO: replace with theorem where the fuel is derived from the complexity of the PikeVM *)
-Axiom pike_vm_fuel: forall r inp, pike_vm_match rer r inp <> OutOfFuel.
-
-(* we show that the PikeVM fits the scheme of an engine *)
-#[refine]
-Instance PikeVMEngine: Engine := {
-  exec r inp := match pike_vm_match rer r inp with
-                | OutOfFuel => None
-                | Finished res => res
-                end;
-  supported_regex := pike_regex;
-}.
-  (* exec_correct *)
-  intros r inp ol Hsubset.
-  destruct pike_vm_match eqn:Hmatch; [pose proof pike_vm_fuel r inp; contradiction|].
-  split.
-  - intros [tree [Htree Hleaf]].
-    subst. eauto using pike_vm_match_correct, pike_vm_correct.
-  - intros ?; subst.
-    pose proof (is_tree_productivity rer [Areg r] inp Groups.GroupMap.empty forward) as [tree Htree].
-    exists tree.
-    split; eauto.
-    symmetry. eauto using pike_vm_match_correct, pike_vm_correct.
 Qed.
 
 End PrefixedEngine.
