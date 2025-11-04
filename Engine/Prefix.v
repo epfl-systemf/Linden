@@ -186,6 +186,25 @@ Proof.
     + destruct l1; easy.
 Qed.
 
+Lemma chain_literals_length:
+  forall l1 l2,
+    length (prefix (chain_literals l1 l2)) <= length (prefix l1) + length (prefix l2).
+Proof.
+  intros l1 l2.
+  destruct l1, l2; simpl; try rewrite app_length; lia.
+Qed.
+
+Lemma repeat_literal_length:
+  forall l base n,
+    length (prefix (repeat_literal l base n)) <=
+      n * length (prefix l) + length (prefix base).
+Proof.
+  induction n; intros; simpl.
+  - lia.
+  - rewrite chain_literals_length.
+    lia.
+Qed.
+
 (* the longest string that is a prefix of both strings *)
 Fixpoint common_prefix (s1 s2 : string) : string :=
   match s1, s2 with
@@ -252,6 +271,26 @@ Proof.
   unfold merge_literals; intros. split; intros.
   - wt_eq; easy.
   - destruct H; wt_eq; subst; easy.
+Qed.
+
+Lemma common_prefix_length:
+  forall s1 s2,
+    length (common_prefix s1 s2) <= Nat.min (length s1) (length s2).
+Proof.
+  induction s1; destruct s2; simpl; try lia.
+  wt_eq; simpl.
+  - specialize (IHs1 s2). lia.
+  - lia.
+Qed.
+
+Lemma merge_literals_length:
+  forall l1 l2,
+    length (prefix (merge_literals l1 l2)) <= Nat.min (length (prefix l1)) (length (prefix l2)).
+Proof.
+  intros l1 l2; unfold merge_literals.
+  wt_eq.
+  - lia.
+  - apply common_prefix_length.
 Qed.
 
 (* extracting literals from a character description *)
@@ -588,6 +627,27 @@ Proof.
   eapply extract_literal_impossible_general; eassumption.
 Qed.
 
+
+Theorem extract_literal_size_bound:
+  forall r,
+    length (prefix (extract_literal r)) <= regex_size r.
+Proof.
+  induction r; simpl; try lia.
+  - (* Character *)
+    induction cd; simpl; try lia.
+    + wt_eq; simpl; lia.
+    + pose proof (merge_literals_length (extract_literal_char cd1) (extract_literal_char cd2)); lia.
+  - (* Disjunction *)
+    pose proof (merge_literals_length (extract_literal r1) (extract_literal r2)); lia.
+  - (* Sequence *)
+    pose proof (chain_literals_length (extract_literal r1) (extract_literal r2)); lia.
+  - (* Quantified *)
+    induction min; (destruct delta; [destruct n|]); simpl;
+      try pose proof (chain_literals_length (extract_literal r) (repeat_literal (extract_literal r) Nothing min));
+      try pose proof (chain_literals_length (extract_literal r) (repeat_literal (extract_literal r) Unknown min));
+      lia.
+Qed.
+  
 End LiteralExtraction.
 
 Section PrefixedEngine.
