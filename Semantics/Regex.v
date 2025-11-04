@@ -68,6 +68,25 @@ Section Regex.
     - decide equality.
   Defined.
 
+  (* Note that this "size of the regex" counts counted quantifier as being unfolded, so it might not be linear in the size of the textual representation of the regex *)
+  Fixpoint regex_size (r: regex) : nat :=
+    match r with
+    | Epsilon => 1
+    | Regex.Character _ => 1
+    | Disjunction r1 r2 => 1 + regex_size r1 + regex_size r2
+    | Sequence r1 r2 => 1 + regex_size r1 + regex_size r2
+    | Quantified _ min delta r1 =>
+        1 + min * regex_size r1 +
+          (match delta with
+          | NoI.Inf => regex_size r1
+          | NoI.N n => n * regex_size r1
+          end)
+    | Lookaround _ r1 => 1 + regex_size r1
+    | Group _ r1 => 1 + regex_size r1
+    | Anchor _ => 1
+    | Backreference _ => 1
+    end.
+
   (** * Group Manipulation  *)
 
   (* getting all groups defined in a regex for the reset *)
