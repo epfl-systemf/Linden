@@ -14,6 +14,8 @@ Section PikeSubset.
 
   (** * PikeVM supported subset  *)
 
+  (* since the tree of r{0,1} will generate the tree of r{0,0},
+     it's quite convenient to add r{0,0} to the language as well *)
   Inductive pike_regex : regex -> Prop :=
   | pike_eps:
     pike_regex Epsilon
@@ -33,6 +35,13 @@ Section PikeSubset.
     forall r1 b,
       pike_regex r1 ->
       pike_regex (Quantified b 0 NoI.Inf r1)
+  | pike_qmark:
+    forall r1 b,
+      pike_regex r1 ->
+      pike_regex (Quantified b 0 (NoI.N 1) r1)
+  | pike_zero:
+    forall r1 b,
+      pike_regex (Quantified b 0 (NoI.N 0) r1)
   | pike_group:
     forall g r1,
       pike_regex r1 ->
@@ -84,6 +93,13 @@ Section PikeSubset.
 
 
   (** * Subset Properties  *)
+
+  Lemma destruct_delta:
+    forall d, d = NoI.N 0 \/ d = NoI.N 1 \/ d = NoI.Inf \/ (exists del, d = NoI.N del /\ del > 1).
+  Proof.
+    intros d. destruct d; auto.
+    destruct n; eauto. right. destruct n; eauto. right. right. exists (S (S n)). split; auto. lia.
+  Qed.
 
   Lemma pike_list_cons:
     forall t gm l,
@@ -198,8 +214,12 @@ Section PikeSubsetLemma.
     - apply IHISTREE2. pike_subset.
     - destruct dir; simpl; pike_subset. 
     - destruct greedy.
-      + pike_subset. apply IHISTREE1. pike_subset. destruct plus; inversion H3. constructor. auto.
-      + pike_subset. apply IHISTREE1. pike_subset. destruct plus; inversion H3. constructor. auto.
+      + pike_subset. apply IHISTREE1. destruct plus; inversion H3. pike_subset. 
+      + pike_subset. apply IHISTREE1. destruct plus; inversion H3. pike_subset.
+    - destruct greedy.
+      + pike_subset. apply IHISTREE1. destruct plus; inversion H3. pike_subset.
+      + pike_subset. apply IHISTREE1. destruct plus; inversion H3. pike_subset.
+    - destruct plus; inversion H3.
     - apply IHISTREE. pike_subset.
   Qed.
 End PikeSubsetLemma.

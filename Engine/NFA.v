@@ -123,6 +123,10 @@ Section NFA.
         let (bc1, f1) := compile r1 fresh in
         let (bc2, f2) := compile r2 f1 in
         (bc1 ++ bc2, f2)
+    | Quantified greedy 0 (NoI.N 0) r1 => ([], fresh)
+    | Quantified greedy 0 (NoI.N 1) r1 =>
+        let (bc1, f1) := compile r1 (S (S (S fresh))) in
+        ([greedy_fork greedy (S fresh) (S f1); BeginLoop; ResetRegs (def_groups r1)] ++ bc1 ++ [EndLoop (S f1)], S f1)
     | Quantified greedy 0 (NoI.Inf) r1 =>
         let (bc1, f1) := compile r1 (S (S (S fresh))) in
         ([greedy_fork greedy (S fresh) (S f1); BeginLoop; ResetRegs (def_groups r1)] ++ bc1 ++ [EndLoop fresh], S f1)
@@ -164,6 +168,17 @@ Section NFA.
       (NFA1: nfa_rep r1 c start end1)
       (NFA2: nfa_rep r2 c end1 end2),
       nfa_rep (Sequence r1 r2) c start end2
+  | nfa_rep_done:
+    forall c r1 greedy lbl,
+      nfa_rep (Quantified greedy 0 (NoI.N 0) r1) c lbl lbl
+  | nfa_rep_qmark:
+    forall c r1 greedy start end1
+      (FORK: get_pc c start = Some (greedy_fork greedy (S start) (S end1)))
+      (BEGIN: get_pc c (S start) = Some (BeginLoop))
+      (RESET: get_pc c (S (S start)) = Some (ResetRegs (def_groups r1)))
+      (NFA1: nfa_rep r1 c (S (S (S start))) end1)
+      (END: get_pc c end1 = Some (EndLoop (S end1))),
+      nfa_rep (Quantified greedy 0 (NoI.N 1) r1) c start (S end1)
   | nfa_rep_star:
     forall c r1 greedy start end1
       (FORK: get_pc c start = Some (greedy_fork greedy (S start) (S end1)))
@@ -227,15 +242,18 @@ Section NFA.
     - inversion COMPILE. destruct min.
       2: { inversion H0. simpl. lia. }
       destruct delta.
-      { inversion H0. simpl. lia. }
-      destruct (compile r (S (S (S fresh)))) as [bc1 f1] eqn:COMP1. 
-      inversion H0. apply IHr in COMP1.
-      subst. simpl. rewrite app_length. simpl. lia.
+      + destruct n; try destruct n; try solve[inversion H0; simpl; lia].
+        destruct (compile r (S (S (S fresh)))) as [bc1 f1] eqn:COMP1. 
+        inversion H0. apply IHr in COMP1.
+        subst. simpl. rewrite app_length. simpl. lia.
+      + destruct (compile r (S (S (S fresh)))) as [bc1 f1] eqn:COMP1. 
+        inversion H0. apply IHr in COMP1.
+        subst. simpl. rewrite app_length. simpl. lia.
     - inversion COMPILE.
       destruct (compile r (S fresh)) as [bc1 f1] eqn:COMP1. inversion H0. apply IHr in COMP1.
       subst. simpl. rewrite app_length. simpl. lia.
-  Qed.
-
+  Qed.    
+  
   (* this shows that the compilation function adheres to the representation predicate *)
   Theorem compile_nfa_rep:
     forall r c start endl prev,
@@ -276,26 +294,49 @@ Section NFA.
       2: { inversion H2. subst. apply nfa_unsupported.
           - unfold not. intros. inversion H0.
           - rewrite get_first. simpl. auto. }
-      destruct delta.
-      { inversion H2. subst. apply nfa_unsupported.
-        - unfold not. intros. inversion H0.
-        - rewrite get_first. simpl. auto. }
-      destruct (compile r (S (S (S start)))) as [bc1 end1] eqn:COMP1. inversion H2. subst. constructor.
-      + rewrite get_first. simpl. auto.
-      + rewrite get_second. simpl. auto.
-      + rewrite get_third. simpl. auto.
-      + apply IHr with (prev:=prev ++ [greedy_fork greedy (S (length prev)) (S end1); BeginLoop; ResetRegs (def_groups r)]) in COMP1.
-        * rewrite <- app_assoc in COMP1. simpl in COMP1.
-          replace (prev ++ greedy_fork greedy (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1 ++ [EndLoop (length prev)]) with
+      destruct (destruct_delta delta) as [DZ | [D1 | [DINF | [delta' [DUN N3]]]]]; subst delta.
+      (* Zero repetitions *)
+      + inversion H2. subst. constructor.
+      (* Question Mark *)
+      + destruct (compile r (S (S (S start)))) as [bc1 end1] eqn:COMP1. inversion H2. subst. constructor.
+        * rewrite get_first. simpl. auto.
+        * rewrite get_second. simpl. auto.
+        * rewrite get_third. simpl. auto.
+        * apply IHr with (prev:=prev ++ [greedy_fork greedy (S (length prev)) (S end1); BeginLoop; ResetRegs (def_groups r)]) in COMP1.
+          ** rewrite <- app_assoc in COMP1. simpl in COMP1.
+             replace (prev ++ greedy_fork greedy (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1 ++ [EndLoop (S end1)]) with
+               ((prev ++ greedy_fork greedy (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1) ++ [EndLoop (S end1)]).
+             2: { rewrite <- app_assoc. auto. }
+             apply nfa_rep_extend. auto.
+          ** rewrite app_length. simpl. lia.
+        * replace (prev ++ greedy_fork greedy (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1 ++ [EndLoop (S end1)]) with
+            ((prev ++ greedy_fork greedy (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1) ++ [EndLoop (S end1)]).
+          2: { rewrite <- app_assoc. auto. }
+          apply fresh_correct in COMP1. subst. apply get_first_0.
+          simpl. rewrite app_length. simpl. lia.
+      (* Star *)
+      + destruct (compile r (S (S (S start)))) as [bc1 end1] eqn:COMP1. inversion H2. subst. constructor.
+        * rewrite get_first. simpl. auto.
+        * rewrite get_second. simpl. auto.
+        * rewrite get_third. simpl. auto.
+        * apply IHr with (prev:=prev ++ [greedy_fork greedy (S (length prev)) (S end1); BeginLoop; ResetRegs (def_groups r)]) in COMP1.
+          ** rewrite <- app_assoc in COMP1. simpl in COMP1.
+             replace (prev ++ greedy_fork greedy (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1 ++ [EndLoop (length prev)]) with
+               ((prev ++ greedy_fork greedy (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1) ++ [EndLoop (length prev)]).
+             2: { rewrite <- app_assoc. auto. }
+             apply nfa_rep_extend. auto.
+          ** rewrite app_length. simpl. lia.
+        * replace (prev ++ greedy_fork greedy (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1 ++ [EndLoop (length prev)]) with
             ((prev ++ greedy_fork greedy (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1) ++ [EndLoop (length prev)]).
           2: { rewrite <- app_assoc. auto. }
-          apply nfa_rep_extend. auto.
-        * rewrite app_length. simpl. lia.
-      + replace (prev ++ greedy_fork greedy (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1 ++ [EndLoop (length prev)]) with
-            ((prev ++ greedy_fork greedy (S (length prev)) (S end1) :: BeginLoop :: ResetRegs (def_groups r) :: bc1) ++ [EndLoop (length prev)]).
-        2: { rewrite <- app_assoc. auto. }
-        apply fresh_correct in COMP1. subst. apply get_first_0.
-        simpl. rewrite app_length. simpl. lia.
+          apply fresh_correct in COMP1. subst. apply get_first_0.
+          simpl. rewrite app_length. simpl. lia.
+      (* Unsupported *)
+      + assert (([KillThread], S start) = (c,endl)).
+        { destruct delta'; auto. lia. destruct delta'; auto. lia. }
+        inversion H1. subst. apply nfa_unsupported.
+        * unfold not. intros. inversion H0; subst; lia.
+        * rewrite get_first. simpl. auto.
     - inversion H. subst. apply nfa_unsupported.
       + unfold not. intros. inversion H0.
       + rewrite get_first. simpl. auto.

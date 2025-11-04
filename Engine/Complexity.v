@@ -231,6 +231,26 @@ Proof.
     { apply IHREP1 in IN; auto. lia. }
     (* in r2 *)
     apply IHREP2 in IN; auto.
+  - lia.
+  - apply nfa_rep_incr in REP as INC.
+    assert (pc = start \/ pc >= S start) as [FOR|H] by lia.
+    (* fork *)
+    { subst. rewrite FORK in GET. destruct greedy; inversion GET; subst;
+        simpl in IN; destruct IN as [IN|[IN|IN]]; inversion IN; lia. }
+    assert (pc = S start \/ pc >= S (S start)) as [BEG|H1] by lia.
+    (* Begin *)
+    { subst. rewrite BEGIN in GET. inversion GET. subst.
+      simpl in IN. destruct IN as [IN|IN]; inversion IN; lia. }
+    assert (pc = S (S start) \/ pc >= S (S (S start))) as [RES|H2] by lia.
+    (* Reset *)
+    { subst. rewrite RESET in GET. inversion GET. subst.
+      simpl in IN. destruct IN as [IN|IN]; inversion IN; lia. }
+    assert (pc < end1 \/ pc = end1) as [R1|H3] by lia.
+    (* in r1 *)
+    { apply IHREP in IN; auto. }
+    (* endloop *)
+    subst. rewrite END in GET. inversion GET. subst.
+    simpl in IN. destruct IN as [IN|IN]; inversion IN; lia.
   - apply nfa_rep_incr in REP as INC.
     assert (pc = start \/ pc >= S start) as [FOR|H] by lia.
     (* fork *)
@@ -442,6 +462,8 @@ Fixpoint compsize (r:regex) : nat :=
   | Regex.Character _ => 1
   | Disjunction r1 r2 => 2 + compsize r1 + compsize r2
   | Sequence r1 r2 => compsize r1 + compsize r2
+  | Quantified g 0 (NoI.N 0) r1 => 0
+  | Quantified g 0 (NoI.N 1) r1 => 4 + compsize r1
   | Quantified g 0 (NoI.Inf) r1 => 4 + compsize r1
   | Group _ r1 => 2 + compsize r1
   | Anchor _ => 1
@@ -468,10 +490,15 @@ Proof.
     erewrite <- IHr1; eauto. 2: pike_subset.
     erewrite <- IHr2; eauto. 2: pike_subset.
     inversion COMP. subst. simpl. rewrite app_length. simpl. lia.
-  - destruct min; destruct delta; try solve[pike_subset].
-    destruct (compile r (S (S (S start)))) eqn:C1.
-    erewrite <- IHr; eauto. 2: pike_subset.
-    inversion COMP. subst. simpl. rewrite app_length. simpl. lia.
+  - destruct min; destruct (destruct_delta delta) as [DZ | [D1 | [DINF | [delta' [DUN N3]]]]]; subst; try solve[pike_subset].
+    + inversion COMP. auto.
+    + destruct (compile r (S (S (S start)))) eqn:C1.
+      erewrite <- IHr; eauto. 2: pike_subset.
+      inversion COMP. subst. simpl. rewrite app_length. simpl. lia.
+    + destruct (compile r (S (S (S start)))) eqn:C1.
+      erewrite <- IHr; eauto. 2: pike_subset.
+      inversion COMP. subst. simpl. rewrite app_length. simpl. lia.
+    + inversion SUBSET; subst; lia.
   - destruct (compile r (S start)) eqn:C1.
     erewrite <- IHr; eauto. 2: pike_subset.
     inversion COMP. subst. simpl. rewrite app_length. simpl. lia.
