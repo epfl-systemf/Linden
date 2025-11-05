@@ -225,29 +225,61 @@ Proof.
   (* quantified, forced *)
   - pike_subset.
   (* quantified, done *)
-  - pike_subset.
-  (* quantified, free *)
-  - destruct plus.
-    { pike_subset. }
-    simpl in ACT.
-    remember (Areg (Quantified greedy 0 +∞ r1) :: cont) as starcont.
-    induction ACT; inversion Heqstarcont; subst;
+  - remember (Areg (Quantified greedy 0 (NoI.N 0) r1) :: cont) as zerocont.
+    induction ACT; inversion Heqzerocont; subst;
       try solve[eapply tr_jmp; eauto]; clear IHACT.
     invert_rep. inversion NFA; subst.
     2: { in_subset. }
-    destruct greedy; simpl.
-    + eapply tr_choice; eauto.
-      * eapply tr_begin; eauto.
-        eapply tr_reset; eauto.
-        eapply IHTREE1; eauto. pike_subset.
-        repeat (econstructor; eauto).
-      * eapply IHTREE2; eauto. pike_subset.
-    + eapply tr_choice; eauto.
-      * eapply IHTREE2; eauto. pike_subset.
-      * eapply tr_begin; eauto.
-        eapply tr_reset; eauto.
-        eapply IHTREE1; eauto. pike_subset.
-        repeat (econstructor; eauto).
+    eapply IHTREE; eauto. pike_subset.
+  (* quantified, free *)
+  - destruct (destruct_delta (NoI.N 1 + plus)%NoI) as [DZ | [D1 | [DINF | [delta' [DUN N3]]]]].
+    (* Zero repetitions *)
+    + destruct plus; inversion DZ.
+    (* Question Mark *)
+    + destruct plus; inversion D1. subst.
+      simpl in ACT.
+      remember (Areg (Quantified greedy 0 (NoI.N 1) r1) :: cont) as qmarkcont.
+      induction ACT; inversion Heqqmarkcont; subst;
+        try solve[eapply tr_jmp; eauto]; clear IHACT.
+      invert_rep. inversion NFA; subst.
+      2: { in_subset. }
+      destruct greedy; simpl.
+      * eapply tr_choice; eauto.
+        ** eapply tr_begin; eauto.
+           eapply tr_reset; eauto.
+           eapply IHTREE1; eauto. pike_subset.
+           repeat (econstructor; eauto).
+        ** eapply IHTREE2; eauto. pike_subset.
+      * eapply tr_choice; eauto.
+        ** eapply IHTREE2; eauto. pike_subset.
+        ** eapply tr_begin; eauto.
+           eapply tr_reset; eauto.
+           eapply IHTREE1; eauto. pike_subset.
+           repeat (econstructor; eauto).
+    (* Star *)
+    + destruct plus; inversion DINF. clear DINF.
+      simpl in ACT.
+      remember (Areg (Quantified greedy 0 +∞ r1) :: cont) as starcont.
+      induction ACT; inversion Heqstarcont; subst;
+        try solve[eapply tr_jmp; eauto]; clear IHACT.
+      invert_rep. inversion NFA; subst.
+      2: { in_subset. }
+      destruct greedy; simpl.
+      * eapply tr_choice; eauto.
+        ** eapply tr_begin; eauto.
+           eapply tr_reset; eauto.
+           eapply IHTREE1; eauto. pike_subset.
+           repeat (econstructor; eauto).
+        ** eapply IHTREE2; eauto. pike_subset.
+      * eapply tr_choice; eauto.
+        ** eapply IHTREE2; eauto. pike_subset.
+        ** eapply tr_begin; eauto.
+           eapply tr_reset; eauto.
+           eapply IHTREE1; eauto. pike_subset.
+           repeat (econstructor; eauto).
+    (* Unsupported *)
+    + rewrite DUN in SUBSET. inversion SUBSET; subst.
+      inversion H1; subst. inversion H0; subst; lia.
   (* group *)
   - remember (Areg (Group gid r1) :: cont) as groupcont.
     induction ACT; inversion Heqgroupcont; subst;

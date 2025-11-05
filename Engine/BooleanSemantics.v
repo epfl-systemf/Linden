@@ -272,23 +272,38 @@ Proof.
     eapply true_encoding; eauto.
   - apply encode_next in ENCODE. inversion H1. inversion H0. subst. constructor.
     + apply IHTREE1; auto.
-      { constructor; try constructor; auto. }
+      { pike_subset. }
       apply encode_next. auto.
     + apply IHTREE2; auto.
-      { constructor; try constructor; auto. }
+      { pike_subset. }
       apply encode_next. auto.
   - constructor. subst. simpl in IHTREE. apply IHTREE; eauto.
-    { inversion H1. subst. inversion H0. subst.
-      repeat progress (constructor; auto). }
-    inversion ENCODE; subst; constructor; constructor; auto.
-  - destruct plus.
     { pike_subset. }
-    eapply tree_quant_free; eauto.
-    + eapply IHTREE1; auto.
-      { inversion H1. inversion H0. subst.
-        repeat progress (constructor; auto). }
-      apply encode_next. eapply cons_false; eauto.
-    + subst. eapply IHTREE2; auto. apply encode_next in ENCODE. auto.
+    inversion ENCODE; subst; constructor; constructor; auto.
+  - inversion ENCODE. subst. constructor; auto.
+  - destruct (destruct_delta (NoI.N 1 + plus)%NoI) as [DZ | [D1 | [DINF | [delta' [DUN N3]]]]].
+    (* Zero repetitions *)
+    + destruct plus; inversion DZ.
+    (* Question Mark *)
+    + eapply tree_quant_free; eauto.
+      * destruct plus; inversion D1; subst.
+        eapply IHTREE1; eauto.
+        { pike_subset. }
+        apply encode_next. eapply cons_false; eauto.
+        inversion ENCODE. subst. constructor. eauto.
+      * eapply IHTREE2; auto. apply encode_next in ENCODE. auto.
+    (* Star *)
+    + destruct plus; inversion DINF.
+      eapply tree_quant_free; eauto.
+      * eapply IHTREE1; auto.
+        { pike_subset. }
+        apply encode_next. eapply cons_false; eauto.
+      * subst. eapply IHTREE2; auto. apply encode_next in ENCODE. auto.
+    (* Unsupported *)
+    + rewrite DUN in PIKE. assert (delta' <> 0).
+      { destruct plus; inversion DUN. lia. }
+      inversion PIKE. subst. inversion H4; subst.
+      inversion H3; subst; lia.
   - constructor. apply IHTREE; auto.
     { inversion H1. inversion H0. subst. repeat progress (constructor; auto). }
     apply encode_next in ENCODE.
@@ -324,6 +339,11 @@ Proof.
   - destruct plus; inversion H3. destruct greedy; pike_subset.
     + eapply IHISTREE1. pike_subset.
     + eapply IHISTREE1. pike_subset.
+  - destruct plus; inversion H3. subst.
+    destruct greedy; pike_subset.
+    + eapply IHISTREE1. pike_subset.
+    + eapply IHISTREE1. pike_subset.
+  - destruct plus; inversion H3.
   - eapply IHISTREE. pike_subset.
 Qed.
 

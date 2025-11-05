@@ -105,7 +105,7 @@ Proof.
   - repeat invert_rep. pike_subset.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
     repeat (econstructor; eauto). pike_subset.
-  - repeat invert_rep.
+  - repeat invert_rep. pike_subset.
   - destruct greedy; inversion CHOICE.
  Qed.
 
@@ -135,7 +135,7 @@ Proof.
       replace (pc + 1) with (S pc) by lia. eauto.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
     repeat (econstructor; eauto). pike_subset.
-  - repeat invert_rep. 
+  - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
   - destruct greedy; inversion CHOICE.
 Qed.
 
@@ -154,7 +154,7 @@ Proof.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
     repeat (econstructor; eauto). pike_subset.
-  - repeat invert_rep.
+  - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
   - destruct greedy; inversion CHOICE.
   - repeat invert_rep. simpl. rewrite OPEN. split; auto.
     eapply tt_eq; eauto.
@@ -182,7 +182,7 @@ Proof.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
     repeat (econstructor; eauto). pike_subset.
-  - repeat invert_rep.
+  - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
   - destruct greedy; inversion CHOICE.
 Qed.
 
@@ -233,7 +233,7 @@ Proof.
     repeat invert_rep. simpl. rewrite CONSUME. rewrite CHECK. auto.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
     repeat (econstructor; eauto). pike_subset.
-  - pike_subset.
+  - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
   - destruct greedy; inversion CHOICE.
   - repeat invert_rep. simpl. rewrite CHECK. rewrite ANCHOR. auto.
 Qed.
@@ -254,7 +254,7 @@ Proof.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
     repeat (econstructor; eauto). pike_subset.
-  - pike_subset.
+  - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
   - destruct greedy; inversion CHOICE.
 Qed.
 
@@ -272,7 +272,7 @@ Proof.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
     repeat (econstructor; eauto). pike_subset.
-  - repeat invert_rep.
+  - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
   - destruct greedy; inversion CHOICE.
   - repeat invert_rep. simpl. rewrite CHECK. rewrite ANCHOR. split; auto.
     eapply tt_eq; eauto.
@@ -311,36 +311,73 @@ Proof.
         ** eapply jump_bc; eauto.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
     repeat (econstructor; eauto). pike_subset.
-  - repeat invert_rep.
-  - (* when the choice comes from a star *)
-    repeat invert_rep. destruct greedy; inversion CHOICE; subst; destruct plus; inversion H1.
-    +                           (* greedy star *)
-      simpl. rewrite FORK. exists [(S pc, gm, b); (S end1, gm, b)]. split; auto.
-      econstructor.
-      * econstructor. constructor.
-        apply tt_eq with (actions:=cont); auto. pike_subset.
-      * apply tt_begin; auto.
-        replace (S (S pc)) with (S pc +1) in RESET by lia.
-        apply tt_reset; auto.
-        apply tt_eq with (actions:=Areg r1 :: Acheck(inp)::Areg(Quantified true 0 +∞ r1)::cont); auto.
-        2: { pike_subset. }
-        apply cons_bc with (pcmid:=end1).
-        { constructor. replace (S pc+1+1) with (S (S (S pc))) by lia. auto. }
-        repeat (econstructor; eauto).
-        replace (S (S pc)) with (S pc + 1) by lia. auto.
-    +                           (* lazy star *)
-      simpl. rewrite FORK. exists [(S end1, gm, b); (S pc, gm, b)]. split; auto.
-      econstructor.
-      * constructor. constructor. apply tt_begin; auto.
-        replace (S (S pc)) with (S pc + 1) in RESET by lia.
-        apply tt_reset; auto.
-        apply tt_eq with (actions:=Areg r1 :: Acheck(inp)::Areg(Quantified false 0 +∞ r1)::cont); auto.
-        2: { pike_subset. }
-        apply cons_bc with (pcmid:=end1).
-        { constructor. replace (S pc+1+1) with (S (S (S pc))) by lia. auto. }
-        repeat (econstructor; eauto).
-        replace (S (S pc)) with (S pc + 1) by lia. auto.
-      * apply tt_eq with (actions:=cont); auto. pike_subset.
+  - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
+  - (* when the choice comes from a quantifier *)
+    destruct (destruct_delta (NoI.N 1 + plus)%NoI) as [DZ | [D1 | [DINF | [delta' [DUN N3]]]]].
+    (* Zero Repetition *)
+    + destruct plus; inversion DZ.
+    + { (* Question Mark *)
+        destruct plus; inversion D1. subst.
+        repeat invert_rep. destruct greedy; inversion CHOICE; subst.
+        +                           (* greedy qmark *)
+          simpl. rewrite FORK. exists [(S pc, gm, b); (S end1, gm, b)]. split; auto.
+          econstructor.
+          * econstructor. constructor.
+            apply tt_eq with (actions:=cont); auto. pike_subset.
+          * apply tt_begin; auto.
+            replace (S (S pc)) with (S pc +1) in RESET by lia.
+            apply tt_reset; auto.
+            apply tt_eq with (actions:=Areg r1 :: Acheck(inp)::Areg(Quantified true 0 (NoI.N 0) r1)::cont); auto.
+            2: { pike_subset. }
+            apply cons_bc with (pcmid:=end1).
+            { constructor. replace (S pc+1+1) with (S (S (S pc))) by lia. auto. }
+            repeat (econstructor; eauto).
+        +                           (* lazy qmark *)
+          simpl. rewrite FORK. exists [(S end1, gm, b); (S pc, gm, b)]. split; auto.
+          econstructor.
+          * constructor. constructor. apply tt_begin; auto.
+            replace (S (S pc)) with (S pc + 1) in RESET by lia.
+            apply tt_reset; auto.
+            apply tt_eq with (actions:=Areg r1 :: Acheck(inp)::Areg(Quantified false 0 (NoI.N 0) r1)::cont); auto.
+            2: { pike_subset. }
+            apply cons_bc with (pcmid:=end1).
+            { constructor. replace (S pc+1+1) with (S (S (S pc))) by lia. auto. }
+            repeat (econstructor; eauto).
+          * apply tt_eq with (actions:=cont); auto. pike_subset.
+      }      
+    + { (* Star *)
+        destruct plus; inversion DINF.
+        repeat invert_rep. destruct greedy; inversion CHOICE; subst.
+        +                           (* greedy star *)
+          simpl. rewrite FORK. exists [(S pc, gm, b); (S end1, gm, b)]. split; auto.
+          econstructor.
+          * econstructor. constructor.
+            apply tt_eq with (actions:=cont); auto. pike_subset.
+          * apply tt_begin; auto.
+            replace (S (S pc)) with (S pc +1) in RESET by lia.
+            apply tt_reset; auto.
+            apply tt_eq with (actions:=Areg r1 :: Acheck(inp)::Areg(Quantified true 0 +∞ r1)::cont); auto.
+            2: { pike_subset. }
+            apply cons_bc with (pcmid:=end1).
+            { constructor. replace (S pc+1+1) with (S (S (S pc))) by lia. auto. }
+            repeat (econstructor; eauto).
+            replace (S (S pc)) with (S pc + 1) by lia. auto.
+        +                           (* lazy star *)
+          simpl. rewrite FORK. exists [(S end1, gm, b); (S pc, gm, b)]. split; auto.
+          econstructor.
+          * constructor. constructor. apply tt_begin; auto.
+            replace (S (S pc)) with (S pc + 1) in RESET by lia.
+            apply tt_reset; auto.
+            apply tt_eq with (actions:=Areg r1 :: Acheck(inp)::Areg(Quantified false 0 +∞ r1)::cont); auto.
+            2: { pike_subset. }
+            apply cons_bc with (pcmid:=end1).
+            { constructor. replace (S pc+1+1) with (S (S (S pc))) by lia. auto. }
+            repeat (econstructor; eauto).
+            replace (S (S pc)) with (S pc + 1) by lia. auto.
+          * apply tt_eq with (actions:=cont); auto. pike_subset.
+      }
+    (* Unsupported *)
+        + rewrite DUN in SUBSET. inversion SUBSET; subst. inversion H1; subst. inversion H0; subst; lia.
 Qed.
 
 
@@ -458,14 +495,31 @@ Proof.
     exists pcstart. exists b. split; try split; try lia.
     * simpl. rewrite JMP. auto.
     * apply tt_eq with (actions:=Areg (Quantified greedy (S min) plus r1) :: cont); try constructor; auto; pike_subset.
-  - pike_subset.
   - invert_rep.
-    { invert_rep. invert_rep; try in_subset. destruct greedy; stutter. }
-    exists pcstart. exists b. split; try split; try lia.
-    + simpl. rewrite JMP. auto.
-    + destruct plus; [pike_subset|].
-      apply tt_eq with (actions:=Areg (Quantified greedy 0 (NoI.N 1 + +∞)%NoI r1) :: cont); try constructor; auto; pike_subset.
-      eapply tree_quant_free; eauto.
+    + invert_rep. invert_rep; try in_subset.
+      eapply IHTREE; eauto. pike_subset.
+    + exists pcstart. exists b. split; try split; try lia.
+      * simpl. rewrite JMP. auto.
+      * apply tt_eq with (actions:=Areg (Quantified greedy 0 (NoI.N 0) r1) :: cont); try constructor; auto; pike_subset.
+  - destruct (destruct_delta (NoI.N 1 + plus)%NoI) as [DZ | [D1 | [DINF | [delta' [DUN N3]]]]].
+    (* Zero repetition *)
+    + destruct plus; inversion DZ.
+    (* Question Mark *)
+    + destruct plus; inversion D1. subst. invert_rep.
+      { invert_rep. invert_rep; try in_subset. destruct greedy; stutter. }
+      exists pcstart. exists b. split; try split; try lia.
+      * simpl. rewrite JMP. auto.
+      * apply tt_eq with (actions:=Areg (Quantified greedy 0 (NoI.N 1 + NoI.N 0)%NoI r1) :: cont); try constructor; auto; pike_subset.
+        eapply tree_quant_free; eauto.        
+    (* Star *)
+    + destruct plus; inversion DINF. invert_rep.
+      { invert_rep. invert_rep; try in_subset. destruct greedy; stutter. }
+      exists pcstart. exists b. split; try split; try lia.
+      * simpl. rewrite JMP. auto.
+      * apply tt_eq with (actions:=Areg (Quantified greedy 0 (NoI.N 1 + +∞)%NoI r1) :: cont); try constructor; auto; pike_subset.
+        eapply tree_quant_free; eauto.        
+    (* Unsupported *)
+    + rewrite DUN in SUBSET. inversion SUBSET; inversion H1; inversion H4; subst; lia.
   - invert_rep.
     { invert_rep. invert_rep; try in_subset; try stutter. }
     exists pcstart. exists b. split; try split; try lia.
@@ -565,6 +619,7 @@ Proof.
     destruct IHnfa_rep2 as [SAME2 | [i [START2 REP2]]]; subst.
     + left. auto.
     + right. eexists. split; eauto.
+  - right. destruct greedy; inversion FORK; eexists; split; eauto; constructor.
   - right. destruct greedy; inversion FORK; eexists; split; eauto; constructor.
 Qed.
 
@@ -758,6 +813,22 @@ Proof.
     { apply IHREP1; auto. }
     (* in r2 *)
     apply IHREP2; auto.
+  - lia.
+  - apply nfa_rep_incr in REP as INC.
+    assert (pc = start \/ pc >= S start) as [FOR|H] by lia.
+    (* fork *)
+    { subst. rewrite FORK in GET. destruct greedy; inversion GET. }
+    assert (pc = S start \/ pc >= S (S start)) as [BEG|H1] by lia.
+    (* Begin *)
+    { subst. rewrite BEGIN in GET. inversion GET. }
+    assert (pc = S (S start) \/ pc >= S (S (S start))) as [RES|H2] by lia.
+    (* Reset *)
+    { subst. rewrite RESET in GET. inversion GET. }
+    assert (pc < end1 \/ pc = end1) as [R1|H3] by lia.
+    (* in r1 *)
+    { apply IHREP; auto. }
+    (* endloop *)
+    subst. rewrite END in GET. inversion GET.
   - apply nfa_rep_incr in REP as INC.
     assert (pc = start \/ pc >= S start) as [FOR|H] by lia.
     (* fork *)
