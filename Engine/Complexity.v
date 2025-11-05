@@ -18,6 +18,7 @@ From Warblre Require Import Base RegExpRecord.
 Section Complexity.
 Context {params: LindenParameters}.
 Context (rer: RegExpRecord).
+Context {VMS: VMSeen}.
 
 (** * Free slots  *)
 (* To define the measure, we need a notion of free slots: how many more states can the PikeVM visit *)

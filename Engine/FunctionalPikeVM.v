@@ -7,6 +7,7 @@ From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics NFA.
 From Linden Require Import BooleanSemantics PikeSubset.
 From Linden Require Import PikeVM Correctness SeenSets Semantics.Examples.
+From Linden Require Import Complexity.
 From Linden Require Import Parameters.
 From Warblre Require Import Base RegExpRecord.
 From Linden Require Import FunctionalUtils FunctionalSemantics.
@@ -62,8 +63,8 @@ Fixpoint pike_vm_loop (c:code) (pvs:pike_vm_state) (fuel:nat) : pike_vm_state :=
   end.
 
 (* an upper bound for the fuel necessary to compute a result *)
-Definition bytecode_fuel (c:code) (inp:input) : nat :=
-  (4 * length c) + 1 + (length (next_str inp) * (1 + 4 * length c)). 
+Definition vm_fuel (r:regex) (inp:input) : nat :=
+  complexity r inp. 
 
 Inductive matchres : Type :=
 | OutOfFuel
@@ -78,7 +79,7 @@ Definition getres (pvs:pike_vm_state) : matchres :=
 (* Functional version of the PikeVM *)
 Definition pike_vm_match (r:regex) (inp:input) : matchres :=
   let code := compilation r in
-  let fuel := bytecode_fuel code inp in
+  let fuel := vm_fuel r inp in
   let pvsinit := pike_vm_initial_state inp in
   getres (pike_vm_loop code pvsinit fuel).
                                                    
@@ -124,6 +125,35 @@ Proof.
   - constructor.
 Qed.
 
+Lemma step_loop:
+  forall c pvs1 pvs2 fuel,
+    pike_vm_step rer c pvs1 pvs2 ->
+    pike_vm_loop c pvs1 (S fuel) = pike_vm_loop c pvs2 fuel.
+Proof.
+  intros c pvs1 pvs2 fuel H. destruct H; simpl; auto.
+  - destruct blocked; auto.
+    rewrite ADVANCE; auto.
+  - rewrite ADVANCE; auto.
+  - rewrite SEEN; auto.
+  - rewrite UNSEEN; rewrite STEP; auto.
+  - rewrite UNSEEN; rewrite STEP; auto.
+  - rewrite UNSEEN; rewrite STEP; auto.
+Qed.
+
+Theorem steps_loop:
+  forall c pvs1 pvs2 fuel,
+    steps (pike_vm_step rer c) pvs1 fuel (PVS_final pvs2) ->
+    pike_vm_loop c pvs1 fuel = (PVS_final pvs2).
+Proof.
+  intros c pvs1 pvs2 fuel H. remember (PVS_final pvs2) as result.
+  induction H; subst.
+  - destruct n; simpl; auto.
+  - destruct x.
+    2: { inversion STEP. }
+    erewrite step_loop; eauto.
+Qed.
+
+
 (* when the function finishes, it retruns the correct result *)
 Theorem pike_vm_match_correct:
   forall r inp result,
@@ -133,6 +163,17 @@ Proof.
   unfold pike_vm_match, getres. intros r inp result H. 
   match_destr; subst; inversion H; subst.
   eapply loop_trc; eauto.
+Qed.
+
+(* the function always terminates *)
+Theorem pike_vm_match_terminates:
+  forall r inp,
+    pike_regex r ->
+    exists result, pike_vm_match r inp = Finished result.
+Proof.
+  intros r inp SUBSET. unfold pike_vm_match, vm_fuel.
+  apply pikevm_complexity with (VMS:=VMS) (rer:=rer) (inp:=inp) in SUBSET as [result TERM].
+  exists result. apply steps_loop in TERM. rewrite TERM. auto.
 Qed.
 
 (* unrolling one PikeVM step   *)
