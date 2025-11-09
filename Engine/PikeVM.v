@@ -6,7 +6,7 @@
 Require Import List Lia.
 Import ListNotations.
 
-From Linden Require Import Regex Chars Groups.
+From Linden Require Import Regex Chars Groups Prefix.
 From Linden Require Import Tree Semantics NFA.
 From Linden Require Import BooleanSemantics PikeSubset.
 From Linden Require Import Parameters SeenSets.
@@ -196,6 +196,87 @@ Proof.
     + eexists. apply pvs_active; eauto.
     + eexists. apply pvs_match; eauto.
     + eexists. apply pvs_blocked; eauto.
+Qed.
+
+(* small-step semantics for the prefixed PikeVM algorithm *)
+Inductive prefix_pike_vm_step {strs:StrSearch} (c:code) (lit:literal): pike_vm_state -> pike_vm_state -> Prop :=
+| ppvs_final:
+  (* moving to a final state when there are no more active or blocked threads *)
+  forall inp best seen
+    (ADVANCE: advance_input inp forward = None),
+    prefix_pike_vm_step c lit (PVS inp [] best [] seen) (PVS_final best)
+| ppvs_jump:
+  (* out of states to explore, simulate [^]*? by restarting the search
+     from the beginning of the NFA bytecode in the next candidate position *)
+  forall inp nextinp prefixinp best seen
+    (ADVANCE: advance_input inp forward = Some nextinp)
+    (SEARCH: input_search (prefix lit) nextinp = Some prefixinp),
+    prefix_pike_vm_step c lit (PVS inp [] best [] seen) (PVS prefixinp [pike_vm_initial_thread] best [] initial_seenpcs)
+| ppvs_nojump:
+  (* out of states to explore, we want to simulate [^]*? by restarting the search
+      from the beginning of the NFA bytecode but there is no candidate position *)
+  forall inp nextinp best seen
+    (ADVANCE: advance_input inp forward = Some nextinp)
+    (SEARCH: input_search (prefix lit) nextinp = None),
+    prefix_pike_vm_step c lit (PVS inp [] best [] seen) (PVS_final best)
+| ppvs_end:
+  (* when the list of active is empty and we've reached the end of string *)
+  forall inp best blocked seen
+    (ADVANCE: advance_input inp forward = None),
+    prefix_pike_vm_step c lit (PVS inp [] best blocked seen) (PVS_final best)
+| ppvs_nextchar:
+  (* when the list of active threads is empty (but not blocked), restart from the blocked ones, proceeding to the next character *)
+  (* reset the set of seen pcs *)
+  forall inp1 inp2 best blocked seen thr
+    (ADVANCE: advance_input inp1 forward = Some inp2),
+    (* NOTE: simulating [^]*? by starting a new thread from state zero of the NFA in this new position *)
+    prefix_pike_vm_step c lit (PVS inp1 [] best (thr::blocked ++ [pike_vm_initial_thread]) seen) (PVS inp2 (thr::blocked) best [] initial_seenpcs)
+| ppvs_skip:
+  (* when the pc has already been seen at this current index, we skip it entirely *)
+  forall inp t active best blocked seen
+    (SEEN: seen_thread seen t = true),
+    prefix_pike_vm_step c lit (PVS inp (t::active) best blocked seen) (PVS inp active best blocked seen)
+| ppvs_active:
+  (* generated new active threads: add them in front of the low-priority ones *)
+  forall inp t active best blocked seen nextactive
+    (UNSEEN: seen_thread seen t = false)
+    (STEP: epsilon_step t c inp = EpsActive nextactive),
+    prefix_pike_vm_step c lit (PVS inp (t::active) best blocked seen) (PVS inp (nextactive++active) best blocked (add_thread seen t))
+| ppvs_match:
+  (* a match is found, discard remaining low-priority active threads *)
+  forall inp t active best blocked seen
+    (UNSEEN: seen_thread seen t = false)
+    (STEP: epsilon_step t c inp = EpsMatch),
+    prefix_pike_vm_step c lit (PVS inp (t::active) best blocked seen) (PVS inp [] (Some (inp,gm_of t)) blocked (add_thread seen t))
+| ppvs_blocked:
+  (* add the new blocked thread after the previous ones *)
+  forall inp t active best blocked seen newt
+    (UNSEEN: seen_thread seen t = false)
+    (STEP: epsilon_step t c inp = EpsBlocked newt),
+    prefix_pike_vm_step c lit (PVS inp (t::active) best blocked seen) (PVS inp active best (blocked ++ [newt]) (add_thread seen t)).
+
+Theorem prefix_pikevm_deterministic {strs:StrSearch}:
+  forall c lit pvso pvs1 pvs2
+    (STEP1: prefix_pike_vm_step c lit pvso pvs1)
+    (STEP2: prefix_pike_vm_step c lit pvso pvs2),
+    pvs1 = pvs2.
+Proof.
+  intros c lit pvso pvs1 pvs2 STEP1 STEP2. inversion STEP1; subst.
+  - inversion STEP2; subst; now rewrite ADVANCE in *.
+  - inversion STEP2; subst; rewrite ADVANCE in *; (injection ADVANCE0 as <- || discriminate); rewrite SEARCH in *; [injection SEARCH0 as <-|]; easy.
+  - inversion STEP2; subst; rewrite ADVANCE in *; (injection ADVANCE0 as <- || discriminate); now rewrite SEARCH in *.
+  - inversion STEP2; subst; auto; rewrite ADVANCE in *; now inversion ADVANCE0.
+  - inversion STEP2; subst; auto; rewrite ADVANCE in ADVANCE0; inversion ADVANCE0;
+      apply app_inv_tail in H3; subst; auto.
+  - inversion STEP2; subst; auto; rewrite UNSEEN in SEEN; inversion SEEN.
+  - inversion STEP2; subst; auto; try (rewrite UNSEEN in SEEN; inversion SEEN);
+      rewrite STEP in STEP0; inversion STEP0.
+    subst. auto.
+  - inversion STEP2; subst; auto; try (rewrite UNSEEN in SEEN; inversion SEEN);
+      rewrite STEP in STEP0; inversion STEP0.
+  - inversion STEP2; subst; auto; try (rewrite UNSEEN in SEEN; inversion SEEN);
+      rewrite STEP in STEP0; inversion STEP0.
+    subst. auto.
 Qed.
 
 End PikeVM.

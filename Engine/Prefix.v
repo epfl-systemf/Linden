@@ -7,7 +7,6 @@ From Linden Require Import StrictSuffix FunctionalUtils.
 From Warblre Require Import Base RegExpRecord.
 
 From Linden Require Import PikeSubset SeenSets.
-From Linden Require Import Correctness.
 
 Section Prefix.
   Context {params: LindenParameters}.
@@ -627,7 +626,9 @@ Proof.
   eapply extract_literal_impossible_general; eassumption.
 Qed.
 
-
+(* note: this will not hold true if support for backreferences is added.
+    Consider /(abc)\1\1/. The extracted literal would be 'abcabcabc' which is not upperbounded by the regex size.
+*)
 Theorem extract_literal_size_bound:
   forall r,
     length (prefix (extract_literal r)) <= regex_size r.
