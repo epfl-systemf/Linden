@@ -89,6 +89,12 @@ Section PikeTree.
     forall inp t gm active best blocked seen
       (SEEN: inseen seen t = true),
       pike_tree_step (PTS inp ((t,gm)::active) best blocked seen) (PTS inp active best blocked seen)
+  | pts_empty:
+  (* skip an active tree if it has no results *)
+  (* this is non-deterministic, we can also not skip it by using the other rules *)
+    forall inp t gm active best blocked seen
+      (EMPTY: first_leaf t inp = None),
+      pike_tree_step (PTS inp ((t,gm)::active) best blocked seen) (PTS inp active best blocked seen)
   | pts_final:
   (* moving to a final state when there are no more active or blocked trees *)
     forall inp best seen,
@@ -410,6 +416,22 @@ Section PikeTree.
       + apply IHTREEND2; auto. lia.
   Qed.
 
+  (* state_nd holds when we remove trees with no results *)
+  Lemma state_nd_none_cons:
+    forall t inp active best blocked seen res gm
+      (EMPTY : first_leaf t inp = None)
+      (STATEND : state_nd inp active best blocked seen res)
+      (SUBSET: pike_subtree t),
+      state_nd inp ((t, gm) :: active) best blocked seen res.
+  Proof.
+    intros t inp active best blocked seen res gm EMPTY STATEND.
+    inversion STATEND; subst.
+    econstructor; eauto.
+    apply tlr_cons with (l1 := None) (l2 := r2); auto.
+    unfold first_leaf in EMPTY. apply no_tree_result with (gm2 := gm) (inp2 := inp) in EMPTY.
+    rewrite <-EMPTY.
+    now apply tree_res_nd.
+  Qed.
 
   (** * Invariant Preservation  *)
 
@@ -422,12 +444,15 @@ Section PikeTree.
     intros pts1 pts2 res PSTEP INVARIANT.
     destruct INVARIANT.
     2: { inversion PSTEP. }
-    inversion PSTEP; subst; [| | |destruct t; inversion STEP; subst| |].
+    inversion PSTEP; subst; [| | | |destruct t; inversion STEP; subst| |].
     (* skipping *)
     - constructor; pike_subset; auto. intros res STATEND.
       apply SAMERES. inversion STATEND; subst.
       econstructor; eauto. replace r2 with (seqop None r2) by (simpl; auto).
       eapply tlr_cons; eauto. apply tr_skip. auto.
+    (* empty *)
+    - constructor; pike_subset; auto. intros res STATEND.
+      apply SAMERES, state_nd_none_cons; auto.
     (* final *)
     - assert (best = result).
       { apply SAMERES. econstructor; econstructor. }
