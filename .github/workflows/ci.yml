@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    name: Check Linden
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 4.14.2
+          dune-cache: true
+          opam-disable-sandboxing: true
+          opam-pin: false
+
+      - name: Install opam dependencies
+        run:  |
+          opam pin add warblre https://github.com/epfl-systemf/Warblre.git#a1ffc3f2e47d942ad9e1194dfb71f0783ead6d8a
+
+      - name: Dune build
+        run:  opam exec -- dune build
+
+      - name: Check compiled libraries (coqchk)
+        run: opam exec -- coqchk -silent --output-context $(cat _CoqProject) _build/default/*/*.vo
