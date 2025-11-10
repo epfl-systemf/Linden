@@ -33,4 +33,14 @@ Section ForcedQuant.
     unfold tree_equiv, tree_equiv_dir. intros. split; auto. apply forced_actions.
   Qed.
 
+  Theorem forced_equiv_true:
+    forall r n g,
+      (Quantified g n (NoI.N 0) r) ≅[rer] (Quantified true n (NoI.N 0) r).
+  Proof.
+    destruct g.
+    - reflexivity.
+    - symmetry. apply forced_equiv.
+  Qed.
+    
+
 End ForcedQuant.

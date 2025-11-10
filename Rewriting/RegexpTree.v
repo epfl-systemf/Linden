@@ -1,5 +1,5 @@
 From Linden Require Import ProofSetup.
-From Linden.Rewriting Require Import Examples FlatMap ForcedQuant.
+From Linden.Rewriting Require Import Examples FlatMap ForcedQuant Associativity.
 
 Coercion nat_to_N (n: nat) := NoI.N n.
 
@@ -157,6 +157,37 @@ Section RegexpTree.
         auto.
         apply forced_equiv.
     Qed.
+
+    Lemma bounded_atmost_forward:
+      forall r n m g,
+        def_groups r = [] ->
+        (Sequence (Quantified g m 0 r) (Quantified g 0 n r))
+          ≅[rer][forward] Quantified g m n r.
+    Proof.
+      intros r n m g DEF. destruct g.
+      - apply bounded_atmost_equiv. auto.
+      - etransitivity.
+        { eapply seq_equiv. 2: reflexivity.
+          rewrite <- forced_equiv. reflexivity. }
+        apply bounded_atmost_lazy_equiv. auto.
+    Qed.
+
+
+    Lemma atmost_bounded_backward:
+      forall r n m g,
+        def_groups r = [] ->
+        (Sequence (Quantified g 0 n r) (Quantified g m 0 r))
+          ≅[rer][backward] Quantified g m n r.
+    Proof.
+      intros r n m g DEF. destruct g.
+      - apply atmost_bounded_equiv. auto.
+      - etransitivity.
+        { eapply seq_equiv. reflexivity.
+          rewrite <- forced_equiv. reflexivity. }
+        apply atmost_bounded_lazy_equiv. auto.
+    Qed.
+
+        
 
     Context (c0 c1 c2: Parameters.Character).
 
@@ -491,6 +522,124 @@ Section RegexpTree.
       - apply atmost_atmost_equiv_actions_minf.
       - apply atmost_atmost_equiv_actions_minf.
     Qed.
+
+    (** * The four cases used in the new Quantifiers Merge Transform of regexp-tree *)
+
+    (* r{n1}r{n2,m2} -> r{n1+n2,n1+m2}
+       r{n1}r{n2,m2}? -> r{n1+n2,n1+m2}?
+       r{n1}?r{n2,m2} -> r{n1+n2,n1+m2}
+       r{n1}?r{n2,m2}? -> r{n1+n2,n1+m2}? *)
+    Theorem merge_forced_forward:
+      forall r n1 g1 n2 m2 g2,
+        def_groups r = [] ->
+        (Sequence (Quantified g1 n1 0 r) (Quantified g2 n2 m2 r))
+          ≅[rer][forward] Quantified g2 (n1+n2) m2 r. 
+    Proof.
+      intros r n1 g1 n2 m2 g2 DEF.
+      (* break down r{n2,n2+m2} into r{n2}r{0,m2} *)
+      eapply tree_equiv_dir_transitive.
+      { apply seq_equiv_dir. reflexivity.
+        rewrite <- bounded_atmost_forward; auto. reflexivity. }
+      (* sequence associativity *)
+      eapply tree_equiv_dir_transitive.
+      { apply seq_assoc. }
+      (* set to true the greediness of forced iterations *)
+      eapply tree_equiv_dir_transitive.
+      { apply seq_equiv_dir. 2: reflexivity.
+        apply seq_equiv_dir; apply forced_equiv_true. }
+      (* merge the forced iterations r{n1}r{n2} *)
+      eapply tree_equiv_dir_transitive.
+      { eapply seq_equiv_dir. 2: reflexivity.
+        apply bounded_bounded_equiv. auto. }
+      (* set the greediness of r{n1+n2} to g2 *)
+      eapply tree_equiv_dir_transitive.
+      { eapply seq_equiv_dir. 2: reflexivity.
+        symmetry. apply forced_equiv_true with (g:=g2). }
+      (* merge the forced iterations r{n1+n2} back with the free iterations r{0,m2} *)
+      apply bounded_atmost_forward. auto.
+    Qed.
+    
+    (* r{n1,m1}r{0,m2} -> r{n1,m1+m2} *)
+    Theorem merge_greedy_forward:
+      forall r n1 m1 m2,
+        def_groups r = [] ->
+        (Sequence (Quantified true n1 m1 r) (Quantified true 0 m2 r))
+          ≅[rer][forward] Quantified true n1 (m1 + m2)%NoI r.
+    Proof.
+      intros r n1 m1 m2 DEF.
+      (* break down r{n1,n1+m1} into r{n1}r{0,m1} *)
+      eapply tree_equiv_dir_transitive.
+      { apply seq_equiv_dir. 2: reflexivity.
+        rewrite <- bounded_atmost_forward; auto. reflexivity. }
+      (* sequence associativity *)
+      eapply tree_equiv_dir_transitive.
+      { symmetry. apply seq_assoc. }
+      (* merge the free iterations r{0,m1}r{0,m2} *)
+      eapply tree_equiv_dir_transitive.
+      { eapply seq_equiv_dir. reflexivity.
+        apply atmost_atmost_equiv. auto. }
+      (* merge the forced iterations r{n1} back with the free iterations r{0,m1+m2} *)
+      apply bounded_atmost_forward. auto.
+    Qed.
+
+    (* r{n1,m1}r{n2} -> r{n1+n2,m1+n2}
+       r{n1,m1}?r{n2} -> r{n1+n2,m1+n2}?
+       r{n1,m1}r{n2}? -> r{n1+n2,m1+n2}
+       r{n1,m1}?r{n2}? -> r{n1+n2,m1+n2}? *)
+    Theorem merge_forced_backward:
+      forall r n1 m1 g1 n2 g2,
+        def_groups r = [] ->
+        (Sequence (Quantified g1 n1 m1 r) (Quantified g2 n2 0 r))
+          ≅[rer][backward] Quantified g1 (n1+n2) m1 r. 
+    Proof.
+      intros r n1 m1 g1 n2 g2 DEF.
+      (* break down r{n1,n1+m1} into r{0,m1}r{n1} *)
+      eapply tree_equiv_dir_transitive.
+      { apply seq_equiv_dir. 2: reflexivity.
+        rewrite <- atmost_bounded_backward; auto. reflexivity. }
+      (* sequence associativity *)
+      eapply tree_equiv_dir_transitive.
+      { symmetry. apply seq_assoc. }
+      (* set to true the greediness of forced iterations *)
+      eapply tree_equiv_dir_transitive.
+      { apply seq_equiv_dir. reflexivity.
+        apply seq_equiv_dir; apply forced_equiv_true. }
+      (* merge the forced iterations r{n1}r{n2} *)
+      eapply tree_equiv_dir_transitive.
+      { eapply seq_equiv_dir. reflexivity.
+        apply bounded_bounded_equiv. auto. }
+      (* set the greediness of r{n1+n2} to g1 *)
+      eapply tree_equiv_dir_transitive.
+      { eapply seq_equiv_dir. reflexivity.
+        symmetry. apply forced_equiv_true with (g:=g1). }
+      (* merge the forced iterations r{n1+n2} back with the free iterations r{0,m2} *)
+      apply atmost_bounded_backward. auto.
+    Qed.
+
+    (* r{0,m1}r{n2,m2} -> r{n2,m1+m2} *)
+    Theorem merge_greedy_backward:
+      forall r m1 n2 m2,
+        def_groups r = [] ->
+        (Sequence (Quantified true 0 m1 r) (Quantified true n2 m2 r))
+          ≅[rer][backward] Quantified true n2 (m1 + m2)%NoI r.
+    Proof.
+      intros r m1 n2 m2 DEF.
+      (* break down r{n2,n2+m2} into r{n2}r{0,m2} *)
+      eapply tree_equiv_dir_transitive.
+      { apply seq_equiv_dir. reflexivity.
+        rewrite <- atmost_bounded_backward; auto. reflexivity. }
+      (* sequence associativity *)
+      eapply tree_equiv_dir_transitive.
+      { apply seq_assoc. }
+      (* merge the free iterations r{0,m1}r{0,m2} *)
+      eapply tree_equiv_dir_transitive.
+      { eapply seq_equiv_dir. 2: reflexivity.
+        apply atmost_atmost_equiv. auto. }
+      (* merge the forced iterations r{n2} back with the free iterations r{0,m1+m2} *)
+      apply atmost_bounded_backward. auto.
+    Qed.
+
+    
   End BoundedRepetitions.
 
 (*|
