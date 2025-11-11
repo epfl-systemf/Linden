@@ -89,3 +89,47 @@ Definition lblbool_eqb l1 l2 : bool :=
 (* initial_nothing_pc *)
 - auto.
 Defined.
+
+
+(** * Memoization Sets  *)
+(* The set that records what the MemoBT algorithm has seen. *)
+Class MemoSet (params:LindenParameters) :=
+  MBTmake {
+      memoset: Type;
+      initial_memoset : memoset;
+      (* LATER: consider storing positions instead of full input *)
+      memoize: memoset -> label -> LoopBool -> input -> memoset;
+      is_memo: memoset -> label -> LoopBool -> input -> bool;
+      (* Axiomatization of the memo set *)
+      is_memo_add: forall ms pc1 b1 i1 pc2 b2 i2,
+        is_memo (memoize ms pc2 b2 i2) pc1 b1 i1 = true <->
+          ((pc1, b1, i1) = (pc2, b2, i2)) \/ is_memo ms pc1 b1 i1 = true;
+      initial_empty: forall pc b i,
+        is_memo initial_memoset pc b i = false;
+    }.
+
+Definition mbt_state_eq_dec: forall (params:LindenParameters) (s1 s2: (label*LoopBool*input)), { s1 = s2 } + { s1 <> s2}.
+Proof. intros. repeat decide equality; apply Character.eq_dec. Defined.
+
+Definition mbt_state_eqb {params:LindenParameters} s1 s2 : bool :=
+  match mbt_state_eq_dec params s1 s2 with | left _ => true | _ => false end.
+
+#[refine]
+  Instance MemoList (params:LindenParameters) : MemoSet params :=
+  { memoset := list (label * LoopBool * input);
+
+    initial_memoset := [];
+
+    memoize ms l b i := (l,b,i)::ms;
+
+    is_memo ms l b i :=
+      List.existsb (fun x => mbt_state_eqb x (l,b,i)) ms;
+  }.
+(* in_memo_add *)
+- intros ms pc1 b1 i1 pc2 b2 i2. simpl. unfold mbt_state_eqb.
+  destruct mbt_state_eq_dec; subst; split; intros; auto.
+  destruct H as [Heq|Hin]; auto.
+(* initial_empty *)
+- auto.
+Defined.
+
