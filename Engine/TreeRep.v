@@ -3,7 +3,7 @@ Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics BooleanSemantics.
-From Linden Require Import NFA PikeTree PikeVM.
+From Linden Require Import NFA PikeVM.
 From Linden Require Import PikeSubset.
 From Linden Require Import Parameters.
 From Warblre Require Import Base RegExpRecord.

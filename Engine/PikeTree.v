@@ -14,10 +14,11 @@ Require Import Lia.
 From Linden Require Import Regex Chars Groups Tree.
 From Linden Require Import PikeSubset SeenSets.
 From Linden Require Import Parameters.
-From Warblre Require Import Base.
+From Warblre Require Import Base RegExpRecord.
 
 Section PikeTree.
   Context {params: LindenParameters}.
+  Context (rer: RegExpRecord).
   Context {TS: TSeen params}.
 
 
@@ -77,54 +78,84 @@ Section PikeTree.
 
   (* The semantic states of the PikeTree algorithm *)
   Inductive pike_tree_state : Type :=
-  | PTS (inp:input) (active: list (tree * group_map)) (best: option leaf) (blocked: list (tree * group_map)) (seen:seentrees)
+  | PTS (inp:input) (active: list (tree * group_map)) (best: option leaf) (blocked: list (tree * group_map)) (nextt: option tree) (seen:seentrees)
   | PTS_final (best: option leaf).
 
+  Definition option_flat_map {A B: Type} (f: A -> option B) (o: option A) : option B :=
+    match o with
+    | Some a => f a
+    | None => None
+    end.
+  
+  Definition pike_tree_initial_tree (t: tree) := (t, GroupMap.empty).
+  Definition pike_tree_initial_state (t:tree) (i:input) : pike_tree_state :=
+    (PTS i [pike_tree_initial_tree t] None [] None initial_seentrees).
 
   (* Small-step semantics for the PikeTree algorithm *)
   Inductive pike_tree_step : pike_tree_state -> pike_tree_state -> Prop :=
   | pts_skip:
   (* skip an active tree if it has been seen before *)
   (* this is non-deterministic, we can also not skip it by using the other rules *)
-    forall inp t gm active best blocked seen
+    forall inp t gm active best blocked nextt seen
       (SEEN: inseen seen t = true),
-      pike_tree_step (PTS inp ((t,gm)::active) best blocked seen) (PTS inp active best blocked seen)
-  | pts_empty:
-  (* skip an active tree if it has no results *)
-  (* this is non-deterministic, we can also not skip it by using the other rules *)
-    forall inp t gm active best blocked seen
-      (EMPTY: first_leaf t inp = None),
-      pike_tree_step (PTS inp ((t,gm)::active) best blocked seen) (PTS inp active best blocked seen)
+      pike_tree_step (PTS inp ((t,gm)::active) best blocked nextt seen) (PTS inp active best blocked nextt seen)
   | pts_final:
   (* moving to a final state when there are no more active or blocked trees *)
-    forall inp best seen,
-      pike_tree_step (PTS inp [] best [] seen) (PTS_final best)
+    forall inp best nextt nextres seen
+      (NEXTT: nextres = option_flat_map (fun t => first_leaf t inp) nextt),
+      pike_tree_step (PTS inp [] best [] nextt seen) (PTS_final (seqop nextres best))
   | pts_nextchar:
     (* when the list of active trees is empty, restart from the blocked ones, proceeding to the next character *)
     (* resetting the seen trees *)
     forall inp best blocked tgm seen,
-      pike_tree_step (PTS inp [] best (tgm::blocked) seen) (PTS (next_inp inp) (tgm::blocked) best [] initial_seentrees)
+      pike_tree_step (PTS inp [] best (tgm::blocked) None seen) (PTS (next_inp inp) (tgm::blocked) best [] None initial_seentrees)
+  | pts_nextchar_star_skip:
+    (* when the list of active trees is empty and the next tree is a segment of a lazy star prefix, *)
+    (* and the head iteration of the lazy star contains no result, *)
+    (* restart from the blocked ones, proceeding to the next character *)
+    (* resetting the seen trees *)
+    forall inp c next pref best blocked nextt t1 t2 seen
+      (INPUT: inp = Input (c::next) pref)
+      (NEXTT: nextt = Some (Read c
+        (Progress
+          (Choice
+            t1 
+            (GroupAction (Reset []) t2))))
+      )
+      (LEAF: first_leaf t1 (Input next (c::pref)) = None),
+      pike_tree_step (PTS inp [] best blocked nextt seen) (PTS (Input next (c::pref)) blocked best [] (Some t2) initial_seentrees)
+  | pts_nextchar_star:
+    (* when the list of active trees is empty and the next tree is a segment of a lazy star prefix, *)
+    (* restart from the blocked ones and the head iteration of the lazy star, proceeding to the next character *)
+    (* resetting the seen trees *)
+    forall inp c next pref best blocked nextt t1 t2 seen
+      (INPUT: inp = Input (c::next) pref)
+      (NEXTT: nextt = Some (Read c
+        (Progress
+          (Choice
+            t1
+            (GroupAction (Reset []) t2))))
+      )
+      (SUBSET: pike_subtree t1),
+      pike_tree_step (PTS inp [] best blocked nextt seen) (PTS (Input next (c::pref)) (blocked ++ [pike_tree_initial_tree t1]) best [] (Some t2) initial_seentrees)
   | pts_active:
     (* generated new active trees: add them in front of the low-priority ones *)
-    forall inp t gm active best blocked nextactive seen1 seen2
+    forall inp t gm active best blocked nextt nextactive seen1 seen2
       (STEP: tree_bfs_step t gm (idx inp) = StepActive nextactive)
       (ADD_SEEN: add_seentrees seen1 t = seen2),
-      pike_tree_step (PTS inp ((t,gm)::active) best blocked seen1) (PTS inp (nextactive++active) best blocked seen2)
+      pike_tree_step (PTS inp ((t,gm)::active) best blocked nextt seen1) (PTS inp (nextactive++active) best blocked nextt seen2)
   | pts_match:
     (* a match is found, discard remaining low-priority active trees *)
-    forall inp t gm active best blocked seen1 seen2
+    forall inp t gm active best blocked nextt seen1 seen2
       (STEP: tree_bfs_step t gm (idx inp) = StepMatch)
       (ADD_SEEN: add_seentrees seen1 t = seen2),
-      pike_tree_step (PTS inp ((t,gm)::active) best blocked seen1) (PTS inp [] (Some (inp,gm)) blocked seen2)
+      pike_tree_step (PTS inp ((t,gm)::active) best blocked nextt seen1) (PTS inp [] (Some (inp,gm)) blocked None seen2)
   | pts_blocked:
   (* add the new blocked thread after the previous ones *)
-    forall inp t gm active best blocked newt seen1 seen2
+    forall inp t gm active best blocked newt nextt seen1 seen2
       (STEP: tree_bfs_step t gm (idx inp) = StepBlocked newt)
       (ADD_SEEN: add_seentrees seen1 t = seen2),
-      pike_tree_step (PTS inp ((t,gm)::active) best blocked seen1) (PTS inp active best (blocked ++ [(newt,gm)]) seen2).
-
-  Definition pike_tree_initial_state (t:tree) (i:input) : pike_tree_state :=
-    (PTS i [(t, GroupMap.empty)] None [] initial_seentrees).
+      pike_tree_step (PTS inp ((t,gm)::active) best blocked nextt seen1) (PTS inp active best (blocked ++ [(newt,gm)]) nextt seen2).
 
 
   (** * Pike Tree Seen Correction  *)
@@ -257,24 +288,25 @@ Section PikeTree.
   Qed.
 
 
-  Inductive state_nd: input -> list (tree*group_map) -> option leaf -> list (tree*group_map) -> seentrees -> option leaf -> Prop :=
+  Inductive state_nd: input -> list (tree*group_map) -> option leaf -> list (tree*group_map) -> option tree -> seentrees -> option leaf -> Prop :=
   | sr:
-    forall blocked active best inp seen r1 r2 rseq
+    forall blocked active best inp nextt seen r1 r2 r3 rseq
       (BLOCKED: list_result blocked (next_inp inp) = r1)
       (ACTIVE: list_nd active inp seen r2)
-      (SEQ: rseq = seqop r1 (seqop r2 best)),
-      state_nd inp active best blocked seen rseq.
+      (NEXTT: option_flat_map (fun t => first_leaf t inp) nextt = r3)
+      (SEQ: rseq = seqop r1 (seqop r2 (seqop r3 best))),
+      state_nd inp active best blocked nextt seen rseq.
 
   (* Invariant of the PikeTree execution *)
   (* at any moment, all the possible results of the current state are all equal (equal to the first result of the original tree) *)
   (* at any moment, all trees manipulated by the algorithms are trees for the subset of regexes supported  *)
   Inductive piketreeinv: pike_tree_state -> option leaf -> Prop :=
   | pi:
-    forall result blocked active best inp seen
-      (SAMERES: forall res, state_nd inp active best blocked seen res -> res = result)
+    forall result blocked active best inp nextt seen
+      (SAMERES: forall res, state_nd inp active best blocked nextt seen res -> res = result)
       (SUBSET_AC: pike_list active)
       (SUBSET_BL: pike_list blocked),
-      piketreeinv (PTS inp active best blocked seen) result
+      piketreeinv (PTS inp active best blocked nextt seen) result
   | sr_final:
     forall best,
       piketreeinv (PTS_final best) best.
@@ -416,23 +448,6 @@ Section PikeTree.
       + apply IHTREEND2; auto. lia.
   Qed.
 
-  (* state_nd holds when we remove trees with no results *)
-  Lemma state_nd_none_cons:
-    forall t inp active best blocked seen res gm
-      (EMPTY : first_leaf t inp = None)
-      (STATEND : state_nd inp active best blocked seen res)
-      (SUBSET: pike_subtree t),
-      state_nd inp ((t, gm) :: active) best blocked seen res.
-  Proof.
-    intros t inp active best blocked seen res gm EMPTY STATEND.
-    inversion STATEND; subst.
-    econstructor; eauto.
-    apply tlr_cons with (l1 := None) (l2 := r2); auto.
-    unfold first_leaf in EMPTY. apply no_tree_result with (gm2 := gm) (inp2 := inp) in EMPTY.
-    rewrite <-EMPTY.
-    now apply tree_res_nd.
-  Qed.
-
   (** * Invariant Preservation  *)
 
   Theorem pts_preservation:
@@ -444,25 +459,58 @@ Section PikeTree.
     intros pts1 pts2 res PSTEP INVARIANT.
     destruct INVARIANT.
     2: { inversion PSTEP. }
-    inversion PSTEP; subst; [| | | |destruct t; inversion STEP; subst| |].
+    inversion PSTEP; subst; [| | | | |destruct t; inversion STEP; subst| |].
     (* skipping *)
     - constructor; pike_subset; auto. intros res STATEND.
       apply SAMERES. inversion STATEND; subst.
       econstructor; eauto. replace r2 with (seqop None r2) by (simpl; auto).
       eapply tlr_cons; eauto. apply tr_skip. auto.
-    (* empty *)
-    - constructor; pike_subset; auto. intros res STATEND.
-      apply SAMERES, state_nd_none_cons; auto.
     (* final *)
-    - assert (best = result).
+    - assert ((seqop (option_flat_map (fun t : tree => first_leaf t inp) nextt) best) = result).
       { apply SAMERES. econstructor; econstructor. }
       subst. constructor.
     (* nextchar *)
     - constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
       apply list_nd_initial in ACTIVE.
       2: { destruct tgm. pike_subset; auto. }
-      simpl. subst. specialize (SAMERES (seqop (list_result (tgm::blocked0) (next_inp inp)) (seqop None best))).
-      simpl in SAMERES. apply SAMERES. econstructor; constructor.
+      simpl. subst.
+      apply SAMERES. econstructor; econstructor.
+    (* nextchar star skip *)
+    - constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
+      apply list_nd_initial in ACTIVE; pike_subset.
+      simpl. subst. 
+      apply SAMERES.
+      econstructor; try econstructor. unfold next_inp, advance_input', advance_input. simpl.
+      
+      replace (
+        first_leaf (Read c (Progress (Choice t1 (GroupAction (Reset []) t2)))) (Input (c :: next) pref)
+      ) with (first_leaf t2 (Input next (c :: pref))). reflexivity.
+
+      unfold first_leaf at 2. simpl. unfold advance_input', advance_input.
+      unfold first_leaf in LEAF. rewrite LEAF. reflexivity.
+    (* nextchar star *)
+    - constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
+      apply list_nd_initial in ACTIVE; pike_subset.
+      simpl. subst. 
+      apply SAMERES.
+      econstructor; try econstructor. unfold next_inp, advance_input', advance_input. simpl.
+      rewrite list_result_app, <-seqop_assoc.
+      unfold list_result at 2, seqop_list. simpl.
+
+      replace (
+        seqop
+          (tree_res t1 GroupMap.empty (Input next (c :: pref)) forward)
+          (seqop
+            (first_leaf t2 (Input next (c :: pref)))
+            best)
+      ) with (
+        seqop
+          (first_leaf (Read c (Progress (Choice t1 (GroupAction (Reset []) t2)))) (Input (c :: next) pref))
+          best
+      ). reflexivity.
+
+      unfold first_leaf. simpl. unfold advance_input', advance_input.
+      now rewrite <-seqop_assoc.
     (* mismatch *)
     - simpl. constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst. apply SAMERES.
       econstructor; eauto. econstructor; eauto. 
@@ -564,7 +612,7 @@ Section PikeTree.
       rewrite list_result_app. rewrite list_result_cons.
       replace (list_result [] (next_inp inp)) with (None:option leaf).
       2: { unfold list_result, seqop_list. simpl. auto. }
-      rewrite seqop_none. rewrite <- seqop_assoc. rewrite seqop_assoc with (o3:=best).
+      rewrite seqop_none. rewrite <- seqop_assoc. rewrite seqop_assoc with (o3:=(seqop (option_flat_map (fun t : tree => first_leaf t inp) nextt) best)).
       econstructor; eauto.
       destruct (tree_res newt gm (next_inp inp)) eqn:REST.
       (* if the blocked tree contained a match, then we don't care about the result of active *)
