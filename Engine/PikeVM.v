@@ -108,13 +108,6 @@ Inductive pike_vm_state : Type :=
 | PVS (inp:input) (active: list thread) (best: option leaf) (blocked: list thread) (nextprefix: option nat) (seen: seenpcs)
 | PVS_final (best: option leaf).
 
-Definition pike_vm_initial_thread : thread := (0, GroupMap.empty, CanExit).
-Definition pike_vm_initial_state_lazyprefix {strs:StrSearch} (lit:literal) (inp:input) : pike_vm_state :=
-  let nextprefix := next_prefix_counter inp lit in
-  PVS inp [pike_vm_initial_thread] None [] nextprefix initial_seenpcs.
-Definition pike_vm_initial_state (inp:input) : pike_vm_state :=
-  PVS inp [pike_vm_initial_thread] None [] None initial_seenpcs.
-
 Definition next_prefix_counter {strs:StrSearch} (inp: input) (lit: literal) : option nat :=
   match advance_input inp forward with
   | None => None
@@ -124,6 +117,14 @@ Definition next_prefix_counter {strs:StrSearch} (inp: input) (lit: literal) : op
     | Some nextpref => Some (idx nextpref - idx nextinp)
     end
   end.
+
+Definition pike_vm_initial_thread : thread := (0, GroupMap.empty, CanExit).
+Definition pike_vm_initial_state_lazyprefix {strs:StrSearch} (lit:literal) (inp:input) : pike_vm_state :=
+  let nextprefix := next_prefix_counter inp lit in
+  PVS inp [pike_vm_initial_thread] None [] nextprefix initial_seenpcs.
+Definition pike_vm_initial_state (inp:input) : pike_vm_state :=
+  PVS inp [pike_vm_initial_thread] None [] None initial_seenpcs.
+
 
 (* small-step semantics for the PikeVM algorithm *)
 Inductive pike_vm_step {strs:StrSearch} (c:code) (lit:literal): pike_vm_state -> pike_vm_state -> Prop :=
