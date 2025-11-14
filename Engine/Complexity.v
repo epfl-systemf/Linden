@@ -5,7 +5,7 @@ Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics BooleanSemantics.
-From Linden Require Import NFA PikeVM PikeSubset.
+From Linden Require Import NFA PikeVM PikeSubset Prefix.
 From Linden Require Import Correctness PikeEquiv SeenSets.
 From Linden Require Import Parameters.
 From Warblre Require Import Base RegExpRecord.
@@ -168,19 +168,19 @@ Inductive vm_inv (c:code): pike_vm_state -> nat -> Prop :=
 | inv_final:
   forall b, vm_inv c (PVS_final b) 0
 | inv_pvs:
-  forall inp active best blocked seen dist
+  forall inp active best blocked nextprefix seen dist
     (* the threads in active and blocked have their pc inside the code range *)
     (ACTIVEWF: forall t, In t active -> fst (fst t) < size c)
     (BLOCKEDWF: forall t, In t blocked -> fst (fst t) < size c)
     (* the seen set is well-formed, and has `count` distinct elements *)
     (SEENWF: wf seen (size c) dist),
-    vm_inv c (PVS inp active best blocked seen) (measure (size c) dist active blocked inp).
+    vm_inv c (PVS inp active best blocked nextprefix seen) (measure (size c) dist active blocked inp).
 
 Lemma nonfinal_pos:
-  forall c inp active best blocked seen m,
-    vm_inv c (PVS inp active best blocked seen) m -> 0 < m.
+  forall c inp active best blocked nextprefix seen m,
+    vm_inv c (PVS inp active best blocked nextprefix seen) m -> 0 < m.
 Proof.
-  intros c inp active best blocked seen m H. inversion H. subst. unfold measure.
+  intros c inp active best blocked nextprefix seen m H. inversion H. subst. unfold measure.
   specialize (inpsize_strict inp) as SIZE. lia.
 Qed.
 
@@ -589,17 +589,17 @@ Proof.
       apply IHn; lia.
 Qed.
 
-Lemma pike_vm_bound:
-  forall pvs code n,
+Lemma pike_vm_bound {strs:StrSearch}:
+  forall pvs code lit n,
     code_wf code (size code) ->
     vm_inv code pvs n ->
-    exists result, steps (pike_vm_step rer code) pvs n (PVS_final result).
+    exists result, steps (pike_vm_step rer code lit) pvs n (PVS_final result).
 Proof.
-  intros pvs code n WF INV. generalize dependent pvs. induction n using (strong_ind); intros.
+  intros pvs code lit n WF INV. generalize dependent pvs. induction n using (strong_ind); intros.
   destruct pvs.
   2: { exists best. constructor. }
-  specialize (pikevm_progress rer code inp active best blocked seen) as [next STEP].
-  specialize (pikevm_decreases code (PVS inp active best blocked seen) next n WF STEP INV) as [newm [INV2 DECR]].
+  specialize (pikevm_progress rer code lit inp active best blocked nextprefix seen) as [next STEP].
+  specialize (pikevm_decreases code lit (PVS inp active best blocked nextprefix seen) next n WF STEP INV) as [newm [INV2 DECR]].
   specialize (H newm DECR next INV2) as [result STEPS].
   exists result. apply more_steps with (n:=S newm); try lia.
   econstructor; eauto.
@@ -607,15 +607,15 @@ Qed.
 
 (** * Complexity Theorem  *)
 
-Theorem pikevm_complexity:
-  forall (r:regex) (inp:input),
+Theorem pikevm_complexity {strs:StrSearch}:
+  forall (r:regex) (lit:literal) (inp:input),
     (* for any supported regex r and input inp *)
     pike_regex r ->
     (* The initial state reaches a final state in at most (complexity r inp) steps. *)
-    exists result, steps (pike_vm_step rer (compilation r))
+    exists result, steps (pike_vm_step rer (compilation r) lit)
                 (pike_vm_initial_state inp) (complexity r inp) (PVS_final result).
 Proof.
-  intros r inp SUBSET.
+  intros r lit inp SUBSET.
   apply pike_vm_bound.
   - apply compiled_wf.
   - apply initial_measure. auto.
@@ -625,12 +625,12 @@ Qed.
 (** * Termination of the PikeVM algorithm  *)
 
 (* As a corollary, we can deduce that the PikeVM always terminate *)
-Theorem pike_vm_terminates:
-  forall r inp,
+Theorem pike_vm_terminates {strs:StrSearch}:
+  forall r lit inp,
     pike_regex r ->
-    exists result, trc_pike_vm rer (compilation r) (pike_vm_initial_state inp) (PVS_final result).
+    exists result, trc_pike_vm rer (compilation r) lit (pike_vm_initial_state inp) (PVS_final result).
 Proof.
-  intros r inp H. eapply pikevm_complexity in H as [result STEPS]; eauto.
+  intros r lit inp H. eapply pikevm_complexity in H as [result STEPS]; eauto.
   exists result. eapply steps_trc; eauto.
 Qed.
 
