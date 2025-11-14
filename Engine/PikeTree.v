@@ -109,6 +109,20 @@ Section PikeTree.
     (* resetting the seen trees *)
     forall inp best blocked tgm seen,
       pike_tree_step (PTS inp [] best (tgm::blocked) None seen) (PTS (next_inp inp) (tgm::blocked) best [] None initial_seentrees)
+  | pts_nextchar_star:
+    (* when the list of active trees is empty and the next tree is a segment of a lazy star prefix, *)
+    (* restart from the blocked ones and the head iteration of the lazy star, proceeding to the next character *)
+    (* resetting the seen trees *)
+    forall inp c next pref best blocked nextt t1 t2 seen
+      (INPUT: inp = Input (c::next) pref)
+      (NEXTT: nextt = Some (Read c
+        (Progress
+          (Choice
+            t1
+            (GroupAction (Reset []) t2))))
+      )
+      (SUBSET: pike_subtree t1),
+      pike_tree_step (PTS inp [] best blocked nextt seen) (PTS (Input next (c::pref)) (blocked ++ [pike_tree_initial_tree t1]) best [] (Some t2) initial_seentrees)
   | pts_nextchar_star_skip:
     (* when the list of active trees is empty and the next tree is a segment of a lazy star prefix, *)
     (* and the head iteration of the lazy star contains no result, *)
@@ -124,20 +138,6 @@ Section PikeTree.
       )
       (LEAF: first_leaf t1 (Input next (c::pref)) = None),
       pike_tree_step (PTS inp [] best blocked nextt seen) (PTS (Input next (c::pref)) blocked best [] (Some t2) initial_seentrees)
-  | pts_nextchar_star:
-    (* when the list of active trees is empty and the next tree is a segment of a lazy star prefix, *)
-    (* restart from the blocked ones and the head iteration of the lazy star, proceeding to the next character *)
-    (* resetting the seen trees *)
-    forall inp c next pref best blocked nextt t1 t2 seen
-      (INPUT: inp = Input (c::next) pref)
-      (NEXTT: nextt = Some (Read c
-        (Progress
-          (Choice
-            t1
-            (GroupAction (Reset []) t2))))
-      )
-      (SUBSET: pike_subtree t1),
-      pike_tree_step (PTS inp [] best blocked nextt seen) (PTS (Input next (c::pref)) (blocked ++ [pike_tree_initial_tree t1]) best [] (Some t2) initial_seentrees)
   | pts_active:
     (* generated new active trees: add them in front of the low-priority ones *)
     forall inp t gm active best blocked nextt nextactive seen1 seen2
@@ -475,19 +475,6 @@ Section PikeTree.
       2: { destruct tgm. pike_subset; auto. }
       simpl. subst.
       apply SAMERES. econstructor; econstructor.
-    (* nextchar star skip *)
-    - constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
-      apply list_nd_initial in ACTIVE; pike_subset.
-      simpl. subst. 
-      apply SAMERES.
-      econstructor; try econstructor. unfold next_inp, advance_input', advance_input. simpl.
-      
-      replace (
-        first_leaf (Read c (Progress (Choice t1 (GroupAction (Reset []) t2)))) (Input (c :: next) pref)
-      ) with (first_leaf t2 (Input next (c :: pref))). reflexivity.
-
-      unfold first_leaf at 2. simpl. unfold advance_input', advance_input.
-      unfold first_leaf in LEAF. rewrite LEAF. reflexivity.
     (* nextchar star *)
     - constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
       apply list_nd_initial in ACTIVE; pike_subset.
@@ -511,6 +498,19 @@ Section PikeTree.
 
       unfold first_leaf. simpl. unfold advance_input', advance_input.
       now rewrite <-seqop_assoc.
+    (* nextchar star skip *)
+    - constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
+      apply list_nd_initial in ACTIVE; pike_subset.
+      simpl. subst. 
+      apply SAMERES.
+      econstructor; try econstructor. unfold next_inp, advance_input', advance_input. simpl.
+      
+      replace (
+        first_leaf (Read c (Progress (Choice t1 (GroupAction (Reset []) t2)))) (Input (c :: next) pref)
+      ) with (first_leaf t2 (Input next (c :: pref))). reflexivity.
+
+      unfold first_leaf at 2. simpl. unfold advance_input', advance_input.
+      unfold first_leaf in LEAF. rewrite LEAF. reflexivity.
     (* mismatch *)
     - simpl. constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst. apply SAMERES.
       econstructor; eauto. econstructor; eauto. 

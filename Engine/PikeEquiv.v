@@ -8,7 +8,7 @@ From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeSubset.
 From Linden Require Import TreeRep SeenSets.
-From Linden Require Import Parameters.
+From Linden Require Import Parameters Prefix.
 From Warblre Require Import Base RegExpRecord.
 
 
@@ -511,7 +511,7 @@ Definition head_pc (threadactive:list thread) : label :=
 
 Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> Prop :=
 | pikeinv:
-  forall inp treeactive treeblocked threadactive threadblocked best treeseen threadseen
+  forall inp treeactive treeblocked threadactive threadblocked best nextt nextprefix treeseen threadseen
     (ACTIVE: list_tree_thread code inp treeactive threadactive)
     (* blocked threads should be equivalent for the next input *)
     (* nothing to say if there is no next input *)
@@ -520,8 +520,8 @@ Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> Prop :=
     (ENDVM: advance_input inp forward = None -> threadblocked = [])
     (ENDTREE: advance_input inp forward = None -> treeblocked = [])
     (* any pc in threadseen must correspond to a tree in treeseen *)
-    (SEEN: seen_inclusion code inp treeseen threadseen (hd_error treeactive) (head_pc threadactive)),
-    pike_inv code (PTS inp treeactive best treeblocked treeseen) (PVS inp threadactive best threadblocked threadseen)
+    (SEEN: seen_inclusion code inp treeseen threadseen (hd_error treeactive) (head_pc threadactive))
+    pike_inv code (PTS inp treeactive best treeblocked nextt treeseen) (PVS inp threadactive best threadblocked nextprefix threadseen)
 | pikeinv_final:
   forall best,
     pike_inv code (PTS_final best) (PVS_final best).
@@ -877,19 +877,19 @@ Qed.
 Definition skip_state (pvs:pike_vm_state) : bool :=
   match pvs with
   | PVS_final _ => false
-  | PVS inp active best blocked seen =>
+  | PVS inp active best blocked nextprefix seen =>
       match active with
       | [] => false
       | (pc,gm,b)::active => inseenpc seen pc b
       end
   end.
-  
 
-Theorem invariant_preservation:
-  forall code pts1 pvs1 pvs2
+
+Theorem invariant_preservation {strs:StrSearch}:
+  forall code lit pts1 pvs1 pvs2
     (STWF: stutter_wf code)
     (INV: pike_inv code pts1 pvs1)
-    (VMSTEP: pike_vm_step rer code pvs1 pvs2),
+    (VMSTEP: pike_vm_step rer code lit pvs1 pvs2),
     (* either we make a step on both sides, preserving invariant *)
     (
       exists pts2,

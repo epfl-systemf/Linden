@@ -174,7 +174,7 @@ Qed.
 Theorem loop_trc:
   forall c lit pvs1 pvs2 fuel,
     pike_vm_loop c lit pvs1 fuel = pvs2 ->
-    trc_pike_vm lit c pvs1 pvs2.
+    trc_pike_vm rer c lit pvs1 pvs2.
 Proof.
   intros c lit pvs1 pvs2 fuel H.
   generalize dependent pvs1. induction fuel; intros; simpl in H.
@@ -186,24 +186,22 @@ Qed.
 
 (* when the function finishes, it returns the correct result *)
 Theorem pike_vm_match_correct:
-  forall r lit inp result,
-    lit = extract_literal r ->
+  forall r inp result,
     pike_vm_match r inp = Finished result ->
-    trc_pike_vm lit (compilation r) (pike_vm_initial_state inp) (PVS_final result).
+    trc_pike_vm rer (compilation r) (extract_literal r) (pike_vm_initial_state inp) (PVS_final result).
 Proof.
-  unfold pike_vm_match, getres. intros r lit inp result Heq H. 
-  match_destr; subst; inversion H; subst.
+  unfold pike_vm_match, getres. intros r inp result H. 
+  match_destr; inversion H; subst.
   eapply loop_trc; eauto.
 Qed.
 
 (* when the function finishes, it returns the correct result *)
 Theorem pike_vm_match_lazyprefix_correct:
-  forall r lit inp result,
-    lit = extract_literal r ->
+  forall r inp result,
     pike_vm_match_lazyprefix r inp = Finished result ->
-    trc_pike_vm lit (compilation r) (pike_vm_initial_state_lazyprefix lit inp) (PVS_final result).
+    trc_pike_vm rer (compilation r) (extract_literal r) (pike_vm_initial_state_lazyprefix (extract_literal r) inp) (PVS_final result).
 Proof.
-  unfold pike_vm_match_lazyprefix, getres. intros r lit inp result Heq H. 
+  unfold pike_vm_match_lazyprefix, getres. intros r inp result H. 
   match_destr; inversion H; subst.
   eapply loop_trc; eauto.
 Qed.
