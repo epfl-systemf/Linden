@@ -8,7 +8,7 @@ From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeSubset.
 From Linden Require Import TreeRep SeenSets.
-From Linden Require Import Parameters Prefix.
+From Linden Require Import Parameters Prefix FunctionalUtils.
 From Warblre Require Import Base RegExpRecord.
 
 
@@ -575,6 +575,8 @@ Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> Prop :=
     (ENDTREE: advance_input inp forward = None -> treeblocked = [])
     (* any pc in threadseen must correspond to a tree in treeseen *)
     (SEEN: seen_inclusion code inp treeseen threadseen (hd_error treeactive) (head_pc threadactive))
+    (* FIXME: invariant between the nextprefix in the VM and the nextt in the Tree *)
+    ,
     pike_inv code (PTS inp treeactive best treeblocked nextt treeseen) (PVS inp threadactive best threadblocked nextprefix threadseen)
 | pikeinv_final:
   forall best,
@@ -933,6 +935,33 @@ Proof.
   - econstructor.
     + constructor.
     + apply tt_eq with (actions:=[Areg r]); auto.
+      2: { pike_subset. }
+      eapply cons_bc; constructor.
+      * apply nfa_rep_extend; eauto.
+      * replace (length c) with (length c + 0) by auto.
+        rewrite get_prefix. auto.
+  - constructor.
+  - apply initial_inclusion.
+Qed.
+
+(* FIXME: rename all definitions from lazyprefix to lazy_prefix *)
+Lemma initial_pike_inv_lazyprefix {strs:StrSearch}:
+  forall r inp code
+    (COMPILE: compilation r = code)
+    (SUBSET: pike_regex r),
+    pike_inv code (pike_tree_initial_state_lazyprefix rer r inp) (pike_vm_initial_state_lazyprefix (extract_literal r) inp).
+Proof.
+  intros r inp code COMPILE SUBSET.
+  unfold compilation in COMPILE. destruct (compile r 0) as [c fresh] eqn:COMP.
+  apply compile_nfa_rep with (prev := []) in COMP as REP; auto. simpl in REP.
+  apply fresh_correct in COMP. simpl in COMP. subst.
+  eapply pikeinv; auto.
+  - econstructor.
+    + constructor.
+    + apply tt_eq with (actions:=[Areg r]); auto.
+      1: {
+        apply booltree_istree_equiv; auto using compute_tr_eq_is_tree.
+      }
       2: { pike_subset. }
       eapply cons_bc; constructor.
       * apply nfa_rep_extend; eauto.
