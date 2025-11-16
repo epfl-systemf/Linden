@@ -13,7 +13,7 @@ Require Import Lia.
 
 From Linden Require Import Regex Chars Groups Tree.
 From Linden Require Import PikeSubset SeenSets.
-From Linden Require Import Parameters.
+From Linden Require Import Parameters FunctionalUtils Semantics.
 From Warblre Require Import Base RegExpRecord.
 
 Section PikeTree.
@@ -81,6 +81,18 @@ Section PikeTree.
   | PTS (inp:input) (active: list (tree * group_map)) (best: option leaf) (blocked: list (tree * group_map)) (nextt: option tree) (seen:seentrees)
   | PTS_final (best: option leaf).
 
+  Definition lazy_prefix (r:regex) : regex :=
+    Sequence
+      (Quantified false 0 NoI.Inf (Regex.Character CdAll))
+      r.
+
+  Definition initial_nextt_lazyprefix (r: regex) (inp: input) : tree :=
+    let tree := compute_tr rer [Areg (lazy_prefix r)] inp (Groups.GroupMap.empty) forward in
+    match tree with
+    | Choice t1 (GroupAction (Reset []) t2) => t2
+    | _ => Mismatch
+    end.
+
   Definition option_flat_map {A B: Type} (f: A -> option B) (o: option A) : option B :=
     match o with
     | Some a => f a
@@ -88,8 +100,13 @@ Section PikeTree.
     end.
   
   Definition pike_tree_initial_tree (t: tree) := (t, GroupMap.empty).
+  (* FIXME: redefine things so that we do not depend on compute_tr and use only is_tree *)
+  Definition pike_tree_initial_state_lazyprefix (r:regex) (i:input) : pike_tree_state :=
+    let t := compute_tr rer [Areg r] i (Groups.GroupMap.empty) forward in
+    let nextt := initial_nextt_lazyprefix r i in
+    PTS i [pike_tree_initial_tree t] None [] (Some nextt) initial_seentrees.
   Definition pike_tree_initial_state (t:tree) (i:input) : pike_tree_state :=
-    (PTS i [pike_tree_initial_tree t] None [] None initial_seentrees).
+    PTS i [pike_tree_initial_tree t] None [] None initial_seentrees.
 
   (* Small-step semantics for the PikeTree algorithm *)
   Inductive pike_tree_step : pike_tree_state -> pike_tree_state -> Prop :=
@@ -113,8 +130,9 @@ Section PikeTree.
     (* when the list of active trees is empty and the next tree is a segment of a lazy star prefix, *)
     (* restart from the blocked ones and the head iteration of the lazy star, proceeding to the next character *)
     (* resetting the seen trees *)
-    forall inp c next pref best blocked nextt t1 t2 seen
+    forall inp c next pref best blocked tgm nextt t1 t2 seen
       (INPUT: inp = Input (c::next) pref)
+      (* FIXME: clean this up to be just (Read c (Choice t1 t2)). The first_leaf is the same for both trees *)
       (NEXTT: nextt = Some (Read c
         (Progress
           (Choice
@@ -122,13 +140,13 @@ Section PikeTree.
             (GroupAction (Reset []) t2))))
       )
       (SUBSET: pike_subtree t1),
-      pike_tree_step (PTS inp [] best blocked nextt seen) (PTS (Input next (c::pref)) (blocked ++ [pike_tree_initial_tree t1]) best [] (Some t2) initial_seentrees)
+      pike_tree_step (PTS inp [] best (tgm::blocked) nextt seen) (PTS (Input next (c::pref)) ((tgm::blocked) ++ [pike_tree_initial_tree t1]) best [] (Some t2) initial_seentrees)
   | pts_nextchar_star_skip:
     (* when the list of active trees is empty and the next tree is a segment of a lazy star prefix, *)
     (* and the head iteration of the lazy star contains no result, *)
     (* restart from the blocked ones, proceeding to the next character *)
     (* resetting the seen trees *)
-    forall inp c next pref best blocked nextt t1 t2 seen
+    forall inp c next pref best blocked tgm nextt t1 t2 seen
       (INPUT: inp = Input (c::next) pref)
       (NEXTT: nextt = Some (Read c
         (Progress
@@ -137,7 +155,7 @@ Section PikeTree.
             (GroupAction (Reset []) t2))))
       )
       (LEAF: first_leaf t1 (Input next (c::pref)) = None),
-      pike_tree_step (PTS inp [] best blocked nextt seen) (PTS (Input next (c::pref)) blocked best [] (Some t2) initial_seentrees)
+      pike_tree_step (PTS inp [] best (tgm::blocked) nextt seen) (PTS (Input next (c::pref)) (tgm::blocked) best [] (Some t2) initial_seentrees)
   | pts_active:
     (* generated new active trees: add them in front of the low-priority ones *)
     forall inp t gm active best blocked nextt nextactive seen1 seen2
@@ -156,7 +174,6 @@ Section PikeTree.
       (STEP: tree_bfs_step t gm (idx inp) = StepBlocked newt)
       (ADD_SEEN: add_seentrees seen1 t = seen2),
       pike_tree_step (PTS inp ((t,gm)::active) best blocked nextt seen1) (PTS inp active best (blocked ++ [(newt,gm)]) nextt seen2).
-
 
   (** * Pike Tree Seen Correction  *)
 
@@ -327,6 +344,27 @@ Section PikeTree.
     apply tree_nd_initial in TR; auto.
   Qed.
 
+  Lemma init_piketree_inv_lazyprefix:
+    forall t r inp,
+      pike_regex r -> 
+      is_tree rer [Areg (lazy_prefix r)] inp GroupMap.empty forward t ->
+      piketreeinv (pike_tree_initial_state_lazyprefix r inp) (first_leaf t inp).
+  Proof.
+    intros t r inp PIKEREG.
+    assert (pike_subtree (compute_tr rer [Areg r] inp GroupMap.empty forward)). {
+      eapply pike_actions_pike_tree with (cont:=[Areg r]); pike_subset; apply compute_tr_is_tree.
+    }
+    unfold first_leaf. unfold pike_tree_initial_state_lazyprefix. constructor; pike_subset; auto.
+    intros res STATEND. inversion STATEND; subst.
+    simpl. rewrite seqop_none. inversion ACTIVE; subst.
+    inversion TLR; subst. rewrite seqop_none.
+    apply tree_nd_initial in TR; auto.
+    apply is_tree_eq_compute_tr in H0. subst.
+
+    unfold initial_nextt_lazyprefix.
+    now compute_tr_simpl.
+  Qed.
+
   (** * Non deterministic results lemmas  *)
 
   (* a tree having no results is independent of the gm and the inp *)
@@ -471,8 +509,7 @@ Section PikeTree.
       subst. constructor.
     (* nextchar *)
     - constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
-      apply list_nd_initial in ACTIVE.
-      2: { destruct tgm. pike_subset; auto. }
+      apply list_nd_initial in ACTIVE; pike_subset.
       simpl. subst.
       apply SAMERES. econstructor; econstructor.
     (* nextchar star *)
@@ -480,7 +517,7 @@ Section PikeTree.
       apply list_nd_initial in ACTIVE; pike_subset.
       simpl. subst. 
       apply SAMERES.
-      econstructor; try econstructor. unfold next_inp, advance_input', advance_input. simpl.
+      econstructor; try econstructor. unfold next_inp, advance_input', advance_input.
       rewrite list_result_app, <-seqop_assoc.
       unfold list_result at 2, seqop_list. simpl.
 
