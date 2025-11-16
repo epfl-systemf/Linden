@@ -19,7 +19,7 @@ Ltac wt_eq := repeat match goal with
   | [ H: context[(?x ==? ?y)%wt] |- _ ] => destruct (x ==? y)%wt eqn:?Heq
 end.
 
-
+(* FIXME: Rename constructors *)
 Inductive starts_with: string -> string -> Prop :=
 | StartsWith_nil: forall s, starts_with [] s
 | StartsWith_cons: forall h t1 t2, starts_with t1 t2 -> starts_with (h :: t1) (h :: t2).
@@ -90,12 +90,12 @@ Class StrSearch := {
   (* there is no earlier position that starts with the searched substring *)
   no_earlier_ss: forall s ss i, str_search ss s = Some i -> forall i', i' < i -> ~ (starts_with ss (List.skipn i' s));
   (* if the substring is not found, it cannot appear at any position of the haystack *)
-  not_found: forall s ss, str_search ss s = None -> forall i, i < length s -> ~ (starts_with ss (List.skipn i s))
+  not_found: forall s ss, str_search ss s = None -> forall i, i <= length s -> ~ (starts_with ss (List.skipn i s))
 }.
 
 (* Search from position i onwards in string s for substring ss *)
-Function brute_force_str_search (ss s: string) (i: nat) {measure (fun i => length s - i) i} : option nat :=
-  match Nat.ltb i (length s) with
+Function brute_force_str_search (ss s: string) (i: nat) {measure (fun i => S (length s) - i) i} : option nat :=
+  match Nat.leb i (length s) with
   | true => match starts_with_dec ss (List.skipn i s) with
     | left _ => Some i
     | right _ => brute_force_str_search ss s (S i)
@@ -103,7 +103,7 @@ Function brute_force_str_search (ss s: string) (i: nat) {measure (fun i => lengt
   | false => None
   end.
 Proof.
-  intros. apply Nat.ltb_lt in teq. lia.
+  intros. apply Nat.leb_le in teq. lia.
 Defined.
 
 Lemma brute_force_str_search_starts_with:
@@ -136,7 +136,7 @@ Qed.
 Lemma brute_force_str_search_not_found:
   forall ss s i,
     brute_force_str_search ss s i = None ->
-    forall k, i <= k < length s ->
+    forall k, i <= k <= length s ->
     ~ starts_with ss (List.skipn k s).
 Proof.
   intros ss s i H k [Hik Hks] Hsw.
@@ -145,7 +145,7 @@ Proof.
   - destruct (k ==? i)%wt eqn:Heq; wt_eq.
     + contradiction.
     + eapply IHo; [assumption|lia].
-  - apply Nat.ltb_ge in e. lia.
+  - apply Nat.leb_gt in e. lia.
 Qed.
 
 (* An example instance of StrSearch using brute force *)
@@ -191,20 +191,71 @@ Qed.
 (* low inclusive, high exclusive *)
 Notation input_between ilow ihigh i := ((i = ilow \/ strict_suffix i ilow forward) /\ strict_suffix ihigh i forward).
 
+(* if strict_suffix i2 i1 forward, then next_str i2 is skipn k (next_str i1) for some k > 0 *)
+Lemma strict_suffix_forward_skipn:
+  forall i2 i1,
+    strict_suffix i2 i1 forward ->
+    exists k, k > 0 /\ k <= length (next_str i1) /\ next_str i2 = List.skipn k (next_str i1).
+Proof.
+  intros [next2 pref2] [next1 pref1] Hss.
+  apply ss_fwd_diff in Hss as [diff [Hdiff [Hnext Hpref]]].
+  exists (length diff). repeat split.
+  - rewrite <-length_zero_iff_nil in Hdiff. lia.
+  - subst. simpl. rewrite app_length. lia.
+  - simpl. rewrite Hnext, skipn_app.
+    replace (length diff - length diff) with 0 by lia.
+    now rewrite skipn_all2 by lia.
+Qed.
+
 Lemma input_search_no_earlier {strs: StrSearch}:
   forall i1 i2 p,
     input_search p i1 = Some i2 ->
     forall i, input_between i1 i2 i ->
     ~ (starts_with p (next_str i)).
 Proof.
-Admitted.
+  unfold input_search.
+  intros i1 i2 p Hsearch.
+  destruct str_search as [n|] eqn:Hstrsearch; [injection Hsearch as <-|discriminate].
+  pose proof (no_earlier_ss _ _ _ Hstrsearch) as Hne.
+  intros i [[<- | Hssi1] Hss2] Hstarts.
+  - specialize (Hne 0).
+    assert (n <> 0). {
+      intros ->.
+      apply ss_neq in Hss2.
+      now destruct i as [next ?], next.
+    }
+    apply Hne; [lia|assumption].
+  - apply strict_suffix_forward_skipn in Hssi1 as [k [Hkpos [Hklen Hskip]]].
+    specialize (Hne k).
+    rewrite Hskip in Hstarts.
+    assert (k < n). {
+      (* since i1 advanced by n is a strict suffix of i, and i is i1 skipped by k, then k must be smaller than n *)
+      destruct i1 as [next1 pref1], i as [next pref]. simpl in *.
+      apply ss_fwd_diff in Hss2 as [diff [Hdiff [Hnext _]]]. subst.
+      rewrite <-length_zero_iff_nil in Hdiff.
+      apply f_equal with (f:=@length Character) in Hnext.
+      rewrite app_length, !skipn_length in Hnext. lia.
+    }
+    now apply Hne.
+Qed.
 
 Lemma input_search_not_found {strs: StrSearch}:
   forall i1 p, input_search p i1 = None ->
   forall i, i = i1 \/ strict_suffix i i1 forward ->
   ~ (starts_with p (next_str i)).
 Proof.
-Admitted.
+  unfold input_search.
+  intros i1 p Hsearch.
+  destruct str_search eqn:Hstrsearch; [discriminate|].
+  pose proof (not_found _ _ Hstrsearch) as Hnf.
+  intros i [<- | Hssi1] Hstarts.
+  - specialize (Hnf 0).
+    apply Hnf; [lia|assumption].
+  - apply strict_suffix_forward_skipn in Hssi1 as [k [Hklow [Hkhigh Hskip]]].
+    specialize (Hnf k).
+    rewrite Hskip in Hstarts.
+    now apply Hnf.
+Qed.
 
 (** * Literals *)
 
