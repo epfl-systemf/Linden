@@ -79,6 +79,20 @@ Proof.
   - eapply compilation_stutter_wf; eauto.
 Qed.
 
+Theorem pike_vm_to_pike_tree_lazyprefix:
+  forall r lit inp result,
+    pike_regex r -> 
+    trc_pike_vm (compilation r) lit (pike_vm_initial_state_lazyprefix (extract_literal r) inp) (PVS_final result) ->
+    trc_pike_tree (pike_tree_initial_state_lazyprefix rer r inp) (PTS_final result).
+Proof.
+  intros r lit inp result SUBSET TRCVM.
+  generalize (initial_pike_inv_lazyprefix rer r inp (compilation r) (@eq_refl _ _) SUBSET).
+  intros INIT.
+  eapply vm_to_tree in TRCVM as [vmfinal [TRCTREE INV]]; eauto.
+  - inversion INV; subst. auto.
+  - eapply compilation_stutter_wf; eauto.
+Qed.
+
 (* Through the TRC of PikeTree, the result is the result of the tree *)
 Lemma pike_tree_trc_correct:
   forall s1 s2 result
@@ -112,6 +126,28 @@ Proof.
   { eapply pike_actions_pike_tree with (cont:=[Areg r]); eauto.
     pike_subset. }
   generalize (init_piketree_inv tree inp SUBTREE). intros INIT.
+  eapply pike_tree_trc_correct in TRC as FINALINV; eauto.
+  inversion FINALINV. subst. auto.
+Qed.
+
+Theorem pike_vm_correct_lazyprefix:
+  forall r lit inp tree result,
+    (* the regex `r` is in the supported subset *)
+    pike_regex r ->
+    (* `tree` is the tree of the regex `[^]*?r` for the input `inp` *)
+    is_tree rer [Areg (lazy_prefix r)] inp GroupMap.empty forward tree ->
+    (* the result of the PikeVM is `result` *)
+    trc_pike_vm (compilation r) lit (pike_vm_initial_state_lazyprefix (extract_literal r) inp) (PVS_final result) ->
+    (* This `result` is the priority result of the `tree` *)
+    result = first_leaf tree inp.
+Proof.
+  intros r lit inp tree result SUBSET TREE TRC.
+  eapply encode_equal with (b:=CanExit) in TREE as BOOLTREE; pike_subset.
+  eapply pike_vm_to_pike_tree_lazyprefix in TRC; eauto.
+  assert (SUBTREE: pike_subtree tree).
+  { eapply pike_actions_pike_tree with (cont:=[Areg (lazy_prefix r)]); eauto.
+    pike_subset. }
+  generalize (init_piketree_inv_lazyprefix rer tree r inp SUBSET). intros INIT.
   eapply pike_tree_trc_correct in TRC as FINALINV; eauto.
   inversion FINALINV. subst. auto.
 Qed.
