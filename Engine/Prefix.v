@@ -1,4 +1,4 @@
-Require Import List Lia RelationClasses.
+Require Import List Lia RelationClasses FunInd Recdef Arith.
 Import ListNotations.
 
 From Linden Require Import Regex Chars Semantics Tree FunctionalSemantics.
@@ -23,6 +23,20 @@ end.
 Inductive starts_with: string -> string -> Prop :=
 | StartsWith_nil: forall s, starts_with [] s
 | StartsWith_cons: forall h t1 t2, starts_with t1 t2 -> starts_with (h :: t1) (h :: t2).
+
+Lemma starts_with_dec:
+  forall s1 s2, { starts_with s1 s2 } + { ~ starts_with s1 s2 }.
+Proof.
+  induction s1 as [|h1 t1 IH]; intros s2.
+  - eauto using StartsWith_nil.
+  - destruct s2 as [|h2 t2].
+    + right. intros H. inversion H.
+    + destruct (h1 ==? h2)%wt eqn:Heq; wt_eq.
+      * destruct (IH t2) as [Hsw|Hnsw].
+        -- left. now constructor.
+        -- right. intros H. now inversion H.
+      * right. intros H. now inversion H.
+Qed.
 
 Hint Constructors starts_with : prefix.
 
@@ -78,6 +92,74 @@ Class StrSearch := {
   (* if the substring is not found, it cannot appear at any position of the haystack *)
   not_found: forall s ss, str_search ss s = None -> forall i, i < length s -> ~ (starts_with ss (List.skipn i s))
 }.
+
+(* Search from position i onwards in string s for substring ss *)
+Function brute_force_str_search (ss s: string) (i: nat) {measure (fun i => length s - i) i} : option nat :=
+  match Nat.ltb i (length s) with
+  | true => match starts_with_dec ss (List.skipn i s) with
+    | left _ => Some i
+    | right _ => brute_force_str_search ss s (S i)
+    end
+  | false => None
+  end.
+Proof.
+  intros. apply Nat.ltb_lt in teq. lia.
+Defined.
+
+Lemma brute_force_str_search_starts_with:
+  forall ss s i j,
+    brute_force_str_search ss s i = Some j ->
+    starts_with ss (List.skipn j s).
+Proof.
+  intros ss s i j H.
+  functional induction brute_force_str_search ss s i.
+  - now injection H as <-.
+  - eauto.
+  - discriminate.
+Qed.
+
+Lemma brute_force_str_search_no_earlier_ss:
+  forall ss s i j,
+    brute_force_str_search ss s i = Some j ->
+    forall k, i <= k < j ->
+    ~ starts_with ss (List.skipn k s).
+Proof.
+  intros ss s i j H k [Hik Hkj].
+  functional induction brute_force_str_search ss s i.
+  - injection H as <-. lia.
+  - destruct (k ==? i)%wt eqn:Heq; wt_eq.
+    + assumption.
+    + apply IHo; [assumption|lia].
+  - discriminate.
+Qed.
+
+Lemma brute_force_str_search_not_found:
+  forall ss s i,
+    brute_force_str_search ss s i = None ->
+    forall k, i <= k < length s ->
+    ~ starts_with ss (List.skipn k s).
+Proof.
+  intros ss s i H k [Hik Hks] Hsw.
+  functional induction brute_force_str_search ss s i.
+  - discriminate.
+  - destruct (k ==? i)%wt eqn:Heq; wt_eq.
+    + contradiction.
+    + eapply IHo; [assumption|lia].
+  - apply Nat.ltb_ge in e. lia.
+Qed.
+
+(* An example instance of StrSearch using brute force *)
+#[refine]
+Instance BruteForceStrSearch: StrSearch := {
+  str_search ss s := brute_force_str_search ss s 0
+}.
+  (* starts_with_ss *)
+  - intros. eapply brute_force_str_search_starts_with; eauto.
+  (* no_earlier_ss *)
+  - intros. eapply brute_force_str_search_no_earlier_ss; eauto. lia.
+  (* not_found *)
+  - intros. eapply brute_force_str_search_not_found; eauto. lia.
+Defined.
 
 (* substring search operating on inputs rather than strings *)
 Definition input_search {strs: StrSearch} (p: string) (inp: input): option input :=
