@@ -86,6 +86,79 @@ Section MemoTree.
 
   (** * MemoTree Correctness  *)
   (* This algorithm always returns the leftmost accepting result of the initial tree *)
+
+  (* Invariant of the MemoTree execution *)
+  (* at any moment, all the possible results of the current state are all equal (equal to the first result of the original tree) *)
+  (* at any moment, all trees manipulated by the algorithms are trees for the subset of regexes supported  *)
+  Inductive memotree_inv: mtree_state -> option leaf -> Prop :=
+  | mi:
+    forall result stk seen
+      (SAMERES: forall res, list_nd stk seen res -> res = result)
+      (SUBSET: pike_tlist stk),
+      memotree_inv (MTree stk seen) result
+  | mi_final:
+    forall result,
+      memotree_inv (MTree_final result) result.
+
+  (* This uses the non-deterministic results of the stack, just like the PikeTree proof. *)
+  (* Such results can non-deteterministically skip any subtree in the seen set *)
   
+  (** * Initialization  *)
+  (* In the initial state, the invariant holds *)
+
+  Lemma init_memotree_inv:
+    forall t inp,
+      pike_subtree t -> 
+      memotree_inv (initial_tree_state t inp) (first_leaf t inp).
+  Proof.
+    intros t. unfold first_leaf. unfold initial_tree_state. constructor; simpl; pike_subset; auto.
+    intros res LISTND. 
+    simpl. apply tree_nd_initial; auto.
+    inversion LISTND; subst. inversion TLR; subst. rewrite seqop_none. auto.
+  Qed.
+
+  (** * Invariant Preservation  *)
+
+  Theorem memotree_preservation:
+    forall ms1 ms2 res
+      (MSTEP: memotree_step ms1 ms2)
+      (INVARIANT: memotree_inv ms1 res),
+      memotree_inv ms2 res.
+  Proof.
+    intros ms1 ms2 res MSTEP INVARIANT.
+    destruct INVARIANT.
+    2: { inversion MSTEP. }
+    inversion MSTEP; subst; [| | |destruct t; inversion EXPLORE; subst];
+      try solve[pike_subset].
+    (* no match *)
+    - assert (None = result).
+      { apply SAMERES. constructor. }
+      subst. constructor.
+    (* skipping *)
+    - constructor; pike_subset. intros res LISTND.
+      apply SAMERES. eapply tlr_cons with (l1:=None); eauto.
+      apply tr_skip. auto.
+    (* match found *)
+    - destruct t; inversion MATCH; subst.
+      assert (Some (i,gm) = result).
+      { apply SAMERES. eapply tlr_cons with (l2:=list_result stk0); try solve[constructor].
+        apply list_result_nd. pike_subset. }
+      subst. constructor.
+    (* Mismatch *)
+    - simpl. constructor; pike_subset. intros res LISTND.
+      apply SAMERES. eapply tlr_cons; try solve[constructor].
+      eapply list_add_seen with (gm:=gm) (inp:=i) in LISTND; eauto.
+    (* Choice *)
+    - admit.
+    (* Read *)
+    - admit.
+    (* Progress *)
+    - admit.
+    (* AnchorPass *)
+    - admit.
+    (* GroupAction *)
+    - admit.
+  Admitted.
+
   
 End MemoTree.
