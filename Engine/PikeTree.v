@@ -301,7 +301,7 @@ Section PikeTree.
   (* the normal result for a list, without skipping anything, is a possible result *)
   Lemma list_result_nd:
     forall active seen,
-      pike_tlist active -> 
+      pike_list active -> 
       list_nd active seen (list_result active).
   Proof.
     intros active. induction active; try destruct a as [[t gm] i]; intros; pike_subset; try constructor.
@@ -312,7 +312,7 @@ Section PikeTree.
   (* when there is nothing in seen, there is only one possible result *)
   Lemma list_nd_initial:
     forall l res,
-      pike_tlist l ->
+      pike_list l ->
       list_nd l initial_seentrees res ->
       res = list_result l.
   Proof.
@@ -339,8 +339,8 @@ Section PikeTree.
   | pi:
     forall result blocked active best inp future seen
       (SAMERES: forall res, state_nd inp active best blocked future seen res -> res = result)
-      (SUBSET_AC: pike_tlist (suppl active inp))
-      (SUBSET_BL: pike_tlist (suppl blocked (next_inp inp)))
+      (SUBSET_AC: pike_list (suppl active inp))
+      (SUBSET_BL: pike_list (suppl blocked (next_inp inp)))
       (SUBSET_NE: match future with | Some t => pike_subtree t | None => True end),
       piketreeinv (PTS inp active best blocked future seen) result
   | sr_final:
