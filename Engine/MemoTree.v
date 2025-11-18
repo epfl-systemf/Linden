@@ -149,16 +149,81 @@ Section MemoTree.
       apply SAMERES. eapply tlr_cons; try solve[constructor].
       eapply list_add_seen with (gm:=gm) (inp:=i) in LISTND; eauto.
     (* Choice *)
-    - admit.
+    - simpl. constructor; pike_subset. intros res LISTND.
+      inversion LISTND; subst. inversion TLR; subst.
+      apply SAMERES.
+      apply add_parent_tree in TR.
+      2: { (simpl; lia). }
+      apply add_parent_tree in TR0.
+      2: { (simpl; lia). }
+      assert (PARENT: tree_nd (Choice t1 t2) gm i seen (seqop l1 l0)).
+      { apply tr_choice; auto. }
+      (* case analysis: did t contribute to the result? *)
+      destruct (seqop l1 l0) as [leaf|] eqn:CHOICE.
+      + econstructor; eauto.
+        * apply list_result_nd. pike_subset.
+        * rewrite seqop_assoc. rewrite CHOICE. simpl. auto.
+      (* when the tree did not contribute, adding it to seen does not change the results *)
+      + destruct l1; destruct l0; inversion CHOICE.
+        eapply list_add_seen_nd with (gm:=gm) in TLR; eauto.
+        eapply list_add_seen_nd with (gm:=gm) in TLR0; eauto.
+        econstructor; eauto.
     (* Read *)
-    - admit.
+    - simpl. constructor; pike_subset. intros res LISTND.
+      inversion LISTND; subst. apply SAMERES.
+      apply add_parent_tree in TR.
+      2: { simpl. lia. }
+      assert (PARENT: tree_nd (Read c t) gm i seen l1).
+      { apply tr_read. auto. }
+      (* case analysis: did t1 contribute to the result? *)
+      destruct l1 as [leaf1|].
+      + simpl. eapply tlr_cons; eauto.
+        apply list_result_nd; auto.
+      (* when the tree did not contribute, adding it to seen does not change the results *)
+      + econstructor; eauto.
+        eapply list_add_seen_nd with (gm:=gm) in TLR; eauto.
     (* Progress *)
-    - admit.
+    - simpl. constructor; pike_subset. intros res LISTND.
+      inversion LISTND; subst. apply SAMERES.
+      apply add_parent_tree in TR.
+      2: { simpl. lia. }
+      assert (PARENT: tree_nd (Progress t) gm i seen l1).
+      { apply tr_progress. auto. }
+      (* case analysis: did t1 contribute to the result? *)
+      destruct l1 as [leaf1|].
+      + simpl. eapply tlr_cons; eauto.
+        apply list_result_nd; auto.
+      (* when the tree did not contribute, adding it to seen does not change the results *)
+      + econstructor; eauto.
+        eapply list_add_seen_nd with (gm:=gm) in TLR; eauto.
     (* AnchorPass *)
-    - admit.
+    - simpl. constructor; pike_subset. intros res LISTND.
+      inversion LISTND; subst. apply SAMERES.
+      apply add_parent_tree in TR.
+      2: { simpl. lia. }
+      assert (PARENT: tree_nd (AnchorPass a t) gm i seen l1).
+      { apply tr_anchorpass. auto. }
+      (* case analysis: did t1 contribute to the result? *)
+      destruct l1 as [leaf1|].
+      + simpl. eapply tlr_cons; eauto.
+        apply list_result_nd; auto.
+      (* when the tree did not contribute, adding it to seen does not change the results *)
+      + econstructor; eauto.
+        eapply list_add_seen_nd with (gm:=gm) in TLR; eauto.
     (* GroupAction *)
-    - admit.
-  Admitted.
-
+    - simpl. constructor; pike_subset. intros res LISTND.
+      inversion LISTND; subst. apply SAMERES.
+      apply add_parent_tree in TR.
+      2: { simpl. lia. }
+      assert (PARENT: tree_nd (GroupAction g t) gm i seen l1).
+      { apply tr_groupaction. auto. }
+      (* case analysis: did t1 contribute to the result? *)
+      destruct l1 as [leaf1|].
+      + simpl. eapply tlr_cons; eauto.
+        apply list_result_nd; auto.
+      (* when the tree did not contribute, adding it to seen does not change the results *)
+      + econstructor; eauto.
+        eapply list_add_seen_nd with (gm:=gm) in TLR; eauto.
+  Qed.
   
 End MemoTree.
