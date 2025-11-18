@@ -94,7 +94,7 @@ Section MemoTree.
   | mi:
     forall result stk seen
       (SAMERES: forall res, list_nd stk seen res -> res = result)
-      (SUBSET: pike_tlist stk),
+      (SUBSET: pike_list stk),
       memotree_inv (MTree stk seen) result
   | mi_final:
     forall result,

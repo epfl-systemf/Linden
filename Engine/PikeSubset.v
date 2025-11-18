@@ -87,12 +87,8 @@ Section PikeSubset.
       pike_subtree t1 ->
       pike_subtree (GroupAction ga t1).
 
-  (* used for the lists of trees and gm manipulated by the PikeTree algorithm *)
-  Definition pike_list (l: list (tree * group_map)) : Prop :=
-    (forall t gm, In (t, gm) l -> pike_subtree t).
-
-  (* used for the more general version manipulated by the MemoTree algorithm *)
-  Definition pike_tlist (l: list (tree * group_map * input)) : Prop :=
+  (* used for the lists of trees gm and input manipulated by the PikeTree and MemoTree algorithms *)
+  Definition pike_list (l: list (tree * group_map * input)) : Prop :=
     (forall t gm i, In (t, gm, i) l -> pike_subtree t).
 
 
@@ -106,10 +102,10 @@ Section PikeSubset.
   Qed.
 
   Lemma pike_list_cons:
-    forall t gm l,
-      pike_list ((t,gm)::l) <-> pike_subtree t /\ pike_list l.
+    forall t gm i l,
+      pike_list ((t,gm,i)::l) <-> pike_subtree t /\ pike_list l.
   Proof.
-    intros t gm l. unfold pike_list. split; try split; intros. 
+    intros t gm i l. unfold pike_list. split; try split; intros. 
     - eapply H; eauto. left. eauto.
     - eapply H; eauto. right. eauto.
     - destruct H. inversion H0; subst.
@@ -136,62 +132,19 @@ Section PikeSubset.
   Qed.
 
   Lemma pike_list_single:
-    forall t gm, pike_subtree t -> pike_list [(t,gm)].
+    forall t gm i, pike_subtree t -> pike_list [(t,gm,i)].
   Proof.
-    unfold pike_list. intros t gm H t0 gm0 H0. inversion H0; inversion H1; subst; auto.
+    unfold pike_list. intros t gm i H t0 gm0 i0 H0. inversion H0; inversion H1; subst; auto.
   Qed.
 
   Lemma pike_list_twice:
-    forall t1 t2 gm1 gm2, pike_subtree t1 -> pike_subtree t2 -> pike_list [(t1,gm1);(t2,gm2)].
+    forall t1 t2 gm1 gm2 i1 i2, pike_subtree t1 -> pike_subtree t2 -> pike_list [(t1,gm1,i1);(t2,gm2,i2)].
   Proof.
-    unfold pike_list. intros t1 t2 gm1 gm2 H H0 t gm H1.
+    unfold pike_list. intros t1 t2 gm1 gm2 i1 i2 H H0 t gm i H1.
     inversion H1; inversion H2; try inversion H3; subst; auto.
   Qed.
 
-  Lemma pike_tlist_cons:
-    forall t gm i l,
-      pike_tlist ((t,gm,i)::l) <-> pike_subtree t /\ pike_tlist l.
-  Proof.
-    intros t gm i l. unfold pike_tlist. split; try split; intros. 
-    - eapply H; eauto. left. eauto.
-    - eapply H; eauto. right. eauto.
-    - destruct H. inversion H0; subst.
-      + inversion H2. subst. auto.
-      + eapply H1. eauto.
-  Qed.
-
-  Lemma pike_tlist_app:
-    forall l1 l2,
-      pike_tlist (l1 ++ l2) <-> pike_tlist l1 /\ pike_tlist l2.
-  Proof.
-    intros l1 l2. unfold pike_tlist. split; try split; intros.
-    - eapply H. rewrite in_app_iff. left. eauto.
-    - eapply H. rewrite in_app_iff. right. eauto.
-    - destruct H. rewrite in_app_iff in H0. destruct H0.
-      + eapply H; eauto.
-      + eapply H1; eauto.
-  Qed.
-
-  Lemma pike_tlist_empty:
-    pike_tlist [].
-  Proof.
-    unfold pike_tlist. intros. inversion H.
-  Qed.
-
-  Lemma pike_tlist_single:
-    forall t gm i, pike_subtree t -> pike_tlist [(t,gm,i)].
-  Proof.
-    unfold pike_tlist. intros t gm i H t0 gm0 i0 H0. inversion H0; inversion H1; subst; auto.
-  Qed.
-
-  Lemma pike_tlist_twice:
-    forall t1 t2 gm1 gm2 i1 i2, pike_subtree t1 -> pike_subtree t2 -> pike_tlist [(t1,gm1,i1);(t2,gm2,i2)].
-  Proof.
-    unfold pike_tlist. intros t1 t2 gm1 gm2 i1 i2 H H0 t gm i H1.
-    inversion H1; inversion H2; try inversion H3; subst; auto.
-  Qed.
-
-  (** * Lists of trees  *)
+  (** * Lists of trees and gm  *)
   (* For some algorithms like MemoTree, we might want to manipulate lists of (tree * group_map * iput).
      But some algorithms lie PikeTree manipulate lists of (tree * group_map), all at the same input.
      We provide a function to supplement a list of (tree * group_map) with a constant input.
@@ -214,14 +167,10 @@ End PikeSubset.
 (* inverting evidence of belonging to the subset *)
 Ltac invert_subset := 
   match goal with
-  | [ H : pike_list ((_,_)::_) |- _ ] => apply pike_list_cons in H; destruct H
-  | [ H : pike_list (?tgm::_) |- _ ] => destruct ?tgm
+  | [ H : pike_list (suppl ((_, _) :: _) _) |- _ ] => simpl in H
+  | [ H : pike_list ((_,_,_)::_) |- _ ] => apply pike_list_cons in H; destruct H
+  | [ H : pike_list (?tgmi::_) |- _ ] => destruct ?tgmi as [[t gm]i]
   | [ H : pike_list (_ ++ _) |- _ ] => apply pike_list_app in H; destruct H
-
-  | [ H : pike_tlist (suppl ((_, _) :: _) _) |- _ ] => simpl in H
-  | [ H : pike_tlist ((_,_,_)::_) |- _ ] => apply pike_tlist_cons in H; destruct H
-  | [ H : pike_tlist (?tgmi::_) |- _ ] => destruct ?tgmi as [[t gm]i]
-  | [ H : pike_tlist (_ ++ _) |- _ ] => apply pike_tlist_app in H; destruct H
     
   | [ H : pike_subtree (Choice _ _) |- _ ] => inversion H; clear H
   | [ H : pike_subtree (Read _ _) |- _ ] => inversion H; clear H
@@ -245,22 +194,15 @@ Ltac invert_subset :=
   | [ H : pike_regex (Anchor _) |- _ ] => inversion H; clear H
   | [ H : pike_regex (Backreference _) |- _ ] => inversion H; clear H
 
+  | [ |- pike_list (suppl ((_, _) :: _) _) ] => simpl suppl
+  | [ |- pike_list (suppl [] _) ] => simpl suppl
+  | [ |- pike_list (suppl (_ ++ _) _) ] => rewrite suppl_app
   | [ |- pike_list (_ ++ _) ] => apply pike_list_app; split
   | [ |- pike_list (_ :: _) ] => apply pike_list_cons; split
   | [ |- pike_list [] ] => apply pike_list_empty
-  | [ |- pike_list [(_,_)] ] => apply pike_list_single
-  | [ |- pike_list [(_,_);(_,_)] ] => apply pike_list_twice
-  | [ |- pike_list [?tgm] ] => destruct ?tgm
-
-  | [ |- pike_tlist (suppl ((_, _) :: _) _) ] => simpl suppl
-  | [ |- pike_tlist (suppl [] _) ] => simpl suppl
-  | [ |- pike_tlist (suppl (_ ++ _) _) ] => rewrite suppl_app
-  | [ |- pike_tlist (_ ++ _) ] => apply pike_tlist_app; split
-  | [ |- pike_tlist (_ :: _) ] => apply pike_tlist_cons; split
-  | [ |- pike_tlist [] ] => apply pike_tlist_empty
-  | [ |- pike_tlist [(_,_,_)] ] => apply pike_tlist_single
-  | [ |- pike_tlist [(_,_,_);(_,_,_)] ] => apply pike_tlist_twice
-  | [ |- pike_tlist [?tgmi] ] => destruct ?tgmi as [[t gm]i]
+  | [ |- pike_list [(_,_,_)] ] => apply pike_list_single
+  | [ |- pike_list [(_,_,_);(_,_,_)] ] => apply pike_list_twice
+  | [ |- pike_list [?tgmi] ] => destruct ?tgmi as [[t gm]i]
 
   end.
 
