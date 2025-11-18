@@ -16,7 +16,7 @@ Section MemoBT.
   Context {MS: MemoSet params}.
   Context (rer: RegExpRecord).
 
-  (* configurations to be explored by the memoized backtrackin engine *)
+  (* configurations to be explored by the memoized backtracking engine *)
   Definition config: Type := label * group_map * LoopBool * input.
   Definition stack: Type := list config.
 
