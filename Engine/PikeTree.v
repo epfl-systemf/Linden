@@ -119,6 +119,7 @@ Section PikeTree.
     (* resetting the seen trees *)
     forall inp best blocked tgm seen,
       pike_tree_step (PTS inp [] best (tgm::blocked) None seen) (PTS (next_inp inp) (tgm::blocked) best [] None initial_seentrees)
+  (* FIXME: rename *)
   | pts_nextchar_star:
     (* when the list of active trees is empty and the next tree is a segment of a lazy star prefix, *)
     (* restart from the blocked ones and the head iteration of the lazy star, proceeding to the next character *)
@@ -131,9 +132,9 @@ Section PikeTree.
           (Choice
             t1
             (GroupAction (Reset []) t2))))
-      )
-      (SUBSET: pike_subtree t1),
+      ),
       pike_tree_step (PTS inp [] best (tgm::blocked) nextt seen) (PTS (Input next (c::pref)) ((tgm::blocked) ++ [pike_tree_initial_tree t1]) best [] (Some t2) initial_seentrees)
+  (* FIXME: rename *)
   | pts_nextchar_star_skip:
     (* when the list of active trees is empty and the next tree is a segment of a lazy star prefix, *)
     (* and the head iteration of the lazy star contains no result, *)
@@ -297,7 +298,6 @@ Section PikeTree.
     apply tree_nd_initial in TR; subst; auto.
   Qed.
 
-
   Inductive state_nd: input -> list (tree*group_map) -> option leaf -> list (tree*group_map) -> option tree -> seentrees -> option leaf -> Prop :=
   | sr:
     forall blocked active best inp nextt seen r1 r2 r3 rseq
@@ -315,7 +315,8 @@ Section PikeTree.
     forall result blocked active best inp nextt seen
       (SAMERES: forall res, state_nd inp active best blocked nextt seen res -> res = result)
       (SUBSET_AC: pike_list active)
-      (SUBSET_BL: pike_list blocked),
+      (SUBSET_BL: pike_list blocked)
+      (SUBSET_NE: match nextt with | Some t => pike_subtree t | None => True end),
       piketreeinv (PTS inp active best blocked nextt seen) result
   | sr_final:
     forall best,
@@ -344,15 +345,21 @@ Section PikeTree.
       piketreeinv (pike_tree_initial_state_lazyprefix r inp) (first_leaf t inp).
   Proof.
     intros t r inp PIKEREG.
-    assert (pike_subtree (compute_tr rer [Areg r] inp GroupMap.empty forward)). {
+    assert (Hrsubset: pike_subtree (compute_tr rer [Areg r] inp GroupMap.empty forward)). {
       eapply pike_actions_pike_tree with (cont:=[Areg r]); pike_subset; apply compute_tr_is_tree.
+    }
+    assert (Hlpsubset: pike_subtree (initial_nextt_lazyprefix r inp)). {
+      unfold initial_nextt_lazyprefix.
+      eapply pike_actions_pike_tree.
+      2: compute_tr_simpl; apply compute_tr_is_tree.
+      pike_subset.
     }
     unfold first_leaf. unfold pike_tree_initial_state_lazyprefix. constructor; pike_subset; auto.
     intros res STATEND. inversion STATEND; subst.
     simpl. rewrite seqop_none. inversion ACTIVE; subst.
     inversion TLR; subst. rewrite seqop_none.
     apply tree_nd_initial in TR; auto.
-    apply is_tree_eq_compute_tr in H0. subst.
+    apply is_tree_eq_compute_tr in H. subst.
 
     unfold initial_nextt_lazyprefix.
     now compute_tr_simpl.
