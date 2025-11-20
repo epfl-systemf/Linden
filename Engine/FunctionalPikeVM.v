@@ -127,10 +127,10 @@ Definition getres (pvs:pike_vm_state) : matchres :=
   end.
 
 (* Functional version of the PikeVM *)
-Definition pike_vm_match (r:regex) (inp:input) : matchres :=
+(* lit is never used in this version, so anything can be passed *)
+Definition pike_vm_match (r:regex) (lit:literal) (inp:input) : matchres :=
   let code := compilation r in
   let fuel := bytecode_fuel code inp in
-  let lit := extract_literal r in
   let pvsinit := pike_vm_initial_state inp in
   getres (pike_vm_loop code lit pvsinit fuel).
 
@@ -186,11 +186,11 @@ Qed.
 
 (* when the function finishes, it returns the correct result *)
 Theorem pike_vm_match_correct:
-  forall r inp result,
-    pike_vm_match r inp = Finished result ->
-    trc_pike_vm rer (compilation r) (extract_literal r) (pike_vm_initial_state inp) (PVS_final result).
+  forall r lit inp result,
+    pike_vm_match r lit inp = Finished result ->
+    trc_pike_vm rer (compilation r) lit (pike_vm_initial_state inp) (PVS_final result).
 Proof.
-  unfold pike_vm_match, getres. intros r inp result H. 
+  unfold pike_vm_match, getres. intros r lit inp result H. 
   match_destr; inversion H; subst.
   eapply loop_trc; eauto.
 Qed.
@@ -207,12 +207,12 @@ Proof.
 Qed.
 
 (* TODO: replace with theorem where the fuel is derived from the complexity of the PikeVM *)
-Axiom pike_vm_fuel: forall r inp, pike_vm_match r inp <> OutOfFuel.
+Axiom pike_vm_fuel: forall r lit inp, pike_vm_match r lit inp <> OutOfFuel.
 
 (* we show that the PikeVM fits the scheme of an engine *)
 #[refine]
 Instance PikeVMEngine: Engine rer := {
-  exec r inp := match pike_vm_match r inp with
+  exec r inp := match pike_vm_match r (extract_literal r) inp with
                 | OutOfFuel => None
                 | Finished res => res
                 end;
@@ -220,7 +220,7 @@ Instance PikeVMEngine: Engine rer := {
 }.
   (* exec_correct *)
   intros r inp ol Hsubset.
-  destruct pike_vm_match eqn:Hmatch; [pose proof pike_vm_fuel r inp; contradiction|].
+  destruct pike_vm_match eqn:Hmatch; [pose proof pike_vm_fuel r (extract_literal r) inp; contradiction|].
   split.
   - intros [tree [Htree Hleaf]].
     subst. eauto using pike_vm_match_correct, pike_vm_correct.
@@ -265,7 +265,7 @@ Section Example.
   Example nq_inp: input := Input [a;b] [].
 
   Lemma nullable_quant:
-    pike_vm_match (rer_of nq_regex) nq_regex nq_inp = Finished (Some (Input [] [b;a], GroupMap.empty)).
+    pike_vm_match (rer_of nq_regex) nq_regex Impossible nq_inp = Finished (Some (Input [] [b;a], GroupMap.empty)).
   Proof. reflexivity. Qed.
 
 (** * Example from the paper - Figure 15  *)
@@ -302,7 +302,7 @@ Example final_gm : GroupMap.t :=
   GroupMap.close 1 1 (GroupMap.open 0 1 GroupMap.empty).
 
 Lemma paper_pikevm_exec:
-  pike_vm_match (rer_of paper_regex) paper_regex paper_input = Finished (Some (Input [] [b;a], final_gm)).
+  pike_vm_match (rer_of paper_regex) paper_regex Impossible paper_input = Finished (Some (Input [] [b;a], final_gm)).
 Proof. reflexivity. Qed.
 
 End Example.

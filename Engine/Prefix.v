@@ -85,6 +85,7 @@ Qed.
 Class StrSearch := {
   str_search : string -> string -> option nat;
 
+  (* FIXME: rename to remove _ss from the names of axioms *)
   (* the found position starts with the searched substring *)
   starts_with_ss: forall s ss i, str_search ss s = Some i -> starts_with ss (List.skipn i s);
   (* there is no earlier position that starts with the searched substring *)
@@ -735,7 +736,7 @@ Proof.
   - destruct o; [exfalso|]; eauto.
 Qed.
 
-(* the contraposition of extract_literal_prefix *)
+(* the contrapositive of extract_literal_prefix *)
 Corollary extract_literal_prefix_contra:
   forall r tree inp,
     is_tree rer [Areg r] inp Groups.GroupMap.empty forward tree ->
