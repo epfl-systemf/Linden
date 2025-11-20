@@ -133,6 +133,7 @@ Inductive pike_vm_step {strs:StrSearch} (c:code) (lit:literal): pike_vm_state ->
 (* FIXME: this is not exactly right with regards to the new piketree *)
   forall inp best seen,
     pike_vm_step c lit (PVS inp [] best [] None seen) (PVS_final best)
+(* FIXME: change name *)
 | pvs_jump:
 (* if there are no more active or blocked threads and we know where the next prefix matches, *)
 (* we jump to that point *)
@@ -150,10 +151,12 @@ Inductive pike_vm_step {strs:StrSearch} (c:code) (lit:literal): pike_vm_state ->
   forall inp1 inp2 best thr blocked seen
     (ADVANCE: advance_input inp1 forward = Some inp2),
     pike_vm_step c lit (PVS inp1 [] best (thr::blocked) None seen) (PVS inp2 (thr::blocked) best [] None initial_seenpcs)
+(* FIXME: change name *)
 | pvs_nextchar_star:
   forall inp1 inp2 best thr blocked seen
     (ADVANCE: advance_input inp1 forward = Some inp2),
-    pike_vm_step c lit (PVS inp1 [] best (thr::blocked) (Some 0) seen) (PVS inp2 (thr::blocked ++ [pike_vm_initial_thread]) best [] (next_prefix_counter inp2 lit) initial_seenpcs)
+    pike_vm_step c lit (PVS inp1 [] best (thr::blocked) (Some 0) seen) (PVS inp2 ((thr::blocked) ++ [pike_vm_initial_thread]) best [] (next_prefix_counter inp2 lit) initial_seenpcs)
+(* FIXME: change name *)
 | pvs_nextchar_star_skip:
   forall inp1 inp2 best thr blocked n seen
     (ADVANCE: advance_input inp1 forward = Some inp2),
