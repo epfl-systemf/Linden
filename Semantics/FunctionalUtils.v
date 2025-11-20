@@ -282,7 +282,13 @@ Ltac compute_tr_step :=
   | [  |- context[compute_tr ?act ?i ?gm ?dir] ] =>
       (* With `simpl nomatch`, progress simpl guarantees that we
                   rewrite only compute_tr instances that are unfoldable. *)
-      rewrite (compute_tr_rw act i gm dir); progress simpl
+      rewrite (compute_tr_rw act i gm dir);
+        (
+          (* We try to simplify an Acheck *)
+          (unfold compute_tr_unfold, StrictSuffix.is_strict_suffix, StrictSuffix.strict_suffix_forward; rewrite EqDec.reflb; simpl)
+          ||
+          (progress simpl)
+        )
   | _ => rewrite !app_nil_r || (progress unfold seq_list)
   end.
 
