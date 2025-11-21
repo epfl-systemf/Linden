@@ -562,16 +562,16 @@ Proof.
 Qed.
 
 Lemma pike_vm_bound {strs:StrSearch}:
-  forall pvs code lit n,
+  forall pvs code n,
     code_wf code (size code) ->
     vm_inv code pvs n ->
-    exists result, steps (pike_vm_step rer code lit) pvs n (PVS_final result).
+    exists result, steps (pike_vm_step rer code) pvs n (PVS_final result).
 Proof.
-  intros pvs code lit n WF INV. generalize dependent pvs. induction n using (strong_ind); intros.
+  intros pvs code n WF INV. generalize dependent pvs. induction n using (strong_ind); intros.
   destruct pvs.
   2: { exists best. constructor. }
-  specialize (pikevm_progress rer code lit inp active best blocked nextprefix seen) as [next STEP].
-  specialize (pikevm_decreases code lit (PVS inp active best blocked nextprefix seen) next n WF STEP INV) as [newm [INV2 DECR]].
+  specialize (pikevm_progress rer code inp active best blocked nextprefix seen) as [next STEP].
+  specialize (pikevm_decreases code (PVS inp active best blocked nextprefix seen) next n WF STEP INV) as [newm [INV2 DECR]].
   specialize (H newm DECR next INV2) as [result STEPS].
   exists result. apply more_steps with (n:=S newm); try lia.
   econstructor; eauto.
@@ -580,14 +580,14 @@ Qed.
 (** * Complexity Theorem  *)
 
 Theorem pikevm_complexity {strs:StrSearch}:
-  forall (r:regex) (lit:literal) (inp:input),
+  forall (r:regex) (inp:input),
     (* for any supported regex r and input inp *)
     pike_regex r ->
     (* The initial state reaches a final state in at most (complexity r inp) steps. *)
-    exists result, steps (pike_vm_step rer (compilation r) lit)
+    exists result, steps (pike_vm_step rer (compilation r))
                 (pike_vm_initial_state inp) (complexity r inp) (PVS_final result).
 Proof.
-  intros r lit inp SUBSET.
+  intros r inp SUBSET.
   apply pike_vm_bound.
   - apply compiled_wf.
   - apply initial_measure. auto.
@@ -598,11 +598,11 @@ Qed.
 
 (* As a corollary, we can deduce that the PikeVM always terminate *)
 Theorem pike_vm_terminates {strs:StrSearch}:
-  forall r lit inp,
+  forall r inp,
     pike_regex r ->
-    exists result, trc_pike_vm rer (compilation r) lit (pike_vm_initial_state inp) (PVS_final result).
+    exists result, trc_pike_vm rer (compilation r) (pike_vm_initial_state inp) (PVS_final result).
 Proof.
-  intros r lit inp H. eapply pikevm_complexity in H as [result STEPS]; eauto.
+  intros r inp H. eapply pikevm_complexity in H as [result STEPS]; eauto.
   exists result. eapply steps_trc; eauto.
 Qed.
 

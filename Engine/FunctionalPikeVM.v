@@ -52,7 +52,7 @@ Definition pike_vm_non_lazyprefix_func_step (c:code) (pvs:pike_vm_state) : pike_
   end.
 
 (* a functional version of the small step *)
-Definition pike_vm_func_step (c:code) (lit:literal) (pvs:pike_vm_state) : pike_vm_state :=
+Definition pike_vm_func_step (c:code) (pvs:pike_vm_state) : pike_vm_state :=
   match pvs with
   | PVS_final _ => pvs
   | PVS inp active best blocked nextprefix seen =>
@@ -61,7 +61,7 @@ Definition pike_vm_func_step (c:code) (lit:literal) (pvs:pike_vm_state) : pike_v
           match blocked with
           | [] =>
               match nextprefix with
-              | Some n =>
+              | Some (n, lit) =>
                 let nextinp := advance_input_n inp (S n) forward in
                 PVS nextinp [pike_vm_initial_thread] best [] (next_prefix_counter nextinp lit) initial_seenpcs (* pvs_jump *)
               | None => PVS_final best (* pvs_final *)
@@ -72,8 +72,8 @@ Definition pike_vm_func_step (c:code) (lit:literal) (pvs:pike_vm_state) : pike_v
               | Some nextinp =>
                   match nextprefix with
                   | None => PVS nextinp (thr::blocked) best [] None initial_seenpcs (* pvs_nextchar *)
-                  | Some 0 => PVS nextinp (thr::blocked ++ [pike_vm_initial_thread]) best [] (next_prefix_counter nextinp lit) initial_seenpcs (* pvs_nextchar_star *)
-                  | Some (S n) => PVS nextinp (thr::blocked) best [] (Some n) initial_seenpcs (* pvs_nextchar_star_skip *)
+                  | Some (0, lit) => PVS nextinp (thr::blocked ++ [pike_vm_initial_thread]) best [] (next_prefix_counter nextinp lit) initial_seenpcs (* pvs_nextchar_star *)
+                  | Some (S n, lit) => PVS nextinp (thr::blocked) best [] (Some (n, lit)) initial_seenpcs (* pvs_nextchar_star_skip *)
                   end
               end
           end     
@@ -95,20 +95,20 @@ Definition pike_vm_func_step (c:code) (lit:literal) (pvs:pike_vm_state) : pike_v
   end.
 
 Lemma pike_vm_same_step_with_no_nextprefix:
-  forall c inp active best blocked seen lit,
+  forall c inp active best blocked seen,
     pike_vm_non_lazyprefix_func_step c (PVS inp active best blocked None seen) =
-    pike_vm_func_step c lit (PVS inp active best blocked None seen).
+    pike_vm_func_step c (PVS inp active best blocked None seen).
 Proof. reflexivity. Qed.
 
 (* looping the small step function until fuel runs out or a final state is reached *)
-Fixpoint pike_vm_loop (c:code) (lit:literal) (pvs:pike_vm_state) (fuel:nat) : pike_vm_state :=
+Fixpoint pike_vm_loop (c:code) (pvs:pike_vm_state) (fuel:nat) : pike_vm_state :=
   match pvs with
   | PVS_final _ => pvs
   | _ =>
       match fuel with
       | 0 => pvs
       | S fuel =>
-          pike_vm_loop c lit (pike_vm_func_step c lit pvs) fuel
+          pike_vm_loop c (pike_vm_func_step c pvs) fuel
       end
   end.
 
@@ -128,19 +128,18 @@ Definition getres (pvs:pike_vm_state) : matchres :=
 
 (* Functional version of the PikeVM *)
 (* lit is never used in this version, so anything can be passed *)
-Definition pike_vm_match (r:regex) (lit:literal) (inp:input) : matchres :=
+Definition pike_vm_match (r:regex) (inp:input) : matchres :=
   let code := compilation r in
   let fuel := bytecode_fuel code inp in
   let pvsinit := pike_vm_initial_state inp in
-  getres (pike_vm_loop code lit pvsinit fuel).
+  getres (pike_vm_loop code pvsinit fuel).
 
 (* Functional version of the lazy prefix PikeVM *)
 Definition pike_vm_match_lazyprefix (r:regex) (inp:input) : matchres :=
   let code := compilation r in
   let fuel := bytecode_fuel code inp in
-  let lit := extract_literal r in
-  let pvsinit := pike_vm_initial_state_lazyprefix lit inp in
-  getres (pike_vm_loop code lit pvsinit fuel).
+  let pvsinit := pike_vm_initial_state_lazyprefix (extract_literal r) inp in
+  getres (pike_vm_loop code pvsinit fuel).
                                                    
 
 (** * Smallstep correspondence  *)
@@ -154,29 +153,29 @@ Ltac match_destr:=
   end.
 
 Theorem func_step_correct:
-  forall c lit pvs1 pvs2,
-    pike_vm_func_step c lit pvs1 = pvs2 ->
-    pike_vm_step rer c lit pvs1 pvs2 \/ final_state pvs1.
+  forall c pvs1 pvs2,
+    pike_vm_func_step c pvs1 = pvs2 ->
+    pike_vm_step rer c pvs1 pvs2 \/ final_state pvs1.
 Proof.
-  unfold pike_vm_func_step. intros c lit pvs1 pvs2 H.
+  unfold pike_vm_func_step. intros c pvs1 pvs2 H.
   repeat match_destr; subst; try solve[left; constructor; auto].
   right. constructor.
 Qed.
 
 Corollary func_step_not_final:
-  forall c lit inp active best blocked nextprefix seen,
-    pike_vm_step rer c lit (PVS inp active best blocked nextprefix seen) (pike_vm_func_step c lit (PVS inp active best blocked nextprefix seen)).
+  forall c inp active best blocked nextprefix seen,
+    pike_vm_step rer c (PVS inp active best blocked nextprefix seen) (pike_vm_func_step c (PVS inp active best blocked nextprefix seen)).
 Proof.
-  intros c lit inp active best blocked nextprefix seen. specialize (func_step_correct c lit (PVS inp active best blocked nextprefix seen) _ (@eq_refl _ _)).
+  intros c inp active best blocked nextprefix seen. specialize (func_step_correct c (PVS inp active best blocked nextprefix seen) _ (@eq_refl _ _)).
   intros [H|H]; auto. inversion H.
 Qed.
 
 Theorem loop_trc:
-  forall c lit pvs1 pvs2 fuel,
-    pike_vm_loop c lit pvs1 fuel = pvs2 ->
-    trc_pike_vm rer c lit pvs1 pvs2.
+  forall c pvs1 pvs2 fuel,
+    pike_vm_loop c pvs1 fuel = pvs2 ->
+    trc_pike_vm rer c pvs1 pvs2.
 Proof.
-  intros c lit pvs1 pvs2 fuel H.
+  intros c pvs1 pvs2 fuel H.
   generalize dependent pvs1. induction fuel; intros; simpl in H.
   { destruct pvs1; inversion H. constructor. constructor. }
   match_destr; subst.
@@ -186,11 +185,11 @@ Qed.
 
 (* when the function finishes, it returns the correct result *)
 Theorem pike_vm_match_correct:
-  forall r lit inp result,
-    pike_vm_match r lit inp = Finished result ->
-    trc_pike_vm rer (compilation r) lit (pike_vm_initial_state inp) (PVS_final result).
+  forall r inp result,
+    pike_vm_match r inp = Finished result ->
+    trc_pike_vm rer (compilation r) (pike_vm_initial_state inp) (PVS_final result).
 Proof.
-  unfold pike_vm_match, getres. intros r lit inp result H. 
+  unfold pike_vm_match, getres. intros r inp result H. 
   match_destr; inversion H; subst.
   eapply loop_trc; eauto.
 Qed.
@@ -199,7 +198,7 @@ Qed.
 Theorem pike_vm_match_lazyprefix_correct:
   forall r inp result,
     pike_vm_match_lazyprefix r inp = Finished result ->
-    trc_pike_vm rer (compilation r) (extract_literal r) (pike_vm_initial_state_lazyprefix (extract_literal r) inp) (PVS_final result).
+    trc_pike_vm rer (compilation r) (pike_vm_initial_state_lazyprefix (extract_literal r) inp) (PVS_final result).
 Proof.
   unfold pike_vm_match_lazyprefix, getres. intros r inp result H. 
   match_destr; inversion H; subst.
@@ -207,12 +206,12 @@ Proof.
 Qed.
 
 (* TODO: replace with theorem where the fuel is derived from the complexity of the PikeVM *)
-Axiom pike_vm_fuel: forall r lit inp, pike_vm_match r lit inp <> OutOfFuel.
+Axiom pike_vm_fuel: forall r inp, pike_vm_match r inp <> OutOfFuel.
 
 (* we show that the PikeVM fits the scheme of an engine *)
 #[refine]
 Instance PikeVMEngine: Engine rer := {
-  exec r inp := match pike_vm_match r (extract_literal r) inp with
+  exec r inp := match pike_vm_match r inp with
                 | OutOfFuel => None
                 | Finished res => res
                 end;
@@ -220,7 +219,7 @@ Instance PikeVMEngine: Engine rer := {
 }.
   (* exec_correct *)
   intros r inp ol Hsubset.
-  destruct pike_vm_match eqn:Hmatch; [pose proof pike_vm_fuel r (extract_literal r) inp; contradiction|].
+  destruct pike_vm_match eqn:Hmatch; [pose proof pike_vm_fuel r inp; contradiction|].
   split.
   - intros [tree [Htree Hleaf]].
     subst. eauto using pike_vm_match_correct, pike_vm_correct.
@@ -265,7 +264,7 @@ Section Example.
   Example nq_inp: input := Input [a;b] [].
 
   Lemma nullable_quant:
-    pike_vm_match (rer_of nq_regex) nq_regex Impossible nq_inp = Finished (Some (Input [] [b;a], GroupMap.empty)).
+    pike_vm_match (rer_of nq_regex) nq_regex nq_inp = Finished (Some (Input [] [b;a], GroupMap.empty)).
   Proof. reflexivity. Qed.
 
 (** * Example from the paper - Figure 15  *)
@@ -302,7 +301,7 @@ Example final_gm : GroupMap.t :=
   GroupMap.close 1 1 (GroupMap.open 0 1 GroupMap.empty).
 
 Lemma paper_pikevm_exec:
-  pike_vm_match (rer_of paper_regex) paper_regex Impossible paper_input = Finished (Some (Input [] [b;a], final_gm)).
+  pike_vm_match (rer_of paper_regex) paper_regex paper_input = Finished (Some (Input [] [b;a], final_gm)).
 Proof. reflexivity. Qed.
 
 End Example.
