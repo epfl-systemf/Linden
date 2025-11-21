@@ -13,7 +13,7 @@ Require Import Lia.
 
 From Linden Require Import Regex Chars Groups Tree.
 From Linden Require Import PikeSubset SeenSets.
-From Linden Require Import Parameters FunctionalUtils Semantics.
+From Linden Require Import Parameters BooleanSemantics Semantics.
 From Warblre Require Import Base RegExpRecord.
 
 Section PikeTree.
@@ -74,17 +74,16 @@ Section PikeTree.
   | PTS (inp:input) (active: list (tree * group_map)) (best: option leaf) (blocked: list (tree * group_map)) (nextt: option tree) (seen:seentrees)
   | PTS_final (best: option leaf).
 
+  Definition dot_star : regex :=
+    Quantified false 0 NoI.Inf (Regex.Character CdAll).
   Definition lazy_prefix (r:regex) : regex :=
-    Sequence
-      (Quantified false 0 NoI.Inf (Regex.Character CdAll))
-      r.
-
-  Definition initial_nextt_lazyprefix (r: regex) (inp: input) : tree :=
-    let tree := compute_tr rer [Areg (lazy_prefix r)] inp (Groups.GroupMap.empty) forward in
-    match tree with
-    | Choice t1 (GroupAction (Reset []) t2) => t2
-    | _ => Mismatch
-    end.
+    Sequence dot_star r.
+  
+  (* the initial nextt for the lazy prefix version of the PikeTree *)
+  Definition initial_nextt_actions_lazyprefix (r: regex) (inp: input) :=
+    [Areg (Regex.Character CdAll); Acheck inp; Areg dot_star; Areg r].
+  Definition initial_nextt_lazyprefix (r: regex) (inp: input) (nextt: tree): Prop :=
+    bool_tree rer (initial_nextt_actions_lazyprefix r inp) inp CannotExit nextt.
 
   Definition option_flat_map {A B: Type} (f: A -> option B) (o: option A) : option B :=
     match o with
@@ -93,10 +92,7 @@ Section PikeTree.
     end.
   
   Definition pike_tree_initial_tree (t: tree) := (t, GroupMap.empty).
-  (* FIXME: redefine things so that we do not depend on compute_tr and use only is_tree *)
-  Definition pike_tree_initial_state_lazyprefix (r:regex) (i:input) : pike_tree_state :=
-    let t := compute_tr rer [Areg r] i (Groups.GroupMap.empty) forward in
-    let nextt := initial_nextt_lazyprefix r i in
+  Definition pike_tree_initial_state_lazyprefix (t:tree) (nextt:tree) (i:input) : pike_tree_state :=
     PTS i [pike_tree_initial_tree t] None [] (Some nextt) initial_seentrees.
   Definition pike_tree_initial_state (t:tree) (i:input) : pike_tree_state :=
     PTS i [pike_tree_initial_tree t] None [] None initial_seentrees.
@@ -339,30 +335,42 @@ Section PikeTree.
   Qed.
 
   Lemma init_piketree_inv_lazyprefix:
-    forall t r inp,
+    forall t r inp tree nextt,
       pike_regex r -> 
-      is_tree rer [Areg (lazy_prefix r)] inp GroupMap.empty forward t ->
-      piketreeinv (pike_tree_initial_state_lazyprefix r inp) (first_leaf t inp).
+      initial_nextt_lazyprefix r inp nextt ->
+      bool_tree rer [Areg r] inp CanExit t ->
+      bool_tree rer [Areg (lazy_prefix r)] inp CanExit tree ->
+      piketreeinv (pike_tree_initial_state_lazyprefix t nextt inp) (first_leaf tree inp).
   Proof.
-    intros t r inp PIKEREG.
-    assert (Hrsubset: pike_subtree (compute_tr rer [Areg r] inp GroupMap.empty forward)). {
-      eapply pike_actions_pike_tree with (cont:=[Areg r]); pike_subset; apply compute_tr_is_tree.
+    unfold initial_nextt_lazyprefix.
+    intros t r inp tree nextt PIKEREG NEXTTINIT T TREE.
+    assert (pike_subtree t). {
+      eapply pike_actions_pike_tree. 2: eauto using bool_to_istree_regex. pike_subset.
     }
-    assert (Hlpsubset: pike_subtree (initial_nextt_lazyprefix r inp)). {
-      unfold initial_nextt_lazyprefix.
-      eapply pike_actions_pike_tree.
-      2: compute_tr_simpl; apply compute_tr_is_tree.
-      pike_subset.
+    assert (pike_subtree nextt). {
+      eapply subset_semantics; eauto; pike_subset.
+    }
+    assert (Heq: tree = Choice t (GroupAction (Reset []) nextt)). {
+      unfold initial_nextt_lazyprefix in NEXTTINIT.
+      inversion TREE; inversion CONT; destruct plus; [discriminate|]; subst.
+      apply bool_tree_determ with (t1:=titer) in NEXTTINIT; auto.
+      apply bool_tree_determ with (t1:=tskip) in T; auto.
+      now subst.
     }
     unfold first_leaf. unfold pike_tree_initial_state_lazyprefix. constructor; pike_subset; auto.
     intros res STATEND. inversion STATEND; subst.
     simpl. rewrite seqop_none. inversion ACTIVE; subst.
     inversion TLR; subst. rewrite seqop_none.
     apply tree_nd_initial in TR; auto.
-    apply is_tree_eq_compute_tr in H. subst.
+    unfold initial_nextt_lazyprefix in NEXTTINIT; subst; auto.
+  Qed.
 
-    unfold initial_nextt_lazyprefix.
-    now compute_tr_simpl.
+  Lemma initial_nextt_lazyprefix_bool_encoding:
+    forall r inp,
+      bool_encoding CannotExit inp (initial_nextt_actions_lazyprefix r inp).
+  Proof.
+    repeat econstructor.
+    Unshelve. constructor.
   Qed.
 
   (** * Non deterministic results lemmas  *)
