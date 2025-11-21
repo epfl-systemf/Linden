@@ -130,13 +130,11 @@ Definition pike_vm_initial_state (inp:input) : pike_vm_state :=
 Inductive pike_vm_step {strs:StrSearch} (c:code): pike_vm_state -> pike_vm_state -> Prop :=
 | pvs_final:
 (* moving to a final state when there are no more active or blocked threads *)
-(* FIXME: this is not exactly right with regards to the new piketree *)
   forall inp best seen,
     pike_vm_step c (PVS inp [] best [] None seen) (PVS_final best)
-(* FIXME: change name *)
-| pvs_jump:
+| pvs_acc:
 (* if there are no more active or blocked threads and we know where the next prefix matches, *)
-(* we jump to that point *)
+(* we accelerate to that point *)
   forall inp best n lit nextinp seen
     (ADVANCE: advance_input_n inp (S n) forward = nextinp),
     pike_vm_step c (PVS inp [] best [] (Some (n, lit)) seen) (PVS nextinp [pike_vm_initial_thread] best [] (next_prefix_counter nextinp lit) initial_seenpcs)
@@ -151,13 +149,11 @@ Inductive pike_vm_step {strs:StrSearch} (c:code): pike_vm_state -> pike_vm_state
   forall inp1 inp2 best thr blocked seen
     (ADVANCE: advance_input inp1 forward = Some inp2),
     pike_vm_step c (PVS inp1 [] best (thr::blocked) None seen) (PVS inp2 (thr::blocked) best [] None initial_seenpcs)
-(* FIXME: change name *)
-| pvs_nextchar_star:
+| pvs_nextchar_generate:
   forall inp1 inp2 best lit thr blocked seen
     (ADVANCE: advance_input inp1 forward = Some inp2),
     pike_vm_step c (PVS inp1 [] best (thr::blocked) (Some (0, lit)) seen) (PVS inp2 ((thr::blocked) ++ [pike_vm_initial_thread]) best [] (next_prefix_counter inp2 lit) initial_seenpcs)
-(* FIXME: change name *)
-| pvs_nextchar_star_skip:
+| pvs_nextchar_filter:
   forall inp1 inp2 best n lit thr blocked seen
     (ADVANCE: advance_input inp1 forward = Some inp2),
     pike_vm_step c (PVS inp1 [] best (thr::blocked) (Some (S n, lit)) seen) (PVS inp2 (thr::blocked) best [] (Some (n, lit)) initial_seenpcs)
@@ -221,13 +217,13 @@ Proof.
   destruct active as [|[[pc gm] b] active].
   - destruct blocked as [|t blocked].
     + destruct nextprefix.
-      * destruct p. eexists. now apply pvs_jump.
+      * destruct p. eexists. now apply pvs_acc.
       * eexists. apply pvs_final.
     + destruct (advance_input inp forward) eqn:INP.
       * destruct nextprefix.
         -- destruct p as [n lit], n.
-          ++ eexists. apply pvs_nextchar_star. eauto.
-          ++ eexists. apply pvs_nextchar_star_skip. eauto.
+          ++ eexists. apply pvs_nextchar_generate. eauto.
+          ++ eexists. apply pvs_nextchar_filter. eauto.
         -- eexists. apply pvs_nextchar. eauto.
       * eexists. apply pvs_end. eauto.
   - destruct (seen_thread seen (pc,gm,b)) eqn:SEEN.

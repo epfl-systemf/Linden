@@ -856,7 +856,7 @@ Lemma initial_pike_inv:
     pike_inv code (pike_tree_initial_state tree inp) (pike_vm_initial_state inp).
 Proof.
   intros.
-  eapply pikeinv; eauto using ltt_cons, ltt_nil, nnp_none_none, initial_inclusion, initial_tree_thread.
+  eapply pikeinv; eauto using ltt_cons, ltt_nil, nnp_none, initial_inclusion, initial_tree_thread.
 Qed.
 
 
@@ -870,7 +870,7 @@ Lemma initial_pike_inv_lazyprefix {strs:StrSearch}:
     pike_inv code (pike_tree_initial_state_lazyprefix tree nextt inp) (pike_vm_initial_state_lazyprefix (extract_literal r) inp).
 Proof.
   intros r inp code tree nextt TREE COMPILE SUBSET NEXTT.
-  eapply pikeinv; eauto using ltt_cons, ltt_nil, nnp_none_none, initial_inclusion, initial_tree_thread, initial_nextt_nextprefix.
+  eapply pikeinv; eauto using ltt_cons, ltt_nil, nnp_none, initial_inclusion, initial_tree_thread, initial_nextt_nextprefix.
 Qed.
 
 (** * Invariant Preservation  *)

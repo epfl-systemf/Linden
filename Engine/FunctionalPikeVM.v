@@ -63,7 +63,7 @@ Definition pike_vm_func_step (c:code) (pvs:pike_vm_state) : pike_vm_state :=
               match nextprefix with
               | Some (n, lit) =>
                 let nextinp := advance_input_n inp (S n) forward in
-                PVS nextinp [pike_vm_initial_thread] best [] (next_prefix_counter nextinp lit) initial_seenpcs (* pvs_jump *)
+                PVS nextinp [pike_vm_initial_thread] best [] (next_prefix_counter nextinp lit) initial_seenpcs (* pvs_acc *)
               | None => PVS_final best (* pvs_final *)
               end
           | thr::blocked =>
@@ -72,8 +72,8 @@ Definition pike_vm_func_step (c:code) (pvs:pike_vm_state) : pike_vm_state :=
               | Some nextinp =>
                   match nextprefix with
                   | None => PVS nextinp (thr::blocked) best [] None initial_seenpcs (* pvs_nextchar *)
-                  | Some (0, lit) => PVS nextinp (thr::blocked ++ [pike_vm_initial_thread]) best [] (next_prefix_counter nextinp lit) initial_seenpcs (* pvs_nextchar_star *)
-                  | Some (S n, lit) => PVS nextinp (thr::blocked) best [] (Some (n, lit)) initial_seenpcs (* pvs_nextchar_star_skip *)
+                  | Some (0, lit) => PVS nextinp (thr::blocked ++ [pike_vm_initial_thread]) best [] (next_prefix_counter nextinp lit) initial_seenpcs (* pvs_nextchar_generate *)
+                  | Some (S n, lit) => PVS nextinp (thr::blocked) best [] (Some (n, lit)) initial_seenpcs (* pvs_nextchar_filter *)
                   end
               end
           end     

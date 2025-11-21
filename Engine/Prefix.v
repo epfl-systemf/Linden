@@ -19,16 +19,15 @@ Ltac wt_eq := repeat match goal with
   | [ H: context[(?x ==? ?y)%wt] |- _ ] => destruct (x ==? y)%wt eqn:?Heq
 end.
 
-(* FIXME: Rename constructors *)
 Inductive starts_with: string -> string -> Prop :=
-| StartsWith_nil: forall s, starts_with [] s
-| StartsWith_cons: forall h t1 t2, starts_with t1 t2 -> starts_with (h :: t1) (h :: t2).
+| sw_nil: forall s, starts_with [] s
+| sw_cons: forall h t1 t2, starts_with t1 t2 -> starts_with (h :: t1) (h :: t2).
 
 Lemma starts_with_dec:
   forall s1 s2, { starts_with s1 s2 } + { ~ starts_with s1 s2 }.
 Proof.
   induction s1 as [|h1 t1 IH]; intros s2.
-  - eauto using StartsWith_nil.
+  - eauto using sw_nil.
   - destruct s2 as [|h2 t2].
     + right. intros H. inversion H.
     + destruct (h1 ==? h2)%wt eqn:Heq; wt_eq.
@@ -85,11 +84,10 @@ Qed.
 Class StrSearch := {
   str_search : string -> string -> option nat;
 
-  (* FIXME: rename to remove _ss from the names of axioms *)
   (* the found position starts with the searched substring *)
   starts_with_ss: forall s ss i, str_search ss s = Some i -> starts_with ss (List.skipn i s);
   (* there is no earlier position that starts with the searched substring *)
-  no_earlier_ss: forall s ss i, str_search ss s = Some i -> forall i', i' < i -> ~ (starts_with ss (List.skipn i' s));
+  no_earlier: forall s ss i, str_search ss s = Some i -> forall i', i' < i -> ~ (starts_with ss (List.skipn i' s));
   (* if the substring is not found, it cannot appear at any position of the haystack *)
   not_found: forall s ss, str_search ss s = None -> forall i, i <= length s -> ~ (starts_with ss (List.skipn i s))
 }.
@@ -119,7 +117,7 @@ Proof.
   - discriminate.
 Qed.
 
-Lemma brute_force_str_search_no_earlier_ss:
+Lemma brute_force_str_search_no_earlier:
   forall ss s i j,
     brute_force_str_search ss s i = Some j ->
     forall k, i <= k < j ->
@@ -156,8 +154,8 @@ Instance BruteForceStrSearch: StrSearch := {
 }.
   (* starts_with_ss *)
   - intros. eapply brute_force_str_search_starts_with; eauto.
-  (* no_earlier_ss *)
-  - intros. eapply brute_force_str_search_no_earlier_ss; eauto. lia.
+  (* no_earlier *)
+  - intros. eapply brute_force_str_search_no_earlier; eauto. lia.
   (* not_found *)
   - intros. eapply brute_force_str_search_not_found; eauto. lia.
 Defined.
@@ -217,7 +215,7 @@ Proof.
   unfold input_search.
   intros i1 i2 p Hsearch.
   destruct str_search as [n|] eqn:Hstrsearch; [injection Hsearch as <-|discriminate].
-  pose proof (no_earlier_ss _ _ _ Hstrsearch) as Hne.
+  pose proof (no_earlier _ _ _ Hstrsearch) as Hne.
   intros i [[<- | Hssi1] Hss2] Hstarts.
   - specialize (Hne 0).
     assert (n <> 0). {
