@@ -115,14 +115,12 @@ Section PikeTree.
     (* resetting the seen trees *)
     forall inp best blocked tgm seen,
       pike_tree_step (PTS inp [] best (tgm::blocked) None seen) (PTS (next_inp inp) (tgm::blocked) best [] None initial_seentrees)
-  (* FIXME: rename *)
-  | pts_nextchar_star:
+  | pts_nextchar_generate:
     (* when the list of active trees is empty and the next tree is a segment of a lazy star prefix, *)
     (* restart from the blocked ones and the head iteration of the lazy star, proceeding to the next character *)
     (* resetting the seen trees *)
     forall inp c next pref best blocked tgm nextt t1 t2 seen
       (INPUT: inp = Input (c::next) pref)
-      (* FIXME: clean this up to be just (Read c (Choice t1 t2)). The first_leaf is the same for both trees *)
       (NEXTT: nextt = Some (Read c
         (Progress
           (Choice
@@ -130,8 +128,7 @@ Section PikeTree.
             (GroupAction (Reset []) t2))))
       ),
       pike_tree_step (PTS inp [] best (tgm::blocked) nextt seen) (PTS (Input next (c::pref)) ((tgm::blocked) ++ [pike_tree_initial_tree t1]) best [] (Some t2) initial_seentrees)
-  (* FIXME: rename *)
-  | pts_nextchar_star_skip:
+  | pts_nextchar_filter:
     (* when the list of active trees is empty and the next tree is a segment of a lazy star prefix, *)
     (* and the head iteration of the lazy star contains no result, *)
     (* restart from the blocked ones, proceeding to the next character *)
