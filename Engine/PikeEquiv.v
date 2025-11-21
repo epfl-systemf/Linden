@@ -959,10 +959,10 @@ Definition skip_state (pvs:pike_vm_state) : bool :=
 
 
 Theorem invariant_preservation {strs:StrSearch}:
-  forall code lit pts1 pvs1 pvs2
+  forall code pts1 pvs1 pvs2
     (STWF: stutter_wf code)
     (INV: pike_inv code pts1 pvs1)
-    (VMSTEP: pike_vm_step rer code lit pvs1 pvs2),
+    (VMSTEP: pike_vm_step rer code pvs1 pvs2),
     (* either we make a step on both sides, preserving invariant *)
     (
       exists pts2,
@@ -979,7 +979,7 @@ Proof.
   inversion INV; subst.
   (* Final states make no step *)
   2: { inversion VMSTEP. }
-  destruct (skip_state (PVS inp threadactive best threadblocked threadseen)) eqn:SKIP.
+  destruct (skip_state (PVS inp threadactive best threadblocked nextprefix threadseen)) eqn:SKIP.
   (* skip states are performed in lockstep *)
   { left. destruct threadactive as [|[[pc gm] b] active]; simpl in SKIP.
     { inversion SKIP. }
@@ -990,7 +990,7 @@ Proof.
     - assert (teq = tree).
       { eapply tt_same_tree; eauto. }
       subst.
-      exists (PTS inp treeactive best treeblocked treeseen).
+      exists (PTS inp treeactive best treeblocked nextt treeseen).
       split.
       + apply pts_skip; auto.
       + eapply pikeinv; eauto.
@@ -1028,7 +1028,7 @@ Proof.
     (* stuttering step *)
     right. apply stutter_step in TT as H; auto.
     destruct H as [nextpc [nextb [EPSSTEP TT2]]]; subst.
-    assert (pvs2 = (PVS inp ([(nextpc, gm, nextb)] ++ threadactive) best threadblocked (add_thread threadseen (pc,gm,b)))).
+    assert (pvs2 = (PVS inp ([(nextpc, gm, nextb)] ++ threadactive) best threadblocked nextprefix (add_thread threadseen (pc,gm,b)))).
     { eapply pikevm_deterministic; eauto. eapply pvs_active; eauto. }
     subst; simpl; auto. eapply pikeinv; simpl; eauto.
     - constructor; eauto.
@@ -1038,24 +1038,24 @@ Proof.
   destruct (tree_bfs_step t gm (idx inp)) eqn:TREESTEP.
   (* active *)
   - left. eapply generate_active in TREESTEP as H; eauto. destruct H as [newthreads [EPS LTT2]].
-    assert (pvs2 = PVS inp (newthreads ++ threadactive) best threadblocked (add_thread threadseen (pc,gm,b))).
+    assert (pvs2 = PVS inp (newthreads ++ threadactive) best threadblocked nextprefix (add_thread threadseen (pc,gm,b))).
     { eapply pikevm_deterministic; eauto. constructor; auto. }
-    subst. exists (PTS inp (l ++ treeactive) best treeblocked (add_seentrees treeseen t)). split.
+    subst. exists (PTS inp (l ++ treeactive) best treeblocked nextt (add_seentrees treeseen t)). split.
     + eapply pts_active; eauto.
     + eapply pikeinv; try (eapply add_inclusion; eauto); try constructor; eauto.
       apply ltt_app; eauto.
   (* match *)
   - left. eapply generate_match in TREESTEP as THREADSTEP; eauto.
-    assert (pvs2 = PVS inp [] (Some (inp,gm_of (pc,gm,b))) threadblocked (add_thread threadseen (pc,gm,b))).
+    assert (pvs2 = PVS inp [] (Some (inp,gm_of (pc,gm,b))) threadblocked None (add_thread threadseen (pc,gm,b))).
     { eapply pikevm_deterministic; eauto. constructor; auto. }
-    subst. exists (PTS inp [] (Some (inp,gm)) treeblocked (add_seentrees treeseen t)). split.
+    subst. exists (PTS inp [] (Some (inp,gm)) treeblocked None (add_seentrees treeseen t)). split.
     + constructor; auto.
     + eapply pikeinv; try (eapply add_inclusion; eauto); try constructor; eauto.
   (* blocked *)
   - left. specialize (generate_blocked _ _ _ _ _ _ _ TREESTEP STUTTERS TT) as [EPS2 [TT2 [nexti ADVANCE]]].
-    assert (pvs2 = PVS inp threadactive best (threadblocked ++ [(pc+1,gm,CanExit)]) (add_thread threadseen (pc,gm,b))).
+    assert (pvs2 = PVS inp threadactive best (threadblocked ++ [(pc+1,gm,CanExit)]) nextprefix (add_thread threadseen (pc,gm,b))).
     { eapply pikevm_deterministic; eauto. constructor; auto. }
-    subst. exists (PTS inp treeactive best (treeblocked ++ [(t0,gm)]) (add_seentrees treeseen t)). split.
+    subst. exists (PTS inp treeactive best (treeblocked ++ [(t0,gm)]) nextt (add_seentrees treeseen t)). split.
     + eapply pts_blocked; eauto.
     + eapply pikeinv; try (eapply add_inclusion; eauto); try constructor; eauto.
       2: { intros H. rewrite ADVANCE in H. inversion H. }
