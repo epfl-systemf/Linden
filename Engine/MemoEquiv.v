@@ -235,22 +235,25 @@ Section MemoEquiv.
     - repeat invert_rep. simpl. rewrite CHECK, ANCHOR. auto.
   Qed.
 
+
   Lemma exec_read:
-    forall t pc gm b inp code char nextinp,
-      advance_input inp forward = Some nextinp ->
+    forall t pc gm b inp code char,
       tree_config code (Read char t, gm, inp) (pc, gm, b, inp) ->
       stutters pc code = false ->
-      exec_instr rer code (pc, gm, b, inp) = Explore [(pc+1, gm, CanExit, nextinp)] /\
-        tree_config code (t,gm,nextinp) (pc+1,gm,CanExit,nextinp).
+      exists nextinp,
+        advance_input inp forward = Some nextinp /\
+        exec_instr rer code (pc, gm, b, inp) = Explore [(pc+1, gm, CanExit, nextinp)] /\
+          tree_config code (t,gm,nextinp) (pc+1,gm,CanExit,nextinp).
   Proof.
-    intros t pc gm b inp code char nextinp ADVANCE TC NOSTUTTER.
+    intros t pc gm b inp code char TC NOSTUTTER.
     inversion TC; subst; try invert_rep.
     remember (Read char t) as TREAD.
     induction TREE; intros; subst; try inversion HeqTREAD; subst.
     - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
-    - assert (CHECK: check_read rer cd inp forward = CanRead /\ advance_input inp forward = Some nextinp0) by (apply can_read_correct; eauto).
-      destruct CHECK as [CHECK ADVANCE0]. rewrite ADVANCE in ADVANCE0. inversion ADVANCE0. subst.
-      repeat invert_rep. simpl. rewrite CONSUME, READ. split; auto.
+    - repeat invert_rep. exists nextinp.
+      assert (CHECK: check_read rer cd inp forward = CanRead /\ advance_input inp forward = Some nextinp) by (apply can_read_correct; eauto).
+      destruct CHECK as [CHECK ADVANCE0].
+      repeat invert_rep. simpl. rewrite CONSUME, READ. split; auto. split; auto.
       eapply tc_eq; eauto.
       2: { pike_subset. }
       replace (pc + 1) with (S pc) by lia. auto.      
@@ -473,8 +476,8 @@ Section MemoEquiv.
     destruct tree; simpl in TREESTEP; inversion TREESTEP; subst.
     - eapply exec_dead in TC; auto. exists []. split; eauto. constructor.
     - eapply exec_choice; eauto.
-    - eapply exec_read in TC as [EXEC TC]; eauto.
-      2: { admit. }
+    - eapply exec_read in TC as [nextinp [ADV [EXEC TC]]]; eauto.
+      apply PikeTree.advance_next in ADV. subst.
       eexists. split; eauto.
       constructor; eauto. constructor.
     - inversion TC; subst; try no_stutter.
@@ -502,7 +505,7 @@ Section MemoEquiv.
     - inversion TC; subst; try no_stutter.
       eapply subset_semantics in TREE as SUBSETTREE; auto.
       inversion SUBSETTREE.
-  Admitted.
+  Qed.
 
   (* in the case where we are at a stuttering step, we show that we still preserve the invariant *)
   Theorem exec_stutter:
