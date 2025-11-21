@@ -40,7 +40,16 @@ Section MemoEquiv.
       (TT: tree_config code (tree,gm,inp) (pc+1,gm,CannotExit,inp))
       (BEGIN: get_pc code pc = Some BeginLoop),
       tree_config code (tree,gm,inp) (pc,gm,b,inp).
-  
+
+  Lemma tc_same_tree:
+    forall code inp t1 gm1 t2 gm2 pc b
+      (TC1: tree_config code (t1,gm1,inp) (pc,gm1,b,inp))
+      (TC2: tree_config code (t2,gm2,inp) (pc,gm2,b,inp)),
+      t1 = t2.
+  Proof.
+    intros code inp t1 gm1 t2 gm2 pc b TC1 TC2.
+  Admitted.
+
   
   (* the initial active config and the initial active tree are related with the invariant *)
   Lemma initial_tree_thread:
@@ -95,6 +104,23 @@ Section MemoEquiv.
         (stutters pc c = true /\
            exists t gm, pc < currentpc /\ current = Some (t,gm,inp) /\
                      tree_config c (t,gm,inp) (pc,gm,b,inp)).
+
+  Lemma skip_inclusion:
+    forall code inp treeseen memoset tree gm currentpc
+      (INCL: seen_inclusion code treeseen memoset (Some (tree, gm, inp)) currentpc)
+      (SEEN: inseen treeseen tree = true),
+    forall current nextpc,
+      seen_inclusion code treeseen memoset current nextpc.
+  Proof.
+    intros code inp treeseen threadseen tree gm currentpc INCL SEEN current nextpc.
+    unfold seen_inclusion in *.
+    intros pc b inp0 SEENPC.
+    specialize (INCL pc b inp0 SEENPC).
+    destruct INCL as [[ts [gms [SEENs TTs]]] | [ST [ts [gms [GEQ [EQ TTS]]]]]].
+    - left. exists ts. exists gms. split; auto.
+    - left. exists ts. exists gms. split; auto. inversion EQ. subst. auto.
+  Qed.
+
   
   Definition head_pc (stk:list config) : label :=
     match stk with
@@ -107,12 +133,49 @@ Section MemoEquiv.
   | memoinv:
     forall treestk treeseen stk memoset
       (STACK: list_tree_config code treestk stk)
-      (SEEN: seen_inclusion code treeseen memoset (hd_error treestk) (head_pc stk)),
+      (INCL: seen_inclusion code treeseen memoset (hd_error treestk) (head_pc stk)),
       memo_inv code (MTree treestk treeseen) (MBT stk memoset)
   | memoinv_final:
     forall result,
       memo_inv code (MTree_final result) (MBT_final result).
 
+
+  (* identifying states of MemoBT that are going to take a skip step *)
+  Definition skip_state (mbs:mbt_state) : bool :=
+    match mbs with
+    | MBT_final _ => false
+    | MBT stk memoset =>
+        match stk with
+        | [] => false
+        | (pc,gm,b,inp)::stk => is_memo memoset pc b inp
+        end
+    end.
+
+  (* fixme: this resembles generate_match from PikeEquiv.
+     what should be the general version? *)
+  Lemma exec_match:
+    forall t pc gm b inp code leaf,
+      exec_tree (t, gm, inp) = TMatch leaf ->
+      tree_config code (t, gm, inp) (pc, gm, b, inp) ->
+      stutters pc code = false ->
+      exec_instr rer code (pc, gm, b, inp) = FoundMatch leaf.
+  Proof.
+    intros t pc gm b inp code leaf TREESTEP TC NOSTUTTER.
+    unfold exec_tree in TREESTEP. destruct t; inversion TREESTEP; subst. clear TREESTEP.
+    inversion TC; subst; try no_stutter.
+    remember Match as TMATCH.
+    (* here we have to proceed by induction because there are many ways to get a Match tree *)
+    (* it could be epsilon, it could be epsilon followed by epsilon etc *)
+    induction TREE; intros; subst; try inversion HeqTMATCH.
+    - simpl. invert_rep. rewrite ACCEPT. auto.
+    - repeat invert_rep. apply IHTREE; auto. pike_subset.
+    - repeat invert_rep. apply IHTREE; auto.
+      repeat (econstructor; eauto). pike_subset.
+    - repeat invert_rep. apply IHTREE; auto. pike_subset.
+    - destruct greedy; inversion CHOICE.
+  Qed.
+    
+  
   Theorem invariant_preservation:
   forall code mts1 mbs1 mbs2
     (STWF: stutter_wf rer code)
@@ -130,6 +193,48 @@ Section MemoEquiv.
           memo_inv code mts1 mbs2
       ).
   Proof.
+    intros code mts1 mbs1 mbs2 STWF INV MEMOSTEP.
+    inversion INV; subst.
+    (* Final states make no step *)
+    2: { inversion MEMOSTEP. }
+    destruct (skip_state (MBT stk memoset)) eqn:SKIP.
+    (* skip steps are performed in lockstep *)
+    { left. destruct stk as [|[[[pc gm] b] inp] stk]; simpl in SKIP, INCL.
+      { inversion SKIP. }
+      inversion MEMOSTEP; try (rewrite UNSEEN in SKIP; inversion SKIP); subst.
+      inversion STACK; subst.
+      apply INCL in SKIP as [[teq [gmeq [SEENEQ TTEQ]]] | [STUTTER [t' [gm' [GEQ [EQ TTS]]]]]].
+      2: { lia. }
+      assert (teq = tree); subst.
+      { eapply tc_same_tree; eauto. }
+      exists (MTree treelist treeseen). split; constructor; auto.
+      eapply skip_inclusion; eauto.
+    }
+    destruct treestk as [|[[t gm] inp] treestk].
+    (* no more active trees or configs: no match found *)
+    { inversion STACK. subst.
+      left. inversion MEMOSTEP. subst. exists (MTree_final None). split; constructor; auto.
+    }
+    (* there is an active tree/config *)
+    destruct stk as [|[[[pc gm'] b] inp'] stk]; inversion STACK; subst.
+    rename gm' into gm. rename inp' into inp.
+    destruct (stutters pc code) eqn:STUTTERS.
+    (* Stuttering step *)
+    { admit. }
+    left. simpl in SKIP. destruct (exec_tree (t, gm, inp)) eqn:EXEC.
+    (* Match is found *)
+    { eapply exec_match in EXEC as EXEC_INSTR; eauto.
+      assert (mbs2 = MBT_final (Some l)); subst.
+      { eapply memobt_deterministic; eauto. constructor; auto. }
+      exists (MTree_final (Some l)). split; constructor; auto.
+      }
+    (* We keep exploring *)
+    admit.
   Admitted.
+      
+      
+
+    
+
 
 End MemoEquiv.
