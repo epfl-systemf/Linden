@@ -9,7 +9,7 @@ From Linden Require Import Tree Semantics NFA.
 From Linden Require Import BooleanSemantics PikeSubset.
 From Linden Require Import Parameters SeenSets.
 From Warblre Require Import Base RegExpRecord.
-From Linden Require Import PikeEquiv MemoTree MemoBT.
+From Linden Require Import PikeEquiv MemoTree MemoBT TreeRep.
 
 
 Section MemoEquiv.
@@ -32,15 +32,51 @@ Section MemoEquiv.
       tree_config code (tree, gm, inp) (pc, gm, b, inp)
   | tc_reset:
     forall inp tree gm pc b gidl
-      (TT: tree_config code (tree,GroupMap.reset gidl gm,inp) (pc+1,GroupMap.reset gidl gm,b,inp))
+      (TC: tree_config code (tree,GroupMap.reset gidl gm,inp) (pc+1,GroupMap.reset gidl gm,b,inp))
       (RESET: get_pc code pc = Some (ResetRegs gidl)),
       tree_config code (GroupAction (Reset gidl) tree, gm, inp) (pc,gm,b,inp)
   | tc_begin:
     forall inp tree gm pc b
-      (TT: tree_config code (tree,gm,inp) (pc+1,gm,CannotExit,inp))
+      (TC: tree_config code (tree,gm,inp) (pc+1,gm,CannotExit,inp))
       (BEGIN: get_pc code pc = Some BeginLoop),
       tree_config code (tree,gm,inp) (pc,gm,b,inp).
 
+  (* rephrasing the lemma below so that induction handles pairs better *)
+  Lemma tc_same_interm:
+    forall code treegm1 treegm2 config1 config2
+      (TC1: tree_config code treegm1 config1)
+      (TC2: tree_config code treegm2 config2)
+      (SAMEPC: fst (fst (fst config1)) = fst (fst (fst config2)))
+      (SAMEB: snd (fst config1) = snd (fst config2))
+      (SAMEGM1: snd (fst (fst config1)) = snd (fst treegm1))
+      (SAMEGM2: snd (fst (fst config2)) = snd (fst treegm2))
+      (SAMEINP: snd config1 = snd treegm2),
+      fst (fst treegm1) = fst (fst treegm2).
+  Proof.
+    intros code treegm1 treegm2 config1 config2 TC1.
+    generalize dependent config2. generalize dependent treegm2.
+    induction TC1; intros; subst.
+    - inversion TC2; subst;
+        simpl in SAMEB; simpl in SAMEPC; simpl in SAMEGM1; simpl in SAMEGM2; subst;
+        simpl in SAMEINP;
+        try solve[eapply actions_rep_start in CONT; eauto; inversion CONT].
+      simpl. subst. symmetry. eapply actions_rep_unicity in CONT; eauto.
+    - inversion TC2; subst;
+        simpl in SAMEB; simpl in SAMEPC; simpl in SAMEGM1; simpl in SAMEGM2; subst;
+        try solve[eapply actions_rep_start in CONT; eauto; inversion CONT].
+      2: { rewrite BEGIN in RESET. inversion RESET. }
+      rewrite RESET in RESET0. inversion RESET0. subst.
+      specialize (IHTC1 _ _ TC (eq_refl _) (eq_refl _) (eq_refl _) (eq_refl _)).
+      simpl in IHTC1. destruct IHTC1; subst; simpl; auto.
+    - inversion TC2; subst;
+        simpl in SAMEB; simpl in SAMEPC; simpl in SAMEGM1; simpl in SAMEGM2; subst;
+        try solve[eapply actions_rep_start in CONT; eauto; inversion CONT].
+      { rewrite BEGIN in RESET. inversion RESET. }
+      specialize (IHTC1 _ _ TC (eq_refl _) (eq_refl _) (eq_refl _) (eq_refl _)).
+      simpl in IHTC1. destruct IHTC1; subst; simpl; auto.
+  Qed.
+
+  
   Lemma tc_same_tree:
     forall code inp t1 gm1 t2 gm2 pc b
       (TC1: tree_config code (t1,gm1,inp) (pc,gm1,b,inp))
@@ -48,11 +84,12 @@ Section MemoEquiv.
       t1 = t2.
   Proof.
     intros code inp t1 gm1 t2 gm2 pc b TC1 TC2.
-  Admitted.
+    eapply tc_same_interm in TC1; eauto. simpl in TC1. auto.
+  Qed.
 
   
   (* the initial active config and the initial active tree are related with the invariant *)
-  Lemma initial_tree_thread:
+  Lemma initial_tree_config:
     forall r code tree inp
       (COMPILE: compilation r = code)
       (TREE: bool_tree rer [Areg r] inp CanExit tree)
@@ -82,11 +119,11 @@ Section MemoEquiv.
   
   Lemma ltc_app:
     forall code tl1 tl2 vl1 vl2
-      (LTT1: list_tree_config code tl1 vl1)
-      (LTT2: list_tree_config code tl2 vl2),
+      (LTC1: list_tree_config code tl1 vl1)
+      (LTC2: list_tree_config code tl2 vl2),
       list_tree_config code (tl1 ++ tl2) (vl1 ++ vl2).
   Proof.
-    intros. induction LTT1; auto. simpl. econstructor; eauto.
+    intros. induction LTC1; auto. simpl. econstructor; eauto.
   Qed.
 
   (* This is not, strictly speaking, an inclusion, which explains the second case of this disjunction *)
