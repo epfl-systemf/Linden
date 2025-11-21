@@ -105,17 +105,14 @@ Definition epsilon_step (t:thread) (c:code) (i:input): epsilon_result :=
 
 (* semantic states of the PikeVM algorithm *)
 Inductive pike_vm_state : Type :=
+(* FIXME: if we change nextprefix to be : option (nat * literal), this will allow to remove lit completely in the base algorithm *)
 | PVS (inp:input) (active: list thread) (best: option leaf) (blocked: list thread) (nextprefix: option nat) (seen: seenpcs)
 | PVS_final (best: option leaf).
 
 Definition next_prefix_counter {strs:StrSearch} (inp: input) (lit: literal) : option nat :=
   match advance_input inp forward with
   | None => None
-  | Some nextinp =>
-    match input_search (prefix lit) nextinp with
-    | None => None
-    | Some nextpref => Some (idx nextpref - idx nextinp)
-    end
+  | Some (Input next pref) => str_search (prefix lit) next
   end.
 
 Definition pike_vm_initial_thread : thread := (0, GroupMap.empty, CanExit).
