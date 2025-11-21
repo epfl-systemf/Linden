@@ -215,6 +215,44 @@ Section MemoEquiv.
       memo_inv code (MTree_final result) (MBT_final result).
 
 
+  (** * Invariant Initialization  *)
+
+  Lemma initial_inclusion:
+    forall c current currentpc,
+      seen_inclusion c initial_seentrees initial_memoset current currentpc.
+  Proof.
+    intros c current currentpc. unfold seen_inclusion. intros pc b inp SEEN.
+    rewrite initial_empty in SEEN. inversion SEEN.
+  Qed.
+
+
+  (* the initial states of both smallstep semantics are related with the invariant *)
+  Lemma initial_memo_inv:
+    forall r inp tree code
+      (TREE: bool_tree rer [Areg r] inp CanExit tree)
+      (COMPILE: compilation r = code)
+      (SUBSET: pike_regex r),
+      memo_inv code (initial_tree_state tree inp) (MemoBT.initial_state inp).
+  Proof.
+    intros r inp tree code TREE COMPILE SUBSET.
+    unfold compilation in COMPILE. destruct (compile r 0) as [c fresh] eqn:COMP.
+    apply compile_nfa_rep with (prev := []) in COMP as REP; auto. simpl in REP.
+    apply fresh_correct in COMP. simpl in COMP. subst.
+    eapply memoinv; auto.
+    - econstructor.
+      + constructor.
+      + apply tc_eq with (actions:=[Areg r]); auto.
+        2: { pike_subset. }
+        eapply cons_bc; constructor.
+        * apply nfa_rep_extend; eauto.
+        * replace (length c) with (length c + 0) by auto.
+          rewrite get_prefix. auto.
+    - apply initial_inclusion.
+  Qed.
+
+
+  (** * Invariant Preservation  *)
+
   (* identifying states of MemoBT that are going to take a skip step *)
   Definition skip_state (mbs:mbt_state) : bool :=
     match mbs with
