@@ -359,29 +359,37 @@ Qed.
     - inversion H0; subst; rewrite ANCHOR0 in ANCHOR; inversion ANCHOR. auto.
   Qed.
 
-(** * Unused direction  *)
 (* the other direction of implication is obtained using only determinism and productivity *)
-(* but in our engine proofs we don't actually need this direction *)
-
 
   Theorem bool_to_istree:
-  forall r inp t,
-    pike_regex r ->
-    bool_tree [Areg r] inp CanExit t ->
-    is_tree rer [Areg r] inp GroupMap.empty forward t.
+    forall acts b inp t,
+      bool_encoding b inp acts ->
+      pike_actions acts ->
+      bool_tree acts inp b t ->
+      is_tree rer acts inp GroupMap.empty forward t.
   Proof.
-    intros r inp t H H0.
+    intros acts b inp t ENCODE H H0.
     (* productivity *)
-    assert (exists t', is_tree rer [Areg r] inp GroupMap.empty forward t') as [t' ISTREE].
-    { destruct (compute_tree rer [Areg r] inp  GroupMap.empty forward (S (actions_fuel [Areg r] inp forward))) eqn:PROD.
+    assert (exists t', is_tree rer acts inp GroupMap.empty forward t') as [t' ISTREE].
+    { destruct (compute_tree rer acts inp  GroupMap.empty forward (S (actions_fuel acts inp forward))) eqn:PROD.
       2: { generalize functional_terminates. intros H1. apply H1 in PROD; auto; lia. }
       exists t0. eapply compute_is_tree; eauto. }
-    (* deprecated: when we had to prove valid checks *)
-      (* unfold inp_valid_checks. simpl. intros strcheck [H1|H1]; inversion H1. } *)
-    apply boolean_correct in ISTREE as BOOLTREE; auto.
+    eapply encode_equal in ISTREE as BOOLTREE; eauto.
     (* determinism *)
     assert (t = t') by (eapply bool_tree_determ; eauto). subst. auto.
-Qed.
+  Qed.
+
+  Theorem bool_to_istree_regex:
+    forall r inp t,
+      pike_regex r ->
+      bool_tree [Areg r] inp CanExit t ->
+      is_tree rer [Areg r] inp GroupMap.empty forward t.
+  Proof.
+    intros r inp t H H0.
+    assert (bool_encoding CanExit inp [Areg r]) by (constructor; constructor).
+    eapply bool_to_istree; eauto; pike_subset.
+  Qed.
+
 
   Theorem booltree_istree_equiv:
     forall r inp t,
@@ -390,7 +398,7 @@ Qed.
       is_tree rer [Areg r] inp GroupMap.empty forward t.
   Proof.
     intros r inp t SUBSET. split.
-    - apply bool_to_istree; auto.
+    - apply bool_to_istree_regex; auto.
     - apply boolean_correct; auto.
   Qed.
 

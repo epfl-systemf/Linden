@@ -8,7 +8,7 @@ From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeSubset.
 From Linden Require Import TreeRep SeenSets.
-From Linden Require Import Parameters Prefix FunctionalUtils.
+From Linden Require Import Parameters Prefix.
 From Warblre Require Import Base RegExpRecord.
 
 
@@ -843,7 +843,6 @@ Proof.
   unfold stutters. rewrite H2. destruct b0; auto.
 Qed.
 
-  
 
 
 (** * Invariant Initialization  *)
@@ -856,48 +855,22 @@ Lemma initial_pike_inv:
     (SUBSET: pike_regex r),
     pike_inv code (pike_tree_initial_state tree inp) (pike_vm_initial_state inp).
 Proof.
-  intros r inp tree code TREE COMPILE SUBSET.
-  unfold compilation in COMPILE. destruct (compile r 0) as [c fresh] eqn:COMP.
-  apply compile_nfa_rep with (prev := []) in COMP as REP; auto. simpl in REP.
-  apply fresh_correct in COMP. simpl in COMP. subst.
-  eapply pikeinv; auto.
-  - econstructor.
-    + constructor.
-    + apply tt_eq with (actions:=[Areg r]); auto.
-      2: { pike_subset. }
-      eapply cons_bc; constructor.
-      * apply nfa_rep_extend; eauto.
-      * replace (length c) with (length c + 0) by auto.
-        rewrite get_prefix. auto.
-  - constructor.
-  - apply initial_inclusion.
+  intros.
+  eapply pikeinv; eauto using ltt_cons, ltt_nil, nnp_none_none, initial_inclusion, initial_tree_thread.
 Qed.
+
 
 (* FIXME: rename all definitions from lazyprefix to lazy_prefix *)
 Lemma initial_pike_inv_lazyprefix {strs:StrSearch}:
-  forall r inp code
+  forall r inp code tree nextt
+    (TREE: bool_tree rer [Areg r] inp CanExit tree)
     (COMPILE: compilation r = code)
-    (SUBSET: pike_regex r),
-    pike_inv code (pike_tree_initial_state_lazyprefix rer r inp) (pike_vm_initial_state_lazyprefix (extract_literal r) inp).
+    (SUBSET: pike_regex r)
+    (NEXTT: initial_nextt_lazyprefix rer r inp nextt),
+    pike_inv code (pike_tree_initial_state_lazyprefix tree nextt inp) (pike_vm_initial_state_lazyprefix (extract_literal r) inp).
 Proof.
-  intros r inp code COMPILE SUBSET.
-  unfold compilation in COMPILE. destruct (compile r 0) as [c fresh] eqn:COMP.
-  apply compile_nfa_rep with (prev := []) in COMP as REP; auto. simpl in REP.
-  apply fresh_correct in COMP. simpl in COMP. subst.
-  eapply pikeinv; auto.
-  - econstructor.
-    + constructor.
-    + apply tt_eq with (actions:=[Areg r]); auto.
-      1: {
-        apply booltree_istree_equiv; auto using compute_tr_eq_is_tree.
-      }
-      2: { pike_subset. }
-      eapply cons_bc; constructor.
-      * apply nfa_rep_extend; eauto.
-      * replace (length c) with (length c + 0) by auto.
-        rewrite get_prefix. auto.
-  - constructor.
-  - apply initial_inclusion.
+  intros r inp code tree nextt TREE COMPILE SUBSET NEXTT.
+  eapply pikeinv; eauto using ltt_cons, ltt_nil, nnp_none_none, initial_inclusion, initial_tree_thread, initial_nextt_nextprefix.
 Qed.
 
 (** * Invariant Preservation  *)

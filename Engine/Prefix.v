@@ -737,15 +737,26 @@ Proof.
 Qed.
 
 (* the contrapositive of extract_literal_prefix *)
+Corollary extract_literal_prefix_general_contra:
+  forall acts tree inp,
+    is_tree rer acts inp Groups.GroupMap.empty forward tree ->
+    ~(starts_with (prefix (extract_actions_literal acts)) (next_str inp)) ->
+    first_leaf tree inp = None.
+Proof.
+  intros.
+  rewrite is_none_iff_not_exists_some.
+  eauto using extract_literal_prefix_general.
+Qed.
+
 Corollary extract_literal_prefix_contra:
   forall r tree inp,
     is_tree rer [Areg r] inp Groups.GroupMap.empty forward tree ->
     ~(starts_with (prefix (extract_literal r)) (next_str inp)) ->
     first_leaf tree inp = None.
 Proof.
+  intro r; rewrite <- (extract_actions_literal_regex r).
   intros.
-  rewrite is_none_iff_not_exists_some.
-  eauto using extract_literal_prefix.
+  eauto using extract_literal_prefix_general_contra.
 Qed.
 
 (* extracting Impossible means there can be no match *)
