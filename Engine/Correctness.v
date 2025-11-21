@@ -10,6 +10,8 @@ From Linden Require Import PikeEquiv PikeSubset.
 From Linden Require Import EquivMain RegexpTranslation GroupMapMS.
 From Linden Require Import ResultTranslation FunctionalUtils SeenSets.
 From Linden Require Import Parameters Prefix.
+From Linden Require Import MemoTree MemoBT MemoEquiv.
+From Linden Require Import Parameters.
 From Warblre Require Import Base Semantics Result RegExpRecord StaticSemantics.
 Import Result.Notations.
 
@@ -55,7 +57,7 @@ Proof.
   intros svm1 st1 svm2 code STWF INVARIANT TRCVM.
   generalize dependent st1. induction TRCVM; intros.
   { exists st1. split; auto. apply trc_refl. }
-  eapply invariant_preservation in STEP; eauto.
+  eapply PikeEquiv.invariant_preservation in STEP; eauto.
   destruct STEP as [[pts2 [TSTEP INV]] | INV].
   - apply IHTRCVM in INV as [st2 [TTRC TINV]].
     exists st2. split; auto. eapply trc_cons; eauto.
@@ -220,3 +222,109 @@ Proof.
 Qed.
 
 End Correctness.
+
+Section MemoBTCorrectness.
+
+  Context {params: LindenParameters}.
+  Context {MS: MemoSet params}.
+  Context (rer: RegExpRecord).
+
+Definition trc_memo_tree := @trc mtree_state memotree_step.
+Definition trc_memo_bt (c:code) := @trc mbt_state (memobt_step rer c).
+
+(* The Pike invariant is preserved through the TRC *)
+Lemma memobt_to_tree:
+  forall mbs1 mts1 mbs2 code
+    (STWF: stutter_wf rer code)
+    (INVARIANT: memo_inv rer code mts1 mbs1)
+    (TRCBT: trc_memo_bt code mbs1 mbs2),
+    exists mts2, trc_memo_tree mts1 mts2 /\ memo_inv rer code mts2 mbs2.
+Proof.
+  intros mbs1 mts1 mbs2 code STWF INVARIANT TRCBT.
+  generalize dependent mts1. induction TRCBT; intros.
+  { exists mts1. split; auto. apply trc_refl. }
+  eapply MemoEquiv.invariant_preservation in STEP; eauto.
+  destruct STEP as [[mbs2 [TSTEP INV]] | INV].
+  - apply IHTRCBT in INV as [mts2 [TTRC TINV]].
+    exists mts2. split; auto. eapply trc_cons; eauto.
+  - apply IHTRCBT in INV as [mts2 [TTRC TINV]].
+    exists mts2. split; auto.
+Qed.
+
+(* Any execution of MemoBT to a final state corresponds to an execution of MemoTree *)
+Theorem memobt_to_memotree:
+  forall r inp tree result,
+    pike_regex r -> 
+    bool_tree rer [Areg r] inp CanExit tree ->
+    trc_memo_bt (compilation r) (MemoBT.initial_state inp) (MBT_final result) ->
+    trc_memo_tree (initial_tree_state tree inp) (MTree_final result).
+Proof.
+  intros r inp tree result SUBSET TREE TRCBT.
+  generalize (initial_memo_inv rer r inp tree (compilation r) TREE (@eq_refl _ _) SUBSET).
+  intros INIT.
+  eapply memobt_to_tree in TRCBT as [btfinal [TRCTREE INV]]; eauto.
+  - inversion INV; subst. auto.
+  - eapply compilation_stutter_wf; eauto.
+Qed.
+
+(* Through the TRC of MemoTree, the result is the result of the tree *)
+Lemma memo_tree_trc_correct:
+  forall s1 s2 result
+    (INV: memotree_inv s1 result)
+    (TRC: trc_memo_tree s1 s2),
+    memotree_inv s2 result.
+Proof.
+  intros s1 s2 result INV TRC.
+  induction TRC; auto.
+  apply IHTRC. eapply memotree_preservation; eauto.
+Qed.
+
+  
+(** * Correctness Theorem of the PikeVM result  *)
+
+Theorem memobt_correct:
+  forall r inp tree result,
+    (* the regex `r` is in the supported subset *)
+    pike_regex r ->
+    (* `tree` is the tree of the regex `r` for the input `inp` *)
+    is_tree rer [Areg r] inp GroupMap.empty forward tree ->
+    (* the result of MemoBT is `result` *)
+    trc_memo_bt (compilation r) (MemoBT.initial_state inp) (MBT_final result) ->
+    (* This `result` is the priority result of the `tree` *)
+    result = first_leaf tree inp.
+Proof.
+  intros r inp tree result SUBSET TREE TRC.
+  eapply encode_equal with (b:=CanExit) in TREE as BOOLTREE; pike_subset.
+  eapply memobt_to_memotree in TRC; eauto.
+  assert (SUBTREE: pike_subtree tree).
+  { eapply pike_actions_pike_tree with (cont:=[Areg r]); eauto.
+    pike_subset. }
+  generalize (init_memotree_inv tree inp SUBTREE). intros INIT.
+  eapply memo_tree_trc_correct in TRC as FINALINV; eauto.
+  inversion FINALINV. subst. auto.
+Qed.
+
+
+(* Equivalence of PikeVM to Warblre backtracking algorithm *)
+Theorem memobt_same_warblre:
+  forall lr wr inp,
+    pike_regex lr ->
+    equiv_regex wr lr ->
+    RegExpRecord.capturingGroupsCount rer = StaticSemantics.countLeftCapturingParensWithin wr nil ->
+    EarlyErrors.Pass_Regex wr nil ->
+    forall result,
+      trc_memo_bt (compilation lr) (MemoBT.initial_state inp) (MBT_final result) ->
+      EquivDef.equiv_res result ((EquivMain.compilePattern wr rer) (input_str inp) (idx inp)).
+Proof.
+  intros lr wr inp Hpike Hequiv Hcapcount HearlyErrors.
+  pose proof equiv_main wr lr rer inp Hequiv Hcapcount HearlyErrors as HequivMain.
+  destruct HequivMain as [m [res [Hcompsucc [Hexecsucc Hsameresult]]]].
+  unfold compilePattern. rewrite Hcompsucc, Hexecsucc.
+  set (tree := FunctionalUtils.compute_tr rer [Areg lr] inp GroupMap.empty forward).
+  specialize (Hsameresult tree eq_refl). destruct Hsameresult as [His_tree Hsameresult].
+  intros result Hpikeresult.
+  pose proof memobt_correct lr inp tree result Hpike His_tree Hpikeresult as Hsameresult'.
+  rewrite Hsameresult'. assumption.
+Qed.
+
+End MemoBTCorrectness.
