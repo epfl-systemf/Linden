@@ -103,6 +103,31 @@ Section PikeTree.
     PTS i [pike_tree_initial_tree t] None [] (Some nextt) initial_seentrees.
   Definition pike_tree_initial_state (t:tree) (i:input) : pike_tree_state :=
     PTS i [pike_tree_initial_tree t] None [] None initial_seentrees.
+  
+  (* non-deterministic acceleration by skipping head branches with no results *)
+  Inductive pike_tree_acc : input -> tree -> input -> tree -> tree -> Prop :=
+  | acc_keep:
+      forall inp c next pref nextt t1 t2
+      (INPUT: inp = Input (c::next) pref)
+      (NEXTT: nextt = Read c
+        (Progress
+          (Choice
+            t1
+            (GroupAction (Reset []) t2)))
+      ),
+      pike_tree_acc inp nextt (Input next (c::pref)) t2 t1
+  | acc_skip:
+      forall inp c next pref nextt t1 t2 nextinp acc t
+      (INPUT: inp = Input (c::next) pref)
+      (NEXTT: nextt = Read c
+        (Progress
+          (Choice
+            t1
+            (GroupAction (Reset []) t2)))
+      )
+      (LEAF: first_leaf t1 (Input next (c::pref)) = None)
+      (TRANS: pike_tree_acc (Input next (c::pref)) t2 nextinp acc t),
+      pike_tree_acc inp nextt nextinp acc t.
 
   (* Small-step semantics for the PikeTree algorithm *)
   Inductive pike_tree_step : pike_tree_state -> pike_tree_state -> Prop :=
@@ -112,11 +137,17 @@ Section PikeTree.
     forall inp t gm active best blocked nextt seen
       (SEEN: inseen seen t = true),
       pike_tree_step (PTS inp ((t,gm)::active) best blocked nextt seen) (PTS inp active best blocked nextt seen)
+  | pts_acc:
+  (* if there are no more active or blocked trees and we have some nextt, *)
+  (* we accelerate by non-deterministically skipping branches with no results *)
+    forall inp best seen nextinp nextt acc t
+      (ACC: pike_tree_acc inp nextt nextinp acc t),
+      pike_tree_step (PTS inp [] best [] (Some nextt) seen) (PTS nextinp [pike_tree_initial_tree t] best [] (Some acc) initial_seentrees)
   | pts_final:
   (* moving to a final state when there are no more active or blocked trees *)
-    forall inp best nextt nextres seen
-      (NEXTT: nextres = option_flat_map (fun t => first_leaf t inp) nextt),
-      pike_tree_step (PTS inp [] best [] nextt seen) (PTS_final (seqop nextres best))
+    forall inp best nextt seen
+      (LEAF: option_flat_map (fun t => first_leaf t inp) nextt = None),
+      pike_tree_step (PTS inp [] best [] nextt seen) (PTS_final best)
   | pts_nextchar:
     (* when the list of active trees is empty, restart from the blocked ones, proceeding to the next character *)
     (* resetting the seen trees *)
@@ -468,6 +499,18 @@ Section PikeTree.
   Qed.
 
 
+  Lemma pike_tree_acc_pike_subtree:
+    forall inp nextt nextinp acc t,
+      pike_tree_acc inp nextt nextinp acc t ->
+      pike_subtree nextt ->
+      pike_subtree acc /\ pike_subtree t.
+  Proof.
+    intros inp nextt nextinp acc t ACC SUBSET.
+    induction ACC; subst.
+    - pike_subset.
+    - apply IHACC. pike_subset.
+  Qed.
+
   (* using the size of the tree will help us make sure that whenever a tree generates active subtrees, *)
   (* none of these subtrees can contain the parent tree that generated them *)
   Fixpoint size (t:tree) : nat :=
@@ -498,6 +541,33 @@ Section PikeTree.
       + apply IHTREEND2; auto. lia.
   Qed.
 
+  Lemma pike_tree_acc_pts_preservation:
+    forall inp best nextt nextinp acc t res seen,
+      pike_subtree nextt ->
+      pike_tree_acc inp nextt nextinp acc t ->
+      state_nd nextinp [pike_tree_initial_tree t] best [] (Some acc) initial_seentrees res ->
+      state_nd inp [] best [] (Some nextt) seen res.
+  Proof.
+    intros inp best nextt nextinp acc t res seen SUBSET ACC STATEND.
+    pose proof (pike_tree_acc_pike_subtree _ _ _ _ _ ACC SUBSET) as [SUBSET_ACC SUBSET_T].
+    
+    inversion STATEND; subst.
+    apply list_nd_initial in ACTIVE; pike_subset.
+    econstructor; try econstructor. subst.
+    unfold list_result, seqop_list.
+    
+    induction ACC; subst; simpl.
+    - unfold first_leaf. simpl. unfold advance_input', advance_input.
+      now rewrite <-seqop_assoc.
+    - replace
+        (first_leaf (Read c (Progress (Choice t1 (GroupAction (Reset []) t2)))) (Input (c :: next) pref))
+        with (first_leaf t2 (Input next (c :: pref))).
+      apply IHACC; eauto; pike_subset.
+
+      unfold first_leaf. simpl. unfold advance_input', advance_input.
+      unfold first_leaf in LEAF. rewrite LEAF. reflexivity.
+  Qed.
+
   (** * Invariant Preservation  *)
 
   Theorem pts_preservation:
@@ -509,22 +579,26 @@ Section PikeTree.
     intros pts1 pts2 res PSTEP INVARIANT.
     destruct INVARIANT.
     2: { inversion PSTEP. }
-    inversion PSTEP; subst; [| | | | |destruct t; inversion STEP; subst| |].
+    inversion PSTEP; subst; [| | | | | |destruct t; inversion STEP; subst| |].
     (* skipping *)
     - constructor; pike_subset; auto. intros res STATEND.
       apply SAMERES. inversion STATEND; subst.
       econstructor; eauto. replace r2 with (seqop None r2) by (simpl; auto).
       eapply tlr_cons; eauto. apply tr_skip. auto.
+    (* acceleration *)
+    - pose proof (pike_tree_acc_pike_subtree _ _ _ _ _ ACC SUBSET_NE) as [SUBSET_ACC SUBSET_T].
+      constructor; pike_subset; auto. intros res STATEND. apply SAMERES.
+      eauto using pike_tree_acc_pts_preservation.
     (* final *)
-    - assert ((seqop (option_flat_map (fun t : tree => first_leaf t inp) nextt) best) = result).
-      { apply SAMERES. econstructor; econstructor. }
+    - assert (best = result).
+      { apply SAMERES. econstructor; try econstructor. now rewrite LEAF. }
       subst. constructor.
     (* nextchar *)
     - constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
       apply list_nd_initial in ACTIVE; pike_subset.
       simpl. subst.
       apply SAMERES. econstructor; econstructor.
-    (* nextchar star *)
+    (* nextchar_generate *)
     - constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
       apply list_nd_initial in ACTIVE; pike_subset.
       simpl. subst. 
@@ -547,7 +621,7 @@ Section PikeTree.
 
       unfold first_leaf. simpl. unfold advance_input', advance_input.
       now rewrite <-seqop_assoc.
-    (* nextchar star skip *)
+    (* nextchar_filter *)
     - constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
       apply list_nd_initial in ACTIVE; pike_subset.
       simpl. subst. 
