@@ -799,6 +799,95 @@ Proof.
   - right. split; auto. exists ts. exists gms. split; auto. lia.
 Qed.
 
+(** * Nextt/Nextprefix invariant lemmas *)
+Lemma nextt_nextprefix_none_nores:
+  forall code inp nextt t,
+    nextt = Some t ->
+    nextt_nextprefix code inp nextt None ->
+    first_leaf t inp = None.
+Proof.
+  intros code inp nextt t Heq H.
+  generalize dependent t.
+  remember None as nextprefix.
+  induction H; intros t T; subst;
+    try discriminate;
+    injection T as <-; auto.
+
+  unfold first_leaf in *. simpl. unfold advance_input', advance_input.
+  now rewrite LEAF, IHnextt_nextprefix.
+Qed.
+
+Lemma initial_nextt_nextprefix {strs:StrSearch}:
+  forall inp r code nextt,
+    pike_regex r ->
+    compilation r = code ->
+    initial_nextt_lazyprefix rer r inp nextt ->
+    nextt_nextprefix code inp (Some nextt) (next_prefix_counter inp (extract_literal r)).
+Proof.
+  unfold initial_nextt_lazyprefix, next_prefix_counter.
+  intros inp r.
+  destruct inp as [next pref].
+  generalize dependent pref.
+  induction next; intros pref code nextt SUBSET COMPILE TREE; simpl.
+
+  1: inversion TREE; subst; [discriminate|constructor].
+
+  inversion TREE; [|discriminate]; inversion TREECONT; inversion TREECONT0; destruct plus; [discriminate|subst];
+
+  inversion READ; subst; simpl.
+
+  destruct str_search eqn:Hsearch.
+  - destruct n as [|n]; (econstructor; eauto).
+    + eapply extract_literal_prefix_contra with (r:=r).
+      (* FIXME: str search relies on the ignore case flag being off *)
+      admit.
+      eapply bool_to_istree_regex; eauto.
+      replace next with (skipn 0 next) by easy.
+      eapply no_earlier in Hsearch; [eauto|lia].
+    + specialize (IHnext (c::pref)).
+      assert (
+        match advance_input (Input next (c::pref)) forward with
+        | Some (Input nextinp _) =>
+            match str_search (prefix (extract_literal r)) nextinp with
+            | Some n' => Some (n', extract_literal r)
+            | None => None
+            end
+        | None => None
+        end = Some (n, extract_literal r)
+      ). {
+        (* since str_search returned (S n), nextinp must be c' :: next' *)
+        pose proof (str_search_succ_cons _ _ _ Hsearch) as [c' [next' ->]].
+        simpl.
+        now rewrite (str_search_succ_next _ _ _ _ Hsearch).
+      }
+      rewrite H in IHnext.
+      eapply IHnext; eauto.
+  - eapply nnp_nonext. eauto.
+    + eapply extract_literal_prefix_contra.
+      (* FIXME: str search relies on the ignore case flag being off *)
+      admit.
+      eapply bool_to_istree_regex; eauto.
+      replace next with (skipn 0 next) by easy.
+      eapply not_found in Hsearch; [eauto|lia].
+    + specialize (IHnext (c::pref)).
+      assert (
+        match advance_input (Input next (c::pref)) forward with
+        | Some (Input nextinp _) =>
+            match str_search (prefix (extract_literal r)) nextinp with
+            | Some n' => Some (n', extract_literal r)
+            | None => None
+            end
+        | None => None
+        end = None
+      ). {
+        destruct next as [|c' next']; simpl; [reflexivity|].
+        now rewrite (str_search_none_next _ _ _ Hsearch).
+      }
+
+      rewrite H in IHnext.
+      eapply IHnext; eauto.
+Admitted.
+
 (** * Code Stuttering Well-formedness *)
 (* to show that a stuttering step cannot lead the PikeVM to immediately memoize something that was not memoized by the PikeTree, we need to show that stutteing instructions always point to a greater pc *)
 
@@ -1044,6 +1133,27 @@ Proof.
     (* no more active trees or threads *)
     inversion ACTIVE; subst.
     destruct treeblocked as [|[tblocked gmblocked] treeblocked].
+    - assert (threadblocked = []). {
+        destruct (advance_input inp) eqn:ADV.
+        - specialize (BLOCKED i (eq_refl (Some i))). now inversion BLOCKED.
+        - now apply ENDVM.
+      } subst.
+      simpl in *.
+
+      destruct nextprefix as [nextprefix|].
+      (* accelerate step *)
+      + inversion VMSTEP; subst.
+      (* final step *)
+      + replace pvs2 with (PVS_final best) by now inversion VMSTEP.
+        left.
+        inversion NEXTTPREFIX; subst; eauto using pts_final, pikeinv_final.
+        
+        pose proof (nextt_nextprefix_none_nores _ _ _ _ (eq_refl (Some t2)) REST) as LEAF2.
+        eexists. split.
+        * eapply pts_final.
+          unfold first_leaf in *. simpl. unfold advance_input', advance_input.
+          now rewrite LEAF, LEAF2.
+        * apply pikeinv_final.
     - destruct (advance_input inp) eqn:ADV; [|discriminate (ENDTREE (eq_refl None))].
       specialize (BLOCKED i (eq_refl (Some i))). inversion BLOCKED; subst.
 
