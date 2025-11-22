@@ -98,7 +98,74 @@ Class StrSearch := {
   not_found: forall s ss, str_search ss s = None -> forall i, i <= length s -> ~ (starts_with ss (List.skipn i s))
 }.
 
-(* An example instance of StrSearch using brute force *)
+(* FIXME: try to remove these lemmas *)
+Lemma str_search_bound {strs: StrSearch}:
+  forall ss s i,
+    str_search ss s = Some i ->
+    i <= length s.
+Proof.
+  intros ss s i H.
+  pose proof (starts_with_ss _ _ _ H) as Hsw.
+  destruct (le_lt_dec i (length s)); [assumption|exfalso].
+  destruct ss as [|c ss'].
+  - destruct i; [lia|].
+    apply (no_earlier _ _ _ H i ltac:(lia)). constructor.
+  - assert (Hlen: length (skipn i s) = 0) by (rewrite skipn_length; lia).
+    destruct (skipn i s); [inversion Hsw|discriminate].
+Qed.
+
+Lemma str_search_succ_cons {strs: StrSearch}:
+  forall ss s i,
+    str_search ss s = Some (S i) ->
+    exists c t, s = c :: t.
+Proof.
+  intros ss s i H.
+  destruct s as [|c t].
+  - pose proof (no_earlier _ _ _ H i ltac:(lia)) as Hn.
+    pose proof (starts_with_ss _ _ _ H) as Hp.
+    now rewrite skipn_nil in Hn.
+  - eauto.
+Qed.
+
+Lemma str_search_succ_next {strs: StrSearch}:
+  forall ss c t i,
+    str_search ss (c::t) = Some (S i) ->
+    str_search ss t = Some i.
+Proof.
+  intros ss c t i H.
+  pose proof (starts_with_ss _ _ _ H) as Hsw. simpl in Hsw.
+  
+  destruct (str_search ss t) as [j|] eqn:Hst; [f_equal|exfalso].
+  - destruct (Nat.lt_trichotomy i j) as [Hij | [Hij | Hij]].
+    + (* i < j: H should have returned None then *)
+      exfalso. eapply (no_earlier _ _ _ Hst); eauto.
+    + (* i = j *)
+      easy.
+    + (* i > j: H should have returned S j *)
+      exfalso.
+      pose proof (starts_with_ss _ _ _ Hst).
+      now apply (no_earlier _ _ _ H (S j) ltac:(lia)).
+  - (* but H returned some result, contradiction from not_found *)
+    assert (i <= length t). {
+      pose proof (str_search_bound _ _ _ H) as Hbound.
+      simpl in Hbound. lia.
+    }
+    eapply not_found; eauto.
+Qed.
+
+Lemma str_search_none_next {strs: StrSearch}:
+  forall ss c t,
+    str_search ss (c::t) = None ->
+    str_search ss t = None.
+Proof.
+  intros ss c t H.
+
+  destruct (str_search ss t) eqn:Hst; [|reflexivity].
+  assert (S n <= length (c::t)) by (simpl; pose proof (str_search_bound _ _ _ Hst); lia).
+  
+  apply starts_with_ss in Hst.
+  now pose proof (not_found _ _ H (S n) ltac:(lia)) as Hn.
+Qed.
 
 (* Search from position i onwards in string s for substring ss *)
 Function brute_force_str_search (ss s: string) (i: nat) {measure (fun i => S (length s) - i) i} : option nat :=
