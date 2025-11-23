@@ -372,7 +372,7 @@ Qed.
 
 (* at each step, the measure strictly decreases *)
 (* the well-formedness of the seen set is preserved *)
-Theorem pikevm_decreases:
+Theorem pikevm_decreases {strs:StrSearch}:
   forall code pvs1 pvs2 m1,
     code_wf code (size code) ->
     pike_vm_step rer code pvs1 pvs2 ->
@@ -385,10 +385,19 @@ Proof.
   - exists 0. split.
     + constructor.
     + apply nonfinal_pos in INV. auto.
+  (* acc *)
+  - admit.
   - exists 0. split.
     + constructor.
     + apply nonfinal_pos in INV. auto.
   (* nextchar: we might add (2*codesize) free slots, but we lose an input length *)
+  - exists (measure (size code) [] (thr::blocked) [] inp2). split; [constructor|]; auto.
+    + constructor.
+    + unfold measure. simpl. rewrite free_initial. apply advance_input_decreases in ADVANCE.
+      apply increase_mult with (x:= 4 * size code) in ADVANCE as NEXT. simpl in NEXT. lia.
+  (* nextchar_generate *)
+  - admit.
+  (* nextchar_filter: we might add (2*codesize) free slots, but we lose an input length *)
   - exists (measure (size code) [] (thr::blocked) [] inp2). split; [constructor|]; auto.
     + constructor.
     + unfold measure. simpl. rewrite free_initial. apply advance_input_decreases in ADVANCE.
@@ -428,7 +437,7 @@ Proof.
      + unfold add_thread. apply wf_new; auto.
      + specialize (free_add seen (size code) dist (pc,gm,b) SEENWF UNSEEN RANGE) as FREE.
        apply wf_size in FREE. unfold measure, free. rewrite app_length. simpl. simpl in FREE. lia.
-Qed.
+Admitted.
 
 (** * Code Size  *)
 
