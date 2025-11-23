@@ -527,16 +527,20 @@ Inductive nextt_nextprefix (code:code): input -> option tree -> option (nat * li
   forall pref,
     nextt_nextprefix code (Input [] pref) (Some Mismatch) None
 | nnp_filter:
-  forall c next pref nextt t1 t2 n lit
-    (NEXTT: nextt = Some (Read c
+  forall c next pref nextt t1 t2 n r lit
+    (NEXTT: nextt = Read c
       (Progress
         (Choice
           t1 
-          (GroupAction (Reset []) t2))))
+          (GroupAction (Reset []) t2)))
     )
+    (COMPILE: compilation r = code)
+    (SUBSET: pike_regex r)
+    (SHAPE: initial_nextt_lazyprefix rer r (Input (c::next) pref) nextt)
+    (LIT: extract_literal r = lit)
     (LEAF: first_leaf t1 (Input next (c::pref)) = None)
     (REST: nextt_nextprefix code (Input next (c::pref)) (Some t2) (Some (n, lit))),
-    nextt_nextprefix code (Input (c::next) pref) nextt (Some (S n, lit))
+    nextt_nextprefix code (Input (c::next) pref) (Some nextt) (Some (S n, lit))
 | nnp_generate:
   forall c next pref nextt t1 t2 r lit
     (NEXTT: nextt = Some (Read c
@@ -760,6 +764,23 @@ Proof.
 
   unfold first_leaf in *. simpl. unfold advance_input', advance_input.
   now rewrite LEAF, IHnextt_nextprefix.
+Qed.
+
+Lemma nextt_nextprefix_acc:
+  forall code inp nextt n lit
+    (NEXTTPREFIX: nextt_nextprefix code inp (Some nextt) (Some (n, lit))),
+    exists acc t: tree, pike_tree_acc inp nextt (advance_input_n inp (S n) forward) acc t.
+Proof.
+  destruct inp as [next pref].
+  generalize dependent pref.
+  induction next; intros; inversion NEXTTPREFIX; subst.
+  - pose proof (IHnext _ _ _ _ REST) as [? [? ?]].
+    replace (advance_input_n (Input (a::next) pref) (S (S n0)) forward) with (advance_input_n (Input next (a::pref)) (S n0) forward).
+    eauto using acc_skip.
+
+    simpl; now rewrite <-app_assoc.
+  - injection NEXTT as ->.
+    simpl. eauto using acc_keep.
 Qed.
 
 Lemma initial_nextt_nextprefix {strs:StrSearch}:
@@ -1072,6 +1093,30 @@ Proof.
       destruct nextprefix as [nextprefix|].
       (* accelerate step *)
       + inversion VMSTEP; subst.
+        destruct nextt as [nextt|]; [|now inversion NEXTTPREFIX].
+
+        assert (exists acc t, pike_tree_acc inp nextt (advance_input_n inp (S n) forward) acc t) as [acc [t TREEACC]] by eauto using nextt_nextprefix_acc.
+
+        assert (
+          exists r,
+            compilation r = code /\
+            pike_regex r /\
+            extract_literal r = lit /\
+            bool_tree rer [Areg r] (advance_input_n inp (S n) forward) CanExit t /\
+            initial_nextt_lazyprefix rer r (advance_input_n inp (S n) forward) acc) as [r [COMPILE2 [SUBSET2 [LIT2 [TTREE ACCTREE]]]]].
+        { 
+          inversion NEXTTPREFIX; subst.
+          - eauto 10 using pike_tree_acc_bool_tree.
+          - assert (t1 = t /\ t2 = acc) as [? ?]. {
+              injection NEXTT as ->.
+              inversion TREEACC; subst.
+              - now injection NEXTT.
+              - injection INPUT as <-; subst.
+                now apply pike_tree_acc_input_irreflexive in TRANS.
+            } subst. eauto 10.
+        }
+
+        subst; eauto 10 using pts_acc, pikeinv, pts_nextchar_generate, initial_tree_thread, initial_inclusion, initial_nextt_nextprefix, ltt_app, ltt_cons, ltt_nil.
       (* final step *)
       + replace pvs2 with (PVS_final best) by now inversion VMSTEP.
         left.

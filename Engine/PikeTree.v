@@ -511,6 +511,37 @@ Section PikeTree.
     - apply IHACC. pike_subset.
   Qed.
 
+  Lemma pike_tree_acc_bool_tree:
+    forall r inp nextt nextinp acc t,
+      initial_nextt_lazyprefix r inp nextt ->
+      pike_tree_acc inp nextt nextinp acc t ->
+      bool_tree rer [Areg r] nextinp CanExit t /\ initial_nextt_lazyprefix r nextinp acc.
+  Proof.
+    unfold initial_nextt_lazyprefix, initial_nextt_actions_lazyprefix.
+    intros r inp nextt nextinp acc t NEXTT ACC.
+
+    induction ACC; subst; [|apply IHACC].
+    all: 
+      inversion NEXTT; inversion TREECONT; inversion TREECONT0;
+      inversion READ; inversion CHOICE;
+      destruct plus; [discriminate|]; now subst.
+  Qed.
+
+  Lemma pike_tree_acc_advances_input:
+    forall inp nextt nextinp acc t,
+      pike_tree_acc inp nextt nextinp acc t ->
+      length (next_str nextinp) < length (next_str inp).
+  Proof. induction 1; subst; simpl in *; lia. Qed.
+
+  Lemma pike_tree_acc_input_irreflexive:
+    forall inp nextt acc t,
+      ~pike_tree_acc inp nextt inp acc t.
+  Proof.
+    intros inp nextt acc t H.
+    apply pike_tree_acc_advances_input in H.
+    lia.
+  Qed.
+
   (* using the size of the tree will help us make sure that whenever a tree generates active subtrees, *)
   (* none of these subtrees can contain the parent tree that generated them *)
   Fixpoint size (t:tree) : nat :=
