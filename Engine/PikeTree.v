@@ -78,7 +78,7 @@ Section PikeTree.
     Quantified false 0 NoI.Inf (Regex.Character CdAll).
   Definition lazy_prefix (r:regex) : regex :=
     Sequence dot_star r.
-  
+
   (* the initial nextt for the lazy prefix version of the PikeTree *)
   Definition initial_nextt_actions_lazyprefix (r: regex) (inp: input) :=
     [Areg (Regex.Character CdAll); Acheck inp; Areg dot_star; Areg r].
@@ -90,13 +90,13 @@ Section PikeTree.
     | Some a => f a
     | None => None
     end.
-  
+
   Definition pike_tree_initial_tree (t: tree) := (t, GroupMap.empty).
   Definition pike_tree_initial_state_lazyprefix (t:tree) (nextt:tree) (i:input) : pike_tree_state :=
     PTS i [pike_tree_initial_tree t] None [] (Some nextt) initial_seentrees.
   Definition pike_tree_initial_state (t:tree) (i:input) : pike_tree_state :=
     PTS i [pike_tree_initial_tree t] None [] None initial_seentrees.
-  
+
   (* non-deterministic acceleration by skipping head branches with no results *)
   Inductive pike_tree_acc : input -> tree -> input -> tree -> tree -> Prop :=
   | acc_keep:
@@ -169,7 +169,7 @@ Section PikeTree.
       (NEXTT: nextt = Some (Read c
         (Progress
           (Choice
-            t1 
+            t1
             (GroupAction (Reset []) t2))))
       )
       (LEAF: first_leaf t1 (Input next (c::pref)) = None),
@@ -238,7 +238,7 @@ Section PikeTree.
   (* the normal result, obtained with function tree_res without skipping anything, is a possible result *)
   Lemma tree_res_nd:
     forall t gm inp seen,
-      pike_subtree t -> 
+      pike_subtree t ->
       tree_nd t gm inp seen (tree_res t gm inp forward).
   Proof.
     intros t. induction t; intros; simpl; try solve[inversion H]; try solve[pike_subset; constructor; auto].
@@ -300,7 +300,7 @@ Section PikeTree.
   (* the normal result for a list, without skipping anything, is a possible result *)
   Lemma list_result_nd:
     forall active inp seen,
-      pike_list active -> 
+      pike_list active ->
       list_nd active inp seen (list_result active inp).
   Proof.
     intros active. induction active; try destruct a as [t gm]; intros; pike_subset; try constructor.
@@ -352,7 +352,7 @@ Section PikeTree.
 
   Lemma init_piketree_inv:
     forall t inp,
-      pike_subtree t -> 
+      pike_subtree t ->
       piketreeinv (pike_tree_initial_state t inp) (first_leaf t inp).
   Proof.
     intros t. unfold first_leaf. unfold pike_tree_initial_state. constructor; pike_subset; auto.
@@ -364,7 +364,7 @@ Section PikeTree.
 
   Lemma init_piketree_inv_lazyprefix:
     forall t r inp tree nextt,
-      pike_regex r -> 
+      pike_regex r ->
       initial_nextt_lazyprefix r inp nextt ->
       bool_tree rer [Areg r] inp CanExit t ->
       bool_tree rer [Areg (lazy_prefix r)] inp CanExit tree ->
@@ -413,7 +413,7 @@ Section PikeTree.
     destruct (tree_leaves t gm1 inp1 forward) eqn:HTL.
     2: { inversion NORES. }
     eapply leaves_group_map_indep in HTL. rewrite HTL. auto.
-  Qed.    
+  Qed.
 
   (* the same is true for a non-deterministic result *)
   Lemma no_tree_result_nd:
@@ -514,7 +514,7 @@ Section PikeTree.
     intros r inp nextt nextinp acc t NEXTT ACC.
 
     induction ACC; subst; [|apply IHACC].
-    all: 
+    all:
       inversion NEXTT; inversion TREECONT; inversion TREECONT0;
       inversion READ; inversion CHOICE;
       destruct plus; [discriminate|]; now subst.
@@ -574,12 +574,12 @@ Section PikeTree.
   Proof.
     intros inp best nextt nextinp acc t res seen SUBSET ACC STATEND.
     pose proof (pike_tree_acc_pike_subtree _ _ _ _ _ ACC SUBSET) as [SUBSET_ACC SUBSET_T].
-    
+
     inversion STATEND; subst.
     apply list_nd_initial in ACTIVE; pike_subset.
     econstructor; try econstructor. subst.
     unfold list_result, seqop_list.
-    
+
     induction ACC; subst; simpl.
     - unfold first_leaf. simpl. unfold advance_input', advance_input.
       now rewrite <-seqop_assoc.
@@ -625,7 +625,7 @@ Section PikeTree.
     (* nextchar_generate *)
     - constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
       apply list_nd_initial in ACTIVE; pike_subset.
-      simpl. subst. 
+      simpl. subst.
       apply SAMERES.
       econstructor; try econstructor. unfold next_inp, advance_input', advance_input.
       rewrite list_result_app, <-seqop_assoc.
@@ -648,10 +648,10 @@ Section PikeTree.
     (* nextchar_filter *)
     - constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
       apply list_nd_initial in ACTIVE; pike_subset.
-      simpl. subst. 
+      simpl. subst.
       apply SAMERES.
       econstructor; try econstructor. unfold next_inp, advance_input', advance_input. simpl.
-      
+
       replace (
         first_leaf (Read c (Progress (Choice t1 (GroupAction (Reset []) t2)))) (Input (c :: next) pref)
       ) with (first_leaf t2 (Input next (c :: pref))). reflexivity.
@@ -660,9 +660,9 @@ Section PikeTree.
       unfold first_leaf in LEAF. rewrite LEAF. reflexivity.
     (* mismatch *)
     - simpl. constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst. apply SAMERES.
-      econstructor; eauto. econstructor; eauto. 
+      econstructor; eauto. econstructor; eauto.
       + eapply tr_mismatch.
-      + eapply list_add_seen with (gm:=gm) in ACTIVE; eauto. 
+      + eapply list_add_seen with (gm:=gm) in ACTIVE; eauto.
       + auto.
     (* choice *)
     - simpl. constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
@@ -687,7 +687,7 @@ Section PikeTree.
         eapply list_add_seen_nd with (gm:=gm) in TLR0; auto.
         econstructor; eauto.
     (* progress fail *)
-    - simpl. constructor; pike_subset; auto. 
+    - simpl. constructor; pike_subset; auto.
     (* progress *)
     - simpl. constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
       inversion ACTIVE; subst.
@@ -746,7 +746,7 @@ Section PikeTree.
     (* match *)
     - destruct t; inversion STEP; subst. constructor; pike_subset; auto.
       intros res STATEND. inversion STATEND; subst.
-      inversion ACTIVE; subst. simpl. 
+      inversion ACTIVE; subst. simpl.
       apply SAMERES. eapply sr with (r2:=Some (inp,gm)); eauto.
       replace (Some (inp,gm)) with (seqop (Some (inp,gm)) (list_result active0 inp)) by (simpl; auto).
       econstructor; auto.

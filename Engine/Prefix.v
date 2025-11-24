@@ -134,7 +134,7 @@ Lemma str_search_succ_next {strs: StrSearch}:
 Proof.
   intros ss c t i H.
   pose proof (starts_with_ss _ _ _ H) as Hsw. simpl in Hsw.
-  
+
   destruct (str_search ss t) as [j|] eqn:Hst; [f_equal|exfalso].
   - destruct (Nat.lt_trichotomy i j) as [Hij | [Hij | Hij]].
     + (* i < j: H should have returned None then *)
@@ -162,7 +162,7 @@ Proof.
 
   destruct (str_search ss t) eqn:Hst; [|reflexivity].
   assert (S n <= length (c::t)) by (simpl; pose proof (str_search_bound _ _ _ Hst); lia).
-  
+
   apply starts_with_ss in Hst.
   now pose proof (not_found _ _ H (S n) ltac:(lia)) as Hn.
 Qed.

@@ -17,7 +17,7 @@ Section PikeVM.
   Context {params: LindenParameters}.
   Context {VMS: VMSeen}.
   Context (rer: RegExpRecord).
-  
+
 (** * PikeVM threads  *)
 
 Definition thread : Type := (label * group_map * LoopBool).
@@ -111,7 +111,7 @@ Inductive pike_vm_state : Type :=
 Definition next_prefix_counter {strs:StrSearch} (inp: input) (lit: literal) : option (nat * literal) :=
   match advance_input inp forward with
   | None => None
-  | Some (Input next pref) => 
+  | Some (Input next pref) =>
       match str_search (prefix lit) next with
       | None => None
       | Some n => Some (n, lit)
@@ -190,7 +190,7 @@ Theorem pikevm_deterministic {strs:StrSearch}:
     pvs1 = pvs2.
 Proof.
   intros c pvso pvs1 pvs2 STEP1 STEP2. inversion STEP1; subst.
-  - inversion STEP2; subst; auto. 
+  - inversion STEP2; subst; auto.
   - inversion STEP2; subst; auto.
   - inversion STEP2; subst; auto; rewrite ADVANCE in ADVANCE0; inversion ADVANCE0.
   - inversion STEP2; subst; auto; rewrite ADVANCE in ADVANCE0; inversion ADVANCE0.
@@ -235,4 +235,3 @@ Proof.
 Qed.
 
 End PikeVM.
-    

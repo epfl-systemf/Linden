@@ -40,7 +40,7 @@ Inductive tree_thread (code:code) (inp:input) : (tree * group_map) -> thread -> 
     (TT: tree_thread code inp (tree,gm) (pc+1,gm,CannotExit))
     (BEGIN: get_pc code pc = Some BeginLoop),
     tree_thread code inp (tree,gm) (pc,gm,b).
-    
+
 
 (* the initial active thread and the initial active tree are related with the invariant *)
 Lemma initial_tree_thread:
@@ -159,7 +159,7 @@ Proof.
   - repeat invert_rep. simpl. rewrite OPEN. split; auto.
     eapply tt_eq; eauto.
     2: { pike_subset. }
-    replace (pc+1) with (S pc) by lia. 
+    replace (pc+1) with (S pc) by lia.
     apply cons_bc with (pcmid:=end1); repeat (econstructor; eauto).
 Qed.
 
@@ -178,7 +178,7 @@ Proof.
   induction TREE; intros; subst; try inversion HeqTCLOSE; subst.
   - repeat invert_rep. simpl. rewrite CLOSE. split; auto.
     econstructor; eauto. 2: pike_subset.
-    replace (pc + 1) with (S pc) by lia. auto. 
+    replace (pc + 1) with (S pc) by lia. auto.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
     repeat (econstructor; eauto). pike_subset.
@@ -203,7 +203,7 @@ Proof.
   - destruct greedy; inversion CHOICE.
 Qed.
 
-Corollary generate_reset:  
+Corollary generate_reset:
   forall gidl tree inp code pc b gm
     (TT: tree_thread code inp (GroupAction (Reset gidl) tree, gm) (pc,gm,b))
     (NOSTUTTER: stutters pc code = false),
@@ -277,7 +277,7 @@ Proof.
   - repeat invert_rep. simpl. rewrite CHECK. rewrite ANCHOR. split; auto.
     eapply tt_eq; eauto.
     2: { pike_subset. }
-    replace (pc+1) with (S pc) by lia. 
+    replace (pc+1) with (S pc) by lia.
     assumption.
 Qed.
 
@@ -571,7 +571,7 @@ Inductive nextt_nextprefix (code:code): input -> option tree -> option (nat * li
     (NEXTT: nextt = Some (Read c
       (Progress
         (Choice
-          t1 
+          t1
           (GroupAction (Reset []) t2))))
     )
     (LEAF: first_leaf t1 (Input next (c::pref)) = None)
@@ -585,7 +585,7 @@ Inductive nextt_nextprefix (code:code): input -> option tree -> option (nat * li
     (NEXTT: nextt = Read c
       (Progress
         (Choice
-          t1 
+          t1
           (GroupAction (Reset []) t2)))
     )
     (COMPILE: compilation r = code)
@@ -600,7 +600,7 @@ Inductive nextt_nextprefix (code:code): input -> option tree -> option (nat * li
     (NEXTT: nextt = Some (Read c
       (Progress
         (Choice
-          t1 
+          t1
           (GroupAction (Reset []) t2))))
     )
     (COMPILE: compilation r = code)
@@ -689,7 +689,7 @@ Lemma actions_rep_start:
     get_pc code pc = Some i ->
     start_rep i.
 Proof.
-  intros act code pc i H. induction H; intros GET. 
+  intros act code pc i H. induction H; intros GET.
   - rewrite ACCEPT in GET. inversion GET. constructor.
   - apply action_rep_start in ACTION as [EQ | [instr [GETSTART START]]].
     + subst. apply IHactions_rep. auto.
@@ -760,7 +760,7 @@ Proof.
   unfold seen_inclusion in *.
   intros pc0 b0 SEEN. apply inpc_add in SEEN. destruct SEEN as [EQ|SEEN].
   - inversion EQ. subst. left. exists t. exists gm. split; auto. apply in_add. left. auto.
-  - specialize (INCL pc0 b0 SEEN).      
+  - specialize (INCL pc0 b0 SEEN).
     destruct INCL as [[ts [gms [SEENs TTs]]] | [ST [ts [gms [GEQ [EQ TTS]]]]]].
     + left. exists ts. exists gms. split; auto. apply in_add. right; auto.
     + left. exists ts. exists gms. split; auto.
@@ -1137,7 +1137,7 @@ Proof.
     { inversion SKIP. }
     destruct treeactive as [|[tree gmt] treeactive]; inversion ACTIVE; subst.
     inversion VMSTEP; subst; try simpl in UNSEEN;
-      try rewrite UNSEEN in SKIP; inversion SKIP.    
+      try rewrite UNSEEN in SKIP; inversion SKIP.
     apply SEEN in SKIP as [[teq [gmeq [SEENEQ TTEQ]]] | [STUTTER [t' [gm' [GEQ [EQ TTS]]]]]].
     - assert (teq = tree).
       { eapply tt_same_tree; eauto. }
@@ -1175,7 +1175,7 @@ Proof.
             extract_literal r = lit /\
             bool_tree rer [Areg r] (advance_input_n inp (S n) forward) CanExit t /\
             initial_nextt_lazyprefix rer r (advance_input_n inp (S n) forward) acc) as [r [COMPILE2 [SUBSET2 [LIT2 [TTREE ACCTREE]]]]].
-        { 
+        {
           inversion NEXTTPREFIX; subst.
           - eauto 10 using pike_tree_acc_bool_tree.
           - assert (t1 = t /\ t2 = acc) as [? ?]. {
@@ -1192,7 +1192,7 @@ Proof.
       + replace pvs2 with (PVS_final best) by now inversion VMSTEP.
         left.
         inversion NEXTTPREFIX; subst; eauto using pts_final, pikeinv_final.
-        
+
         pose proof (nextt_nextprefix_none_nores _ _ _ _ (eq_refl (Some t2)) REST) as LEAF2.
         eexists. split.
         * eapply pts_final.
@@ -1202,7 +1202,7 @@ Proof.
     - destruct (advance_input inp) eqn:ADV; [|discriminate (ENDTREE (eq_refl None))].
       specialize (BLOCKED i (eq_refl (Some i))). inversion BLOCKED; subst.
 
-      destruct inp as [next pref], next as [|c next]; [discriminate|]. 
+      destruct inp as [next pref], next as [|c next]; [discriminate|].
 
       destruct nextprefix as [[nextprefix lit]|]; [destruct nextprefix|].
       (* nextchar_generate *)
