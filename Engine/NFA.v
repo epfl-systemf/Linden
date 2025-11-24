@@ -228,7 +228,7 @@ Section NFA.
       2: { inversion H0. simpl. lia. }
       destruct delta.
       { inversion H0. simpl. lia. }
-      destruct (compile r (S (S (S fresh)))) as [bc1 f1] eqn:COMP1. 
+      destruct (compile r (S (S (S fresh)))) as [bc1 f1] eqn:COMP1.
       inversion H0. apply IHr in COMP1.
       subst. simpl. rewrite app_length. simpl. lia.
     - inversion COMPILE.
@@ -404,7 +404,7 @@ Section NFA.
 End NFA.
 
 
-Ltac no_stutter := 
+Ltac no_stutter :=
   match goal with
   | [ H : stutters ?pc ?code = false, H1: get_pc ?code ?pc = Some (Jmp _) |- _ ] => exfalso; eapply doesnt_stutter_jmp; eauto
   | [ H : stutters ?pc ?code = false, H1: get_pc ?code ?pc = Some (BeginLoop) |- _ ] => exfalso; eapply doesnt_stutter_begin; eauto

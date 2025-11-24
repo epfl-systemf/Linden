@@ -33,7 +33,7 @@ Definition pike_vm_non_lazyprefix_func_step (c:code) (pvs:pike_vm_state) : pike_
               | None => PVS_final best (* pvs_end *)
               | Some nextinp => PVS nextinp (thr::blocked) best [] nextprefix initial_seenpcs (* pvs_nextchar *)
               end
-          end     
+          end
       | t::active =>
           match (seen_thread seen t) with
           | true => PVS inp active best blocked nextprefix seen (* pvs_skip *)
@@ -76,7 +76,7 @@ Definition pike_vm_func_step (c:code) (pvs:pike_vm_state) : pike_vm_state :=
                   | Some (S n, lit) => PVS nextinp (thr::blocked) best [] (Some (n, lit)) initial_seenpcs (* pvs_nextchar_filter *)
                   end
               end
-          end     
+          end
       | t::active =>
           match (seen_thread seen t) with
           | true => PVS inp active best blocked nextprefix seen (* pvs_skip *)
@@ -114,7 +114,7 @@ Fixpoint pike_vm_loop (c:code) (pvs:pike_vm_state) (fuel:nat) : pike_vm_state :=
 
 (* an upper bound for the fuel necessary to compute a result *)
 Definition bytecode_fuel (c:code) (inp:input) : nat :=
-  (4 * length c) + 1 + (length (next_str inp) * (1 + 4 * length c)). 
+  (4 * length c) + 1 + (length (next_str inp) * (1 + 4 * length c)).
 
 Inductive matchres : Type :=
 | OutOfFuel
@@ -140,7 +140,7 @@ Definition pike_vm_match_lazyprefix (r:regex) (inp:input) : matchres :=
   let fuel := bytecode_fuel code inp in
   let pvsinit := pike_vm_initial_state_lazyprefix (extract_literal r) inp in
   getres (pike_vm_loop code pvsinit fuel).
-                                                   
+
 
 (** * Smallstep correspondence  *)
 
@@ -189,7 +189,7 @@ Theorem pike_vm_match_correct:
     pike_vm_match r inp = Finished result ->
     trc_pike_vm rer (compilation r) (pike_vm_initial_state inp) (PVS_final result).
 Proof.
-  unfold pike_vm_match, getres. intros r inp result H. 
+  unfold pike_vm_match, getres. intros r inp result H.
   match_destr; inversion H; subst.
   eapply loop_trc; eauto.
 Qed.
@@ -200,7 +200,7 @@ Theorem pike_vm_match_lazyprefix_correct:
     pike_vm_match_lazyprefix r inp = Finished result ->
     trc_pike_vm rer (compilation r) (pike_vm_initial_state_lazyprefix (extract_literal r) inp) (PVS_final result).
 Proof.
-  unfold pike_vm_match_lazyprefix, getres. intros r inp result H. 
+  unfold pike_vm_match_lazyprefix, getres. intros r inp result H.
   match_destr; inversion H; subst.
   eapply loop_trc; eauto.
 Qed.

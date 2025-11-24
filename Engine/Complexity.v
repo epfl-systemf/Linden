@@ -50,7 +50,7 @@ Lemma wf_in:
     forall pc b,
       inseenpc seen pc b = true <-> In (pc, b) dist.
 Proof.
-  intros seen size dist H. induction H; intros. 
+  intros seen size dist H. induction H; intros.
   - rewrite initial_nothing_pc. split; intros; inversion H.
   - rewrite inpc_add. split; intros; destruct H0; simpl; auto;
       right; apply IHwf; auto.
@@ -103,7 +103,7 @@ Proof.
   assert (pc = size \/ pc < size) by lia. destruct H0.
   - subst. simpl. destruct b; auto.
   - apply IHsize in H0. simpl. auto.
-Qed.      
+Qed.
 
 Theorem wf_size:
   forall seen size dist,
@@ -461,7 +461,7 @@ Definition codesize (r:regex) := S (compsize r).
 Lemma compile_size:
   forall r start endl code,
     pike_regex r ->
-    compile r start = (code, endl) -> 
+    compile r start = (code, endl) ->
     length (code) = compsize r.
 Proof.
   intros r start endl code SUBSET COMP.
@@ -493,7 +493,7 @@ Proof.
   unfold codesize, size, compilation. intros r H. destruct (compile r 0) eqn:COMP.
   apply compile_size in COMP; auto. rewrite <- COMP. rewrite app_length. simpl. lia.
 Qed.
-  
+
 
 (** * Initial PikeVM Measure *)
 
@@ -565,7 +565,7 @@ Lemma strong_ind (P : nat -> Prop) :
   forall n, P n.
 Proof.
   intros H n; enough (H0: forall p, p <= n -> P p).
-    - apply H0, le_n. 
+    - apply H0, le_n.
     - induction n; intros; apply H; intros; try lia.
       apply IHn; lia.
 Qed.

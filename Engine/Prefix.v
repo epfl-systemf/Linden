@@ -42,7 +42,7 @@ Hint Constructors starts_with : prefix.
 Lemma starts_with_cons_iff: forall h1 t1 h2 t2,
   starts_with (h1 :: t1) (h2 :: t2) <-> h1 = h2 /\ starts_with t1 t2.
 Proof.
-  split; intros. 
+  split; intros.
   - inversion H; auto.
   - destruct H. subst. auto with prefix.
 Qed.
@@ -127,7 +127,7 @@ Lemma str_search_succ_next {strs: StrSearch}:
 Proof.
   intros ss c t i H.
   pose proof (starts_with_ss _ _ _ H) as Hsw. simpl in Hsw.
-  
+
   destruct (str_search ss t) as [j|] eqn:Hst; [f_equal|exfalso].
   - destruct (Nat.lt_trichotomy i j) as [Hij | [Hij | Hij]].
     + (* i < j: H should have returned None then *)
@@ -155,7 +155,7 @@ Proof.
 
   destruct (str_search ss t) eqn:Hst; [|reflexivity].
   assert (S n <= length (c::t)) by (simpl; pose proof (str_search_bound _ _ _ Hst); lia).
-  
+
   apply starts_with_ss in Hst.
   now pose proof (not_found _ _ H (S n) ltac:(lia)) as Hn.
 Qed.
@@ -444,7 +444,7 @@ Proof.
     + destruct l1; simpl.
       * transitivity s0. apply starts_with_common_prefix. apply starts_with_app_right. reflexivity.
       * apply starts_with_common_prefix.
-      * reflexivity.   
+      * reflexivity.
 Qed.
 
 Lemma common_prefix_comm:
@@ -572,7 +572,7 @@ Proof.
     rewrite CharSet.range_spec in H1.
     assert (Character.numeric_value x = Character.numeric_value l) as H3 by lia.
     assert (Character.from_numeric_value (Character.numeric_value x) = Character.from_numeric_value (Character.numeric_value l)) as H4 by auto.
-    
+
     repeat rewrite Character.numeric_pseudo_bij in H4.
     assumption.
   } subst.
@@ -641,11 +641,11 @@ Proof.
       destruct (extract_actions_literal cont); eapply IHHtree; eauto with prefix];
     (* mismatch violating tree_res result *)
     try discriminate Hleaf.
-  
+
   (* tree_char *)
   - (* there is a character to read *)
     unfold read_char in READ; destruct inp; destruct next; try discriminate READ; subst;
-    
+
     (* the character matches *)
     destruct char_match eqn:Heqmatch; try discriminate READ; injection READ; intros; subst.
 
@@ -689,7 +689,7 @@ Proof.
   induction cd;
     (* the cd does not produce Impossible *)
     try solve[discriminate].
-  
+
   - (* CdRange *)
     simpl in Hextract. wt_eq; discriminate.
   - (* CdUnion *)
@@ -713,7 +713,7 @@ Proof.
   induction Htree; intros; subst;
     (* the result is that of the rest of the actions *)
     try solve[simpl in *; destruct (extract_actions_literal cont); eauto].
-  
+
   (* tree_done *)
   - discriminate.
   (* tree_char *)
@@ -761,7 +761,7 @@ Proof.
   (* tree_lk *)
   - simpl in Hextract |- *.
     destruct extract_actions_literal eqn:Heqex in Hextract; try easy.
-     
+
     rewrite IHHtree2 by auto.
     destruct positivity.
     + destruct tree_res; eauto.
@@ -859,7 +859,7 @@ Proof.
       try pose proof (chain_literals_length (extract_literal r) (repeat_literal (extract_literal r) Unknown min));
       lia.
 Qed.
-  
+
 End LiteralExtraction.
 
 Section PrefixedEngine.

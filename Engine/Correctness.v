@@ -66,7 +66,7 @@ Qed.
 (* Any execution of the PikeVM to a final state corresponds to an execution of the PikeTree *)
 Theorem pike_vm_to_pike_tree:
   forall r inp tree result,
-    pike_regex r -> 
+    pike_regex r ->
     bool_tree rer [Areg r] inp CanExit tree ->
     trc_pike_vm (compilation r) (pike_vm_initial_state inp) (PVS_final result) ->
     trc_pike_tree (pike_tree_initial_state tree inp) (PTS_final result).
@@ -81,7 +81,7 @@ Qed.
 
 Theorem pike_vm_to_pike_tree_lazyprefix:
   forall r inp tree nextt result,
-    pike_regex r -> 
+    pike_regex r ->
     bool_tree rer [Areg r] inp CanExit tree ->
     initial_nextt_lazyprefix rer r inp nextt ->
     trc_pike_vm (compilation r) (pike_vm_initial_state_lazyprefix (extract_literal r) inp) (PVS_final result) ->
@@ -107,7 +107,7 @@ Proof.
   apply IHTRC. eapply pts_preservation; eauto.
 Qed.
 
-  
+
 (** * Correctness Theorem of the PikeVM result  *)
 
 Theorem pike_vm_correct:
@@ -215,7 +215,7 @@ Proof.
   specialize (equiv_main _ _ _ inp EQUIV RER PASS) as [m [res [COMP_SUCC [EXEC_SUCC LW_EQUIV]]]].
   unfold compilePattern. rewrite COMP_SUCC, EXEC_SUCC.
   specialize (LW_EQUIV (compute_tr rer [Areg lr] inp GroupMap.empty forward) eq_refl) as [ISTREE LW_EQUIV].
-  specialize (pike_vm_correct _ _ _ _ SUBSET ISTREE TRC) as FIRST. subst.  
+  specialize (pike_vm_correct _ _ _ _ SUBSET ISTREE TRC) as FIRST. subst.
   symmetry. apply to_MatchState_equal; auto.
   eapply compilePattern_preserves_groupcount; eauto.
 Qed.
