@@ -26,29 +26,21 @@ Hint Constructors starts_with : prefix.
 Lemma starts_with_cons_iff: forall h1 t1 h2 t2,
   starts_with (h1 :: t1) (h2 :: t2) <-> h1 = h2 /\ starts_with t1 t2.
 Proof.
-  split; intros. 
+  split; intros.
   - inversion H; auto.
   - destruct H. subst. auto with prefix.
 Qed.
 
-Lemma starts_with_refl:
-  forall s, starts_with s s.
-Proof. intros. induction s; auto with prefix. Qed.
-
-Lemma starts_with_trans: 
-  Relation_Definitions.transitive _ starts_with.
+Instance StartsWithPreOrder : PreOrder starts_with.
 Proof.
-  unfold Relation_Definitions.transitive.
-  intros s1 s2 s3 H1.
-
-  generalize dependent s3.
-  induction H1; intros; inversion H; auto with prefix.
+  split.
+  - (* reflexive *)
+    unfold Reflexive. intro s. induction s; auto with prefix.
+  - (* transitive *)
+    unfold Transitive. intros s1 s2 s3 H1.
+    generalize dependent s3.
+    induction H1; intros; inversion H; auto with prefix.
 Qed.
-
-#[global] Add Relation string starts_with
-  reflexivity proved by starts_with_refl
-  transitivity proved by starts_with_trans
-  as starts_with_rel.
 
 Lemma starts_with_app_right:
   forall s1 s2 s3,
@@ -69,8 +61,6 @@ Proof.
     constructor.
     eapply IH. eauto.
 Qed.
-
-Hint Resolve starts_with_refl starts_with_app_right : prefix.
 
 (** * Substring search *)
 
@@ -208,7 +198,7 @@ Proof.
     + destruct l1; simpl.
       * transitivity s0. apply starts_with_common_prefix. apply starts_with_app_right. reflexivity.
       * apply starts_with_common_prefix.
-      * reflexivity.   
+      * reflexivity.
 Qed.
 
 Lemma common_prefix_comm:
@@ -307,7 +297,7 @@ Proof.
     rewrite CharSet.range_spec in H1.
     assert (Character.numeric_value x = Character.numeric_value l) as H3 by lia.
     assert (Character.from_numeric_value (Character.numeric_value x) = Character.from_numeric_value (Character.numeric_value l)) as H4 by auto.
-    
+
     repeat rewrite Character.numeric_pseudo_bij in H4.
     assumption.
   } subst.
@@ -376,11 +366,11 @@ Proof.
       destruct (extract_actions_literal cont); eapply IHHtree; eauto with prefix];
     (* mismatch violating tree_res result *)
     try discriminate Hleaf.
-  
+
   (* tree_char *)
   - (* there is a character to read *)
     unfold read_char in READ; destruct inp; destruct next; try discriminate READ; subst;
-    
+
     (* the character matches *)
     destruct char_match eqn:Heqmatch; try discriminate READ; injection READ; intros; subst.
 
