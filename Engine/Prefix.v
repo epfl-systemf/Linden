@@ -158,6 +158,17 @@ Proof.
   all: rewrite ?app_assoc; reflexivity.
 Qed.
 
+Lemma chain_literals_impossible:
+  forall l1 l2,
+    chain_literals l1 l2 = Impossible <-> (l1 = Impossible \/ l2 = Impossible).
+Proof.
+  intros. split; intro H.
+  - destruct l1, l2; (easy || auto).
+  - destruct H as [H | H]; subst.
+    + easy.
+    + destruct l1; easy.
+Qed.
+
 Lemma chain_literals_length:
   forall l1 l2,
     length (prefix (chain_literals l1 l2)) <= length (prefix l1) + length (prefix l2).
@@ -234,6 +245,15 @@ Proof.
   unfold merge_literals; intros.
   wt_eq; try congruence.
   rewrite common_prefix_comm; reflexivity.
+Qed.
+
+Lemma merge_literals_impossible:
+  forall l1 l2,
+    merge_literals l1 l2 = Impossible <-> (l1 = Impossible /\ l2 = Impossible).
+Proof.
+  unfold merge_literals; intros. split; intros.
+  - wt_eq; easy.
+  - destruct H; wt_eq; subst; easy.
 Qed.
 
 Lemma common_prefix_length:
@@ -443,6 +463,99 @@ Proof.
     destruct plus; destruct extract_actions_literal; constructor.
 Qed.
 
+(* if the extracted literal from a character descriptor is Impossible, there can be no match *)
+Lemma extract_literal_char_impossible_no_match:
+  forall cd c,
+    extract_literal_char cd = Impossible ->
+    ~(char_match rer c cd = true).
+Proof.
+  intros cd c Hextract Hmatch.
+  induction cd;
+    (* the cd does not produce Impossible *)
+    try solve[discriminate].
+
+  - (* CdRange *)
+    simpl in Hextract. wt_eq; discriminate.
+  - (* CdUnion *)
+    simpl in Hextract.
+    apply merge_literals_impossible in Hextract as [Hcd1 Hcd2].
+
+    unfold char_match in *. simpl in Hmatch.
+    apply Bool.orb_prop in Hmatch as [Hm1 | Hm2]; eauto.
+Qed.
+
+Lemma extract_literal_impossible_general:
+  forall acts tree inp gm,
+    is_tree rer acts inp Groups.GroupMap.empty forward tree ->
+    extract_actions_literal acts = Impossible ->
+    tree_res tree gm inp forward = None.
+Proof.
+  intros acts tree inp gm Htree Hextract.
+
+  remember (forward) as dir.
+  generalize dependent gm.
+  induction Htree; intros; subst;
+    (* the result is that of the rest of the actions *)
+    try solve[simpl in *; destruct (extract_actions_literal cont); eauto].
+
+  (* tree_done *)
+  - discriminate.
+  (* tree_char *)
+  - (* there is a character to read *)
+    unfold read_char in READ. destruct inp, next; [discriminate|].
+    (* the character matches *)
+    destruct char_match eqn:Hmatch; [|discriminate].
+
+    apply chain_literals_impossible in Hextract as [Hcd | Hcont].
+    + exfalso. apply (extract_literal_char_impossible_no_match _ _ Hcd Hmatch).
+    + simpl. unfold advance_input'.
+      injection READ as <-. subst. eauto.
+  (* tree_disj *)
+  - simpl in Hextract. simpl. unfold seqop.
+    simpl in IHHtree1, IHHtree2. rewrite chain_literals_impossible in IHHtree1, IHHtree2.
+    apply chain_literals_impossible in Hextract as [Hmerge | Hcont].
+    + apply merge_literals_impossible in Hmerge as [Hex1 Hex2].
+      erewrite IHHtree1, IHHtree2; auto.
+    + erewrite IHHtree1, IHHtree2; auto.
+  (* tree_sequence *)
+  - simpl in Hextract, IHHtree.
+    rewrite chain_literals_assoc in IHHtree.
+    eapply IHHtree; eauto.
+  (* tree_quant_forced *)
+  - simpl in Hextract |- *.
+    apply chain_literals_impossible in Hextract as [Hrep | Hcont].
+    + destruct plus; [destruct n|];
+        apply chain_literals_impossible in Hrep as [? | ?];
+        eapply IHHtree; auto;
+        simpl; do 2 rewrite chain_literals_impossible; auto.
+    + eapply IHHtree; auto.
+      simpl; do 2 rewrite chain_literals_impossible; auto.
+  (* tree_quant_free *)
+  - assert (Hex: extract_actions_literal cont = Impossible). {
+      simpl in Hextract. destruct plus; now destruct extract_actions_literal.
+    }
+    unfold greedy_choice.
+    destruct greedy.
+    + simpl. unfold seqop.
+      rewrite IHHtree1, IHHtree2; auto.
+      simpl. rewrite Hex. destruct plus; [destruct n|]; destruct (extract_literal r1); reflexivity.
+    + simpl. unfold seqop.
+      rewrite IHHtree1, IHHtree2; auto.
+      simpl. rewrite Hex. destruct plus; [destruct n|]; destruct (extract_literal r1); reflexivity.
+  (* tree_lk *)
+  - simpl in Hextract |- *.
+    destruct extract_actions_literal eqn:Heqex in Hextract; try easy.
+
+    rewrite IHHtree2 by auto.
+    destruct positivity.
+    + destruct tree_res; eauto.
+      destruct l. eauto.
+    + now destruct tree_res.
+  (* tree_backref *)
+  - simpl in Hextract |- *. destruct extract_actions_literal; try easy.
+    erewrite <-read_backref_success_advance; eauto.
+Qed.
+
 Lemma extract_actions_literal_regex:
   forall r, extract_actions_literal [Areg r] = extract_literal r.
 Proof.
@@ -494,6 +607,18 @@ Proof.
   intro r; rewrite <- (extract_actions_literal_regex r).
   intros.
   eauto using extract_literal_prefix_general_contra.
+Qed.
+
+(* extracting Impossible means there can be no match *)
+Theorem extract_literal_impossible:
+  forall r tree inp,
+    is_tree rer [Areg r] inp Groups.GroupMap.empty forward tree ->
+    extract_literal r = Impossible ->
+    first_leaf tree inp = None.
+Proof.
+  intros.
+  rewrite <- (extract_actions_literal_regex r) in *.
+  eapply extract_literal_impossible_general; eassumption.
 Qed.
 
 (* note: this will not hold true if support for backreferences is added.
