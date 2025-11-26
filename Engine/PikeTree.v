@@ -404,8 +404,7 @@ Section PikeTree.
     forall r inp,
       bool_encoding CannotExit inp (initial_nextt_actions_lazyprefix r inp).
   Proof.
-    repeat econstructor.
-    Unshelve. constructor.
+    repeat unshelve econstructor.
   Qed.
 
   (** * Non deterministic results lemmas  *)

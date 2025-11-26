@@ -172,7 +172,9 @@ Inductive vm_inv (c:code): pike_vm_state -> nat -> Prop :=
     (ACTIVEWF: forall t, In t active -> fst (fst t) < size c)
     (BLOCKEDWF: forall t, In t blocked -> fst (fst t) < size c)
     (* the seen set is well-formed, and has `count` distinct elements *)
-    (SEENWF: wf seen (size c) dist),
+    (SEENWF: wf seen (size c) dist)
+    (* TODO: remove to prove the dot-starred PikeVM is linear *)
+    (NONEXTPREFIX: nextprefix = None),
     vm_inv c (PVS inp active best blocked nextprefix seen) (measure (size c) dist active blocked inp).
 
 Lemma nonfinal_pos:
@@ -386,7 +388,7 @@ Proof.
     + constructor.
     + apply nonfinal_pos in INV. auto.
   (* acc *)
-  - admit.
+  - discriminate NONEXTPREFIX.
   - exists 0. split.
     + constructor.
     + apply nonfinal_pos in INV. auto.
@@ -396,12 +398,9 @@ Proof.
     + unfold measure. simpl. rewrite free_initial. apply advance_input_decreases in ADVANCE.
       apply increase_mult with (x:= 4 * size code) in ADVANCE as NEXT. simpl in NEXT. lia.
   (* nextchar_generate *)
-  - admit.
-  (* nextchar_filter: we might add (2*codesize) free slots, but we lose an input length *)
-  - exists (measure (size code) [] (thr::blocked) [] inp2). split; [constructor|]; auto.
-    + constructor.
-    + unfold measure. simpl. rewrite free_initial. apply advance_input_decreases in ADVANCE.
-      apply increase_mult with (x:= 4 * size code) in ADVANCE as NEXT. simpl in NEXT. lia.
+  - discriminate NONEXTPREFIX.
+  (* nextchar_filter *)
+  - discriminate NONEXTPREFIX.
   (* skip: we lose a thread *)
   - exists (measure (size code) dist active blocked inp). split; [constructor|]; auto.
     + intros t0 H. apply ACTIVEWF. simpl. right. auto.
@@ -437,7 +436,7 @@ Proof.
      + unfold add_thread. apply wf_new; auto.
      + specialize (free_add seen (size code) dist (pc,gm,b) SEENWF UNSEEN RANGE) as FREE.
        apply wf_size in FREE. unfold measure, free. rewrite app_length. simpl. simpl in FREE. lia.
-Admitted.
+Qed.
 
 (** * Code Size  *)
 
