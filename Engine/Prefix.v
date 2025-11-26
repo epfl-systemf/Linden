@@ -1,3 +1,11 @@
+(** * Regex prefixes *)
+
+(* Definition of what a regex prefix is, namely a known string with which *)
+(* every match using that regex has to start with. This is used to *)
+(* accelerate regex matching by allowing us to skip input positions that *)
+(* do not contain this prefix. In some cases, this even allows us to skip *)
+(* the entire regex engine and just use a substring search. *)
+
 Require Import List Lia RelationClasses FunInd Recdef Arith.
 Import ListNotations.
 
@@ -257,6 +265,9 @@ Proof.
     now apply Hnf.
 Qed.
 
+Section Literal.
+  Context (rer: RegExpRecord).
+
 (** * Literals *)
 
 Inductive literal : Type :=
@@ -447,6 +458,7 @@ Fixpoint extract_literal_char (cd: char_descr) : literal :=
 
 (* extracting literals from a regex *)
 Fixpoint extract_literal (r: regex) : literal :=
+  if RegExpRecord.ignoreCase rer then Unknown else
   match r with
   | Epsilon => Nothing
   | Regex.Character cd => extract_literal_char cd
@@ -487,14 +499,13 @@ Hint Rewrite
   common_prefix_comm
   merge_literals_comm : prefix.
 
-Section LiteralExtraction.
-  Context (rer: RegExpRecord).
-  Context (no_i_flag : RegExpRecord.ignoreCase rer = false).
+Ltac destruct_i := destruct RegExpRecord.ignoreCase eqn:no_i_flag.
 
 Lemma char_match_range_same: forall c l,
+  RegExpRecord.ignoreCase rer = false ->
   char_match rer c (CdRange l l) = true -> c = l.
 Proof.
-  unfold char_match, char_match'. intros ? ? H.
+  unfold char_match, char_match'. intros ? ? no_i_flag H.
   rewrite
     Character.numeric_pseudo_bij,
     CharSet.exist_canonicalized_equiv,
@@ -516,20 +527,21 @@ Qed.
 
 Lemma chain_literals_extract_char:
   forall rest s c cd,
+    RegExpRecord.ignoreCase rer = false ->
     starts_with (prefix rest) s ->
     char_match rer c cd = true ->
     starts_with (prefix (chain_literals (extract_literal_char cd) rest)) (c :: s).
 Proof.
-  intros rest s c cd Hstart Hmatch.
+  intros rest s c cd no_i_flag Hstart Hmatch.
 
-  Ltac unfold_match H :=
+  Ltac unfold_match H no_i_flag :=
     unfold char_match in H; rewrite (canonicalize_casesenst _ _ no_i_flag) in H.
 
   induction cd;
     (* there is no known literal *)
     try solve[simpl; destruct rest; constructor].
   (* CdSingle *)
-  - unfold_match Hmatch.
+  - unfold_match Hmatch no_i_flag.
     assert (c = c0). {
       simpl in Hmatch. rewrite (canonicalize_casesenst _ _ no_i_flag) in Hmatch.
       wt_eq. reflexivity.
@@ -539,11 +551,11 @@ Proof.
   (* CdRange *)
   - simpl. wt_eq.
     2: destruct rest; constructor.
-    apply char_match_range_same in Hmatch. subst.
+    apply char_match_range_same in Hmatch; auto. subst.
 
     destruct rest; simpl; eauto with prefix.
   (* CdUnion *)
-  - unfold_match Hmatch. simpl in Hmatch.
+  - unfold_match Hmatch no_i_flag. simpl in Hmatch.
     apply Bool.orb_prop in Hmatch. destruct Hmatch.
     + etransitivity.
       * eapply starts_with_chain_merge_literals.
@@ -562,11 +574,13 @@ Lemma extract_literal_prefix_general:
     starts_with (prefix (extract_actions_literal acts)) (next_str inp).
 Proof.
   intros acts tree inp gm Htree [result Hleaf].
-
+  
   remember (forward) as dir.
   generalize dependent result.
   generalize dependent gm.
   induction Htree; intros; subst;
+  	(* eliminated cases when ignoreCase flag is true *)
+    try (simpl; destruct_i; [destruct extract_actions_literal|]);
     (* the prefix is empty *)
     try solve[(constructor || simpl; destruct (extract_actions_literal cont); constructor)];
     (* the literal is that of the rest of the actions *)
@@ -574,8 +588,8 @@ Proof.
       destruct (extract_actions_literal cont); eapply IHHtree; eauto with prefix];
     (* mismatch violating tree_res result *)
     try discriminate Hleaf.
-
-  (* tree_char *)
+  
+    (* tree_char *)
   - (* there is a character to read *)
     unfold read_char in READ; destruct inp; destruct next; try discriminate READ; subst;
 
@@ -593,7 +607,7 @@ Proof.
   - simpl. rewrite <-chain_literals_assoc.
     eauto.
   (* tree_quant_forced *)
-  - simpl.
+  - simpl in IHHtree |- *. rewrite no_i_flag in IHHtree.
     destruct min.
     (* min = 0 *)
     + destruct plus. destruct n.
@@ -645,7 +659,7 @@ Proof.
   generalize dependent gm.
   induction Htree; intros; subst;
     (* the result is that of the rest of the actions *)
-    try solve[simpl in *; destruct (extract_actions_literal cont); eauto].
+    try solve[simpl in *; destruct RegExpRecord.ignoreCase, (extract_actions_literal cont); eauto; easy].
 
   (* tree_done *)
   - discriminate.
@@ -653,46 +667,62 @@ Proof.
   - (* there is a character to read *)
     unfold read_char in READ. destruct inp, next; [discriminate|].
     (* the character matches *)
-    destruct char_match eqn:Hmatch; [|discriminate].
+    destruct char_match eqn:Hmatch; [|discriminate]. injection READ as <-. subst.
 
     apply chain_literals_impossible in Hextract as [Hcd | Hcont].
-    + exfalso. apply (extract_literal_char_impossible_no_match _ _ Hcd Hmatch).
-    + simpl. unfold advance_input'.
-      injection READ as <-. subst. eauto.
+    + exfalso. simpl in Hcd.
+      destruct_i; [discriminate|]. apply (extract_literal_char_impossible_no_match _ _ Hcd Hmatch).
+    + simpl. unfold advance_input'. eauto.
   (* tree_disj *)
   - simpl in Hextract. simpl. unfold seqop.
     simpl in IHHtree1, IHHtree2. rewrite chain_literals_impossible in IHHtree1, IHHtree2.
     apply chain_literals_impossible in Hextract as [Hmerge | Hcont].
-    + apply merge_literals_impossible in Hmerge as [Hex1 Hex2].
+    + destruct_i; [discriminate|].
+      apply merge_literals_impossible in Hmerge as [Hex1 Hex2].
       erewrite IHHtree1, IHHtree2; auto.
     + erewrite IHHtree1, IHHtree2; auto.
   (* tree_sequence *)
   - simpl in Hextract, IHHtree.
-    rewrite chain_literals_assoc in IHHtree.
-    eapply IHHtree; eauto.
+    destruct_i.
+    + destruct extract_actions_literal; try easy. 
+      repeat rewrite chain_literals_impossible in IHHtree.
+      eapply IHHtree; eauto.
+    + rewrite chain_literals_assoc in IHHtree.
+      eapply IHHtree; eauto.
   (* tree_quant_forced *)
-  - simpl in Hextract |- *.
-    apply chain_literals_impossible in Hextract as [Hrep | Hcont].
-    + destruct plus; [destruct n|];
-        apply chain_literals_impossible in Hrep as [? | ?];
-        eapply IHHtree; auto;
+  - simpl in Hextract |- *. destruct_i.
+    + simpl in IHHtree. rewrite no_i_flag in IHHtree.
+      repeat rewrite chain_literals_impossible in IHHtree, Hextract.
+      destruct Hextract; [discriminate|rewrite H in IHHtree].
+      eapply IHHtree; auto.
+    + apply chain_literals_impossible in Hextract as [Hrep | Hcont].
+      * destruct plus; [destruct n|];
+          apply chain_literals_impossible in Hrep as [? | ?];
+          eapply IHHtree; auto;
+          simpl; rewrite no_i_flag;
+          do 2 rewrite chain_literals_impossible; auto.
+      * eapply IHHtree; auto.
         simpl; do 2 rewrite chain_literals_impossible; auto.
-    + eapply IHHtree; auto.
-      simpl; do 2 rewrite chain_literals_impossible; auto.
   (* tree_quant_free *)
   - assert (Hex: extract_actions_literal cont = Impossible). {
-      simpl in Hextract. destruct plus; now destruct extract_actions_literal.
+      simpl in Hextract. destruct RegExpRecord.ignoreCase, plus; now destruct extract_actions_literal.
     }
     unfold greedy_choice.
     destruct greedy.
     + simpl. unfold seqop.
       rewrite IHHtree1, IHHtree2; auto.
-      simpl. rewrite Hex. destruct plus; [destruct n|]; destruct (extract_literal r1); reflexivity.
+      simpl. rewrite Hex. destruct plus; [destruct n|]; destruct (extract_literal r1); destruct_i; reflexivity.
     + simpl. unfold seqop.
       rewrite IHHtree1, IHHtree2; auto.
-      simpl. rewrite Hex. destruct plus; [destruct n|]; destruct (extract_literal r1); reflexivity.
+      simpl. rewrite Hex. destruct plus; [destruct n|]; destruct (extract_literal r1); destruct_i; reflexivity.
+  (* tree_group *)
+  - simpl in *.
+    destruct RegExpRecord.ignoreCase, (extract_actions_literal cont); eauto; try easy.
+    rewrite chain_literals_impossible in IHHtree.
+    eapply IHHtree; eauto.
   (* tree_lk *)
   - simpl in Hextract |- *.
+    replace (if RegExpRecord.ignoreCase rer then Unknown else Unknown) with Unknown in Hextract by now destruct_i.
     destruct extract_actions_literal eqn:Heqex in Hextract; try easy.
 
     rewrite IHHtree2 by auto.
@@ -701,7 +731,9 @@ Proof.
       destruct l. eauto.
     + now destruct tree_res.
   (* tree_backref *)
-  - simpl in Hextract |- *. destruct extract_actions_literal; try easy.
+  - simpl in Hextract |- *.
+    replace (if RegExpRecord.ignoreCase rer then Unknown else Unknown) with Unknown in Hextract by now destruct_i.
+    destruct extract_actions_literal; try easy.
     erewrite <-read_backref_success_advance; eauto.
 Qed.
 
@@ -777,7 +809,7 @@ Theorem extract_literal_size_bound:
   forall r,
     length (prefix (extract_literal r)) <= regex_size r.
 Proof.
-  induction r; simpl; try lia.
+  induction r; simpl; destruct_i; simpl; try lia.
   - (* Character *)
     induction cd; simpl; try lia.
     + wt_eq; simpl; lia.
@@ -793,5 +825,5 @@ Proof.
       lia.
 Qed.
 
-End LiteralExtraction.
+End Literal.
 End Prefix.
