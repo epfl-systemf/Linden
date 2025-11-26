@@ -387,12 +387,12 @@ Qed.
 
 (* generalization of extract_literal_prefix on the group map and the list of actions *)
 Lemma extract_literal_prefix_general:
-  forall acts tree inp gm result,
+  forall acts tree inp gm,
     is_tree rer acts inp Groups.GroupMap.empty forward tree ->
-    tree_res tree gm inp forward = Some result ->
+    (exists result, tree_res tree gm inp forward = Some result) ->
     starts_with (prefix (extract_actions_literal acts)) (next_str inp).
 Proof.
-  intros acts tree inp gm result Htree Hleaf.
+  intros acts tree inp gm Htree [result Hleaf].
 
   remember (forward) as dir.
   generalize dependent result.
@@ -454,15 +454,48 @@ Qed.
 
 (* main theorem: every match starts with the extracted literal *)
 Theorem extract_literal_prefix:
-  forall r tree inp result,
+  forall r tree inp,
     is_tree rer [Areg r] inp Groups.GroupMap.empty forward tree ->
-    first_leaf tree inp = Some result ->
+    (exists result, first_leaf tree inp = Some result) ->
     starts_with (prefix (extract_literal r)) (next_str inp).
 Proof.
   intros.
   rewrite <- (extract_actions_literal_regex r).
   eapply extract_literal_prefix_general; eassumption.
 Qed.
+
+Lemma is_none_iff_not_exists_some:
+  forall {A: Type} (o: option A),
+    o = None <-> ~ (exists x: A, o = Some x).
+Proof.
+  split; intro H.
+  - intros [? ?]. now subst.
+  - destruct o; [exfalso|]; eauto.
+Qed.
+
+(* the contrapositive of extract_literal_prefix *)
+Corollary extract_literal_prefix_general_contra:
+  forall acts tree inp,
+    is_tree rer acts inp Groups.GroupMap.empty forward tree ->
+    ~(starts_with (prefix (extract_actions_literal acts)) (next_str inp)) ->
+    first_leaf tree inp = None.
+Proof.
+  intros.
+  rewrite is_none_iff_not_exists_some.
+  eauto using extract_literal_prefix_general.
+Qed.
+
+Corollary extract_literal_prefix_contra:
+  forall r tree inp,
+    is_tree rer [Areg r] inp Groups.GroupMap.empty forward tree ->
+    ~(starts_with (prefix (extract_literal r)) (next_str inp)) ->
+    first_leaf tree inp = None.
+Proof.
+  intro r; rewrite <- (extract_actions_literal_regex r).
+  intros.
+  eauto using extract_literal_prefix_general_contra.
+Qed.
+
 (* note: this will not hold true if support for backreferences is added.
     Consider /(abc)\1\1/. The extracted literal would be 'abcabcabc' which is not upperbounded by the regex size.
 *)
