@@ -94,7 +94,7 @@ Section BooleanSemantics.
       (* the list of capture groups to reset *)
       (RESET: gidl = def_groups r1)
       (* doing one iteration, then a check, then executing the next quantifier *)
-      (* NEW: switchgint the boolean to CannotExit *)
+      (* NEW: switching the boolean to CannotExit *)
       (ISTREE1: bool_tree (Areg r1 :: Acheck inp :: Areg (Quantified greedy 0 plus r1) :: cont) inp CannotExit titer)
       (* skipping the quantifier entirely *)
       (SKIP: bool_tree cont inp b tskip)
@@ -124,7 +124,7 @@ Section BooleanSemantics.
 
 (** * First Step: encoding the invariant  *)
 
- Inductive bool_encoding: LoopBool -> input -> actions -> Prop :=
+Inductive bool_encoding: LoopBool -> input -> actions -> Prop :=
 (* an empty continuation can be encoded with any boolean *)
 | nil_encode:
   forall str b,

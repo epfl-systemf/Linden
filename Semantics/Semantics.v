@@ -96,7 +96,7 @@ Section Semantics.
     | false =>
         match tree_res t gm inp (lk_dir lk) with
         | Some _ => None         (* expected no result *)
-        | None => Some gm        (* negative lookaounds keep the gm unchanged *)
+        | None => Some gm        (* negative lookarounds keep the gm unchanged *)
         end
     end.
 
@@ -157,7 +157,7 @@ Section Semantics.
     | backward => [Areg r2; Areg r1]
     end.
 
-  (* `is_tree actions str t` means that `t` is a correct backtracking tree for all `actions` on `s` *)
+  (* `is_tree actions inp t` means that `t` is a correct backtracking tree for all `actions` on `inp` *)
   Inductive is_tree: actions -> input -> group_map -> Direction -> tree -> Prop :=
   | tree_match:
     (* nothing to do on an empty list of actions *)
