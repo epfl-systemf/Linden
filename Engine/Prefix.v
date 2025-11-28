@@ -86,7 +86,7 @@ Qed.
 
 (** * Substring search *)
 
-(* Typeclass describing a substring search routine and its axioms *)
+(* Typeclass describing a substring search routine and its specification *)
 Class StrSearch := {
   str_search : string -> string -> option nat;
 
@@ -97,6 +97,8 @@ Class StrSearch := {
   (* if the substring is not found, it cannot appear at any position of the haystack *)
   not_found: forall s ss, str_search ss s = None -> forall i, i <= length s -> ~ (starts_with ss (List.skipn i s))
 }.
+
+(* An example instance of StrSearch using brute force *)
 
 (* Search from position i onwards in string s for substring ss *)
 Function brute_force_str_search (ss s: string) (i: nat) {measure (fun i => S (length s) - i) i} : option nat :=
@@ -153,7 +155,6 @@ Proof.
   - apply Nat.leb_gt in e. lia.
 Qed.
 
-(* An example instance of StrSearch using brute force *)
 #[refine]
 Instance BruteForceStrSearch: StrSearch := {
   str_search ss s := brute_force_str_search ss s 0
@@ -178,7 +179,6 @@ Lemma input_search_strict_suffix {strs: StrSearch}:
   forall i1 i2 p, input_search p i1 = Some i2 -> i2 = i1 \/ strict_suffix i2 i1 forward.
 Proof.
   unfold input_search; intros until p.
-
   destruct str_search; intros [=]; eauto using advance_input_n_suffix.
 Qed.
 
@@ -270,10 +270,19 @@ Section Literal.
 
 (** * Literals *)
 
-Inductive literal : Type :=
-| Exact (s : string) (* the entire match is exactly `s` *)
-| Prefix (s : string) (* the match starts with `s` *)
-| Impossible. (* this indicates a match cannot exist, as opposed to Prefix [] which means we do not know anything about the match *)
+(* Until now we talked about strings. Now we introduce literals, which represent *)
+(* information about the literal characters appearing in a regex. Given a regex *)
+(* we want to under-approximate what we know about the leading characters of any *)
+(* match on that regex. This is done by "literal extraction". We distinguish several *)
+(* kinds of literals explained below.*)
+
+Variant literal : Type :=
+(* the entire match is exactly `s` *)
+| Exact (s : string)
+(* the match starts with `s` *)
+| Prefix (s : string)
+(* this indicates a match cannot exist, as opposed to Prefix [] which means we do not know anything about the match *)
+| Impossible.
 
 Notation Nothing := (Exact []).
 Notation Unknown := (Prefix []).
@@ -282,6 +291,7 @@ Definition literal_eq_dec: forall (l1 l2: literal), { l1 = l2 } + { l1 <> l2 }.
 Proof. decide equality; apply string_eq_dec. Defined.
 Instance literal_EqDec: EqDec literal := EqDec.make literal literal_eq_dec.
 
+(* the string with which every match of that regex from which the literal was extracted starts *)
 Definition prefix (l : literal) :=
   match l with
   | Exact s => s
@@ -367,16 +377,18 @@ Proof.
   - destruct s2; wt_eq; constructor; auto.
 Qed.
 
-Lemma starts_with_chain_merge_literals: forall l1 l2 l3,
-  starts_with (prefix (chain_literals (merge_literals l1 l2) l3)) (prefix (chain_literals l1 l3)).
-Proof.
-  (*
-    The more general lemma of
+(*
+  The more general lemma:
     forall l1 l2 l3,
       starts_with (prefix l1) (prefix l2) ->
       starts_with (prefix (chain_literals l1 l3)) (prefix (chain_literals l2 l3))
-    does not hold (consider l1 = Exact [], l2 = Impossible)
-    thus this lemma focuses on the specific case of merging literals *)
+  does not hold (consider l1 = Exact [], l2 = Impossible).
+  Thus this lemma focuses instead on a specific case. It holds because
+  whenever merging literals produces Exact or Impossible, that meant merge l1 l2 == l1 == l2.
+  If it procuded Prefix, l3 is not used when chaining. *)
+Lemma starts_with_chain_merge_literals: forall l1 l2 l3,
+  starts_with (prefix (chain_literals (merge_literals l1 l2) l3)) (prefix (chain_literals l1 l3)).
+Proof.
   unfold merge_literals; intros.
   wt_eq.
   - reflexivity.
@@ -440,23 +452,21 @@ Qed.
 Fixpoint extract_literal_char (cd: char_descr) : literal :=
   match cd with
   | CdEmpty => Impossible
-  | CdDot => Unknown
-  | CdAll => Unknown
   | CdSingle c => Exact [c]
-  | CdDigits => Unknown
-  | CdNonDigits => Unknown
-  | CdWhitespace => Unknown
-  | CdNonWhitespace => Unknown
-  | CdWordChar => Unknown
-  | CdNonWordChar => Unknown
-  | CdUnicodeProp p => Unknown
-  | CdNonUnicodeProp p => Unknown
-  | CdInv cd' => Unknown
   | CdRange l h => if l == h then Exact [l] else Unknown
   | CdUnion cd1 cd2 => merge_literals (extract_literal_char cd1) (extract_literal_char cd2)
+  | CdDot | CdAll | CdDigits | CdNonDigits | CdWhitespace | CdNonWhitespace | CdWordChar
+  | CdNonWordChar | CdUnicodeProp _ | CdNonUnicodeProp _ | CdInv _ => Unknown
   end.
 
 (* extracting literals from a regex *)
+(* 
+  TODO: this could benefit from a few improvements:
+  - Support lookarounds by performing intersection of overlapping literals.
+    For instance /(?=abc)p/ => None, /(?<=abc)c/ => 'c' (but not exact nor prefix). This would require thinking reconsidering what Exact and Prefix mean.
+  - Support anchors by detecting impossible matches, e.g., /\b\B/ => Impossible.
+  - Support backreferences by mapping group ids to literals, e.g., /(abc)\1/ => 'abcabc' (exact).
+*)
 Fixpoint extract_literal (r: regex) : literal :=
   if RegExpRecord.ignoreCase rer then Unknown else
   match r with
@@ -466,10 +476,10 @@ Fixpoint extract_literal (r: regex) : literal :=
   | Sequence r1 r2 => chain_literals (extract_literal r1) (extract_literal r2)
   | Quantified _ min (NoI.N 0) r1 => repeat_literal (extract_literal r1) Nothing min
   | Quantified _ min _ r1 => repeat_literal (extract_literal r1) Unknown min
-  | Lookaround _ r1 => Unknown (* TODO: possible by merging the literals around but that requires a different way of computing literals. For instance /(?=abc)p/ => None, /(?<=abc)c/ => 'c' (but not exact nor prefix) *)
+  | Lookaround _ r1 => Unknown
   | Group _ r1 => extract_literal r1
-  | Anchor _ => Nothing (* TODO: can be used to detect impossible matches, like /\b\B/, but this requires restructuring this function *)
-  | Backreference _ => Unknown (* TODO: possible to incorporate by having a group map from group id to `literal`. Then something like /(abc)\1/ can be extracted as `abcabc` *)
+  | Anchor _ => Nothing
+  | Backreference _ => Unknown
   end.
 
 Definition extract_action_literal (a : action) : literal :=
@@ -516,11 +526,9 @@ Proof.
     rewrite CharSet.range_spec in H1.
     assert (Character.numeric_value x = Character.numeric_value l) as H3 by lia.
     assert (Character.from_numeric_value (Character.numeric_value x) = Character.from_numeric_value (Character.numeric_value l)) as H4 by auto.
-
     repeat rewrite Character.numeric_pseudo_bij in H4.
     assumption.
   } subst.
-
   repeat rewrite (canonicalize_casesenst rer _ no_i_flag) in H2.
   symmetry. apply EqDec.inversion_true. assumption.
 Qed.
@@ -552,7 +560,6 @@ Proof.
   - simpl. wt_eq.
     2: destruct rest; constructor.
     apply char_match_range_same in Hmatch; auto. subst.
-
     destruct rest; simpl; eauto with prefix.
   (* CdUnion *)
   - unfold_match Hmatch no_i_flag. simpl in Hmatch.
@@ -574,7 +581,6 @@ Lemma extract_literal_prefix_general:
     starts_with (prefix (extract_actions_literal acts)) (next_str inp).
 Proof.
   intros acts tree inp gm Htree [result Hleaf].
-  
   remember (forward) as dir.
   generalize dependent result.
   generalize dependent gm.
@@ -588,14 +594,11 @@ Proof.
       destruct (extract_actions_literal cont); eapply IHHtree; eauto with prefix];
     (* mismatch violating tree_res result *)
     try discriminate Hleaf.
-  
-    (* tree_char *)
+  (* tree_char *)
   - (* there is a character to read *)
     unfold read_char in READ; destruct inp; destruct next; try discriminate READ; subst;
-
     (* the character matches *)
     destruct char_match eqn:Heqmatch; try discriminate READ; injection READ; intros; subst.
-
     apply chain_literals_extract_char; eauto.
   (* tree_disj *)
   - simpl in Hleaf. unfold seqop in Hleaf.
@@ -636,13 +639,11 @@ Proof.
   induction cd;
     (* the cd does not produce Impossible *)
     try solve[discriminate].
-
-  - (* CdRange *)
-    simpl in Hextract. wt_eq; discriminate.
-  - (* CdUnion *)
-    simpl in Hextract.
+  (* CdRange *)
+  - simpl in Hextract. wt_eq; discriminate.
+  (* CdUnion *)
+  - simpl in Hextract.
     apply merge_literals_impossible in Hextract as [Hcd1 Hcd2].
-
     unfold char_match in *. simpl in Hmatch.
     apply Bool.orb_prop in Hmatch as [Hm1 | Hm2]; eauto.
 Qed.
@@ -654,13 +655,11 @@ Lemma extract_literal_impossible_general:
     tree_res tree gm inp forward = None.
 Proof.
   intros acts tree inp gm Htree Hextract.
-
   remember (forward) as dir.
   generalize dependent gm.
   induction Htree; intros; subst;
     (* the result is that of the rest of the actions *)
     try solve[simpl in *; destruct RegExpRecord.ignoreCase, (extract_actions_literal cont); eauto; easy].
-
   (* tree_done *)
   - discriminate.
   (* tree_char *)
@@ -668,7 +667,6 @@ Proof.
     unfold read_char in READ. destruct inp, next; [discriminate|].
     (* the character matches *)
     destruct char_match eqn:Hmatch; [|discriminate]. injection READ as <-. subst.
-
     apply chain_literals_impossible in Hextract as [Hcd | Hcont].
     + exfalso. simpl in Hcd.
       destruct_i; [discriminate|]. apply (extract_literal_char_impossible_no_match _ _ Hcd Hmatch).
@@ -724,7 +722,6 @@ Proof.
   - simpl in Hextract |- *.
     replace (if RegExpRecord.ignoreCase rer then Unknown else Unknown) with Unknown in Hextract by now destruct_i.
     destruct extract_actions_literal eqn:Heqex in Hextract; try easy.
-
     rewrite IHHtree2 by auto.
     destruct positivity.
     + destruct tree_res; eauto.
@@ -810,16 +807,16 @@ Theorem extract_literal_size_bound:
     length (prefix (extract_literal r)) <= regex_size r.
 Proof.
   induction r; simpl; destruct_i; simpl; try lia.
-  - (* Character *)
-    induction cd; simpl; try lia.
+  (* Character *)
+  - induction cd; simpl; try lia.
     + wt_eq; simpl; lia.
     + pose proof (merge_literals_length (extract_literal_char cd1) (extract_literal_char cd2)); lia.
-  - (* Disjunction *)
-    pose proof (merge_literals_length (extract_literal r1) (extract_literal r2)); lia.
-  - (* Sequence *)
-    pose proof (chain_literals_length (extract_literal r1) (extract_literal r2)); lia.
-  - (* Quantified *)
-    induction min; (destruct delta; [destruct n|]); simpl;
+  (* Disjunction *)
+  - pose proof (merge_literals_length (extract_literal r1) (extract_literal r2)); lia.
+  (* Sequence *)
+  - pose proof (chain_literals_length (extract_literal r1) (extract_literal r2)); lia.
+  (* Quantified *)
+  - induction min; (destruct delta; [destruct n|]); simpl;
       try pose proof (chain_literals_length (extract_literal r) (repeat_literal (extract_literal r) Nothing min));
       try pose proof (chain_literals_length (extract_literal r) (repeat_literal (extract_literal r) Unknown min));
       lia.
