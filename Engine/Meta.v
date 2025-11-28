@@ -44,8 +44,8 @@ Instance PikeVMAnchoredEngine: AnchoredEngine := {
 }.
   (* exec_correct *)
   intros r inp ol Hsubset.
-	pose proof (pike_vm_match_terminates rer r inp Hsubset) as [res Hmatch].
-	rewrite Hmatch.
+  pose proof (pike_vm_match_terminates rer r inp Hsubset) as [res Hmatch].
+  rewrite Hmatch.
   split.
   - intros [tree [Htree Hleaf]].
     subst. eauto using pike_vm_match_correct, pike_vm_correct.
@@ -132,13 +132,11 @@ Proof.
     specialize (IHHprefix Hsearch).
     unfold advance_input in H. destruct inp1 as [next1 pref1] eqn:Hinp1, next1 eqn:Hnext1; [easy|].
     inversion H. rewrite <-H1 in IHHprefix.
-
     assert (Hnone: exec r (Input (t :: s) pref1) = None). {
       assert (Hbetween: input_between inp inp3 inp1). {
         rewrite input_prefix_strict_suffix in Hprefix, Hlow.
         split; destruct Hprefix, Hlow; subst; eauto using ss_next', ss_advance.
       }
-
       subst.
       pose proof (is_tree_productivity rer [Areg r] (Input (t :: s) pref1) Groups.GroupMap.empty forward) as [tree Htree].
       rewrite <-exec_correct; [|assumption].
