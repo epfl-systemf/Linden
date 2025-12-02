@@ -396,8 +396,6 @@ Qed.
     { destruct (compute_tree rer [Areg r] inp  GroupMap.empty forward (S (actions_fuel [Areg r] inp forward))) eqn:PROD.
       2: { generalize functional_terminates. intros H1. apply H1 in PROD; auto; lia. }
       exists t0. eapply compute_is_tree; eauto. }
-    (* deprecated: when we had to prove valid checks *)
-      (* unfold inp_valid_checks. simpl. intros strcheck [H1|H1]; inversion H1. } *)
     apply boolean_correct in ISTREE as BOOLTREE; auto.
     (* determinism *)
     assert (t = t') by (eapply bool_tree_determ; eauto). subst. auto.

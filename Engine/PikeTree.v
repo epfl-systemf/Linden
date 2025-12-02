@@ -20,13 +20,6 @@ Section PikeTree.
   Context {params: LindenParameters}.
   Context {TS: TSeen params}.
 
-
-  (* Definition seentrees := TS.seentrees. *)
-  (* Definition initial_seentrees := TS.initial_seentrees. *)
-  (* Definition add_seentrees := TS.add_seentrees. *)
-  (* Definition inseen := TS.inseen.  *)
-  (* Definition in_add := TS.in_add. *)
-  (* Definition initial_nothing := TS.initial_nothing. *)
   Global Opaque seentrees initial_seentrees add_seentrees inseen in_add initial_nothing.
 
 (** * Pike Tree - tree steps  *)
