@@ -147,8 +147,10 @@ Proof.
   eapply encode_equal with (b:=CanExit) in TREE as BOOLTREE; pike_subset.
   inversion BOOLTREE; inversion CONT; destruct plus; [discriminate|]; subst.
   eapply pike_vm_to_pike_tree_lazyprefix in TRC; eauto.
+  2: unfold initial_nextt_lazyprefix; eauto using no_erase.
+  remember (Some titer) as nextt.
   eapply pike_tree_trc_correct in TRC as FINALINV.
-  2: eauto using init_piketree_inv_lazyprefix.
+  2: eapply init_piketree_inv_lazyprefix; subst; unfold initial_nextt_lazyprefix; eauto using no_erase.
   inversion FINALINV. subst. auto.
 Qed.
 
