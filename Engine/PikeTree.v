@@ -16,6 +16,10 @@ From Linden Require Import PikeSubset SeenSets.
 From Linden Require Import Parameters BooleanSemantics Semantics.
 From Warblre Require Import Base RegExpRecord.
 
+(* Read, Progress, Choice, Reset *)
+Notation lazy_tree c t1 t2 := (Read c (Progress (Choice t1 (GroupAction (Reset []) t2)))).
+
+
 Section PikeTree.
   Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
@@ -109,22 +113,12 @@ Section PikeTree.
   | acc_keep:
       forall inp c next pref nextt t1 t2
       (INPUT: inp = Input (c::next) pref)
-      (NEXTT: nextt = Read c
-        (Progress
-          (Choice
-            t1
-            (GroupAction (Reset []) t2)))
-      ),
+      (NEXTT: nextt = lazy_tree c t1 t2),
       pike_tree_acc inp nextt (Input next (c::pref)) t2 t1
   | acc_skip:
       forall inp c next pref nextt t1 t2 nextinp acc t
       (INPUT: inp = Input (c::next) pref)
-      (NEXTT: nextt = Read c
-        (Progress
-          (Choice
-            t1
-            (GroupAction (Reset []) t2)))
-      )
+      (NEXTT: nextt = lazy_tree c t1 t2)
       (LEAF: first_leaf t1 (Input next (c::pref)) = None)
       (TRANS: pike_tree_acc (Input next (c::pref)) t2 nextinp acc t),
       pike_tree_acc inp nextt nextinp acc t.
@@ -159,12 +153,7 @@ Section PikeTree.
     (* resetting the seen trees *)
     forall inp c next pref best blocked tgm nextt t1 t2 seen
       (INPUT: inp = Input (c::next) pref)
-      (NEXTT: nextt = Some (Read c
-        (Progress
-          (Choice
-            t1
-            (GroupAction (Reset []) t2))))
-      ),
+      (NEXTT: nextt = Some (lazy_tree c t1 t2)),
       pike_tree_step (PTS inp [] best (tgm::blocked) nextt seen) (PTS (Input next (c::pref)) ((tgm::blocked) ++ [pike_tree_initial_tree t1]) best [] (Some t2) initial_seentrees)
   | pts_nextchar_filter:
     (* when the list of active trees is empty and the next tree is a segment of a lazy star prefix, *)
@@ -173,12 +162,7 @@ Section PikeTree.
     (* resetting the seen trees *)
     forall inp c next pref best blocked tgm nextt t1 t2 seen
       (INPUT: inp = Input (c::next) pref)
-      (NEXTT: nextt = Some (Read c
-        (Progress
-          (Choice
-            t1
-            (GroupAction (Reset []) t2))))
-      )
+      (NEXTT: nextt = Some (lazy_tree c t1 t2))
       (LEAF: first_leaf t1 (Input next (c::pref)) = None),
       pike_tree_step (PTS inp [] best (tgm::blocked) nextt seen) (PTS (Input next (c::pref)) (tgm::blocked) best [] (Some t2) initial_seentrees)
   | pts_active:
@@ -590,7 +574,7 @@ Section PikeTree.
     - unfold first_leaf. simpl. unfold advance_input', advance_input.
       now rewrite <-seqop_assoc.
     - replace
-        (first_leaf (Read c (Progress (Choice t1 (GroupAction (Reset []) t2)))) (Input (c :: next) pref))
+        (first_leaf (lazy_tree c t1 t2) (Input (c :: next) pref))
         with (first_leaf t2 (Input next (c :: pref))).
       apply IHACC; eauto; pike_subset.
 
@@ -645,7 +629,7 @@ Section PikeTree.
             best)
       ) with (
         seqop
-          (first_leaf (Read c (Progress (Choice t1 (GroupAction (Reset []) t2)))) (Input (c :: next) pref))
+          (first_leaf (lazy_tree c t1 t2) (Input (c :: next) pref))
           best
       ). reflexivity.
 
@@ -659,7 +643,7 @@ Section PikeTree.
       econstructor; try econstructor. unfold next_inp, advance_input', advance_input. simpl.
 
       replace (
-        first_leaf (Read c (Progress (Choice t1 (GroupAction (Reset []) t2)))) (Input (c :: next) pref)
+        first_leaf (lazy_tree c t1 t2) (Input (c :: next) pref)
       ) with (first_leaf t2 (Input next (c :: pref))). reflexivity.
 
       unfold first_leaf at 2. simpl. unfold advance_input', advance_input.

@@ -514,12 +514,7 @@ Inductive nextt_nextprefix (code:code): input -> option tree -> option (nat * li
 | nnp_none: forall inp, nextt_nextprefix code inp None None
 | nnp_nonext:
   forall c next pref nextt t1 t2
-    (NEXTT: nextt = Some (Read c
-      (Progress
-        (Choice
-          t1
-          (GroupAction (Reset []) t2))))
-    )
+    (NEXTT: nextt = Some (lazy_tree c t1 t2))
     (LEAF: first_leaf t1 (Input next (c::pref)) = None)
     (REST: nextt_nextprefix code (Input next (c::pref)) (Some t2) None),
     nextt_nextprefix code (Input (c::next) pref) nextt None
@@ -528,12 +523,7 @@ Inductive nextt_nextprefix (code:code): input -> option tree -> option (nat * li
     nextt_nextprefix code (Input [] pref) (Some Mismatch) None
 | nnp_filter:
   forall c next pref nextt t1 t2 n r lit
-    (NEXTT: nextt = Read c
-      (Progress
-        (Choice
-          t1
-          (GroupAction (Reset []) t2)))
-    )
+    (NEXTT: nextt = lazy_tree c t1 t2)
     (COMPILE: compilation r = code)
     (SUBSET: pike_regex r)
     (SHAPE: initial_nextt_lazyprefix rer r (Input (c::next) pref) nextt)
@@ -543,12 +533,7 @@ Inductive nextt_nextprefix (code:code): input -> option tree -> option (nat * li
     nextt_nextprefix code (Input (c::next) pref) (Some nextt) (Some (S n, lit))
 | nnp_generate:
   forall c next pref nextt t1 t2 r lit
-    (NEXTT: nextt = Some (Read c
-      (Progress
-        (Choice
-          t1
-          (GroupAction (Reset []) t2))))
-    )
+    (NEXTT: nextt = Some (lazy_tree c t1 t2))
     (COMPILE: compilation r = code)
     (SUBSET: pike_regex r)
     (T1: bool_tree rer [Areg r] (Input next (c::pref)) CanExit t1)
