@@ -85,6 +85,19 @@ Section PikeTree.
   | PTS (inp:input) (active: list (tree * group_map)) (best: option leaf) (blocked: list (tree * group_map)) (nextt: option tree) (seen:seentrees)
   | PTS_final (best: option leaf).
 
+  (* when generating a new active tree at the beginning, or when doing the acceleration step,
+     we may erase the new `nextt` as long as it does not contain a result.
+     This corresponds to the PikeVM behavior where, after generating or skipping, literal
+     search returns that there is no possible match for the prefix anymore. *)
+  (* LATER: it should be possible to remove the input from that definition:
+     the fact that there is no leaf should be independent of the current input *)
+  Inductive may_erase: tree -> input -> option tree -> Prop :=
+  | no_erase:
+    forall t inp, may_erase t inp (Some t)
+  | erases:
+    forall t inp (NORES: first_leaf t inp = None),
+      may_erase t inp None.
+
   Definition dot_star : regex :=
     Quantified false 0 NoI.Inf (Regex.Character CdAll).
   Definition lazy_prefix (r:regex) : regex :=
@@ -93,8 +106,10 @@ Section PikeTree.
   (* the initial nextt for the lazy prefix version of the PikeTree *)
   Definition initial_nextt_actions_lazyprefix (r: regex) (inp: input) :=
     [Areg (Regex.Character CdAll); Acheck inp; Areg dot_star; Areg r].
-  Definition initial_nextt_lazyprefix (r: regex) (inp: input) (nextt: tree): Prop :=
+  Definition pike_tree_nextt_shape (r: regex) (inp: input) (nextt: tree): Prop :=
     bool_tree rer (initial_nextt_actions_lazyprefix r inp) inp CannotExit nextt.
+  Definition initial_nextt_lazyprefix (r: regex) (inp: input) (nextt: option tree): Prop :=
+    exists tree, pike_tree_nextt_shape r inp tree /\ may_erase tree inp nextt.
 
   Definition option_flat_map {A B: Type} (f: A -> option B) (o: option A) : option B :=
     match o with
@@ -103,8 +118,8 @@ Section PikeTree.
     end.
 
   Definition pike_tree_initial_tree (t: tree) := (t, GroupMap.empty).
-  Definition pike_tree_initial_state_lazyprefix (t:tree) (nextt:tree) (i:input) : pike_tree_state :=
-    PTS i [pike_tree_initial_tree t] None [] (Some nextt) initial_seentrees.
+  Definition pike_tree_initial_state_lazyprefix (t:tree) (nextt:option tree) (i:input) : pike_tree_state :=
+    PTS i [pike_tree_initial_tree t] None [] nextt initial_seentrees.
   Definition pike_tree_initial_state (t:tree) (i:input) : pike_tree_state :=
     PTS i [pike_tree_initial_tree t] None [] None initial_seentrees.
 
@@ -112,16 +127,16 @@ Section PikeTree.
   Inductive pike_tree_acc : input -> tree -> input -> tree -> tree -> Prop :=
   | acc_keep:
       forall inp c next pref nextt t1 t2
-      (INPUT: inp = Input (c::next) pref)
-      (NEXTT: nextt = lazy_tree c t1 t2),
+        (INPUT: inp = Input (c::next) pref)
+        (NEXTT: nextt = lazy_tree c t1 t2),
       pike_tree_acc inp nextt (Input next (c::pref)) t2 t1
   | acc_skip:
       forall inp c next pref nextt t1 t2 nextinp acc t
-      (INPUT: inp = Input (c::next) pref)
-      (NEXTT: nextt = lazy_tree c t1 t2)
-      (LEAF: first_leaf t1 (Input next (c::pref)) = None)
-      (TRANS: pike_tree_acc (Input next (c::pref)) t2 nextinp acc t),
-      pike_tree_acc inp nextt nextinp acc t.
+        (INPUT: inp = Input (c::next) pref)
+        (NEXTT: nextt = lazy_tree c t1 t2)
+        (LEAF: first_leaf t1 (Input next (c::pref)) = None)
+        (TRANS: pike_tree_acc (Input next (c::pref)) t2 nextinp acc t),
+        pike_tree_acc inp nextt nextinp acc t.
 
   (* Small-step semantics for the PikeTree algorithm *)
   Inductive pike_tree_step : pike_tree_state -> pike_tree_state -> Prop :=
@@ -134,9 +149,10 @@ Section PikeTree.
   | pts_acc:
   (* if there are no more active or blocked trees and we have some nextt, *)
   (* we accelerate by non-deterministically skipping branches with no results *)
-    forall inp best seen nextinp nextt acc t
-      (ACC: pike_tree_acc inp nextt nextinp acc t),
-      pike_tree_step (PTS inp [] best [] (Some nextt) seen) (PTS nextinp [pike_tree_initial_tree t] best [] (Some acc) initial_seentrees)
+    forall inp best seen nextinp nextt acc t next_nextt
+      (ACC: pike_tree_acc inp nextt nextinp acc t)
+      (ERASE: may_erase acc nextinp next_nextt),
+      pike_tree_step (PTS inp [] best [] (Some nextt) seen) (PTS nextinp [pike_tree_initial_tree t] best [] next_nextt initial_seentrees)
   | pts_final:
   (* moving to a final state when there are no more active or blocked trees *)
     forall inp best nextt seen
@@ -151,9 +167,10 @@ Section PikeTree.
     (* when the list of active trees is empty and the next tree is a segment of a lazy star prefix, *)
     (* restart from the blocked ones and the head iteration of the lazy star, proceeding to the next character *)
     (* resetting the seen trees *)
-    forall inp c next pref best blocked tgm nextt t1 t2 seen
+    forall inp c next pref best blocked tgm nextt t1 t2 seen next_nextt
       (INPUT: inp = Input (c::next) pref)
-      (NEXTT: nextt = Some (lazy_tree c t1 t2)),
+      (NEXTT: nextt = Some (lazy_tree c t1 t2))
+      (ERASE: may_erase t2 (Input next (c::pref)) next_nextt),
       pike_tree_step (PTS inp [] best (tgm::blocked) nextt seen) (PTS (Input next (c::pref)) ((tgm::blocked) ++ [pike_tree_initial_tree t1]) best [] (Some t2) initial_seentrees)
   | pts_nextchar_filter:
     (* when the list of active trees is empty and the next tree is a segment of a lazy star prefix, *)
@@ -337,6 +354,31 @@ Section PikeTree.
     forall best,
       piketreeinv (PTS_final best) best.
 
+  (** * Non-deterministic results of empty trees  *)
+  Lemma state_nd_nextt_none:
+    forall inp active best blocked nextt seen res,
+      first_leaf nextt inp = None ->
+      state_nd inp active best blocked None seen res ->
+      state_nd inp active best blocked (Some nextt) seen res.
+  Proof.
+    intros inp active best blocked nextt seen res ERASE ND.
+    inversion ND; subst. simpl in ND.
+    econstructor; eauto.
+  Qed.
+
+  Theorem state_nd_erase:
+    forall inp active best blocked nextt seen res erased,
+      may_erase nextt inp erased ->
+      state_nd inp active best blocked erased seen res ->
+      state_nd inp active best blocked (Some nextt) seen res.
+  Proof.
+    intros inp active best blocked nextt seen res erased ERASE ND.
+    inversion ERASE; subst; auto.
+    eapply state_nd_nextt_none; eauto.
+  Qed.
+
+    
+  
   (** * Initialization  *)
 
   (* In the initial state, the invariant holds *)
@@ -361,34 +403,42 @@ Section PikeTree.
       bool_tree rer [Areg (lazy_prefix r)] inp CanExit tree ->
       piketreeinv (pike_tree_initial_state_lazyprefix t nextt inp) (first_leaf tree inp).
   Proof.
-    unfold initial_nextt_lazyprefix.
-    intros t r inp tree nextt PIKEREG NEXTTINIT T TREE.
+    unfold initial_nextt_lazyprefix, pike_tree_nextt_shape.
+    intros t r inp tree nextt PIKEREG [tree' [NEXTTSHAPE NEXTTINIT]] T TREE.
     assert (pike_subtree t). {
       eapply pike_actions_pike_tree. 2: eauto using bool_to_istree_regex. pike_subset.
     }
-    assert (pike_subtree nextt). {
-      eapply subset_semantics; eauto; pike_subset.
+    destruct NEXTTINIT eqn:Haa.
+    {
+      rename t0 into nextt.
+      assert (pike_subtree nextt). {
+        eapply subset_semantics; eauto; pike_subset.
+      }
+      assert (Heq: tree = Choice t (GroupAction (Reset []) nextt)). {
+        inversion TREE; inversion CONT; destruct plus; [discriminate|]; subst.
+        apply bool_tree_determ with (t1:=titer) in NEXTTSHAPE; auto.
+        apply bool_tree_determ with (t1:=tskip) in T; auto.
+        now subst.
+      }
+      unfold first_leaf. unfold pike_tree_initial_state_lazyprefix. constructor; pike_subset; auto.
+      intros res STATEND. inversion STATEND; subst.
+      simpl. rewrite seqop_none. inversion ACTIVE; subst.
+      inversion TLR; subst. rewrite seqop_none.
+      apply tree_nd_initial in TR; auto.
+      unfold initial_nextt_lazyprefix in NEXTTSHAPE; subst; auto.
     }
-    assert (Heq: tree = Choice t (GroupAction (Reset []) nextt)). {
-      unfold initial_nextt_lazyprefix in NEXTTINIT.
-      inversion TREE; inversion CONT; destruct plus; [discriminate|]; subst.
-      apply bool_tree_determ with (t1:=titer) in NEXTTINIT; auto.
-      apply bool_tree_determ with (t1:=tskip) in T; auto.
-      now subst.
+    {
+      (* if we initialize nextt to None, this is exactly init_piketree_inv *)
+      assert (Heq: first_leaf tree inp = first_leaf t inp). {
+        inversion TREE. inversion CONT. destruct plus; [discriminate|subst].
+        replace titer with t0 by
+          (eapply bool_tree_determ with (t1:=t0) in ISTREE1; eauto).
+        replace tskip with t by
+          (eapply bool_tree_determ with (t1:=t) in SKIP; eauto).
+        unfold first_leaf in *. simpl. rewrite NORES. now destruct (tree_res t).
+      } rewrite Heq.
+      now eapply init_piketree_inv.
     }
-    unfold first_leaf. unfold pike_tree_initial_state_lazyprefix. constructor; pike_subset; auto.
-    intros res STATEND. inversion STATEND; subst.
-    simpl. rewrite seqop_none. inversion ACTIVE; subst.
-    inversion TLR; subst. rewrite seqop_none.
-    apply tree_nd_initial in TR; auto.
-    unfold initial_nextt_lazyprefix in NEXTTINIT; subst; auto.
-  Qed.
-
-  Lemma initial_nextt_lazyprefix_bool_encoding:
-    forall r inp,
-      bool_encoding CannotExit inp (initial_nextt_actions_lazyprefix r inp).
-  Proof.
-    repeat unshelve econstructor.
   Qed.
 
   (** * Non deterministic results lemmas  *)
@@ -496,11 +546,11 @@ Section PikeTree.
 
   Lemma pike_tree_acc_bool_tree:
     forall r inp nextt nextinp acc t,
-      initial_nextt_lazyprefix r inp nextt ->
+      pike_tree_nextt_shape r inp nextt ->
       pike_tree_acc inp nextt nextinp acc t ->
-      bool_tree rer [Areg r] nextinp CanExit t /\ initial_nextt_lazyprefix r nextinp acc.
+      bool_tree rer [Areg r] nextinp CanExit t /\ pike_tree_nextt_shape r nextinp acc.
   Proof.
-    unfold initial_nextt_lazyprefix, initial_nextt_actions_lazyprefix.
+    unfold pike_tree_nextt_shape, initial_nextt_actions_lazyprefix.
     intros r inp nextt nextinp acc t NEXTT ACC.
 
     induction ACC; subst; [|apply IHACC].
@@ -556,13 +606,14 @@ Section PikeTree.
   Qed.
 
   Lemma pike_tree_acc_pts_preservation:
-    forall inp best nextt nextinp acc t res seen,
+    forall inp best nextt nextinp acc t res seen next_nextt,
       pike_subtree nextt ->
       pike_tree_acc inp nextt nextinp acc t ->
       state_nd nextinp [pike_tree_initial_tree t] best [] (Some acc) initial_seentrees res ->
+      may_erase acc nextinp next_nextt ->
       state_nd inp [] best [] (Some nextt) seen res.
   Proof.
-    intros inp best nextt nextinp acc t res seen SUBSET ACC STATEND.
+    intros inp best nextt nextinp acc t res seen next_nextt SUBSET ACC STATEND ERASE.
     pose proof (pike_tree_acc_pike_subtree _ _ _ _ _ ACC SUBSET) as [SUBSET_ACC SUBSET_T].
 
     inversion STATEND; subst.
@@ -601,8 +652,11 @@ Section PikeTree.
       eapply tlr_cons; eauto. apply tr_skip. auto.
     (* acceleration *)
     - pose proof (pike_tree_acc_pike_subtree _ _ _ _ _ ACC SUBSET_NE) as [SUBSET_ACC SUBSET_T].
-      constructor; pike_subset; auto. intros res STATEND. apply SAMERES.
-      eauto using pike_tree_acc_pts_preservation.
+      constructor; pike_subset; auto.
+      2: { destruct next_nextt; inversion ERASE; subst; pike_subset. }
+      intros res STATEND. apply SAMERES.
+      eapply state_nd_erase in STATEND as ERASEND; eauto.
+      inversion ERASE; subst; eapply pike_tree_acc_pts_preservation; eauto.
     (* final *)
     - assert (best = result).
       { apply SAMERES. econstructor; try econstructor. now rewrite LEAF. }
