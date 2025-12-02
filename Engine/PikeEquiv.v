@@ -512,15 +512,6 @@ Definition head_pc (threadactive:list thread) : label :=
 (* Simulation invariant between the nextt tree and the nextprefix *)
 Inductive nextt_nextprefix (code:code): input -> option tree -> option (nat * literal) -> Prop :=
 | nnp_none: forall inp, nextt_nextprefix code inp None None
-| nnp_nonext:
-  forall c next pref nextt t1 t2
-    (NEXTT: nextt = Some (RPCR c t1 t2))
-    (LEAF: first_leaf t1 (Input next (c::pref)) = None)
-    (REST: nextt_nextprefix code (Input next (c::pref)) (Some t2) None),
-    nextt_nextprefix code (Input (c::next) pref) nextt None
-| nnp_end:
-  forall pref,
-    nextt_nextprefix code (Input [] pref) (Some Mismatch) None
 | nnp_filter:
   forall c next pref nextt t1 t2 n r lit
     (NEXTT: nextt = RPCR c t1 t2)
@@ -746,9 +737,6 @@ Proof.
   induction H; intros t T; subst;
     try discriminate;
     injection T as <-; auto.
-
-  unfold first_leaf in *. simpl. unfold advance_input', advance_input.
-  now rewrite LEAF, IHnextt_nextprefix.
 Qed.
 
 Lemma nextt_nextprefix_acc:
@@ -775,6 +763,7 @@ Lemma initial_nextt_nextprefix {strs:StrSearch}:
     initial_nextt_lazyprefix rer r inp nextt ->
     nextt_nextprefix code inp (Some nextt) (next_prefix_counter inp (extract_literal r)).
 Proof.
+  (*
   unfold initial_nextt_lazyprefix, next_prefix_counter.
   intros inp r.
   destruct inp as [next pref].
@@ -836,7 +825,7 @@ Proof.
       }
 
       rewrite H in IHnext.
-      eapply IHnext; eauto.
+      eapply IHnext; eauto. *)
 Admitted.
 
 (** * Code Stuttering Well-formedness *)
@@ -1101,18 +1090,12 @@ Proof.
             } subst. eauto 10.
         }
 
-        subst; eauto 10 using pts_acc, pikeinv, pts_nextchar_generate, initial_tree_thread, initial_inclusion, initial_nextt_nextprefix, ltt_app, ltt_cons, ltt_nil.
+        subst; eauto 10 using no_erase, pts_acc, pikeinv, pts_nextchar_generate, initial_tree_thread, initial_inclusion, initial_nextt_nextprefix, ltt_app, ltt_cons, ltt_nil.
       (* final step *)
       + replace pvs2 with (PVS_final best) by now inversion VMSTEP.
         left.
         inversion NEXTTPREFIX; subst; eauto using pts_final, pikeinv_final.
 
-        pose proof (nextt_nextprefix_none_nores _ _ _ _ (eq_refl (Some t2)) REST) as LEAF2.
-        eexists. split.
-        * eapply pts_final.
-          unfold first_leaf in *. simpl. unfold advance_input', advance_input.
-          now rewrite LEAF, LEAF2.
-        * apply pikeinv_final.
     - destruct (advance_input inp) eqn:ADV; [|discriminate (ENDTREE (eq_refl None))].
       specialize (BLOCKED i (eq_refl (Some i))). inversion BLOCKED; subst.
 
@@ -1124,7 +1107,7 @@ Proof.
           by eauto using pikevm_deterministic, pvs_nextchar_generate.
         apply advance_next in ADV.
         inversion NEXTTPREFIX; subst. left.
-        eauto 10 using pikeinv, pts_nextchar_generate, initial_tree_thread, initial_inclusion, initial_nextt_nextprefix, ltt_app, ltt_cons, ltt_nil.
+        eauto 10 using no_erase, pikeinv, pts_nextchar_generate, initial_tree_thread, initial_inclusion, initial_nextt_nextprefix, ltt_app, ltt_cons, ltt_nil.
       (* nextchar_filter *)
       + assert (pvs2 = PVS (Input next (c::pref)) ((pc,gmblocked,b)::threadlist) best [] (Some (nextprefix, lit)) initial_seenpcs)
            by eauto using pikevm_deterministic, pvs_nextchar_filter.
