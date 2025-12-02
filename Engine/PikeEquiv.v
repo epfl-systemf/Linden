@@ -509,6 +509,121 @@ Definition head_pc (threadactive:list thread) : label :=
   | (pc,_,_)::_ => pc
   end.
 
+
+(** * Unanchored Trees  *)
+(* Read, Progress, Choice, Reset *)
+Definition RPCR (c:Character) (t1 t2:tree) : tree :=
+  Read c (Progress (Choice t1 (GroupAction (Reset []) t2))).
+
+Inductive unanchored_tree: actions -> input -> tree -> Prop :=
+(* at the end of the string, we can only try matching from the current position *)
+| ua_end:
+  forall act inp t
+    (END: advance_input inp forward = None)
+    (ISTREE: is_tree rer act inp GroupMap.empty forward t),
+    unanchored_tree act inp (Choice t (GroupAction (Reset []) Mismatch))
+| ua_next:
+  forall act inp c nextinp tnow tnext
+    (ISTREE: is_tree rer act inp GroupMap.empty forward tnow)
+    (ADVANCE: read_char rer CdAll inp forward = Some (c, nextinp))
+    (NEXT: unanchored_tree act nextinp tnext),
+    unanchored_tree act inp (Choice tnow (GroupAction (Reset []) (Read c (Progress tnext)))).
+
+Theorem unanchored_lazy_star:
+  forall act inp t,
+    unanchored_tree act inp t ->
+    is_tree rer ((Areg dot_star)::act) inp GroupMap.empty forward t.
+Proof.
+  unfold dot_star. intros act inp t UA. induction UA.
+  - replace (+∞) with ((NoI.N 1 + +∞)%NoI) by (simpl; auto).
+    econstructor; simpl; eauto.
+    econstructor. destruct inp as [[|c next] pref]; auto.
+    simpl in END. inversion END.
+  - replace (+∞) with ((NoI.N 1 + +∞)%NoI) by (simpl; auto).
+    econstructor; simpl; eauto.
+    econstructor; eauto.
+    econstructor; eauto.
+    eapply StrictSuffix.read_char_suffix; eauto.
+Qed.
+
+Lemma unanchored_productivity:
+  forall act inp,
+  exists t, unanchored_tree act inp t.
+Proof.
+  intros act [next pref].
+  generalize dependent pref. induction next; intros.
+  { specialize (FunctionalUtils.is_tree_productivity rer act (Input [] pref) GroupMap.empty forward) as [tnow ISTREE].
+    eexists. eapply ua_end; eauto. }
+  assert (read_char rer CdAll (Input (a::next) pref) forward = Some (a, Input next (a::pref))) by auto.
+  specialize (IHnext (a::pref)) as [tnext UA].
+  specialize (FunctionalUtils.is_tree_productivity rer act (Input (a::next) pref) GroupMap.empty forward) as [tnow ISTREE].
+  eexists. eapply ua_next; eauto.
+Qed.
+
+Theorem lazy_star_unanchored:
+  forall act inp t,
+    is_tree rer ((Areg dot_star)::act) inp GroupMap.empty forward t ->
+    unanchored_tree act inp t.
+Proof.
+  intros act inp t H. specialize (unanchored_productivity act inp) as [tua UA].
+  apply unanchored_lazy_star in UA as TREE.
+  eapply is_tree_determ in H; eauto. subst. auto.
+Qed.
+
+(** * Unachored Trees where some left subtrees are empty  *)
+(* `prefix_tree act inp n t` means that `t` is the unanchored tree of `act and inp`,
+   and that the `n` first left subtrees have no results *)
+Inductive prefix_tree: actions -> input -> nat -> tree -> Prop :=
+| pt_end_0:
+  forall act inp t
+    (END: advance_input inp forward = None)
+    (ISTREE: is_tree rer act inp GroupMap.empty forward t),
+    prefix_tree act inp 0 (Choice t (GroupAction (Reset []) Mismatch))
+| pt_end_S:
+  forall act inp t n
+    (END: advance_input inp forward = None)
+    (ISTREE: is_tree rer act inp GroupMap.empty forward t)
+    (* when n is >0, it's not possible to match from the current index *)
+    (NORES: first_leaf t inp = None),
+    prefix_tree act inp (S n) (Choice t (GroupAction (Reset []) Mismatch))
+| pt_next_0:
+  forall act inp c nextinp tnow tnext n
+    (ISTREE: is_tree rer act inp GroupMap.empty forward tnow)
+    (ADVANCE: read_char rer CdAll inp forward = Some (c, nextinp))
+    (NEXT: prefix_tree act nextinp n tnext),
+    prefix_tree act inp 0 (Choice tnow (GroupAction (Reset []) (Read c (Progress tnext))))
+| pt_next_S:
+  forall act inp c nextinp tnow tnext n
+    (ISTREE: is_tree rer act inp GroupMap.empty forward tnow)
+    (* when n is >0, it's not possible to match from the current index *)
+    (NORES: first_leaf tnow inp = None)
+    (ADVANCE: read_char rer CdAll inp forward = Some (c, nextinp))
+    (NEXT: prefix_tree act nextinp n tnext),
+    prefix_tree act inp (S n) (Choice tnow (GroupAction (Reset []) (Read c (Progress tnext)))).
+
+Lemma prefix_tree_unanchored:
+  forall act inp t,
+    prefix_tree act inp 0 t <-> unanchored_tree act inp t.
+Proof.
+  intros act inp t. split; intros H.
+  - induction H; try solve[econstructor; eauto].
+  - induction H; try solve[econstructor; eauto].
+Qed.
+
+Lemma prefix_tree_smaller:
+  forall act inp t n1 n2,
+    prefix_tree act inp n1 t ->
+    n2 <= n1 ->
+    prefix_tree act inp n2 t.
+Proof.
+  intros act inp t n1 n2 PT LE.
+  generalize dependent n2. induction PT; intros;
+    destruct n2; try lia; econstructor; eauto.
+  apply IHPT. lia.
+Qed.
+
+
+
 (* Simulation invariant between the nextt tree and the nextprefix *)
 Inductive nextt_nextprefix (code:code): input -> option tree -> option (nat * literal) -> Prop :=
 | nnp_none: forall inp, nextt_nextprefix code inp None None
