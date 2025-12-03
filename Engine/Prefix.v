@@ -14,9 +14,6 @@ From Linden Require Import Parameters LWParameters.
 From Linden Require Import StrictSuffix.
 From Warblre Require Import Base RegExpRecord.
 
-Section Prefix.
-  Context {params: LindenParameters}.
-
 (* Tactic for rewriting decidable equalities into propositional ones *)
 Ltac wt_eq := repeat match goal with
   | [ H: (?x ==? ?y)%wt = true |- _ ] => rewrite EqDec.inversion_true in H; subst
@@ -24,6 +21,9 @@ Ltac wt_eq := repeat match goal with
   | [ |- context[(?x ==? ?y)%wt] ] => destruct (x ==? y)%wt eqn:?Heq
   | [ H: context[(?x ==? ?y)%wt] |- _ ] => destruct (x ==? y)%wt eqn:?Heq
 end.
+
+Section Prefix.
+  Context {params: LindenParameters}.
 
 Inductive starts_with: string -> string -> Prop :=
 | sw_nil: forall s, starts_with [] s
@@ -195,7 +195,7 @@ Proof.
 Qed.
 
 (* low inclusive, high exclusive *)
-Notation input_between ilow ihigh i := ((i = ilow \/ strict_suffix i ilow forward) /\ strict_suffix ihigh i forward).
+Definition input_between ilow ihigh i := ((i = ilow \/ strict_suffix i ilow forward) /\ strict_suffix ihigh i forward).
 
 (* if strict_suffix i2 i1 forward, then next_str i2 is skipn k (next_str i1) for some k > 0 *)
 Lemma strict_suffix_forward_skipn:

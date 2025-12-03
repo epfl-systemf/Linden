@@ -9,7 +9,7 @@ From Warblre Require Import Base.
 
 (** * Seen Sets of Trees  *)
 (* The PikeTree algorithm needs to maintain a set of seen trees *)
-(* Our definitions are parameterized by an inmplementation of such sets. *)
+(* Our definitions are parameterized by an implementation of such sets. *)
 
 (* what we need from these sets is just these few definitions and properties *)
 Class TSeen (params:LindenParameters) :=
