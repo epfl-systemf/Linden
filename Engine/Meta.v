@@ -57,35 +57,6 @@ Instance PikeVMAnchoredEngine: AnchoredEngine := {
 Qed.
 End Engines.
 
-(* relation that one input is a non-strict prefix of another *)
-Inductive input_prefix : input -> input -> Prop :=
-| ip_eq : forall inp, input_prefix inp inp
-| ip_prev : forall inp1 inp2 inp3,
-    advance_input inp1 forward = Some inp2 ->
-    input_prefix inp2 inp3 ->
-    input_prefix inp1 inp3.
-
-Lemma ip_prev':
-  forall inp1 inp2 inp3,
-    input_prefix inp1 inp2 ->
-    advance_input inp2 forward = Some inp3 ->
-    input_prefix inp1 inp3.
-Proof. induction 1; eauto using ip_prev, ip_eq. Qed.
-
-(* equivalence between input_prefix and strict_suffix *)
-Lemma input_prefix_strict_suffix:
-  forall i1 i2,
-    input_prefix i1 i2 <->
-      i2 = i1 \/ strict_suffix i2 i1 forward.
-Proof.
-  split; intros H.
-  - induction H; [auto|].
-    destruct IHinput_prefix; subst; eauto using ss_advance, ss_next'.
-  - destruct H; [subst; auto using ip_eq|].
-    remember forward as dir.
-    induction H; subst; eauto using ip_eq, ip_prev, ip_prev'.
-Qed.
-
 Existing Instance literal_EqDec.
 (* for each input position we run the engine and return the earliest match *)
 Fixpoint search_from {engine:AnchoredEngine} (r: regex) (next: string) (prev: string): option leaf :=
@@ -121,12 +92,13 @@ Lemma search_from_before_jump_eq {strs:StrSearch} {engine:AnchoredEngine}:
   forall i r inp inp',
     supported_regex r ->
     input_search (prefix (extract_literal rer r)) inp = Some inp' ->
-    input_prefix i inp' ->
-    input_prefix inp i ->
+    input_prefix i inp' forward ->
+    input_prefix inp i forward ->
     search_from r (next_str i) (pref_str i) = search_from r (next_str inp') (pref_str inp').
 Proof.
   intros i r inp inp' Hsubset Hsearch Hprefix Hlow.
-  induction Hprefix.
+  remember forward as dir.
+  induction Hprefix; subst.
   - reflexivity.
   - pose proof H as Hadvance.
     specialize (IHHprefix Hsearch).
@@ -151,7 +123,7 @@ Lemma input_search_exec_none {strs:StrSearch} {engine:AnchoredEngine}:
   forall i r inp,
     supported_regex r ->
     input_search (prefix (extract_literal rer r)) inp = None ->
-    input_prefix inp i ->
+    input_prefix inp i forward ->
     exec r i = None.
 Proof.
   intros i r inp Hsubset Hsearch Hlow.
@@ -165,7 +137,7 @@ Lemma search_from_none_prefix {strs:StrSearch} {engine:AnchoredEngine}:
   forall i r inp,
     supported_regex r ->
     input_search (prefix (extract_literal rer r)) inp = None ->
-    input_prefix inp i ->
+    input_prefix inp i forward ->
     search_from r (next_str i) (pref_str i) = None.
 Proof.
   intros [next pref] r inp Hsubset Hsearch Hprefix.
@@ -210,7 +182,7 @@ Proof.
   wt_eq.
   + eapply search_from_impossible_prefix; eauto.
   + destruct input_search eqn:Hsearch.
-    - assert (input_prefix inp i). {
+    - assert (input_prefix inp i forward). {
         apply input_search_strict_suffix in Hsearch.
         now rewrite <-input_prefix_strict_suffix in Hsearch.
       }

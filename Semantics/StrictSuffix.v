@@ -22,7 +22,7 @@ Section StrictSuffix.
       advance_input inp2 dir = Some inp1 ->
       strict_suffix inp2 inp3 dir ->
       strict_suffix inp1 inp3 dir.
-  
+
   (** * Functional version of strict_suffix *)
 
   (* Another, functional, version of strict suffix *)
@@ -100,7 +100,7 @@ Section StrictSuffix.
           * simpl. f_equal. f_equal. rewrite Hpref12. simpl.
             rewrite rev_app_distr, <- app_assoc, <- app_assoc, <- app_assoc. reflexivity.
           * simpl in *. rewrite app_length in Hlendiff. simpl in *. apply IH with (diff := x :: diff'').
-            -- simpl. lia. 
+            -- simpl. lia.
             -- lia.
             -- rewrite <- app_comm_cons. rewrite <- app_assoc in Hnext12. auto.
             -- f_equal.
@@ -145,7 +145,7 @@ Section StrictSuffix.
           * simpl. f_equal. f_equal. rewrite Hnext12. simpl.
             rewrite <- app_assoc. reflexivity.
           * simpl in *. rewrite app_length in Hlendiff. simpl in *. apply IH with (diff := diff'' ++ [a]).
-            -- rewrite app_length. simpl. lia. 
+            -- rewrite app_length. simpl. lia.
             -- lia.
             -- rewrite <- app_assoc. auto.
             -- rewrite <- app_assoc in Hpref12. auto.
@@ -380,13 +380,49 @@ Section StrictSuffix.
         * rewrite <- app_assoc in Hnext_sufnext. auto.
         * reflexivity.
   Qed.
-  
+
   Lemma ss_neq:
     forall inp1 inp2 dir,
       strict_suffix inp1 inp2 dir -> inp1 <> inp2.
   Proof.
     intros inp1 inp2 dir Hss Habs. subst inp2.
     pose proof strict_suffix_current inp1 inp1 dir Hss. lia.
+  Qed.
+
+  (** * Prefixes *)
+
+  (* In general you should use strict_suffix in definitions. *)
+  (* The usage of input_prefix should be reserved for scenarios *)
+  (* where you need the induction to have reflexive base case, *)
+  (* and the inductive step to build from the biggest to smallest *)
+  (* prefixes. *)
+
+  (* relation that one input is a non-strict prefix of another *)
+  Inductive input_prefix : input -> input -> Direction -> Prop :=
+  | ip_eq : forall inp dir, input_prefix inp inp dir
+  | ip_prev : forall inp1 inp2 inp3 dir,
+      advance_input inp1 dir = Some inp2 ->
+      input_prefix inp2 inp3 dir ->
+      input_prefix inp1 inp3 dir.
+
+  Lemma ip_prev':
+    forall inp1 inp2 inp3 dir,
+      input_prefix inp1 inp2 dir ->
+      advance_input inp2 dir = Some inp3 ->
+      input_prefix inp1 inp3 dir.
+  Proof. induction 1; eauto using ip_prev, ip_eq. Qed.
+
+  (* equivalence between input_prefix and strict_suffix *)
+  Lemma input_prefix_strict_suffix:
+    forall i1 i2 dir,
+      input_prefix i1 i2 dir <->
+        i2 = i1 \/ strict_suffix i2 i1 dir.
+  Proof.
+    split; intros H.
+    - induction H; [auto|].
+      destruct IHinput_prefix; subst; eauto using ss_advance, ss_next'.
+    - destruct H; [subst; auto using ip_eq|].
+      induction H; subst; eauto using ip_eq, ip_prev, ip_prev'.
   Qed.
 
 End StrictSuffix.
