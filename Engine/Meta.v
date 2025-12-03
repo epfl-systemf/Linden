@@ -21,7 +21,7 @@ From Warblre Require Import Base RegExpRecord.
 
 
 Section Meta.
-	Context {params: LindenParameters}.
+  Context {params: LindenParameters}.
   Context (rer: RegExpRecord).
 
 (* We define what it means to be a regex engine and show that our engines follow these definitions. *)
@@ -36,12 +36,10 @@ Class AnchoredEngine := {
   supported_regex: regex -> Prop;
 
   (* the execution follows the backtracking tree semantics *)
-  exec_correct: forall r inp ol,
+  exec_correct: forall r inp tree ol,
     supported_regex r ->
-      ((exists tree,
-        is_tree rer [Areg r] inp Groups.GroupMap.empty forward tree /\
-        first_leaf tree inp = ol) <->
-      exec r inp = ol)
+    is_tree rer [Areg r] inp Groups.GroupMap.empty forward tree ->
+    (first_leaf tree inp = ol <-> exec r inp = ol)
 }.
 
 (* we show that the PikeVM fits the scheme of an anchored engine *)
@@ -54,22 +52,19 @@ Instance PikeVMAnchoredEngine: AnchoredEngine := {
   supported_regex := pike_regex;
 }.
   (* exec_correct *)
-  intros r inp ol Hsubset.
+  intros r inp tree ol Hsubset Htree.
   pose proof (pike_vm_match_terminates rer r inp Hsubset) as [res Hmatch].
   rewrite Hmatch.
   split.
-  - intros [tree [Htree Hleaf]].
+  - intros Hleaf.
     subst. eauto using pike_vm_match_correct, pike_vm_correct.
-  - intros ?; subst.
-    pose proof (is_tree_productivity rer [Areg r] inp Groups.GroupMap.empty forward) as [tree Htree].
-    exists tree.
-    split; eauto.
+  - intros <-.
     symmetry. eauto using pike_vm_match_correct, pike_vm_correct.
 Qed.
 End Engines.
 
 Existing Instance literal_EqDec.
-(* for each input position we run the engine and return the earliest match *)
+(* for each input position we run the anchored engine and return the earliest match *)
 Fixpoint search_from {engine:AnchoredEngine} (r: regex) (next: string) (prev: string): option leaf :=
   match (exec r (Input next prev)) with
   | Some leaf => Some leaf
@@ -122,7 +117,7 @@ Proof.
       }
       subst.
       pose proof (is_tree_productivity rer [Areg r] (Input (t :: s) pref1) Groups.GroupMap.empty forward) as [tree Htree].
-      rewrite <-exec_correct; [|assumption].
+      rewrite <-exec_correct; eauto.
       eauto using input_search_no_earlier, extract_literal_prefix_contra.
     }
     simpl.
@@ -139,8 +134,8 @@ Lemma input_search_exec_none {strs:StrSearch} {engine:AnchoredEngine}:
 Proof.
   intros i r inp Hsubset Hsearch Hlow.
   rewrite input_prefix_strict_suffix in Hlow.
-  rewrite <-exec_correct; [|assumption].
   pose proof (is_tree_productivity rer [Areg r] i Groups.GroupMap.empty forward) as [tree Htree].
+  rewrite <-exec_correct; eauto.
   eauto using input_search_not_found, extract_literal_prefix_contra.
 Qed.
 
@@ -167,8 +162,8 @@ Lemma input_search_exec_impossible {strs:StrSearch} {engine:AnchoredEngine}:
     exec r inp = None.
 Proof.
   intros inp r Hsubset Hextract.
-  rewrite <-exec_correct; [|assumption].
   pose proof (is_tree_productivity rer [Areg r] inp Groups.GroupMap.empty forward) as [tree Htree].
+  rewrite <-exec_correct; eauto.
   eauto using extract_literal_impossible.
 Qed.
 
