@@ -25,7 +25,8 @@ jobs:
 
       - name: Install opam dependencies
         run:  |
-          opam pin add warblre https://github.com/epfl-systemf/Warblre.git#a1ffc3f2e47d942ad9e1194dfb71f0783ead6d8a
+          opam pin add --no-action warblre.0.1.0 https://github.com/epfl-systemf/Warblre.git#a1ffc3f2e47d942ad9e1194dfb71f0783ead6d8a
+          opam install . --deps-only
 
       - name: Dune build
         run:  opam exec -- dune build
