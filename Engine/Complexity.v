@@ -174,7 +174,9 @@ Inductive vm_inv (c:code): pike_vm_state -> nat -> Prop :=
     (ACTIVEWF: forall t, In t active -> fst (fst t) < size c)
     (BLOCKEDWF: forall t, In t blocked -> fst (fst t) < size c)
     (* the seen set is well-formed, and has `count` distinct elements *)
-    (SEENWF: wf seen (size c) dist),
+    (SEENWF: wf seen (size c) dist)
+    (* The next place where the prefix can match is in range of the input *)
+    (RANGEPREF: forall n lit, nextprefix = Some (n, lit) -> inpsize inp > S n),
     vm_inv c (PVS inp active best blocked nextprefix seen) (measure (size c) dist active blocked inp).
 
 Lemma nonfinal_pos:
@@ -184,6 +186,54 @@ Proof.
   intros c inp active best blocked nextprefix seen m H. inversion H. subst. unfold measure.
   specialize (inpsize_strict inp) as SIZE. lia.
 Qed.
+
+(** * Next prefix search is in range  *)
+
+Theorem search_in_range:
+  forall inp lit n lit' (strs:StrSearch),
+    next_prefix_counter inp lit = Some (n, lit') ->
+    inpsize inp > S n.
+Proof.
+  intros [next pref] lit n lit' strs H. unfold next_prefix_counter in H.
+  destruct next; simpl in H. inversion H.
+  destruct str_search eqn:SEARCH; inversion H; subst.
+  apply str_search_bound in SEARCH. simpl. lia.
+Qed.
+
+Lemma advance_inpsize:
+  forall inp1 inp2 n,
+    advance_input inp1 forward = Some inp2 ->
+    inpsize inp1 > S n ->
+    inpsize inp2 > n.
+Proof.
+  intros [next1 pref1] inp2 n H H0. simpl in H.
+  destruct next1; inversion H.
+  simpl in H0. simpl. lia.
+Qed.
+
+Lemma advance_S_n:
+  forall n next pref c,
+    advance_input_n (Input (c::next) pref) (S n) forward =
+      advance_input_n (Input next (c::pref)) n forward.
+Proof.
+  intros n next pref c. simpl. f_equal. rewrite <- app_assoc. auto.
+Qed.
+
+Lemma advance_n_inpsize:
+  forall inp n,
+  inpsize inp > S n ->
+  inpsize (advance_input_n inp (S n) forward) < inpsize inp.
+Proof.
+  intros [next pref] n H.
+  generalize dependent next. generalize dependent pref.
+  induction n; intros.
+  - unfold advance_input_n. destruct next; simpl in H; simpl; lia.
+  - destruct next as [|c next]; simpl in H. lia.
+    assert (S (length next) > S n) by lia.
+    specialize (IHn (c::pref) next H0). rewrite advance_S_n.
+    simpl in IHn. simpl. lia.
+Qed.         
+
 
 (** * Well-formedness of the code  *)
 
@@ -420,8 +470,15 @@ Proof.
     + constructor.
     + apply nonfinal_pos in INV. auto.
   (* acc: we might add (2*codesize) free slots, but we lose at least one input length *)
-  - admit.
-  (* I need to know that when nextprefix is > 0, then advance_input_n will actually strictly advance the input... *)
+  - specialize (RANGEPREF n lit eq_refl).
+    exists (measure (size code) [] [pike_vm_initial_thread] [] (advance_input_n inp (S n) forward)). split; [constructor|]; auto.
+    + (* the new generated thread is in range because the code is nonempty *)
+      intros t H. inversion H as [IN1|IN2]; auto.
+      subst. unfold pike_vm_initial_thread. simpl. auto.
+    + constructor.
+    + intros n0 lit0 H. eapply search_in_range; eauto.
+    + unfold measure. simpl. rewrite free_initial. specialize (advance_n_inpsize inp n RANGEPREF)as ADV. 
+      apply increase_mult with (x:= 4 * size code) in ADV as NEXT. simpl in NEXT. lia.
   (* end *)
   - exists 0. split.
     + constructor.
@@ -429,6 +486,7 @@ Proof.
   (* nextchar: we might add (2*codesize) free slots, but we lose an input length *)
   - exists (measure (size code) [] (thr::blocked) [] inp2). split; [constructor|]; auto.
     + constructor.
+    + intros n lit H; inversion H.
     + unfold measure. simpl. rewrite free_initial. apply advance_input_decreases in ADVANCE.
       apply increase_mult with (x:= 4 * size code) in ADVANCE as NEXT. simpl in NEXT. lia.
   (* nextchar_generate: we might add (2*codesize) free slots, but we lose an input length *)
@@ -437,12 +495,15 @@ Proof.
       intros t H. apply in_app_or in H as [IN1|IN2]; auto.
       inversion IN2; inversion H. unfold pike_vm_initial_thread. simpl. auto.
     + constructor.
+    + intros n lit0 H. eapply search_in_range; eauto.
     + unfold measure. simpl. rewrite free_initial. apply advance_input_decreases in ADVANCE.
       apply increase_mult with (x:= 4 * size code) in ADVANCE as NEXT. simpl in NEXT.
       rewrite app_length. simpl. lia.
   (* nextchar_filter: we might add (2*codesize) free slots, but we lose an input length *)
   - exists (measure (size code) [] (thr::blocked) [] inp2). split; [constructor|]; auto.
     + constructor.
+    + intros n0 lit0 H. inversion H; subst. specialize (RANGEPREF (S n0) lit0 eq_refl).
+      eapply advance_inpsize; eauto.
     + unfold measure. simpl. rewrite free_initial. apply advance_input_decreases in ADVANCE.
       apply increase_mult with (x:= 4 * size code) in ADVANCE as NEXT. simpl in NEXT. lia.
   (* skip: we lose a thread *)
@@ -466,6 +527,7 @@ Proof.
     exists (measure (size code) ((pc,b)::dist) [] blocked inp). split; [constructor|]; auto.
     + intros t0 H. inversion H.
     + unfold add_thread. apply wf_new; auto.
+    + intros n lit H; inversion H.
     + specialize (free_add seen (size code) dist (pc,gm,b) SEENWF UNSEEN RANGE) as FREE.
       apply wf_size in FREE. unfold measure, free. simpl. lia.
   (* blocked: we switch an active thread to blocked, but lose a free slot *)
@@ -480,7 +542,7 @@ Proof.
      + unfold add_thread. apply wf_new; auto.
      + specialize (free_add seen (size code) dist (pc,gm,b) SEENWF UNSEEN RANGE) as FREE.
        apply wf_size in FREE. unfold measure, free. rewrite app_length. simpl. simpl in FREE. lia.
-Admitted.
+Qed.
 
 (** * Code Size  *)
 
@@ -564,6 +626,7 @@ Proof.
       simpl. lia.
     + intros t H. inversion H.
     + constructor.
+    + intros n lit H; inversion H.
   - unfold complexity, measure. rewrite <- compilation_size; auto. simpl.
     rewrite free_initial. simpl. lia.
 Qed.
