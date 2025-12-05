@@ -9,7 +9,7 @@ Import ListNotations.
 From Linden Require Import Regex Chars Groups.
 From Linden Require Import Tree Semantics NFA.
 From Linden Require Import BooleanSemantics PikeSubset.
-From Linden Require Import Parameters SeenSets.
+From Linden Require Import Parameters SeenSets Prefix.
 From Warblre Require Import Base RegExpRecord.
 
 

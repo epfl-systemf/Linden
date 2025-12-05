@@ -84,7 +84,7 @@ Theorem pike_vm_to_pike_tree_lazyprefix:
     pike_regex r ->
     bool_tree rer [Areg r] inp CanExit tree ->
     initial_nextt_lazyprefix rer r inp nextt ->
-    trc_pike_vm (compilation r) (pike_vm_initial_state_lazyprefix (extract_literal r) inp) (PVS_final result) ->
+    trc_pike_vm (compilation r) (pike_vm_initial_state_lazyprefix (extract_literal rer r) inp) (PVS_final result) ->
     trc_pike_tree (pike_tree_initial_state_lazyprefix tree nextt inp) (PTS_final result).
 Proof.
   intros r inp tree nextt result SUBSET TREE NEXTT TRCVM.
@@ -139,7 +139,7 @@ Theorem pike_vm_correct_lazyprefix:
     (* `tree` is the tree of the regex `[^]*?r` for the input `inp` *)
     is_tree rer [Areg (lazy_prefix r)] inp GroupMap.empty forward tree ->
     (* the result of the PikeVM is `result` *)
-    trc_pike_vm (compilation r) (pike_vm_initial_state_lazyprefix (extract_literal r) inp) (PVS_final result) ->
+    trc_pike_vm (compilation r) (pike_vm_initial_state_lazyprefix (extract_literal rer r) inp) (PVS_final result) ->
     (* This `result` is the priority result of the `tree` *)
     result = first_leaf tree inp.
 Proof.
