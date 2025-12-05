@@ -16,7 +16,7 @@ From Linden Require Import FunctionalUtils FunctionalSemantics.
 From Linden Require Import Parameters LWParameters.
 From Linden Require Import StrictSuffix Prefix.
 From Linden Require Import PikeSubset SeenSets.
-From Linden Require Import Correctness FunctionalPikeVM.
+From Linden Require Import Correctness Complexity FunctionalPikeVM.
 From Warblre Require Import Base RegExpRecord.
 
 
@@ -27,6 +27,7 @@ Section Meta.
 (* We define what it means to be a regex engine and show that our engines follow these definitions. *)
 Section Engines.
   Context {VMS: VMSeen}.
+  Context {strs: StrSearch}.
 
 (* interface of an anchored, executable engine *)
 Class AnchoredEngine := {

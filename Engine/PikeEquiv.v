@@ -572,7 +572,7 @@ Inductive nextt_nextprefix (code:code): input -> option tree -> option (nat * li
     (COMPILE: compilation r = code)
     (SUBSET: pike_regex r)
     (SHAPE: pike_tree_nextt_shape rer r (Input (c::next) pref) nextt)
-    (LIT: extract_literal r = lit)
+    (LIT: extract_literal rer r = lit)
     (LEAF: first_leaf t1 (Input next (c::pref)) = None)
     (REST: nextt_nextprefix code (Input next (c::pref)) (Some t2) (Some (n, lit))),
     nextt_nextprefix code (Input (c::next) pref) (Some nextt) (Some (S n, lit))
@@ -583,7 +583,7 @@ Inductive nextt_nextprefix (code:code): input -> option tree -> option (nat * li
     (SUBSET: pike_regex r)
     (T1: bool_tree rer [Areg r] (Input next (c::pref)) CanExit t1)
     (T2: pike_tree_nextt_shape rer r (Input next (c::pref)) t2)
-    (LIT: extract_literal r = lit),
+    (LIT: extract_literal rer r = lit),
     nextt_nextprefix code (Input (c::next) pref) nextt (Some (0, lit)).
 
 Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> Prop :=
@@ -816,7 +816,7 @@ Lemma initial_nextt_nextprefix {strs:StrSearch}:
     pike_regex r ->
     compilation r = code ->
     initial_nextt_lazyprefix rer r inp nextt ->
-    nextt_nextprefix code inp nextt (next_prefix_counter inp (extract_literal r)).
+    nextt_nextprefix code inp nextt (next_prefix_counter inp (extract_literal rer r)).
 Proof.
   (*
   unfold initial_nextt_lazyprefix, next_prefix_counter.
@@ -1064,7 +1064,7 @@ Lemma initial_pike_inv_lazyprefix {strs:StrSearch}:
     (COMPILE: compilation r = code)
     (SUBSET: pike_regex r)
     (NEXTT: initial_nextt_lazyprefix rer r inp nextt),
-    pike_inv code (pike_tree_initial_state_lazyprefix tree nextt inp) (pike_vm_initial_state_lazyprefix (extract_literal r) inp).
+    pike_inv code (pike_tree_initial_state_lazyprefix tree nextt inp) (pike_vm_initial_state_lazyprefix (extract_literal rer r) inp).
 Proof.
   intros r inp code tree nextt TREE COMPILE SUBSET NEXTT.
   eapply pikeinv; eauto using ltt_cons, ltt_nil, nnp_none, initial_inclusion, initial_tree_thread, initial_nextt_nextprefix.
@@ -1146,7 +1146,7 @@ Proof.
           exists r,
             compilation r = code /\
             pike_regex r /\
-            extract_literal r = lit /\
+            extract_literal rer r = lit /\
             bool_tree rer [Areg r] (advance_input_n inp (S n) forward) CanExit t /\
             pike_tree_nextt_shape rer r (advance_input_n inp (S n) forward) acc) as [r [COMPILE2 [SUBSET2 [LIT2 [TTREE ACCTREE]]]]].
         {
