@@ -9,7 +9,7 @@ From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeEquiv PikeSubset.
 From Linden Require Import EquivMain RegexpTranslation GroupMapMS.
 From Linden Require Import ResultTranslation FunctionalUtils SeenSets.
-From Linden Require Import Parameters.
+From Linden Require Import Parameters Prefix.
 From Warblre Require Import Base Semantics Result RegExpRecord StaticSemantics.
 Import Result.Notations.
 
@@ -38,11 +38,11 @@ Qed.
 Section Correctness.
   Context {params: LindenParameters}.
   Context {VMS: VMSeen}.
+  Context {strs: StrSearch}.
   Context (rer: RegExpRecord).
 
 Definition trc_pike_tree := @trc pike_tree_state pike_tree_step.
 Definition trc_pike_vm (c:code) := @trc pike_vm_state (pike_vm_step rer c).
-
 
 (* The Pike invariant is preserved through the TRC *)
 Lemma vm_to_tree:
@@ -66,13 +66,29 @@ Qed.
 (* Any execution of the PikeVM to a final state corresponds to an execution of the PikeTree *)
 Theorem pike_vm_to_pike_tree:
   forall r inp tree result,
-    pike_regex r -> 
+    pike_regex r ->
     bool_tree rer [Areg r] inp CanExit tree ->
     trc_pike_vm (compilation r) (pike_vm_initial_state inp) (PVS_final result) ->
     trc_pike_tree (pike_tree_initial_state tree inp) (PTS_final result).
 Proof.
   intros r inp tree result SUBSET TREE TRCVM.
   generalize (initial_pike_inv rer r inp tree (compilation r) TREE (@eq_refl _ _) SUBSET).
+  intros INIT.
+  eapply vm_to_tree in TRCVM as [vmfinal [TRCTREE INV]]; eauto.
+  - inversion INV; subst. auto.
+  - eapply compilation_stutter_wf; eauto.
+Qed.
+
+Theorem pike_vm_to_pike_tree_lazyprefix:
+  forall r inp tree nextt result,
+    pike_regex r ->
+    bool_tree rer [Areg r] inp CanExit tree ->
+    initial_nextt_lazyprefix rer r inp nextt ->
+    trc_pike_vm (compilation r) (pike_vm_initial_state_lazyprefix (extract_literal rer r) inp) (PVS_final result) ->
+    trc_pike_tree (pike_tree_initial_state_lazyprefix tree nextt inp) (PTS_final result).
+Proof.
+  intros r inp tree nextt result SUBSET TREE NEXTT TRCVM.
+  generalize (initial_pike_inv_lazyprefix rer r inp (compilation r) tree nextt TREE (@eq_refl _ _) SUBSET NEXTT).
   intros INIT.
   eapply vm_to_tree in TRCVM as [vmfinal [TRCTREE INV]]; eauto.
   - inversion INV; subst. auto.
@@ -91,7 +107,7 @@ Proof.
   apply IHTRC. eapply pts_preservation; eauto.
 Qed.
 
-  
+
 (** * Correctness Theorem of the PikeVM result  *)
 
 Theorem pike_vm_correct:
@@ -113,6 +129,28 @@ Proof.
     pike_subset. }
   generalize (init_piketree_inv tree inp SUBTREE). intros INIT.
   eapply pike_tree_trc_correct in TRC as FINALINV; eauto.
+  inversion FINALINV. subst. auto.
+Qed.
+
+Theorem pike_vm_correct_lazyprefix:
+  forall r inp tree result,
+    (* the regex `r` is in the supported subset *)
+    pike_regex r ->
+    (* `tree` is the tree of the regex `[^]*?r` for the input `inp` *)
+    is_tree rer [Areg (lazy_prefix r)] inp GroupMap.empty forward tree ->
+    (* the result of the PikeVM is `result` *)
+    trc_pike_vm (compilation r) (pike_vm_initial_state_lazyprefix (extract_literal rer r) inp) (PVS_final result) ->
+    (* This `result` is the priority result of the `tree` *)
+    result = first_leaf tree inp.
+Proof.
+  intros r inp tree result SUBSET TREE TRC.
+  eapply encode_equal with (b:=CanExit) in TREE as BOOLTREE; pike_subset.
+  inversion BOOLTREE; inversion CONT; destruct plus; [discriminate|]; subst.
+  eapply pike_vm_to_pike_tree_lazyprefix in TRC; eauto.
+  2: unfold initial_nextt_lazyprefix; eauto using no_erase.
+  remember (Some titer) as nextt.
+  eapply pike_tree_trc_correct in TRC as FINALINV.
+  2: eapply init_piketree_inv_lazyprefix; subst; unfold initial_nextt_lazyprefix; eauto using no_erase.
   inversion FINALINV. subst. auto.
 Qed.
 
@@ -179,10 +217,9 @@ Proof.
   specialize (equiv_main _ _ _ inp EQUIV RER PASS) as [m [res [COMP_SUCC [EXEC_SUCC LW_EQUIV]]]].
   unfold compilePattern. rewrite COMP_SUCC, EXEC_SUCC.
   specialize (LW_EQUIV (compute_tr rer [Areg lr] inp GroupMap.empty forward) eq_refl) as [ISTREE LW_EQUIV].
-  specialize (pike_vm_correct _ _ _ _ SUBSET ISTREE TRC) as FIRST. subst.  
+  specialize (pike_vm_correct _ _ _ _ SUBSET ISTREE TRC) as FIRST. subst.
   symmetry. apply to_MatchState_equal; auto.
   eapply compilePattern_preserves_groupcount; eauto.
 Qed.
 
 End Correctness.
-

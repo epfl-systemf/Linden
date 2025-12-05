@@ -8,7 +8,7 @@ From Linden Require Import Tree Semantics BooleanSemantics.
 From Linden Require Import NFA PikeTree PikeVM.
 From Linden Require Import PikeSubset.
 From Linden Require Import TreeRep SeenSets.
-From Linden Require Import Parameters.
+From Linden Require Import Parameters Prefix.
 From Warblre Require Import Base RegExpRecord.
 
 
@@ -40,7 +40,7 @@ Inductive tree_thread (code:code) (inp:input) : (tree * group_map) -> thread -> 
     (TT: tree_thread code inp (tree,gm) (pc+1,gm,CannotExit))
     (BEGIN: get_pc code pc = Some BeginLoop),
     tree_thread code inp (tree,gm) (pc,gm,b).
-    
+
 
 (* the initial active thread and the initial active tree are related with the invariant *)
 Lemma initial_tree_thread:
@@ -159,7 +159,7 @@ Proof.
   - repeat invert_rep. simpl. rewrite OPEN. split; auto.
     eapply tt_eq; eauto.
     2: { pike_subset. }
-    replace (pc+1) with (S pc) by lia. 
+    replace (pc+1) with (S pc) by lia.
     apply cons_bc with (pcmid:=end1); repeat (econstructor; eauto).
 Qed.
 
@@ -178,7 +178,7 @@ Proof.
   induction TREE; intros; subst; try inversion HeqTCLOSE; subst.
   - repeat invert_rep. simpl. rewrite CLOSE. split; auto.
     econstructor; eauto. 2: pike_subset.
-    replace (pc + 1) with (S pc) by lia. auto. 
+    replace (pc + 1) with (S pc) by lia. auto.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
   - repeat invert_rep. eapply IHTREE; eauto. pike_subset.
     repeat (econstructor; eauto). pike_subset.
@@ -203,7 +203,7 @@ Proof.
   - destruct greedy; inversion CHOICE.
 Qed.
 
-Corollary generate_reset:  
+Corollary generate_reset:
   forall gidl tree inp code pc b gm
     (TT: tree_thread code inp (GroupAction (Reset gidl) tree, gm) (pc,gm,b))
     (NOSTUTTER: stutters pc code = false),
@@ -277,7 +277,7 @@ Proof.
   - repeat invert_rep. simpl. rewrite CHECK. rewrite ANCHOR. split; auto.
     eapply tt_eq; eauto.
     2: { pike_subset. }
-    replace (pc+1) with (S pc) by lia. 
+    replace (pc+1) with (S pc) by lia.
     assumption.
 Qed.
 
@@ -563,9 +563,32 @@ Definition head_pc (threadactive:list thread) : label :=
   | (pc,_,_)::_ => pc
   end.
 
+(* Simulation invariant between the nextt tree and the nextprefix *)
+Inductive nextt_nextprefix (code:code): input -> option tree -> option (nat * literal) -> Prop :=
+| nnp_none: forall inp, nextt_nextprefix code inp None None
+| nnp_filter:
+  forall c next pref nextt t1 t2 n r lit
+    (NEXTT: nextt = lazy_tree c t1 t2)
+    (COMPILE: compilation r = code)
+    (SUBSET: pike_regex r)
+    (SHAPE: pike_tree_nextt_shape rer r (Input (c::next) pref) nextt)
+    (LIT: extract_literal rer r = lit)
+    (LEAF: first_leaf t1 (Input next (c::pref)) = None)
+    (REST: nextt_nextprefix code (Input next (c::pref)) (Some t2) (Some (n, lit))),
+    nextt_nextprefix code (Input (c::next) pref) (Some nextt) (Some (S n, lit))
+| nnp_generate:
+  forall c next pref nextt t1 t2 r lit
+    (NEXTT: nextt = Some (lazy_tree c t1 t2))
+    (COMPILE: compilation r = code)
+    (SUBSET: pike_regex r)
+    (T1: bool_tree rer [Areg r] (Input next (c::pref)) CanExit t1)
+    (T2: pike_tree_nextt_shape rer r (Input next (c::pref)) t2)
+    (LIT: extract_literal rer r = lit),
+    nextt_nextprefix code (Input (c::next) pref) nextt (Some (0, lit)).
+
 Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> Prop :=
 | pikeinv:
-  forall inp treeactive treeblocked threadactive threadblocked best treeseen threadseen
+  forall inp treeactive treeblocked threadactive threadblocked best nextt nextprefix treeseen threadseen
     (ACTIVE: list_tree_thread code inp treeactive threadactive)
     (* blocked threads should be equivalent for the next input *)
     (* nothing to say if there is no next input *)
@@ -574,8 +597,9 @@ Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> Prop :=
     (ENDVM: advance_input inp forward = None -> threadblocked = [])
     (ENDTREE: advance_input inp forward = None -> treeblocked = [])
     (* any pc in threadseen must correspond to a tree in treeseen *)
-    (SEEN: seen_inclusion code inp treeseen threadseen (hd_error treeactive) (head_pc threadactive)),
-    pike_inv code (PTS inp treeactive best treeblocked treeseen) (PVS inp threadactive best threadblocked threadseen)
+    (SEEN: seen_inclusion code inp treeseen threadseen (hd_error treeactive) (head_pc threadactive))
+    (NEXTTPREFIX: nextt_nextprefix code inp nextt nextprefix),
+    pike_inv code (PTS inp treeactive best treeblocked nextt treeseen) (PVS inp threadactive best threadblocked nextprefix threadseen)
 | pikeinv_final:
   forall best,
     pike_inv code (PTS_final best) (PVS_final best).
@@ -641,7 +665,7 @@ Lemma actions_rep_start:
     get_pc code pc = Some i ->
     start_rep i.
 Proof.
-  intros act code pc i H. induction H; intros GET. 
+  intros act code pc i H. induction H; intros GET.
   - rewrite ACCEPT in GET. inversion GET. constructor.
   - apply action_rep_start in ACTION as [EQ | [instr [GETSTART START]]].
     + subst. apply IHactions_rep. auto.
@@ -712,7 +736,7 @@ Proof.
   unfold seen_inclusion in *.
   intros pc0 b0 SEEN. apply inpc_add in SEEN. destruct SEEN as [EQ|SEEN].
   - inversion EQ. subst. left. exists t. exists gm. split; auto. apply in_add. left. auto.
-  - specialize (INCL pc0 b0 SEEN).      
+  - specialize (INCL pc0 b0 SEEN).
     destruct INCL as [[ts [gms [SEENs TTs]]] | [ST [ts [gms [GEQ [EQ TTS]]]]]].
     + left. exists ts. exists gms. split; auto. apply in_add. right; auto.
     + left. exists ts. exists gms. split; auto.
@@ -754,6 +778,110 @@ Proof.
   - left. exists ts. exists gms. split; auto.
   - right. split; auto. exists ts. exists gms. split; auto. lia.
 Qed.
+
+(** * Nextt/Nextprefix invariant lemmas *)
+Lemma nextt_nextprefix_none_nores:
+  forall code inp nextt t,
+    nextt = Some t ->
+    nextt_nextprefix code inp nextt None ->
+    first_leaf t inp = None.
+Proof.
+  intros code inp nextt t Heq H.
+  generalize dependent t.
+  remember None as nextprefix.
+  induction H; intros t T; subst;
+    try discriminate;
+    injection T as <-; auto.
+Qed.
+
+Lemma nextt_nextprefix_acc:
+  forall code inp nextt n lit
+    (NEXTTPREFIX: nextt_nextprefix code inp (Some nextt) (Some (n, lit))),
+    exists acc t: tree, pike_tree_acc inp nextt (advance_input_n inp (S n) forward) acc t.
+Proof.
+  destruct inp as [next pref].
+  generalize dependent pref.
+  induction next; intros; inversion NEXTTPREFIX; subst.
+  - pose proof (IHnext _ _ _ _ REST) as [? [? ?]].
+    replace (advance_input_n (Input (a::next) pref) (S (S n0)) forward) with (advance_input_n (Input next (a::pref)) (S n0) forward).
+    eauto using acc_skip.
+
+    simpl; now rewrite <-app_assoc.
+  - injection NEXTT as ->.
+    simpl. eauto using acc_keep.
+Qed.
+
+Lemma initial_nextt_nextprefix {strs:StrSearch}:
+  forall inp r code nextt,
+    pike_regex r ->
+    compilation r = code ->
+    initial_nextt_lazyprefix rer r inp nextt ->
+    nextt_nextprefix code inp nextt (next_prefix_counter inp (extract_literal rer r)).
+Proof.
+  (*
+  unfold initial_nextt_lazyprefix, next_prefix_counter.
+  intros inp r.
+  destruct inp as [next pref].
+  generalize dependent pref.
+  induction next; intros pref code nextt SUBSET COMPILE TREE; simpl.
+
+  1: inversion TREE; subst; [discriminate|constructor].
+
+  inversion TREE; [|discriminate]; inversion TREECONT; inversion TREECONT0; destruct plus; [discriminate|subst];
+
+  inversion READ; subst; simpl.
+
+  destruct str_search eqn:Hsearch.
+  - destruct n as [|n]; (econstructor; eauto).
+    + eapply extract_literal_prefix_contra with (r:=r).
+      (* FIXME: str search relies on the ignore case flag being off *)
+      admit.
+      eapply bool_to_istree_regex; eauto.
+      replace next with (skipn 0 next) by easy.
+      eapply no_earlier in Hsearch; [eauto|lia].
+    + specialize (IHnext (c::pref)).
+      assert (
+        match advance_input (Input next (c::pref)) forward with
+        | Some (Input nextinp _) =>
+            match str_search (prefix (extract_literal r)) nextinp with
+            | Some n' => Some (n', extract_literal r)
+            | None => None
+            end
+        | None => None
+        end = Some (n, extract_literal r)
+      ). {
+        (* since str_search returned (S n), nextinp must be c' :: next' *)
+        pose proof (str_search_succ_cons _ _ _ Hsearch) as [c' [next' ->]].
+        simpl.
+        now rewrite (str_search_succ_next _ _ _ _ Hsearch).
+      }
+      rewrite H in IHnext.
+      eapply IHnext; eauto.
+  - eapply nnp_nonext. eauto.
+    + eapply extract_literal_prefix_contra.
+      (* FIXME: str search relies on the ignore case flag being off *)
+      admit.
+      eapply bool_to_istree_regex; eauto.
+      replace next with (skipn 0 next) by easy.
+      eapply not_found in Hsearch; [eauto|lia].
+    + specialize (IHnext (c::pref)).
+      assert (
+        match advance_input (Input next (c::pref)) forward with
+        | Some (Input nextinp _) =>
+            match str_search (prefix (extract_literal r)) nextinp with
+            | Some n' => Some (n', extract_literal r)
+            | None => None
+            end
+        | None => None
+        end = None
+      ). {
+        destruct next as [|c' next']; simpl; [reflexivity|].
+        now rewrite (str_search_none_next _ _ _ Hsearch).
+      }
+
+      rewrite H in IHnext.
+      eapply IHnext; eauto. *)
+Admitted.
 
 (** * Code Stuttering Well-formedness *)
 (* to show that a stuttering step cannot lead the PikeVM to immediately memoize something that was not memoized by the PikeTree, we need to show that stutteing instructions always point to a greater pc *)
@@ -912,7 +1040,6 @@ Proof.
   unfold stutters. rewrite H2. destruct b0; auto.
 Qed.
 
-  
 
 
 (** * Invariant Initialization  *)
@@ -925,21 +1052,22 @@ Lemma initial_pike_inv:
     (SUBSET: pike_regex r),
     pike_inv code (pike_tree_initial_state tree inp) (pike_vm_initial_state inp).
 Proof.
-  intros r inp tree code TREE COMPILE SUBSET.
-  unfold compilation in COMPILE. destruct (compile r 0) as [c fresh] eqn:COMP.
-  apply compile_nfa_rep with (prev := []) in COMP as REP; auto. simpl in REP.
-  apply fresh_correct in COMP. simpl in COMP. subst.
-  eapply pikeinv; auto.
-  - econstructor.
-    + constructor.
-    + apply tt_eq with (actions:=[Areg r]); auto.
-      2: { pike_subset. }
-      eapply cons_bc; constructor.
-      * apply nfa_rep_extend; eauto.
-      * replace (length c) with (length c + 0) by auto.
-        rewrite get_prefix. auto.
-  - constructor.
-  - apply initial_inclusion.
+  intros.
+  eapply pikeinv; eauto using ltt_cons, ltt_nil, nnp_none, initial_inclusion, initial_tree_thread.
+Qed.
+
+
+(* FIXME: rename all definitions from lazyprefix to lazy_prefix *)
+Lemma initial_pike_inv_lazyprefix {strs:StrSearch}:
+  forall r inp code tree nextt
+    (TREE: bool_tree rer [Areg r] inp CanExit tree)
+    (COMPILE: compilation r = code)
+    (SUBSET: pike_regex r)
+    (NEXTT: initial_nextt_lazyprefix rer r inp nextt),
+    pike_inv code (pike_tree_initial_state_lazyprefix tree nextt inp) (pike_vm_initial_state_lazyprefix (extract_literal rer r) inp).
+Proof.
+  intros r inp code tree nextt TREE COMPILE SUBSET NEXTT.
+  eapply pikeinv; eauto using ltt_cons, ltt_nil, nnp_none, initial_inclusion, initial_tree_thread, initial_nextt_nextprefix.
 Qed.
 
 (** * Invariant Preservation  *)
@@ -948,15 +1076,15 @@ Qed.
 Definition skip_state (pvs:pike_vm_state) : bool :=
   match pvs with
   | PVS_final _ => false
-  | PVS inp active best blocked seen =>
+  | PVS inp active best blocked nextprefix seen =>
       match active with
       | [] => false
       | (pc,gm,b)::active => inseenpc seen pc b
       end
   end.
-  
 
-Theorem invariant_preservation:
+
+Theorem invariant_preservation {strs:StrSearch}:
   forall code pts1 pvs1 pvs2
     (STWF: stutter_wf code)
     (INV: pike_inv code pts1 pvs1)
@@ -977,18 +1105,18 @@ Proof.
   inversion INV; subst.
   (* Final states make no step *)
   2: { inversion VMSTEP. }
-  destruct (skip_state (PVS inp threadactive best threadblocked threadseen)) eqn:SKIP.
+  destruct (skip_state (PVS inp threadactive best threadblocked nextprefix threadseen)) eqn:SKIP.
   (* skip states are performed in lockstep *)
   { left. destruct threadactive as [|[[pc gm] b] active]; simpl in SKIP.
     { inversion SKIP. }
     destruct treeactive as [|[tree gmt] treeactive]; inversion ACTIVE; subst.
     inversion VMSTEP; subst; try simpl in UNSEEN;
-      try rewrite UNSEEN in SKIP; inversion SKIP.    
+      try rewrite UNSEEN in SKIP; inversion SKIP.
     apply SEEN in SKIP as [[teq [gmeq [SEENEQ TTEQ]]] | [STUTTER [t' [gm' [GEQ [EQ TTS]]]]]].
     - assert (teq = tree).
       { eapply tt_same_tree; eauto. }
       subst.
-      exists (PTS inp treeactive best treeblocked treeseen).
+      exists (PTS inp treeactive best treeblocked nextt treeseen).
       split.
       + apply pts_skip; auto.
       + eapply pikeinv; eauto.
@@ -1000,23 +1128,71 @@ Proof.
     (* no more active trees or threads *)
     inversion ACTIVE; subst.
     destruct treeblocked as [|[tblocked gmblocked] treeblocked].
-    (* final step *)
-    - assert (pvs2 = (PVS_final best)).
-      { eapply pikevm_deterministic; eauto.
-        destruct (advance_input inp) eqn:ADV; try solve[constructor; auto].
-        specialize (BLOCKED i (eq_refl (Some i))). inversion BLOCKED; subst. constructor. }
-      subst. left. exists (PTS_final best). split; constructor.
-    (* nextchar *)
-    - destruct (advance_input inp) eqn:ADV.
-      2: { specialize (ENDTREE (eq_refl None)). inversion ENDTREE. }
+    - assert (threadblocked = []). {
+        destruct (advance_input inp) eqn:ADV.
+        - specialize (BLOCKED i (eq_refl (Some i))). now inversion BLOCKED.
+        - now apply ENDVM.
+      } subst.
+      simpl in *.
+
+      destruct nextprefix as [nextprefix|].
+      (* accelerate step *)
+      + inversion VMSTEP; subst.
+        destruct nextt as [nextt|]; [|now inversion NEXTTPREFIX].
+
+        assert (exists acc t, pike_tree_acc inp nextt (advance_input_n inp (S n) forward) acc t) as [acc [t TREEACC]] by eauto using nextt_nextprefix_acc.
+
+        assert (
+          exists r,
+            compilation r = code /\
+            pike_regex r /\
+            extract_literal rer r = lit /\
+            bool_tree rer [Areg r] (advance_input_n inp (S n) forward) CanExit t /\
+            pike_tree_nextt_shape rer r (advance_input_n inp (S n) forward) acc) as [r [COMPILE2 [SUBSET2 [LIT2 [TTREE ACCTREE]]]]].
+        {
+          inversion NEXTTPREFIX; subst.
+          - eauto 10 using pike_tree_acc_bool_tree.
+          - assert (t1 = t /\ t2 = acc) as [? ?]. {
+              injection NEXTT as ->.
+              inversion TREEACC; subst.
+              - now injection NEXTT.
+              - injection INPUT as <-; subst.
+                now apply pike_tree_acc_input_irreflexive in TRANS.
+            } subst. eauto 10.
+        }
+        left. eexists. split; subst.
+        * eapply pts_acc; eauto using no_erase.
+        * eapply pikeinv; (eauto using  initial_tree_thread, initial_inclusion, ltt_app, ltt_cons, ltt_nil || (eapply initial_nextt_nextprefix; unfold initial_nextt_lazyprefix; eauto using no_erase)).
+      (* final step *)
+      + replace pvs2 with (PVS_final best) by now inversion VMSTEP.
+        left.
+        inversion NEXTTPREFIX; subst; eauto using pts_final, pikeinv_final.
+
+    - destruct (advance_input inp) eqn:ADV; [|discriminate (ENDTREE (eq_refl None))].
       specialize (BLOCKED i (eq_refl (Some i))). inversion BLOCKED; subst.
-      assert (pvs2 = PVS i ((pc,gmblocked,b)::threadlist) best [] initial_seenpcs).
-      { eapply pikevm_deterministic; eauto. constructor. auto. }
-      subst. left. exists (PTS i ((tblocked,gmblocked)::treeblocked) best [] initial_seentrees).
-      apply advance_next in ADV. subst.
-      split; try econstructor; eauto.
-      + intros nextinp H. constructor.
-      + apply initial_inclusion.
+
+      destruct inp as [next pref], next as [|c next]; [discriminate|].
+
+      destruct nextprefix as [[nextprefix lit]|]; [destruct nextprefix|].
+      (* nextchar_generate *)
+      + assert (pvs2 = PVS (Input next (c::pref)) (((pc,gmblocked,b)::threadlist) ++ [pike_vm_initial_thread]) best [] (next_prefix_counter (Input next (c::pref)) lit) initial_seenpcs)
+          by eauto using pikevm_deterministic, pvs_nextchar_generate.
+        apply advance_next in ADV.
+        inversion NEXTTPREFIX; subst. left. eexists. split.
+        * eapply pts_nextchar_generate; eauto using no_erase.
+        * eapply pikeinv; (eauto using  initial_tree_thread, initial_inclusion, ltt_app, ltt_cons, ltt_nil || (eapply initial_nextt_nextprefix; unfold initial_nextt_lazyprefix; eauto using no_erase)).
+      (* nextchar_filter *)
+      + assert (pvs2 = PVS (Input next (c::pref)) ((pc,gmblocked,b)::threadlist) best [] (Some (nextprefix, lit)) initial_seenpcs)
+           by eauto using pikevm_deterministic, pvs_nextchar_filter.
+        apply advance_next in ADV.
+        inversion NEXTTPREFIX; subst. left.
+        eauto using pikeinv, initial_inclusion, ltt_nil, pts_nextchar_filter.
+      (* nextchar *)
+      + assert (pvs2 = PVS (Input next (c::pref)) ((pc,gmblocked,b)::threadlist) best [] None initial_seenpcs)
+          by eauto using pikevm_deterministic, pvs_nextchar.
+        left. apply advance_next in ADV. subst.
+        inversion NEXTTPREFIX; subst;
+          eauto using pikeinv, pts_nextchar, pts_nextchar_filter, initial_inclusion, nnp_none, ltt_nil.
   }
   (* there is an active tree/thread *)
   destruct threadactive as [|[[pc gm'] b] threadactive]; inversion ACTIVE; subst.
@@ -1026,7 +1202,7 @@ Proof.
     (* stuttering step *)
     right. apply stutter_step in TT as H; auto.
     destruct H as [nextpc [nextb [EPSSTEP TT2]]]; subst.
-    assert (pvs2 = (PVS inp ([(nextpc, gm, nextb)] ++ threadactive) best threadblocked (add_thread threadseen (pc,gm,b)))).
+    assert (pvs2 = (PVS inp ([(nextpc, gm, nextb)] ++ threadactive) best threadblocked nextprefix (add_thread threadseen (pc,gm,b)))).
     { eapply pikevm_deterministic; eauto. eapply pvs_active; eauto. }
     subst; simpl; auto. eapply pikeinv; simpl; eauto.
     - constructor; eauto.
@@ -1036,24 +1212,24 @@ Proof.
   destruct (tree_bfs_step t gm (idx inp)) eqn:TREESTEP.
   (* active *)
   - left. eapply generate_active in TREESTEP as H; eauto. destruct H as [newthreads [EPS LTT2]].
-    assert (pvs2 = PVS inp (newthreads ++ threadactive) best threadblocked (add_thread threadseen (pc,gm,b))).
+    assert (pvs2 = PVS inp (newthreads ++ threadactive) best threadblocked nextprefix (add_thread threadseen (pc,gm,b))).
     { eapply pikevm_deterministic; eauto. constructor; auto. }
-    subst. exists (PTS inp (l ++ treeactive) best treeblocked (add_seentrees treeseen t)). split.
+    subst. exists (PTS inp (l ++ treeactive) best treeblocked nextt (add_seentrees treeseen t)). split.
     + eapply pts_active; eauto.
     + eapply pikeinv; try (eapply add_inclusion; eauto); try constructor; eauto.
       apply ltt_app; eauto.
   (* match *)
   - left. eapply generate_match in TREESTEP as THREADSTEP; eauto.
-    assert (pvs2 = PVS inp [] (Some (inp,gm_of (pc,gm,b))) threadblocked (add_thread threadseen (pc,gm,b))).
+    assert (pvs2 = PVS inp [] (Some (inp,gm_of (pc,gm,b))) threadblocked None (add_thread threadseen (pc,gm,b))).
     { eapply pikevm_deterministic; eauto. constructor; auto. }
-    subst. exists (PTS inp [] (Some (inp,gm)) treeblocked (add_seentrees treeseen t)). split.
+    subst. exists (PTS inp [] (Some (inp,gm)) treeblocked None (add_seentrees treeseen t)). split.
     + constructor; auto.
     + eapply pikeinv; try (eapply add_inclusion; eauto); try constructor; eauto.
   (* blocked *)
   - left. specialize (generate_blocked _ _ _ _ _ _ _ TREESTEP STUTTERS TT) as [EPS2 [TT2 [nexti ADVANCE]]].
-    assert (pvs2 = PVS inp threadactive best (threadblocked ++ [(pc+1,gm,CanExit)]) (add_thread threadseen (pc,gm,b))).
+    assert (pvs2 = PVS inp threadactive best (threadblocked ++ [(pc+1,gm,CanExit)]) nextprefix (add_thread threadseen (pc,gm,b))).
     { eapply pikevm_deterministic; eauto. constructor; auto. }
-    subst. exists (PTS inp treeactive best (treeblocked ++ [(t0,gm)]) (add_seentrees treeseen t)). split.
+    subst. exists (PTS inp treeactive best (treeblocked ++ [(t0,gm)]) nextt (add_seentrees treeseen t)). split.
     + eapply pts_blocked; eauto.
     + eapply pikeinv; try (eapply add_inclusion; eauto); try constructor; eauto.
       2: { intros H. rewrite ADVANCE in H. inversion H. }
