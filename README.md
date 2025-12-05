@@ -27,7 +27,13 @@ This includes:
 2. Pin the version of Warblre:
 
    ```
-   opam pin add warblre https://github.com/epfl-systemf/Warblre.git#a1ffc3f2e47d942ad9e1194dfb71f0783ead6d8a
+   opam pin add --no-action warblre.0.1.0 https://github.com/epfl-systemf/Warblre.git#a1ffc3f2e47d942ad9e1194dfb71f0783ead6d8a
    ```
 
-3. Build all proofs with `dune build`.
+3. Install dependencies:
+
+   ```
+   opam install --deps-only .
+   ```
+
+4. Build all proofs with `dune build`.
