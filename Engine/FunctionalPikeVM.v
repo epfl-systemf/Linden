@@ -19,39 +19,6 @@ Section FunctionalPikeVM.
   Context (rer: RegExpRecord).
 (** * Functional Definition  *)
 
-
-(* the non-prefix accelerated non-lazyprefix functional version of the small step *)
-Definition pike_vm_non_lazyprefix_func_step (c:code) (pvs:pike_vm_state) : pike_vm_state :=
-  match pvs with
-  | PVS_final _ => pvs
-  | PVS inp active best blocked nextprefix seen =>
-      match active with
-      | [] =>
-          match blocked with
-          | [] => PVS_final best (* pvs_final *)
-          | thr::blocked =>
-              match (advance_input inp forward) with
-              | None => PVS_final best (* pvs_end *)
-              | Some nextinp => PVS nextinp (thr::blocked) best [] nextprefix initial_seenpcs (* pvs_nextchar *)
-              end
-          end
-      | t::active =>
-          match (seen_thread seen t) with
-          | true => PVS inp active best blocked nextprefix seen (* pvs_skip *)
-          | false =>
-              let nextseen := add_thread seen t in
-              match (epsilon_step rer t c inp) with
-              | EpsActive nextactive =>
-                  PVS inp (nextactive++active) best blocked nextprefix nextseen (* pvs_active *)
-              | EpsMatch =>
-                  PVS inp [] (Some (inp,gm_of t)) blocked nextprefix nextseen (* pvs_match *)
-              | EpsBlocked newt =>
-                  PVS inp active best (blocked ++ [newt]) nextprefix nextseen (* pvs_blocked *)
-              end
-          end
-      end
-  end.
-
 (* a functional version of the small step *)
 Definition pike_vm_func_step (c:code) (pvs:pike_vm_state) : pike_vm_state :=
   match pvs with
@@ -94,12 +61,6 @@ Definition pike_vm_func_step (c:code) (pvs:pike_vm_state) : pike_vm_state :=
           end
       end
   end.
-
-Lemma pike_vm_same_step_with_no_nextprefix:
-  forall c inp active best blocked seen,
-    pike_vm_non_lazyprefix_func_step c (PVS inp active best blocked None seen) =
-    pike_vm_func_step c (PVS inp active best blocked None seen).
-Proof. reflexivity. Qed.
 
 (* looping the small step function until fuel runs out or a final state is reached *)
 Fixpoint pike_vm_loop (c:code) (pvs:pike_vm_state) (fuel:nat) : pike_vm_state :=
