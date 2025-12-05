@@ -16,7 +16,7 @@ From Linden Require Import FunctionalUtils FunctionalSemantics.
 From Linden Require Import Parameters LWParameters.
 From Linden Require Import StrictSuffix Prefix.
 From Linden Require Import PikeSubset SeenSets.
-From Linden Require Import Correctness Complexity FunctionalPikeVM.
+From Linden Require Import Correctness FunctionalPikeVM.
 From Warblre Require Import Base RegExpRecord.
 
 

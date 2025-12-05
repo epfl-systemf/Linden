@@ -98,7 +98,6 @@ Class StrSearch := {
   not_found: forall s ss, str_search ss s = None -> forall i, i <= length s -> ~ (starts_with ss (List.skipn i s))
 }.
 
-(* FIXME: try to remove these lemmas *)
 Lemma str_search_bound {strs: StrSearch}:
   forall ss s i,
     str_search ss s = Some i ->
