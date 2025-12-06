@@ -82,14 +82,12 @@ Section PikeTree.
      we may erase the new `nextt` as long as it does not contain a result.
      This corresponds to the PikeVM behavior where, after generating or skipping, literal
      search returns that there is no possible match for the prefix anymore. *)
-  (* LATER: it should be possible to remove the input from that definition:
-     the fact that there is no leaf should be independent of the current input *)
-  Inductive may_erase: tree -> input -> option tree -> Prop :=
+  Inductive may_erase: tree -> option tree -> Prop :=
   | no_erase:
-    forall t inp, may_erase t inp (Some t)
+    forall t, may_erase t (Some t)
   | erases:
     forall t inp (NORES: first_leaf t inp = None),
-      may_erase t inp None.
+      may_erase t None.
 
   Definition dot_star : regex :=
     Quantified false 0 NoI.Inf (Regex.Character CdAll).
@@ -102,7 +100,7 @@ Section PikeTree.
   Definition pike_tree_nextt_shape (r: regex) (inp: input) (nextt: tree): Prop :=
     bool_tree rer (initial_nextt_actions_lazyprefix r inp) inp CannotExit nextt.
   Definition initial_nextt_lazyprefix (r: regex) (inp: input) (nextt: option tree): Prop :=
-    exists tree, pike_tree_nextt_shape r inp tree /\ may_erase tree inp nextt.
+    exists tree, pike_tree_nextt_shape r inp tree /\ may_erase tree nextt.
 
   Definition option_flat_map {A B: Type} (f: A -> option B) (o: option A) : option B :=
     match o with
@@ -144,7 +142,7 @@ Section PikeTree.
   (* we accelerate by non-deterministically skipping branches with no results *)
     forall inp best seen nextinp nextt acc t next_nextt
       (ACC: pike_tree_acc inp nextt nextinp acc t)
-      (ERASE: may_erase acc nextinp next_nextt),
+      (ERASE: may_erase acc next_nextt),
       pike_tree_step (PTS inp [] best [] (Some nextt) seen) (PTS nextinp [pike_tree_initial_tree t] best [] next_nextt initial_seentrees)
   | pts_final:
   (* moving to a final state when there are no more active or blocked trees *)
@@ -163,7 +161,7 @@ Section PikeTree.
     forall inp c next pref best blocked tgm nextt t1 t2 seen next_nextt
       (INPUT: inp = Input (c::next) pref)
       (NEXTT: nextt = Some (lazy_tree c t1 t2))
-      (ERASE: may_erase t2 (Input next (c::pref)) next_nextt),
+      (ERASE: may_erase t2 next_nextt),
       pike_tree_step (PTS inp [] best (tgm::blocked) nextt seen) (PTS (Input next (c::pref)) ((tgm::blocked) ++ [pike_tree_initial_tree t1]) best [] (Some t2) initial_seentrees)
   | pts_nextchar_filter:
     (* when the list of active trees is empty and the next tree is a segment of a lazy star prefix, *)
@@ -361,13 +359,13 @@ Section PikeTree.
 
   Theorem state_nd_erase:
     forall inp active best blocked nextt seen res erased,
-      may_erase nextt inp erased ->
+      may_erase nextt erased ->
       state_nd inp active best blocked erased seen res ->
       state_nd inp active best blocked (Some nextt) seen res.
   Proof.
     intros inp active best blocked nextt seen res erased ERASE ND.
     inversion ERASE; subst; auto.
-    eapply state_nd_nextt_none; eauto.
+    eapply state_nd_nextt_none; eauto using res_group_map_indep.
   Qed.
 
     
@@ -428,7 +426,7 @@ Section PikeTree.
           (eapply bool_tree_determ with (t1:=t0) in ISTREE1; eauto).
         replace tskip with t by
           (eapply bool_tree_determ with (t1:=t) in SKIP; eauto).
-        unfold first_leaf in *. simpl. rewrite NORES. now destruct (tree_res t).
+        unfold first_leaf in *. simpl. apply res_group_map_indep with (inp2:=inp) (gm2:=GroupMap.empty) (dir2:=forward) in NORES as ->. now destruct (tree_res t).
       } rewrite Heq.
       now eapply init_piketree_inv.
     }
@@ -603,7 +601,7 @@ Section PikeTree.
       pike_subtree nextt ->
       pike_tree_acc inp nextt nextinp acc t ->
       state_nd nextinp [pike_tree_initial_tree t] best [] (Some acc) initial_seentrees res ->
-      may_erase acc nextinp next_nextt ->
+      may_erase acc next_nextt ->
       state_nd inp [] best [] (Some nextt) seen res.
   Proof.
     intros inp best nextt nextinp acc t res seen next_nextt SUBSET ACC STATEND ERASE.
