@@ -485,7 +485,7 @@ Qed.
 
 
 
-(** * Simulation Invariant  *)
+(** * Simulation Invariant: inclusion of seen sets  *)
 
 (* This is not, strictly speaking, an inclusion, which explains the second case of this disjunction *)
 (* Sometimes, we add seen pcs on the VM side that do not correspond yet to any seen tree on the tree side *)
@@ -509,6 +509,8 @@ Definition head_pc (threadactive:list thread) : label :=
   | (pc,_,_)::_ => pc
   end.
 
+(** * Simulation Invariant: old version of relating next tree and next prefix  *)
+
 (* Simulation invariant between the nextt tree and the nextprefix *)
 Inductive nextt_nextprefix (code:code): input -> option tree -> option (nat * literal) -> Prop :=
 | nnp_none: forall inp, nextt_nextprefix code inp None None
@@ -524,13 +526,171 @@ Inductive nextt_nextprefix (code:code): input -> option tree -> option (nat * li
     nextt_nextprefix code (Input (c::next) pref) (Some nextt) (Some (S n, lit))
 | nnp_generate:
   forall c next pref nextt t1 t2 r lit
-    (NEXTT: nextt = Some (lazy_tree c t1 t2))
+    (NEXTT: nextt = lazy_tree c t1 t2)
     (COMPILE: compilation r = code)
     (SUBSET: pike_regex r)
     (T1: bool_tree rer [Areg r] (Input next (c::pref)) CanExit t1)
     (T2: pike_tree_nextt_shape rer r (Input next (c::pref)) t2)
     (LIT: extract_literal r = lit),
-    nextt_nextprefix code (Input (c::next) pref) nextt (Some (0, lit)).
+    nextt_nextprefix code (Input (c::next) pref) (Some nextt) (Some (0, lit)).
+
+
+(** * Simulation Invariant: Invariant of unanchored next tree and next prefix  *)
+
+(* How to relate the `nextt` prefix of PikeTree to the `next_prefix` of PikeVM?
+
+  Whenever `next_prefix` is None, it means that string search did not find a
+  match for the prefix in the remainder of the string.
+  We can find a PikeTre behavior where `nextt` is also None, because the
+  remaining unanchored tree `nextt` cannot contain any matching leaf.
+
+  In particular, when the input is at the end (`Input [] pref`), then
+  `next_prefix` has to be None, and we will also have `nextt = None`.
+
+  When `next_prefix` is `Some (n, lit)`, we know that at the next `n` positions,
+  there cannot be a match.
+  In the unanchored tree `nextt` corresponding to the remaining positions,
+  we know that the `n` first left subtrees will have no results.
+
+  In any case, the `nextt` is equal to Some tree, since we may still find
+  unanchored results at later positions.
+  This unanchored tree has a particular shape: since it describes what will
+  happen at the next positions (not including the current one),
+  it starts with a `Read` to advance, a progress check,
+  then a choice between trying to find a match of the regex at the next
+  input position, or resetting no group and then recursively describing
+  what happens for the next positions.
+  Only when `n>0` do we know for sure that the tree of the next input position
+  has no result.
+ *)
+
+
+(* `next_prefix_tree r inp n t` means that:
+   - t is the unanchored tree that corresponds to trying to match `r` from the next position
+   - the `n` next input positions do not contain a match for `r`
+   This tree `t` is either a `Mismatch` when there is no such next position.
+   Or it has a distinct shape, starting with a `Read` to go to the next input position,
+   then a choice between trying to match `r` and iterating.
+ *)
+Inductive next_prefix_tree (r:regex): input -> nat -> tree -> Prop :=
+| np_end:
+  forall pref n,
+    next_prefix_tree r (Input [] pref) n Mismatch
+| np_0:
+  forall next pref c t1 t2 nextt n
+    (NEXTT: nextt = lazy_tree c t1 t2)
+    (ISTREE: bool_tree rer [Areg r] (Input next (c::pref)) CanExit t1)
+    (NEXT: next_prefix_tree r (Input next (c::pref)) n t2),
+    next_prefix_tree r (Input (c::next) pref) 0 nextt
+| np_S:
+  forall next pref c t1 t2 nextt n
+    (NEXTT: nextt = lazy_tree c t1 t2)
+    (ISTREE: bool_tree rer [Areg r] (Input next (c::pref)) CanExit t1)
+    (NORES: first_leaf t1 (Input next (c::pref)) = None)
+    (NEXT: next_prefix_tree r (Input next (c::pref)) n t2),
+    next_prefix_tree r (Input (c::next) pref) (S n) nextt.
+
+Inductive prefix_inv (code:code): input -> option tree -> option (nat*literal) -> Prop :=
+| pi_none: forall inp, prefix_inv code inp None None
+(* The Some case can only happen when the input is not at the end *)
+| pi_some:
+  forall r next pref c nextt n lit
+    (COMPILE: compilation r = code)
+    (SUBSET: pike_regex r)
+    (LIT: extract_literal r = lit)
+    (PREFINV: next_prefix_tree r (Input (c::next) pref) n nextt),
+    prefix_inv code (Input (c::next) pref) (Some nextt) (Some (n, lit)).
+
+(* when the invariant hold, we know that the tree has the shape of an
+   unanchored tree of [.*?r] *)
+Lemma shape_next_prefix_tree_0:
+  forall r inp nextt,
+    next_prefix_tree r inp 0 nextt <->
+    bool_tree rer [Areg (Regex.Character CdAll); Acheck inp; Areg (Quantified false 0 +∞ (Regex.Character CdAll)); Areg r] inp CannotExit nextt.
+Proof.
+  intros r inp nextt.
+  split.
+  - generalize 0 at 1. intros n NEXT. induction NEXT.
+    + constructor. simpl. auto.
+    + subst. econstructor; simpl; eauto. (* read *)
+      econstructor.                      (* progress *)
+      replace +∞ with (NoI.N 1 + +∞)%NoI by (simpl; auto).
+      econstructor; simpl; eauto.        (* choice *)
+    + subst. econstructor; simpl; eauto. (* read *)
+      econstructor.                      (* progress *)
+      replace +∞ with (NoI.N 1 + +∞)%NoI by (simpl; auto).
+      econstructor; eauto.        (* choice *)
+  - intros TREE. destruct inp as [next pref].
+    generalize dependent pref. generalize dependent nextt.
+    induction next; intros.
+    { inversion TREE; subst; inversion READ. constructor. }
+    inversion TREE; subst.      (* read *)
+    2: { inversion READ. }
+    inversion TREECONT; subst.  (* progress *)
+    inversion TREECONT0; subst. (* choice *)
+    destruct plus; inversion H1.
+    simpl in READ. inversion READ. subst.
+    eapply np_0; simpl; eauto.
+Qed.
+
+(* reducing the number of empty subtrees weakens the property *)
+Lemma next_prefix_tree_weaken:
+  forall r inp nextt n1 n2,
+    n2 < n1 ->
+    next_prefix_tree r inp n1 nextt ->
+    next_prefix_tree r inp n2 nextt.
+Proof.
+  intros r inp nextt n1 n2 LT NEXT.
+  generalize dependent n2.
+  induction NEXT; intros; [constructor|lia|].
+  destruct n2 as [|n2].
+  - econstructor; eauto.
+  - econstructor; eauto.
+    apply IHNEXT. lia.
+Qed.
+
+Corollary shape_next_prefix_tree:
+  forall r inp nextt n,
+    next_prefix_tree r inp n nextt ->
+    bool_tree rer [Areg (Regex.Character CdAll); Acheck inp; Areg (Quantified false 0 +∞ (Regex.Character CdAll)); Areg r] inp CannotExit nextt.
+Proof.
+  intros r inp nextt n H.
+  apply shape_next_prefix_tree_0.
+  destruct n; auto.
+  apply next_prefix_tree_weaken with (n2:=0) in H; [auto|lia].
+Qed.
+
+Lemma shape_prefix_tree:
+  forall r n inp nextt tnow,
+    next_prefix_tree r inp n nextt ->
+    bool_tree rer [Areg r] inp CanExit tnow ->
+    bool_tree rer [Areg dot_star; Areg r] inp CanExit (Choice tnow (GroupAction (Reset []) nextt)).
+Proof.
+  intros r n inp nextt tnow NEXT NOW.
+  unfold dot_star. replace +∞ with (NoI.N 1 + +∞)%NoI by (simpl; auto).
+  econstructor; simpl; eauto.
+  eapply shape_next_prefix_tree; eauto.
+Qed.
+  
+(* an alternative version that only talks about the next position *)
+Lemma prefix_tree_shape:
+  forall r n next pref c t1 t2,
+    pike_regex r ->
+    next_prefix_tree r (Input (c::next) pref) n (lazy_tree c t1 t2) ->
+    bool_tree rer ([Areg dot_star; Areg r]) (Input next (c::pref)) CanExit (Choice t1 (GroupAction (Reset []) t2)).
+Proof.
+  intros r n next pref c t1 t2 SUBSET NEXT.
+  specialize (FunctionalUtils.is_tree_productivity rer [Areg r] (Input (c::next) pref) GroupMap.empty forward) as [tnow TREE].
+  eapply shape_prefix_tree in NEXT; eauto.
+  - inversion NEXT. destruct plus; inversion H1. subst.
+    simpl in CHOICE. inversion CHOICE; subst.
+    inversion ISTREE1; subst.
+    inversion TREECONT; subst.
+    simpl in READ. inversion READ. subst. eauto.
+  - eapply encode_equal; repeat constructor; eauto.
+Qed.
+
+(** * Simulation Invariant  *)
 
 Inductive pike_inv (code:code): pike_tree_state -> pike_vm_state -> Prop :=
 | pikeinv:
@@ -752,8 +912,7 @@ Proof.
     eauto using acc_skip.
 
     simpl; now rewrite <-app_assoc.
-  - injection NEXTT as ->.
-    simpl. eauto using acc_keep.
+  - simpl. eauto using acc_keep.
 Qed.
 
 Lemma initial_nextt_nextprefix {strs:StrSearch}:
@@ -1082,7 +1241,6 @@ Proof.
           inversion NEXTTPREFIX; subst.
           - eauto 10 using pike_tree_acc_bool_tree.
           - assert (t1 = t /\ t2 = acc) as [? ?]. {
-              injection NEXTT as ->.
               inversion TREEACC; subst.
               - now injection NEXTT.
               - injection INPUT as <-; subst.
