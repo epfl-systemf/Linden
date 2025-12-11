@@ -162,7 +162,7 @@ Section PikeTree.
       (INPUT: inp = Input (c::next) pref)
       (NEXTT: nextt = Some (lazy_tree c t1 t2))
       (ERASE: may_erase t2 next_nextt),
-      pike_tree_step (PTS inp [] best (tgm::blocked) nextt seen) (PTS (Input next (c::pref)) ((tgm::blocked) ++ [pike_tree_initial_tree t1]) best [] (Some t2) initial_seentrees)
+      pike_tree_step (PTS inp [] best (tgm::blocked) nextt seen) (PTS (Input next (c::pref)) ((tgm::blocked) ++ [pike_tree_initial_tree t1]) best [] next_nextt initial_seentrees)
   | pts_nextchar_filter:
     (* when the list of active trees is empty and the next tree is a segment of a lazy star prefix, *)
     (* and the head iteration of the lazy star contains no result, *)
@@ -658,28 +658,33 @@ Section PikeTree.
       simpl. subst.
       apply SAMERES. econstructor; econstructor.
     (* nextchar_generate *)
-    - constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
+    - constructor; pike_subset; auto.
+      2: { destruct next_nextt; inversion ERASE; subst; pike_subset. }
+      intros res STATEND. apply SAMERES.
+      inversion STATEND; subst.
       apply list_nd_initial in ACTIVE; pike_subset.
-      simpl. subst.
-      apply SAMERES.
       econstructor; try econstructor. unfold next_inp, advance_input', advance_input.
+      simpl. subst.
       rewrite list_result_app, <-seqop_assoc.
       unfold list_result at 2, seqop_list. simpl.
-
-      replace (
-        seqop
-          (tree_res t1 GroupMap.empty (Input next (c :: pref)) forward)
-          (seqop
-            (first_leaf t2 (Input next (c :: pref)))
-            best)
-      ) with (
-        seqop
-          (first_leaf (lazy_tree c t1 t2) (Input (c :: next) pref))
-          best
-      ). reflexivity.
-
-      unfold first_leaf. simpl. unfold advance_input', advance_input.
-      now rewrite <-seqop_assoc.
+      inversion ERASE; subst; simpl.
+      + replace (
+          seqop
+            (tree_res t1 GroupMap.empty (Input next (c :: pref)) forward)
+            (seqop
+              (first_leaf t2 (Input next (c :: pref)))
+              best)
+        ) with (
+          seqop
+            (first_leaf (lazy_tree c t1 t2) (Input (c :: next) pref))
+            best
+        ). reflexivity.
+        unfold first_leaf. simpl. unfold advance_input', advance_input.
+        now rewrite <-seqop_assoc.
+      + unfold first_leaf in NORES |- *.
+        eapply res_group_map_indep in NORES.
+        simpl. unfold advance_input', advance_input. rewrite NORES.
+        now destruct (tree_res t1).
     (* nextchar_filter *)
     - constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
       apply list_nd_initial in ACTIVE; pike_subset.
