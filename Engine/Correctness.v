@@ -72,26 +72,25 @@ Theorem pike_vm_to_pike_tree:
     trc_pike_tree (pike_tree_initial_state tree inp) (PTS_final result).
 Proof.
   intros r inp tree result SUBSET TREE TRCVM.
-  generalize (initial_pike_inv rer r inp tree (compilation r) TREE (@eq_refl _ _) SUBSET).
-  intros INIT.
+  pose proof (initial_pike_inv rer r inp tree (compilation r) TREE (@eq_refl _ _) SUBSET) as INIT.
   eapply vm_to_tree in TRCVM as [vmfinal [TRCTREE INV]]; eauto.
   - inversion INV; subst. auto.
   - eapply compilation_stutter_wf; eauto.
 Qed.
 
 Theorem pike_vm_to_pike_tree_lazyprefix:
-  forall r inp tree nextt result,
+  forall r inp tree result nexttree,
     pike_regex r ->
     bool_tree rer [Areg r] inp CanExit tree ->
-    initial_nextt_lazyprefix rer r inp nextt ->
     trc_pike_vm (compilation r) (pike_vm_initial_state_lazyprefix (extract_literal rer r) inp) (PVS_final result) ->
+    pike_tree_nextt_shape rer r inp nexttree ->
+    exists nextt, may_erase nexttree nextt /\
     trc_pike_tree (pike_tree_initial_state_lazyprefix tree nextt inp) (PTS_final result).
 Proof.
-  intros r inp tree nextt result SUBSET TREE NEXTT TRCVM.
-  generalize (initial_pike_inv_lazyprefix rer r inp (compilation r) tree nextt TREE (@eq_refl _ _) SUBSET NEXTT).
-  intros INIT.
+  intros r inp tree result nexttree SUBSET TREE TRCVM NEXTTSHAPE.
+  pose proof (initial_pike_inv_lazyprefix rer _ _ _ _ _ TREE (@eq_refl _ _) SUBSET NEXTTSHAPE) as [nextt [M INIT]].
   eapply vm_to_tree in TRCVM as [vmfinal [TRCTREE INV]]; eauto.
-  - inversion INV; subst. auto.
+  - inversion INV; subst. eauto.
   - eapply compilation_stutter_wf; eauto.
 Qed.
 
@@ -146,11 +145,9 @@ Proof.
   intros r inp tree result SUBSET TREE TRC.
   eapply encode_equal with (b:=CanExit) in TREE as BOOLTREE; pike_subset.
   inversion BOOLTREE; inversion CONT; destruct plus; [discriminate|]; subst.
-  eapply pike_vm_to_pike_tree_lazyprefix in TRC; eauto.
-  2: unfold initial_nextt_lazyprefix; eauto using no_erase.
-  remember (Some titer) as nextt.
+  eapply pike_vm_to_pike_tree_lazyprefix in TRC as [? [? TRC]]; eauto.
   eapply pike_tree_trc_correct in TRC as FINALINV.
-  2: eapply init_piketree_inv_lazyprefix; subst; unfold initial_nextt_lazyprefix; eauto using no_erase.
+  2: eapply init_piketree_inv_lazyprefix; subst; unfold initial_nextt_lazyprefix; eauto.
   inversion FINALINV. subst. auto.
 Qed.
 
