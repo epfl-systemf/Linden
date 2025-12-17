@@ -119,7 +119,7 @@ Definition next_prefix_counter {strs:StrSearch} (inp: input) (lit: literal) : op
   end.
 
 Definition pike_vm_initial_thread : thread := (0, GroupMap.empty, CanExit).
-Definition pike_vm_initial_state_lazyprefix {strs:StrSearch} (lit:literal) (inp:input) : pike_vm_state :=
+Definition pike_vm_initial_state_unanchored {strs:StrSearch} (lit:literal) (inp:input) : pike_vm_state :=
   let nextprefix := next_prefix_counter inp lit in
   PVS inp [pike_vm_initial_thread] None [] nextprefix initial_seenpcs.
 Definition pike_vm_initial_state (inp:input) : pike_vm_state :=

@@ -78,17 +78,17 @@ Proof.
   - eapply compilation_stutter_wf; eauto.
 Qed.
 
-Theorem pike_vm_to_pike_tree_lazyprefix:
-  forall r inp tree result nexttree,
+Theorem pike_vm_to_pike_tree_unanchored:
+  forall r inp tree result future_tree,
     pike_regex r ->
     bool_tree rer [Areg r] inp CanExit tree ->
-    trc_pike_vm (compilation r) (pike_vm_initial_state_lazyprefix (extract_literal rer r) inp) (PVS_final result) ->
-    pike_tree_nextt_shape rer r inp nexttree ->
-    exists nextt, may_erase nexttree nextt /\
-    trc_pike_tree (pike_tree_initial_state_lazyprefix tree nextt inp) (PTS_final result).
+    trc_pike_vm (compilation r) (pike_vm_initial_state_unanchored (extract_literal rer r) inp) (PVS_final result) ->
+    future_tree_shape rer r inp future_tree ->
+    exists future, may_erase future_tree future /\
+    trc_pike_tree (pike_tree_initial_state_unanchored tree future inp) (PTS_final result).
 Proof.
-  intros r inp tree result nexttree SUBSET TREE TRCVM NEXTTSHAPE.
-  pose proof (initial_pike_inv_lazyprefix rer _ _ _ _ _ TREE (@eq_refl _ _) SUBSET NEXTTSHAPE) as [nextt [M INIT]].
+  intros r inp tree result future_tree SUBSET TREE TRCVM NEXTFUTURE.
+  pose proof (initial_pike_inv_unanchored rer _ _ _ _ _ TREE (@eq_refl _ _) SUBSET NEXTFUTURE) as [future [M INIT]].
   eapply vm_to_tree in TRCVM as [vmfinal [TRCTREE INV]]; eauto.
   - inversion INV; subst. eauto.
   - eapply compilation_stutter_wf; eauto.
@@ -131,23 +131,23 @@ Proof.
   inversion FINALINV. subst. auto.
 Qed.
 
-Theorem pike_vm_correct_lazyprefix:
+Theorem pike_vm_correct_unanchored:
   forall r inp tree result,
     (* the regex `r` is in the supported subset *)
     pike_regex r ->
     (* `tree` is the tree of the regex `[^]*?r` for the input `inp` *)
     is_tree rer [Areg (lazy_prefix r)] inp GroupMap.empty forward tree ->
     (* the result of the PikeVM is `result` *)
-    trc_pike_vm (compilation r) (pike_vm_initial_state_lazyprefix (extract_literal rer r) inp) (PVS_final result) ->
+    trc_pike_vm (compilation r) (pike_vm_initial_state_unanchored (extract_literal rer r) inp) (PVS_final result) ->
     (* This `result` is the priority result of the `tree` *)
     result = first_leaf tree inp.
 Proof.
   intros r inp tree result SUBSET TREE TRC.
   eapply encode_equal with (b:=CanExit) in TREE as BOOLTREE; pike_subset.
   inversion BOOLTREE; inversion CONT; destruct plus; [discriminate|]; subst.
-  eapply pike_vm_to_pike_tree_lazyprefix in TRC as [? [? TRC]]; eauto.
+  eapply pike_vm_to_pike_tree_unanchored in TRC as [? [? TRC]]; eauto.
   eapply pike_tree_trc_correct in TRC as FINALINV.
-  2: eapply init_piketree_inv_lazyprefix; subst; unfold initial_nextt_lazyprefix; eauto.
+  2: eapply init_piketree_inv_unanchored; subst; unfold initial_future_unanchored; eauto.
   inversion FINALINV. subst. auto.
 Qed.
 

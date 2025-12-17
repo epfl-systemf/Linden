@@ -95,11 +95,11 @@ Definition pike_vm_match (r:regex) (inp:input) : matchres :=
   let pvsinit := pike_vm_initial_state inp in
   getres (pike_vm_loop code pvsinit fuel).
 
-(* Functional version of the lazy prefix PikeVM *)
-Definition pike_vm_match_lazyprefix (r:regex) (inp:input) : matchres :=
+(* Functional version of the unanchored PikeVM *)
+Definition pike_vm_match_unanchored (r:regex) (inp:input) : matchres :=
   let code := compilation r in
   let fuel := vm_fuel r inp in
-  let pvsinit := pike_vm_initial_state_lazyprefix (extract_literal rer r) inp in
+  let pvsinit := pike_vm_initial_state_unanchored (extract_literal rer r) inp in
   getres (pike_vm_loop code pvsinit fuel).
 
 
@@ -179,12 +179,12 @@ Proof.
 Qed.
 
 (* when the function finishes, it returns the correct result *)
-Theorem pike_vm_match_lazyprefix_correct:
+Theorem pike_vm_match_correct_unanchored:
   forall r inp result,
-    pike_vm_match_lazyprefix r inp = Finished result ->
-    trc_pike_vm rer (compilation r) (pike_vm_initial_state_lazyprefix (extract_literal rer r) inp) (PVS_final result).
+    pike_vm_match_unanchored r inp = Finished result ->
+    trc_pike_vm rer (compilation r) (pike_vm_initial_state_unanchored (extract_literal rer r) inp) (PVS_final result).
 Proof.
-  unfold pike_vm_match_lazyprefix, getres. intros r inp result H.
+  unfold pike_vm_match_unanchored, getres. intros r inp result H.
   match_destr; inversion H; subst.
   eapply loop_trc; eauto.
 Qed.
