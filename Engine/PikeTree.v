@@ -102,11 +102,6 @@ Section PikeTree.
   Definition initial_future_unanchored (r: regex) (inp: input) (future: option tree): Prop :=
     exists tree, future_tree_shape r inp tree /\ may_erase tree future.
 
-  Definition option_flat_map {A B: Type} (f: A -> option B) (o: option A) : option B :=
-    match o with
-    | Some a => f a
-    | None => None
-    end.
 
   Definition pike_tree_initial_tree (t: tree) := (t, GroupMap.empty).
   (* LATER: consider redefining as an inductive. This will simplify stating
@@ -118,10 +113,10 @@ Section PikeTree.
     PTS i [pike_tree_initial_tree t] None [] None initial_seentrees.
 
   (* non-deterministic acceleration by skipping head branches with no results *)
-  (* Given an input and the future tree, we give the new input position we accelerated *)
-  (* to, the new future tree, and the new active tree. *)
-  (* This corresponds to the acceleration step in PikeVM which skips input characters *)
-  (* where the prefix does not match. *)
+  (* `tree_acceleration inp future inp' future' t` means that for future tree at *)
+  (* input inp, inp' is the input position we accelerated to, future' is the new *)
+  (* future tree, and t is new active tree. This corresponds to the acceleration *)
+  (* step in PikeVM which skips input characters where the prefix does not match. *)
   Inductive tree_acceleration : input -> tree -> input -> tree -> tree -> Prop :=
   | acc_keep:
       forall inp c next pref future t1 t2

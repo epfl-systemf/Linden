@@ -892,6 +892,7 @@ Lemma future_nextprefix_tree_acceleration:
   forall code inp n lit future t acc,
     future_nextprefix code inp (Some future) (Some (n, lit)) ->
     tree_acceleration inp future (advance_input_n inp (S n) forward) acc t ->
+    (* LATER: try to get rid of the existential *)
     exists r,
       compilation r = code /\
       pike_regex r /\

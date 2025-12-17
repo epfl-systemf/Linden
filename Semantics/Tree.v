@@ -53,6 +53,12 @@ Lemma seqop_assoc:
     seqop o1 (seqop o2 o3) = seqop (seqop o1 o2) o3.
 Proof. intros. unfold seqop. destruct o1; destruct o2; auto. Qed.
 
+Definition option_flat_map {A B: Type} (f: A -> option B) (o: option A) : option B :=
+  match o with
+  | Some a => f a
+  | None => None
+  end.
+
 (** * Backtracking trees  *)
 
 
