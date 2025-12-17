@@ -3,6 +3,37 @@
 (* The PikeVM algorithm, expressed as small-step semantics on the bytecode NFA *)
 (* It records the code labels it has already handled to avoid doing work twice *)
 
+(* 
+Anchored vs unanchored PikeVM:
+
+The PikeVM can operate in two modes: anchored and unanchored. Which mode we operate
+in is determined by the initial state we provide to the PikeVM. An anchored PikeVM
+finds matches only at the current position of the input, while an unanchored PikeVM
+finds matches at any position of the input.
+
+Normally, we can obtain an unanchored engine from an anchored one for a regex /r/ by
+simply executing the engine with the regex /[^]*?r/. Here, we take an optimized approach
+by simulating the /[^]*?/ in the engine directly. This allows us to perfom optimizations
+during execution. The simulation is done by attaching (as lowest priority) the initial
+thread to the active list whenever we advance the input. The optimizations come from
+knowing the literal of the regex allowing us to skip appending the initial thread at
+certain positions. We do it by maintaining a prefix counter.
+
+A prefix counter consists of two things:
+- A literal. This literal does not change throughout the entire execution of the PikeVM
+- A counter. It indicates in how many characters we will reach a position where
+  the literal matches the prefix of the input. If we are at position n of the input,
+  and the counter is k means, that at position n + k + 1, the prefix matches.
+
+The counter is decreased each time we consume a character. Whenever we consume a
+character and the counter is nonzero, we know that at this position we will not
+find a match. Therefore we perform the "filtering" step and not include the initial
+thread. When the counter is zero, we might find a match at the next position, so we
+include the initial thread in "generating" step. Finally, if we run out of both active
+and blocked thread, we can do the "acceleration" step, where we jump ahead in the input
+to the next position where the prefix matches.
+*)
+
 Require Import List Lia.
 Import ListNotations.
 
@@ -108,6 +139,8 @@ Inductive pike_vm_state : Type :=
 | PVS (inp:input) (active: list thread) (best: option leaf) (blocked: list thread) (nextprefix: option (nat * literal)) (seen: seenpcs)
 | PVS_final (best: option leaf).
 
+(* given an input and literal, we compute the next prefix counter *)
+(* since the counter is always offset by one, we first try to advance the input before performing a prefix search *)
 Definition next_prefix_counter {strs:StrSearch} (inp: input) (lit: literal) : option (nat * literal) :=
   match advance_input inp forward with
   | None => None
@@ -119,9 +152,11 @@ Definition next_prefix_counter {strs:StrSearch} (inp: input) (lit: literal) : op
   end.
 
 Definition pike_vm_initial_thread : thread := (0, GroupMap.empty, CanExit).
+(* initial state for the PikeVM which operates in unanchored fashion *)
 Definition pike_vm_initial_state_unanchored {strs:StrSearch} (lit:literal) (inp:input) : pike_vm_state :=
   let nextprefix := next_prefix_counter inp lit in
   PVS inp [pike_vm_initial_thread] None [] nextprefix initial_seenpcs.
+(* initial state for the PikeVM which operates in anchored fashion *)
 Definition pike_vm_initial_state (inp:input) : pike_vm_state :=
   PVS inp [pike_vm_initial_thread] None [] None initial_seenpcs.
 
@@ -150,10 +185,16 @@ Inductive pike_vm_step {strs:StrSearch} (c:code): pike_vm_state -> pike_vm_state
     (ADVANCE: advance_input inp1 forward = Some inp2),
     pike_vm_step c (PVS inp1 [] best (thr::blocked) None seen) (PVS inp2 (thr::blocked) best [] None initial_seenpcs)
 | pvs_nextchar_generate:
+  (* when the list of active threads is empty (but not blocked), restart from the blocked ones, proceeding to the next character *)
+  (* since the nextprefix counter reached zero, we must also append as lowest priority the initial thread *)
+  (* reset the set of seen pcs *)
   forall inp1 inp2 best lit thr blocked seen
     (ADVANCE: advance_input inp1 forward = Some inp2),
     pike_vm_step c (PVS inp1 [] best (thr::blocked) (Some (0, lit)) seen) (PVS inp2 ((thr::blocked) ++ [pike_vm_initial_thread]) best [] (next_prefix_counter inp2 lit) initial_seenpcs)
 | pvs_nextchar_filter:
+  (* when the list of active threads is empty (but not blocked), restart from the blocked ones, proceeding to the next character *)
+  (* since the nextprefix counter is nonzero, we do not append the initial thread *)
+  (* reset the set of seen pcs *)
   forall inp1 inp2 best n lit thr blocked seen
     (ADVANCE: advance_input inp1 forward = Some inp2),
     pike_vm_step c (PVS inp1 [] best (thr::blocked) (Some (S n, lit)) seen) (PVS inp2 (thr::blocked) best [] (Some (n, lit)) initial_seenpcs)

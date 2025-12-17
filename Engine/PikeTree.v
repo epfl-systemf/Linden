@@ -118,6 +118,10 @@ Section PikeTree.
     PTS i [pike_tree_initial_tree t] None [] None initial_seentrees.
 
   (* non-deterministic acceleration by skipping head branches with no results *)
+  (* Given an input and the future tree, we give the new input position we accelerated *)
+  (* to, the new future tree, and the new active tree. *)
+  (* This corresponds to the acceleration step in PikeVM which skips input characters *)
+  (* where the prefix does not match. *)
   Inductive tree_acceleration : input -> tree -> input -> tree -> tree -> Prop :=
   | acc_keep:
       forall inp c next pref future t1 t2
