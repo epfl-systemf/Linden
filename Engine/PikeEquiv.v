@@ -817,7 +817,6 @@ Proof.
   - pose proof (IHnext _ _ _ _ REST) as [? [? ?]].
     replace (advance_input_n (Input (a::next) pref) (S (S n0)) forward) with (advance_input_n (Input next (a::pref)) (S n0) forward).
     eauto using acc_skip.
-
     simpl; now rewrite <-app_assoc.
   - simpl. eauto using acc_keep.
 Qed.
@@ -850,21 +849,11 @@ Proof.
       eapply extract_literal_prefix_contra; eauto.
     + eapply IHnext; eauto.
       unfold next_prefix_counter.
-      assert (Hsimpl:
-        match advance_input (Input next (c::pref)) forward with
-        | Some (Input nextinp _) =>
-            match str_search (prefix (extract_literal rer r)) nextinp with
-            | Some n' => Some (n', extract_literal rer r)
-            | None => None
-            end
-        | None => None
-        end = Some (n, extract_literal rer r)
-      ). {
-        (* since str_search returned (S n), nextinp must be c' :: next' *)
-        pose proof (str_search_succ_cons _ _ _ Hsearch) as [c' [next' ->]].
-        simpl.
-        now rewrite (str_search_succ_next _ _ _ _ Hsearch).
-      } rewrite Hsimpl. now subst.
+      (* next is cons because str_search returned (S n) *)
+      pose proof (str_search_succ_cons _ _ _ Hsearch) as [c' [next' ->]]. simpl.
+      (* str_search (c'::next') = S n, so str_search next' = n *)
+      rewrite (str_search_succ_next _ _ _ _ Hsearch).
+      now subst.
 Qed.
 
 Lemma next_prefix_counter_none_nores {strs:StrSearch}:
@@ -895,6 +884,30 @@ Proof.
     unfold next_prefix_counter, advance_input.
     destruct next as [|c' next']; [reflexivity|].
     now rewrite (str_search_none_next _ _ _ Hsearch).
+Qed.
+
+(* when accelerating from a position where the future_nextprefix invariant holds, *)
+(* we maintain the future tree shape *)
+Lemma future_nextprefix_tree_acceleration:
+  forall code inp n lit future t acc,
+    future_nextprefix code inp (Some future) (Some (n, lit)) ->
+    tree_acceleration inp future (advance_input_n inp (S n) forward) acc t ->
+    exists r,
+      compilation r = code /\
+      pike_regex r /\
+      extract_literal rer r = lit /\
+      bool_tree rer [Areg r] (advance_input_n inp (S n) forward) CanExit t /\
+      future_tree_shape rer r (advance_input_n inp (S n) forward) acc.
+Proof.
+  intros code inp n lit future t acc FUTUREPREFIX TREEACC.
+  inversion FUTUREPREFIX; subst.
+  - eexists; eauto using tree_acceleration_bool_tree.
+  - assert (t1 = t /\ t2 = acc) as [? ?]. {
+      inversion TREEACC; subst.
+      - now injection FUTURE.
+      - injection INPUT as <-; subst.
+        now apply tree_acceleration_input_irreflexive in TRANS.
+    } subst. eexists; eauto.
 Qed.
 
 
@@ -1149,37 +1162,20 @@ Proof.
     (* no more active trees or threads *)
     inversion ACTIVE; subst.
     destruct treeblocked as [|[tblocked gmblocked] treeblocked].
+    (* we have no blocked threads *)
     - assert (threadblocked = []). {
         destruct (advance_input inp) eqn:ADV.
         - specialize (BLOCKED i (eq_refl (Some i))). now inversion BLOCKED.
         - now apply ENDVM.
       } subst.
       simpl in *.
-
+      (* do we have the nextprefix? *)
       destruct nextprefix as [nextprefix|].
       (* accelerate step *)
       + inversion VMSTEP; subst.
         destruct future as [future|]; [|now inversion FUTUREPREFIX].
-
-        assert (exists acc t, tree_acceleration inp future (advance_input_n inp (S n) forward) acc t) as [acc [t TREEACC]] by eauto using future_nextprefix_acceleration.
-
-        assert (
-          exists r,
-            compilation r = code /\
-            pike_regex r /\
-            extract_literal rer r = lit /\
-            bool_tree rer [Areg r] (advance_input_n inp (S n) forward) CanExit t /\
-            future_tree_shape rer r (advance_input_n inp (S n) forward) acc) as [r [COMPILE2 [SUBSET2 [LIT2 [TTREE ACCTREE]]]]].
-        {
-          inversion FUTUREPREFIX; subst.
-          - eauto 10 using tree_acceleration_bool_tree.
-          - assert (t1 = t /\ t2 = acc) as [? ?]. {
-              inversion TREEACC; subst.
-              - now injection FUTURE.
-              - injection INPUT as <-; subst.
-                now apply tree_acceleration_input_irreflexive in TRANS.
-            } subst. eauto 10.
-        }
+        pose proof (future_nextprefix_acceleration _ _ _ _ _ FUTUREPREFIX) as [acc [t TREEACC]].
+        pose proof (future_nextprefix_tree_acceleration _ _ _ _ _ _ _ FUTUREPREFIX TREEACC) as [r [Hcompile [Hregex [Hlit [BOOLTREE SHAPE]]]]].
         left. subst.
         destruct next_prefix_counter eqn:COUNTER.
         * eexists. split.
@@ -1192,12 +1188,12 @@ Proof.
       + replace pvs2 with (PVS_final best) by now inversion VMSTEP.
         left.
         inversion FUTUREPREFIX; subst; eauto using pts_final, pikeinv_final.
-
+    (* we have some blocked threads *)
     - destruct (advance_input inp) eqn:ADV; [|discriminate (ENDTREE (eq_refl None))].
       specialize (BLOCKED i (eq_refl (Some i))). inversion BLOCKED; subst.
-
+      (* we are not at the end of the input *)
       destruct inp as [next pref], next as [|c next]; [discriminate|].
-
+      (* do we have the nextprefix if so, with what counter? *)
       destruct nextprefix as [[nextprefix lit]|]; [destruct nextprefix|].
       (* nextchar_generate *)
       + assert (pvs2 = PVS (Input next (c::pref)) (((pc,gmblocked,b)::threadlist) ++ [pike_vm_initial_thread]) best [] (next_prefix_counter (Input next (c::pref)) lit) initial_seenpcs)
@@ -1207,7 +1203,7 @@ Proof.
         destruct next_prefix_counter eqn:COUNTER.
           * eexists. split.
             -- eapply pts_nextchar_generate; eauto using no_erase.
-            -- eauto 6 using pikeinv, initial_tree_thread, initial_inclusion, ltt_app, ltt_cons, ltt_nil, future_nextprefix_some.
+            -- eapply pikeinv; eauto using initial_tree_thread, initial_inclusion, ltt_app, ltt_cons, ltt_nil, future_nextprefix_some.
           * eexists. split.
             -- eapply pts_nextchar_generate; eauto using erases, next_prefix_counter_none_nores.
             -- eauto using pikeinv, initial_tree_thread, initial_inclusion, ltt_app, ltt_cons, ltt_nil, nnp_none. 

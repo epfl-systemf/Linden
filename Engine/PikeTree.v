@@ -400,11 +400,10 @@ Section PikeTree.
     unfold initial_future_unanchored, future_tree_shape.
     intros t r inp tree future PIKEREG [tree' [FUTURESHAPE FUTUREINIT]] T TREE.
     assert (pike_subtree t). {
-      eapply pike_actions_pike_tree. 2: eauto using bool_to_istree_regex. pike_subset.
+      eapply pike_actions_pike_tree; eauto using bool_to_istree_regex; pike_subset.
     }
-    destruct FUTUREINIT eqn:Haa.
+    destruct FUTUREINIT as [future|].
     {
-      rename t0 into future.
       assert (pike_subtree future). {
         eapply subset_semantics; eauto; pike_subset.
       }
@@ -425,10 +424,8 @@ Section PikeTree.
       (* if we initialize future to None, this is exactly init_piketree_inv *)
       assert (Heq: first_leaf tree inp = first_leaf t inp). {
         inversion TREE. inversion CONT. destruct plus; [discriminate|subst].
-        replace titer with t0 by
-          (eapply bool_tree_determ with (t1:=t0) in ISTREE1; eauto).
-        replace tskip with t by
-          (eapply bool_tree_determ with (t1:=t) in SKIP; eauto).
+        replace titer with t0 by eauto using bool_tree_determ.
+        replace tskip with t by eauto using bool_tree_determ.
         unfold first_leaf in *. simpl. apply res_group_map_indep with (inp2:=inp) (gm2:=GroupMap.empty) (dir2:=forward) in NORES as ->. now destruct (tree_res t).
       } rewrite Heq.
       now eapply init_piketree_inv.
@@ -546,7 +543,6 @@ Section PikeTree.
   Proof.
     unfold future_tree_shape, initial_future_actions_unanchored.
     intros r inp future nextinp acc t FUTURE ACC.
-
     induction ACC; subst; [|apply IHACC].
     all:
       inversion FUTURE; inversion TREECONT; inversion TREECONT0;
@@ -609,12 +605,10 @@ Section PikeTree.
   Proof.
     intros inp best future nextinp acc t res seen next_future SUBSET ACC STATEND ERASE.
     pose proof (tree_acceleration_pike_subtree _ _ _ _ _ ACC SUBSET) as [SUBSET_ACC SUBSET_T].
-
     inversion STATEND; subst.
     apply list_nd_initial in ACTIVE; pike_subset.
     econstructor; try econstructor. subst.
     unfold list_result, seqop_list.
-
     induction ACC; subst; simpl.
     - unfold first_leaf. simpl. unfold advance_input', advance_input.
       now rewrite <-seqop_assoc.
@@ -622,7 +616,6 @@ Section PikeTree.
         (first_leaf (lazy_iter c t1 t2) (Input (c :: next) pref))
         with (first_leaf t2 (Input next (c :: pref))).
       apply IHACC; eauto; pike_subset.
-
       unfold first_leaf. simpl. unfold advance_input', advance_input.
       unfold first_leaf in LEAF. rewrite LEAF. reflexivity.
   Qed.
@@ -671,19 +664,10 @@ Section PikeTree.
       rewrite list_result_app, <-seqop_assoc.
       unfold list_result at 2, seqop_list. simpl.
       inversion ERASE; subst; simpl.
-      + replace (
-          seqop
-            (tree_res t1 GroupMap.empty (Input next (c :: pref)) forward)
-            (seqop
-              (first_leaf t2 (Input next (c :: pref)))
-              best)
-        ) with (
-          seqop
-            (first_leaf (lazy_iter c t1 t2) (Input (c :: next) pref))
-            best
-        ). reflexivity.
-        unfold first_leaf. simpl. unfold advance_input', advance_input.
+      (* we did not erase `future` *)
+      + unfold first_leaf. simpl. unfold advance_input', advance_input.
         now rewrite <-seqop_assoc.
+      (* we erased `future` *)
       + unfold first_leaf in NORES |- *.
         eapply res_group_map_indep in NORES.
         simpl. unfold advance_input', advance_input. rewrite NORES.
@@ -693,14 +677,9 @@ Section PikeTree.
       apply list_nd_initial in ACTIVE; pike_subset.
       simpl. subst.
       apply SAMERES.
-      econstructor; try econstructor. unfold next_inp, advance_input', advance_input. simpl.
-
-      replace (
-        first_leaf (lazy_iter c t1 t2) (Input (c :: next) pref)
-      ) with (first_leaf t2 (Input next (c :: pref))). reflexivity.
-
-      unfold first_leaf at 2. simpl. unfold advance_input', advance_input.
-      unfold first_leaf in LEAF. rewrite LEAF. reflexivity.
+      econstructor; try econstructor.
+      unfold first_leaf in *; simpl. unfold next_inp, advance_input', advance_input.
+      now rewrite LEAF.
     (* mismatch *)
     - simpl. constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst. apply SAMERES.
       econstructor; eauto. econstructor; eauto.
