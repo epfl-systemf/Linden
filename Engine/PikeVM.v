@@ -175,6 +175,9 @@ Inductive pike_vm_step {strs:StrSearch} (c:code): pike_vm_state -> pike_vm_state
     pike_vm_step c (PVS inp [] best [] (Some (n, lit)) seen) (PVS nextinp [pike_vm_initial_thread] best [] (next_prefix_counter nextinp lit) initial_seenpcs)
 | pvs_end:
   (* when the list of active is empty and we've reached the end of string *)
+  (* in practice, this rule is never used because we can have no blocked threads *)
+  (* when there is no input left. We keep this rule for convenience in the proofs *)
+  (* and for relating it to the functional version *)
   forall inp best thr blocked nextprefix seen
     (ADVANCE: advance_input inp forward = None),
     pike_vm_step c (PVS inp [] best (thr::blocked) nextprefix seen) (PVS_final best)
