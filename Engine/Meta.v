@@ -27,6 +27,7 @@ Section Meta.
 (* We define what it means to be a regex engine and show that our engines follow these definitions. *)
 Section Engines.
   Context {VMS: VMSeen}.
+  Context {strs: StrSearch}.
 
 (* interface of an anchored, executable engine *)
 Class AnchoredEngine := {

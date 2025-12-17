@@ -8,13 +8,14 @@ From Linden Require Import Tree Semantics NFA.
 From Linden Require Import BooleanSemantics PikeSubset.
 From Linden Require Import PikeVM Correctness SeenSets Semantics.Examples.
 From Linden Require Import Complexity.
-From Linden Require Import Parameters.
+From Linden Require Import Parameters Prefix.
 From Warblre Require Import Base RegExpRecord.
 From Linden Require Import FunctionalUtils FunctionalSemantics.
 
 Section FunctionalPikeVM.
   Context {params: LindenParameters}.
   Context {VMS: VMSeen}.
+  Context {strs:StrSearch}.
   Context (rer: RegExpRecord).
 (** * Functional Definition  *)
 
@@ -22,29 +23,40 @@ Section FunctionalPikeVM.
 Definition pike_vm_func_step (c:code) (pvs:pike_vm_state) : pike_vm_state :=
   match pvs with
   | PVS_final _ => pvs
-  | PVS inp active best blocked seen =>
+  | PVS inp active best blocked nextprefix seen =>
       match active with
       | [] =>
           match blocked with
-          | [] => PVS_final best (* pvs_final *)
+          | [] =>
+              match nextprefix with
+              | Some (n, lit) =>
+                let nextinp := advance_input_n inp (S n) forward in
+                PVS nextinp [pike_vm_initial_thread] best [] (next_prefix_counter nextinp lit) initial_seenpcs (* pvs_acc *)
+              | None => PVS_final best (* pvs_final *)
+              end
           | thr::blocked =>
               match (advance_input inp forward) with
               | None => PVS_final best (* pvs_end *)
-              | Some nextinp => PVS nextinp (thr::blocked) best [] initial_seenpcs (* pvs_nextchar *)
+              | Some nextinp =>
+                  match nextprefix with
+                  | None => PVS nextinp (thr::blocked) best [] None initial_seenpcs (* pvs_nextchar *)
+                  | Some (0, lit) => PVS nextinp (thr::blocked ++ [pike_vm_initial_thread]) best [] (next_prefix_counter nextinp lit) initial_seenpcs (* pvs_nextchar_generate *)
+                  | Some (S n, lit) => PVS nextinp (thr::blocked) best [] (Some (n, lit)) initial_seenpcs (* pvs_nextchar_filter *)
+                  end
               end
-          end     
+          end
       | t::active =>
           match (seen_thread seen t) with
-          | true => PVS inp active best blocked seen (* pvs_skip *)
+          | true => PVS inp active best blocked nextprefix seen (* pvs_skip *)
           | false =>
               let nextseen := add_thread seen t in
               match (epsilon_step rer t c inp) with
               | EpsActive nextactive =>
-                  PVS inp (nextactive++active) best blocked nextseen (* pvs_active *)
+                  PVS inp (nextactive++active) best blocked nextprefix nextseen (* pvs_active *)
               | EpsMatch =>
-                  PVS inp [] (Some (inp,gm_of t)) blocked nextseen (* pvs_match *)
+                  PVS inp [] (Some (inp,gm_of t)) blocked None nextseen (* pvs_match *)
               | EpsBlocked newt =>
-                  PVS inp active best (blocked ++ [newt]) nextseen (* pvs_blocked *)
+                  PVS inp active best (blocked ++ [newt]) nextprefix nextseen (* pvs_blocked *)
               end
           end
       end
@@ -82,7 +94,14 @@ Definition pike_vm_match (r:regex) (inp:input) : matchres :=
   let fuel := vm_fuel r inp in
   let pvsinit := pike_vm_initial_state inp in
   getres (pike_vm_loop code pvsinit fuel).
-                                                   
+
+(* Functional version of the unanchored PikeVM *)
+Definition pike_vm_match_unanchored (r:regex) (inp:input) : matchres :=
+  let code := compilation r in
+  let fuel := vm_fuel r inp in
+  let pvsinit := pike_vm_initial_state_unanchored (extract_literal rer r) inp in
+  getres (pike_vm_loop code pvsinit fuel).
+
 
 (** * Smallstep correspondence  *)
 
@@ -105,10 +124,10 @@ Proof.
 Qed.
 
 Corollary func_step_not_final:
-  forall c inp active best blocked seen,
-    pike_vm_step rer c (PVS inp active best blocked seen) (pike_vm_func_step c (PVS inp active best blocked seen)).
+  forall c inp active best blocked nextprefix seen,
+    pike_vm_step rer c (PVS inp active best blocked nextprefix seen) (pike_vm_func_step c (PVS inp active best blocked nextprefix seen)).
 Proof.
-  intros c inp active best blocked seen. specialize (func_step_correct c (PVS inp active best blocked seen) _ (@eq_refl _ _)).
+  intros c inp active best blocked nextprefix seen. specialize (func_step_correct c (PVS inp active best blocked nextprefix seen) _ (@eq_refl _ _)).
   intros [H|H]; auto. inversion H.
 Qed.
 
@@ -125,19 +144,14 @@ Proof.
   - constructor.
 Qed.
 
+
 Lemma step_loop:
   forall c pvs1 pvs2 fuel,
     pike_vm_step rer c pvs1 pvs2 ->
     pike_vm_loop c pvs1 (S fuel) = pike_vm_loop c pvs2 fuel.
 Proof.
-  intros c pvs1 pvs2 fuel H. destruct H; simpl; auto.
-  - destruct blocked; auto.
-    rewrite ADVANCE; auto.
-  - rewrite ADVANCE; auto.
-  - rewrite SEEN; auto.
-  - rewrite UNSEEN; rewrite STEP; auto.
-  - rewrite UNSEEN; rewrite STEP; auto.
-  - rewrite UNSEEN; rewrite STEP; auto.
+  intros c pvs1 pvs2 fuel H. destruct H; simpl;
+    now rewrite ?ADVANCE, ?SEEN, ?UNSEEN, ?STEP.
 Qed.
 
 Theorem steps_loop:
@@ -153,15 +167,25 @@ Proof.
     erewrite step_loop; eauto.
 Qed.
 
-
 (* when the function finishes, it retruns the correct result *)
 Theorem pike_vm_match_correct:
   forall r inp result,
     pike_vm_match r inp = Finished result ->
     trc_pike_vm rer (compilation r) (pike_vm_initial_state inp) (PVS_final result).
 Proof.
-  unfold pike_vm_match, getres. intros r inp result H. 
-  match_destr; subst; inversion H; subst.
+  unfold pike_vm_match, getres. intros r inp result H.
+  match_destr; inversion H; subst.
+  eapply loop_trc; eauto.
+Qed.
+
+(* when the function finishes, it returns the correct result *)
+Theorem pike_vm_match_correct_unanchored:
+  forall r inp result,
+    pike_vm_match_unanchored r inp = Finished result ->
+    trc_pike_vm rer (compilation r) (pike_vm_initial_state_unanchored (extract_literal rer r) inp) (PVS_final result).
+Proof.
+  unfold pike_vm_match_unanchored, getres. intros r inp result H.
+  match_destr; inversion H; subst.
   eapply loop_trc; eauto.
 Qed.
 
@@ -172,16 +196,9 @@ Theorem pike_vm_match_terminates:
     exists result, pike_vm_match r inp = Finished result.
 Proof.
   intros r inp SUBSET. unfold pike_vm_match, vm_fuel.
-  apply pikevm_complexity with (VMS:=VMS) (rer:=rer) (inp:=inp) in SUBSET as [result TERM].
+  apply pikevm_complexity with (strs:=strs) (VMS:=VMS) (rer:=rer) (inp:=inp) in SUBSET as [result TERM].
   exists result. apply steps_loop in TERM. rewrite TERM. auto.
 Qed.
-
-(* unrolling one PikeVM step   *)
-Lemma unroll_loop:
-  forall code inp active best blocked seen fuel,
-    pike_vm_loop code (PVS inp active best blocked seen) (S fuel) =
-      pike_vm_loop code (pike_vm_func_step code (PVS inp active best blocked seen)) fuel.
-Proof. auto. Qed.
 
 End FunctionalPikeVM.
 
@@ -193,6 +210,7 @@ Require Import Coq.Strings.Ascii Coq.Strings.String.
 Open Scope string_scope.
 
 Section Example.
+  Context {strs: StrSearch}.
 
   (** * Nullable Quantifier Example *)
   (* Matching ((a|epsilon)(epsilon|b))* on string "ab" matches "ab", a specificity of Javascript semantics *)
