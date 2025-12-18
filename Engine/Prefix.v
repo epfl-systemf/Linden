@@ -396,24 +396,6 @@ Proof.
     + destruct l1; easy.
 Qed.
 
-Lemma chain_literals_length:
-  forall l1 l2,
-    length (prefix (chain_literals l1 l2)) <= length (prefix l1) + length (prefix l2).
-Proof.
-  intros l1 l2.
-  destruct l1, l2; simpl; try rewrite app_length; lia.
-Qed.
-
-Lemma repeat_literal_length:
-  forall l base n,
-    length (prefix (repeat_literal l base n)) <=
-      n * length (prefix l) + length (prefix base).
-Proof.
-  induction n; intros; simpl.
-  - lia.
-  - rewrite chain_literals_length.
-    lia.
-Qed.
 
 (* the longest string that is a prefix of both strings *)
 Fixpoint common_prefix (s1 s2 : string) : string :=
@@ -485,25 +467,6 @@ Proof.
   - destruct H; eqdec; subst; easy.
 Qed.
 
-Lemma common_prefix_length:
-  forall s1 s2,
-    length (common_prefix s1 s2) <= Nat.min (length s1) (length s2).
-Proof.
-  induction s1; destruct s2; simpl; try lia.
-  eqdec; simpl.
-  - specialize (IHs1 s2). lia.
-  - lia.
-Qed.
-
-Lemma merge_literals_length:
-  forall l1 l2,
-    length (prefix (merge_literals l1 l2)) <= Nat.min (length (prefix l1)) (length (prefix l2)).
-Proof.
-  intros l1 l2; unfold merge_literals.
-  eqdec.
-  - lia.
-  - apply common_prefix_length.
-Qed.
 
 (* extracting literals from a character description *)
 Fixpoint extract_literal_char (cd: char_descr) : literal :=
@@ -517,7 +480,7 @@ Fixpoint extract_literal_char (cd: char_descr) : literal :=
   end.
 
 (* extracting literals from a regex *)
-(* 
+(*
   TODO: this could benefit from a few improvements:
   - Support lookarounds by performing intersection of overlapping literals.
     For instance /(?=abc)p/ => None, /(?<=abc)c/ => 'c' (but not exact nor prefix). This would require thinking reconsidering what Exact and Prefix mean.
@@ -686,110 +649,6 @@ Proof.
     destruct plus; destruct extract_actions_literal; constructor.
 Qed.
 
-(* if the extracted literal from a character descriptor is Impossible, there can be no match *)
-Lemma extract_literal_char_impossible_no_match:
-  forall cd c,
-    extract_literal_char cd = Impossible ->
-    ~(char_match rer c cd = true).
-Proof.
-  intros cd c Hextract Hmatch.
-  induction cd;
-    (* the cd does not produce Impossible *)
-    try solve[discriminate].
-  (* CdRange *)
-  - simpl in Hextract. eqdec; discriminate.
-  (* CdUnion *)
-  - simpl in Hextract.
-    apply merge_literals_impossible in Hextract as [Hcd1 Hcd2].
-    unfold char_match in *. simpl in Hmatch.
-    apply Bool.orb_prop in Hmatch as [Hm1 | Hm2]; eauto.
-Qed.
-
-Lemma extract_literal_impossible_general:
-  forall acts tree inp gm,
-    is_tree rer acts inp Groups.GroupMap.empty forward tree ->
-    extract_actions_literal acts = Impossible ->
-    tree_res tree gm inp forward = None.
-Proof.
-  intros acts tree inp gm Htree Hextract.
-  remember (forward) as dir.
-  generalize dependent gm.
-  induction Htree; intros; subst;
-    (* the result is that of the rest of the actions *)
-    try solve[simpl in *; destruct RegExpRecord.ignoreCase, (extract_actions_literal cont); eauto; easy].
-  (* tree_done *)
-  - discriminate.
-  (* tree_char *)
-  - (* there is a character to read *)
-    unfold read_char in READ. destruct inp, next; [discriminate|].
-    (* the character matches *)
-    destruct char_match eqn:Hmatch; [|discriminate]. injection READ as <-. subst.
-    apply chain_literals_impossible in Hextract as [Hcd | Hcont].
-    + exfalso. simpl in Hcd.
-      destruct_i; [discriminate|]. apply (extract_literal_char_impossible_no_match _ _ Hcd Hmatch).
-    + simpl. unfold advance_input'. eauto.
-  (* tree_disj *)
-  - simpl in Hextract. simpl. unfold seqop.
-    simpl in IHHtree1, IHHtree2. rewrite chain_literals_impossible in IHHtree1, IHHtree2.
-    apply chain_literals_impossible in Hextract as [Hmerge | Hcont].
-    + destruct_i; [discriminate|].
-      apply merge_literals_impossible in Hmerge as [Hex1 Hex2].
-      erewrite IHHtree1, IHHtree2; auto.
-    + erewrite IHHtree1, IHHtree2; auto.
-  (* tree_sequence *)
-  - simpl in Hextract, IHHtree.
-    destruct_i.
-    + destruct extract_actions_literal; try easy. 
-      repeat rewrite chain_literals_impossible in IHHtree.
-      eapply IHHtree; eauto.
-    + rewrite chain_literals_assoc in IHHtree.
-      eapply IHHtree; eauto.
-  (* tree_quant_forced *)
-  - simpl in Hextract |- *. destruct_i.
-    + simpl in IHHtree. rewrite no_i_flag in IHHtree.
-      repeat rewrite chain_literals_impossible in IHHtree, Hextract.
-      destruct Hextract; [discriminate|rewrite H in IHHtree].
-      eapply IHHtree; auto.
-    + apply chain_literals_impossible in Hextract as [Hrep | Hcont].
-      * destruct plus; [destruct n|];
-          apply chain_literals_impossible in Hrep as [? | ?];
-          eapply IHHtree; auto;
-          simpl; rewrite no_i_flag;
-          do 2 rewrite chain_literals_impossible; auto.
-      * eapply IHHtree; auto.
-        simpl; do 2 rewrite chain_literals_impossible; auto.
-  (* tree_quant_free *)
-  - assert (Hex: extract_actions_literal cont = Impossible). {
-      simpl in Hextract. destruct RegExpRecord.ignoreCase, plus; now destruct extract_actions_literal.
-    }
-    unfold greedy_choice.
-    destruct greedy.
-    + simpl. unfold seqop.
-      rewrite IHHtree1, IHHtree2; auto.
-      simpl. rewrite Hex. destruct plus; [destruct n|]; destruct (extract_literal r1); destruct_i; reflexivity.
-    + simpl. unfold seqop.
-      rewrite IHHtree1, IHHtree2; auto.
-      simpl. rewrite Hex. destruct plus; [destruct n|]; destruct (extract_literal r1); destruct_i; reflexivity.
-  (* tree_group *)
-  - simpl in *.
-    destruct RegExpRecord.ignoreCase, (extract_actions_literal cont); eauto; try easy.
-    rewrite chain_literals_impossible in IHHtree.
-    eapply IHHtree; eauto.
-  (* tree_lk *)
-  - simpl in Hextract |- *.
-    replace (if RegExpRecord.ignoreCase rer then Unknown else Unknown) with Unknown in Hextract by now destruct_i.
-    destruct extract_actions_literal eqn:Heqex in Hextract; try easy.
-    rewrite IHHtree2 by auto.
-    destruct positivity.
-    + destruct tree_res; eauto.
-      destruct l. eauto.
-    + now destruct tree_res.
-  (* tree_backref *)
-  - simpl in Hextract |- *.
-    replace (if RegExpRecord.ignoreCase rer then Unknown else Unknown) with Unknown in Hextract by now destruct_i.
-    destruct extract_actions_literal; try easy.
-    erewrite <-read_backref_success_advance; eauto.
-Qed.
 
 Lemma extract_actions_literal_regex:
   forall r, extract_actions_literal [Areg r] = extract_literal r.
@@ -844,6 +703,114 @@ Proof.
   eauto using extract_literal_prefix_general_contra.
 Qed.
 
+
+(** * Impossible literals matching *)
+
+(* if the extracted literal from a character descriptor is Impossible, there can be no match *)
+Lemma extract_literal_char_impossible_no_match:
+  forall cd c,
+    extract_literal_char cd = Impossible ->
+    ~(char_match rer c cd = true).
+Proof.
+  intros cd c Hextract Hmatch.
+  induction cd;
+    (* the cd does not produce Impossible *)
+    try solve[discriminate].
+  (* CdRange *)
+  - simpl in Hextract. eqdec; discriminate.
+  (* CdUnion *)
+  - simpl in Hextract.
+    apply merge_literals_impossible in Hextract as [Hcd1 Hcd2].
+    unfold char_match in *. simpl in Hmatch.
+    apply Bool.orb_prop in Hmatch as [Hm1 | Hm2]; eauto.
+Qed.
+
+Lemma extract_literal_impossible_general:
+  forall acts tree inp gm,
+    is_tree rer acts inp Groups.GroupMap.empty forward tree ->
+    extract_actions_literal acts = Impossible ->
+    tree_res tree gm inp forward = None.
+Proof.
+  intros acts tree inp gm Htree Hextract.
+  remember (forward) as dir.
+  generalize dependent gm.
+  induction Htree; intros; subst;
+    (* the result is that of the rest of the actions *)
+    try solve[simpl in *; destruct RegExpRecord.ignoreCase, (extract_actions_literal cont); eauto; easy].
+  (* tree_done *)
+  - discriminate.
+  (* tree_char *)
+  - (* there is a character to read *)
+    unfold read_char in READ. destruct inp, next; [discriminate|].
+    (* the character matches *)
+    destruct char_match eqn:Hmatch; [|discriminate]. injection READ as <-. subst.
+    apply chain_literals_impossible in Hextract as [Hcd | Hcont].
+    + exfalso. simpl in Hcd.
+      destruct_i; [discriminate|]. apply (extract_literal_char_impossible_no_match _ _ Hcd Hmatch).
+    + simpl. unfold advance_input'. eauto.
+  (* tree_disj *)
+  - simpl in Hextract. simpl. unfold seqop.
+    simpl in IHHtree1, IHHtree2. rewrite chain_literals_impossible in IHHtree1, IHHtree2.
+    apply chain_literals_impossible in Hextract as [Hmerge | Hcont].
+    + destruct_i; [discriminate|].
+      apply merge_literals_impossible in Hmerge as [Hex1 Hex2].
+      erewrite IHHtree1, IHHtree2; auto.
+    + erewrite IHHtree1, IHHtree2; auto.
+  (* tree_sequence *)
+  - simpl in Hextract, IHHtree.
+    destruct_i.
+    + destruct extract_actions_literal; try easy.
+      repeat rewrite chain_literals_impossible in IHHtree.
+      eapply IHHtree; eauto.
+    + rewrite chain_literals_assoc in IHHtree.
+      eapply IHHtree; eauto.
+  (* tree_quant_forced *)
+  - simpl in Hextract |- *. destruct_i.
+    + simpl in IHHtree. rewrite no_i_flag in IHHtree.
+      repeat rewrite chain_literals_impossible in IHHtree, Hextract.
+      destruct Hextract; [discriminate|rewrite H in IHHtree].
+      eapply IHHtree; auto.
+    + apply chain_literals_impossible in Hextract as [Hrep | Hcont].
+      * destruct plus; [destruct n|];
+          apply chain_literals_impossible in Hrep as [? | ?];
+          eapply IHHtree; auto;
+          simpl; rewrite no_i_flag;
+          do 2 rewrite chain_literals_impossible; auto.
+      * eapply IHHtree; auto.
+        simpl; do 2 rewrite chain_literals_impossible; auto.
+  (* tree_quant_free *)
+  - assert (Hex: extract_actions_literal cont = Impossible). {
+      simpl in Hextract. destruct RegExpRecord.ignoreCase, plus; now destruct extract_actions_literal.
+    }
+    unfold greedy_choice.
+    destruct greedy.
+    + simpl. unfold seqop.
+      rewrite IHHtree1, IHHtree2; auto.
+      simpl. rewrite Hex. destruct plus; [destruct n|]; destruct (extract_literal r1); destruct_i; reflexivity.
+    + simpl. unfold seqop.
+      rewrite IHHtree1, IHHtree2; auto.
+      simpl. rewrite Hex. destruct plus; [destruct n|]; destruct (extract_literal r1); destruct_i; reflexivity.
+  (* tree_group *)
+  - simpl in *.
+    destruct RegExpRecord.ignoreCase, (extract_actions_literal cont); eauto; try easy.
+    rewrite chain_literals_impossible in IHHtree.
+    eapply IHHtree; eauto.
+  (* tree_lk *)
+  - simpl in Hextract |- *.
+    replace (if RegExpRecord.ignoreCase rer then Unknown else Unknown) with Unknown in Hextract by now destruct_i.
+    destruct extract_actions_literal eqn:Heqex in Hextract; try easy.
+    rewrite IHHtree2 by auto.
+    destruct positivity.
+    + destruct tree_res; eauto.
+      destruct l. eauto.
+    + now destruct tree_res.
+  (* tree_backref *)
+  - simpl in Hextract |- *.
+    replace (if RegExpRecord.ignoreCase rer then Unknown else Unknown) with Unknown in Hextract by now destruct_i.
+    destruct extract_actions_literal; try easy.
+    erewrite <-read_backref_success_advance; eauto.
+Qed.
+
 (* extracting Impossible means there can be no match *)
 Theorem extract_literal_impossible:
   forall r tree inp,
@@ -856,9 +823,50 @@ Proof.
   eapply extract_literal_impossible_general; eassumption.
 Qed.
 
+(** * Extracted literals size *)
+
+Lemma chain_literals_length:
+  forall l1 l2,
+    length (prefix (chain_literals l1 l2)) <= length (prefix l1) + length (prefix l2).
+Proof.
+  destruct l1, l2; simpl; try rewrite app_length; lia.
+Qed.
+
+Lemma repeat_literal_length:
+  forall l base n,
+    length (prefix (repeat_literal l base n)) <=
+      n * length (prefix l) + length (prefix base).
+Proof.
+  induction n; intros; simpl.
+  - lia.
+  - rewrite chain_literals_length.
+    lia.
+Qed.
+
+Lemma common_prefix_length:
+  forall s1 s2,
+    length (common_prefix s1 s2) <= Nat.min (length s1) (length s2).
+Proof.
+  induction s1; destruct s2; simpl; try lia.
+  eqdec; simpl.
+  - specialize (IHs1 s2). lia.
+  - lia.
+Qed.
+
+Lemma merge_literals_length:
+  forall l1 l2,
+    length (prefix (merge_literals l1 l2)) <= Nat.min (length (prefix l1)) (length (prefix l2)).
+Proof.
+  intros l1 l2; unfold merge_literals.
+  eqdec.
+  - lia.
+  - apply common_prefix_length.
+Qed.
+
 (* note: this will not hold true if support for backreferences is added.
     Consider /(abc)\1\1/. The extracted literal would be 'abcabcabc' which is not upperbounded by the regex size.
 *)
+(* The size of extracted literals is bounded by the size of the regex *)
 Theorem extract_literal_size_bound:
   forall r,
     length (prefix (extract_literal r)) <= regex_size r.
