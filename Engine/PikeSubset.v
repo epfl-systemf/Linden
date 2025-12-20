@@ -87,9 +87,9 @@ Section PikeSubset.
       pike_subtree t1 ->
       pike_subtree (GroupAction ga t1).
 
-  (* used for the lists of trees and gm manipulated by the PikeTree algorithm *)
-  Definition pike_list (l: list (tree * group_map)) : Prop :=
-    (forall t gm, In (t, gm) l -> pike_subtree t).
+  (* used for the lists of trees gm and input manipulated by the PikeTree and MemoTree algorithms *)
+  Definition pike_list (l: list (tree * group_map * input)) : Prop :=
+    (forall t gm i, In (t, gm, i) l -> pike_subtree t).
 
 
   (** * Subset Properties  *)
@@ -102,10 +102,10 @@ Section PikeSubset.
   Qed.
 
   Lemma pike_list_cons:
-    forall t gm l,
-      pike_list ((t,gm)::l) <-> pike_subtree t /\ pike_list l.
+    forall t gm i l,
+      pike_list ((t,gm,i)::l) <-> pike_subtree t /\ pike_list l.
   Proof.
-    intros t gm l. unfold pike_list. split; try split; intros. 
+    intros t gm i l. unfold pike_list. split; try split; intros. 
     - eapply H; eauto. left. eauto.
     - eapply H; eauto. right. eauto.
     - destruct H. inversion H0; subst.
@@ -132,17 +132,34 @@ Section PikeSubset.
   Qed.
 
   Lemma pike_list_single:
-    forall t gm, pike_subtree t -> pike_list [(t,gm)].
+    forall t gm i, pike_subtree t -> pike_list [(t,gm,i)].
   Proof.
-    unfold pike_list. intros t gm H t0 gm0 H0. inversion H0; inversion H1; subst; auto.
+    unfold pike_list. intros t gm i H t0 gm0 i0 H0. inversion H0; inversion H1; subst; auto.
   Qed.
 
   Lemma pike_list_twice:
-    forall t1 t2 gm1 gm2, pike_subtree t1 -> pike_subtree t2 -> pike_list [(t1,gm1);(t2,gm2)].
+    forall t1 t2 gm1 gm2 i1 i2, pike_subtree t1 -> pike_subtree t2 -> pike_list [(t1,gm1,i1);(t2,gm2,i2)].
   Proof.
-    unfold pike_list. intros t1 t2 gm1 gm2 H H0 t gm H1.
+    unfold pike_list. intros t1 t2 gm1 gm2 i1 i2 H H0 t gm i H1.
     inversion H1; inversion H2; try inversion H3; subst; auto.
   Qed.
+
+  (** * Lists of trees and gm  *)
+  (* For some algorithms like MemoTree, we might want to manipulate lists of (tree * group_map * iput).
+     But some algorithms lie PikeTree manipulate lists of (tree * group_map), all at the same input.
+     We provide a function to supplement a list of (tree * group_map) with a constant input.
+   *)
+
+  Definition suppl (l:list (tree * group_map)) (i:input) : list (tree * group_map * input) :=
+    List.map (fun tgm => (fst tgm,snd tgm,i)) l.
+
+  Lemma suppl_app:
+    forall l1 l2 inp,
+      suppl (l1 ++ l2) inp = suppl l1 inp ++ suppl l2 inp.
+  Proof.
+    intros l1 l2 inp. unfold suppl. rewrite map_app. auto.
+  Qed.
+  
 End PikeSubset.
 
 
@@ -150,8 +167,9 @@ End PikeSubset.
 (* inverting evidence of belonging to the subset *)
 Ltac invert_subset := 
   match goal with
-  | [ H : pike_list ((_,_)::_) |- _ ] => apply pike_list_cons in H; destruct H
-  | [ H : pike_list (?tgm::_) |- _ ] => destruct ?tgm
+  | [ H : pike_list (suppl ((_, _) :: _) _) |- _ ] => simpl in H
+  | [ H : pike_list ((_,_,_)::_) |- _ ] => apply pike_list_cons in H; destruct H
+  | [ H : pike_list (?tgmi::_) |- _ ] => destruct ?tgmi as [[t gm]i]
   | [ H : pike_list (_ ++ _) |- _ ] => apply pike_list_app in H; destruct H
     
   | [ H : pike_subtree (Choice _ _) |- _ ] => inversion H; clear H
@@ -176,12 +194,15 @@ Ltac invert_subset :=
   | [ H : pike_regex (Anchor _) |- _ ] => inversion H; clear H
   | [ H : pike_regex (Backreference _) |- _ ] => inversion H; clear H
 
+  | [ |- pike_list (suppl ((_, _) :: _) _) ] => simpl suppl
+  | [ |- pike_list (suppl [] _) ] => simpl suppl
+  | [ |- pike_list (suppl (_ ++ _) _) ] => rewrite suppl_app
   | [ |- pike_list (_ ++ _) ] => apply pike_list_app; split
   | [ |- pike_list (_ :: _) ] => apply pike_list_cons; split
   | [ |- pike_list [] ] => apply pike_list_empty
-  | [ |- pike_list [(_,_)] ] => apply pike_list_single
-  | [ |- pike_list [(_,_);(_,_)] ] => apply pike_list_twice
-  | [ |- pike_list [?tgm] ] => destruct ?tgm
+  | [ |- pike_list [(_,_,_)] ] => apply pike_list_single
+  | [ |- pike_list [(_,_,_);(_,_,_)] ] => apply pike_list_twice
+  | [ |- pike_list [?tgmi] ] => destruct ?tgmi as [[t gm]i]
 
   end.
 

@@ -259,16 +259,16 @@ Section PikeTree.
     - pike_subset. specialize (IHtree_nd1 H3 (@eq_refl _ _)).
       specialize (IHtree_nd2 H4 (@eq_refl _ _)). subst. auto.
   Qed.
-
+  
   (** * List Results  *)
   (* first possible result in a list of trees - deterministic and non-deterministic versions *)
 
-  Definition list_result (l:list (tree * group_map)) (inp:input) : option leaf :=
-    seqop_list l (fun tgm => tree_res (fst tgm) (snd tgm) inp forward).
+  Definition list_result (l:list (tree * group_map * input)) : option leaf :=
+    seqop_list l (fun tgmi => tree_res (fst (fst tgmi)) (snd (fst tgmi)) (snd tgmi) forward).
 
   Lemma list_result_cons:
     forall t gm l inp,
-      list_result ((t,gm)::l) inp = seqop (tree_res t gm inp forward) (list_result l inp).
+      list_result ((t,gm,inp)::l) = seqop (tree_res t gm inp forward) (list_result l).
   Proof.
     intros. unfold list_result. destruct (tree_res t gm inp forward) eqn:RES.
     - erewrite seqop_list_head_some; simpl; eauto.
@@ -276,11 +276,11 @@ Section PikeTree.
   Qed.
 
   Lemma list_result_app:
-    forall l1 l2 inp,
-      list_result (l1 ++ l2) inp = seqop (list_result l1 inp) (list_result l2 inp).
+    forall l1 l2,
+      list_result (l1 ++ l2) = seqop (list_result l1) (list_result l2).
   Proof.
     intros l1. induction l1; intros; auto.
-    destruct a as [t gm]. unfold list_result.
+    destruct a as [[t gm] inp]. unfold list_result.
     destruct (tree_res t gm inp forward) eqn:RES.
     - erewrite seqop_list_head_some; simpl; eauto.
       erewrite seqop_list_head_some; simpl; eauto.
@@ -288,35 +288,35 @@ Section PikeTree.
       erewrite seqop_list_head_none; simpl; eauto.
   Qed.
 
-  Inductive list_nd: list (tree * group_map) -> input -> seentrees -> option leaf -> Prop :=
+  Inductive list_nd: list (tree * group_map * input) -> seentrees -> option leaf -> Prop :=
   | tlr_nil:
-    forall inp seen, list_nd [] inp seen None
+    forall seen, list_nd [] seen None
   | tlr_cons:
     forall t gm active inp seen l1 l2 l3
       (TR: tree_nd t gm inp seen l1)
-      (TLR: list_nd active inp seen l2)
+      (TLR: list_nd active seen l2)
       (SEQ: l3 = seqop l1 l2),
-      list_nd ((t,gm)::active) inp seen l3.
+      list_nd ((t,gm,inp)::active) seen l3.
 
   (* the normal result for a list, without skipping anything, is a possible result *)
   Lemma list_result_nd:
-    forall active inp seen,
-      pike_list active ->
-      list_nd active inp seen (list_result active inp).
+    forall active seen,
+      pike_list active -> 
+      list_nd active seen (list_result active).
   Proof.
-    intros active. induction active; try destruct a as [t gm]; intros; pike_subset; try constructor.
+    intros active. induction active; try destruct a as [[t gm] i]; intros; pike_subset; try constructor.
     rewrite list_result_cons.
     econstructor; eauto. apply tree_res_nd. auto.
   Qed.
 
   (* when there is nothing in seen, there is only one possible result *)
   Lemma list_nd_initial:
-    forall l inp res,
+    forall l res,
       pike_list l ->
-      list_nd l inp initial_seentrees res ->
-      res = list_result l inp.
+      list_nd l initial_seentrees res ->
+      res = list_result l.
   Proof.
-    intros l inp res PIKE H.
+    intros l res PIKE H.
     remember initial_seentrees as init.
     induction H; simpl; auto; pike_subset.
     rewrite list_result_cons. specialize (IHlist_nd H1 (eq_refl _)). subst.
@@ -326,8 +326,8 @@ Section PikeTree.
   Inductive state_nd: input -> list (tree*group_map) -> option leaf -> list (tree*group_map) -> option tree -> seentrees -> option leaf -> Prop :=
   | sr:
     forall blocked active best inp future seen r1 r2 r3 rseq
-      (BLOCKED: list_result blocked (next_inp inp) = r1)
-      (ACTIVE: list_nd active inp seen r2)
+      (BLOCKED: list_result (suppl blocked (next_inp inp)) = r1)
+      (ACTIVE: list_nd (suppl active inp) seen r2)
       (FUTURE: option_flat_map (fun t => first_leaf t inp) future = r3)
       (SEQ: rseq = seqop r1 (seqop r2 (seqop r3 best))),
       state_nd inp active best blocked future seen rseq.
@@ -339,8 +339,8 @@ Section PikeTree.
   | pi:
     forall result blocked active best inp future seen
       (SAMERES: forall res, state_nd inp active best blocked future seen res -> res = result)
-      (SUBSET_AC: pike_list active)
-      (SUBSET_BL: pike_list blocked)
+      (SUBSET_AC: pike_list (suppl active inp))
+      (SUBSET_BL: pike_list (suppl blocked (next_inp inp)))
       (SUBSET_NE: match future with | Some t => pike_subtree t | None => True end),
       piketreeinv (PTS inp active best blocked future seen) result
   | sr_final:
@@ -381,7 +381,7 @@ Section PikeTree.
       pike_subtree t ->
       piketreeinv (pike_tree_initial_state t inp) (first_leaf t inp).
   Proof.
-    intros t. unfold first_leaf. unfold pike_tree_initial_state. constructor; pike_subset; auto.
+    intros t. unfold first_leaf. unfold pike_tree_initial_state. constructor; simpl; pike_subset; auto.
     intros res STATEND. inversion STATEND; subst.
     simpl. rewrite seqop_none. inversion ACTIVE; subst.
     inversion TLR; subst. rewrite seqop_none.
@@ -412,7 +412,7 @@ Section PikeTree.
         apply bool_tree_determ with (t1:=tskip) in T; auto.
         now subst.
       }
-      unfold first_leaf. unfold pike_tree_initial_state_unanchored. constructor; pike_subset; auto.
+      unfold first_leaf. unfold pike_tree_initial_state_unanchored. constructor; simpl; pike_subset; auto.
       intros res STATEND. inversion STATEND; subst.
       simpl. rewrite seqop_none. inversion ACTIVE; subst.
       inversion TLR; subst. rewrite seqop_none.
@@ -482,9 +482,9 @@ Section PikeTree.
   Lemma list_add_seen:
     forall l seen tseen gm inp res
       (NORES: tree_res tseen gm inp forward = None)
-      (LISTND: list_nd l inp (add_seentrees seen tseen) res)
+      (LISTND: list_nd l (add_seentrees seen tseen) res)
       (SUBSET: pike_subtree tseen),
-      list_nd l inp seen res.
+      list_nd l seen res.
   Proof.
     intros l seen tseen gm inp res NORES LISTND SUBSET.
     remember (add_seentrees seen tseen) as add.
@@ -512,8 +512,8 @@ Section PikeTree.
   Lemma list_add_seen_nd:
     forall l seen tseen gm inp res
       (NORES: tree_nd tseen gm inp seen None)
-      (LISTND: list_nd l inp (add_seentrees seen tseen) res),
-      list_nd l inp seen res.
+      (LISTND: list_nd l (add_seentrees seen tseen) res),
+      list_nd l seen res.
   Proof.
     intros l seen tseen gm inp res NORES LISTND.
     remember (add_seentrees seen tseen) as add.
@@ -605,7 +605,7 @@ Section PikeTree.
     intros inp best future nextinp acc t res seen next_future SUBSET ACC STATEND ERASE.
     pose proof (tree_acceleration_pike_subtree _ _ _ _ _ ACC SUBSET) as [SUBSET_ACC SUBSET_T].
     inversion STATEND; subst.
-    apply list_nd_initial in ACTIVE; pike_subset.
+    apply list_nd_initial in ACTIVE; simpl; pike_subset.
     econstructor; try econstructor. subst.
     unfold list_result, seqop_list.
     induction ACC; subst; simpl.
@@ -639,7 +639,8 @@ Section PikeTree.
     (* acceleration *)
     - pose proof (tree_acceleration_pike_subtree _ _ _ _ _ ACC SUBSET_NE) as [SUBSET_ACC SUBSET_T].
       constructor; pike_subset; auto.
-      2: { destruct next_future; inversion ERASE; subst; pike_subset. }
+      2: { destruct next_future; inversion ERASE; subst; simpl; pike_subset. }
+      2: { destruct next_future; inversion ERASE; subst; simpl; pike_subset. }
       intros res STATEND. apply SAMERES.
       eapply state_nd_erase in STATEND as ERASEND; eauto.
       inversion ERASE; subst; eapply tree_acceleration_pts_preservation; eauto.
@@ -654,13 +655,15 @@ Section PikeTree.
       apply SAMERES. econstructor; econstructor.
     (* nextchar_generate *)
     - constructor; pike_subset; auto.
-      2: { destruct next_future; inversion ERASE; subst; pike_subset. }
+      2: { destruct next_future; inversion ERASE; subst; simpl; pike_subset. }
       intros res STATEND. apply SAMERES.
       inversion STATEND; subst.
       apply list_nd_initial in ACTIVE; pike_subset.
+      2:{ simpl; pike_subset. }
+      2:{ destruct next_future; auto. inversion ERASE; subst; pike_subset. }
       econstructor; try econstructor. unfold next_inp, advance_input', advance_input.
-      simpl. subst.
-      rewrite list_result_app, <-seqop_assoc.
+      simpl. subst. 
+      rewrite suppl_app, list_result_app, <-seqop_assoc.
       unfold list_result at 2, seqop_list. simpl.
       inversion ERASE; subst; simpl.
       (* we did not erase `future` *)
@@ -683,8 +686,8 @@ Section PikeTree.
     - simpl. constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst. apply SAMERES.
       econstructor; eauto. econstructor; eauto.
       + eapply tr_mismatch.
-      + eapply list_add_seen with (gm:=gm) in ACTIVE; eauto.
-      + auto.
+      + eapply list_add_seen with (gm:=gm) (inp:=inp) in ACTIVE; eauto.
+      + eauto.
     (* choice *)
     - simpl. constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
       inversion ACTIVE; subst. inversion TLR; subst.
@@ -704,8 +707,8 @@ Section PikeTree.
       (* when the tree did not contribute, adding it to seen does not change the results *)
       + destruct l1; destruct l0; inversion CHOICE.
         econstructor; eauto.
-        eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
-        eapply list_add_seen_nd with (gm:=gm) in TLR0; auto.
+        eapply list_add_seen_nd with (gm:=gm) in TLR; eauto.
+        eapply list_add_seen_nd with (gm:=gm) in TLR0; eauto.
         econstructor; eauto.
     (* progress fail *)
     - simpl. constructor; pike_subset; auto.
@@ -724,10 +727,11 @@ Section PikeTree.
         apply list_result_nd; auto.
       (* when the tree did not contribute, adding it to seen does not change the results *)
       + econstructor; eauto.
-        eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
+        eapply list_add_seen_nd with (gm:=gm) in TLR; eauto.
         econstructor; eauto.
     (* anchor pass *)
-    - constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
+    - constructor; simpl; pike_subset; auto.
+      intros res STATEND. inversion STATEND; subst.
       inversion ACTIVE; subst.
       apply SAMERES.
       apply add_parent_tree in TR.
@@ -741,7 +745,7 @@ Section PikeTree.
         apply list_result_nd; auto.
       (* when the tree did not contribute, adding it to seen does not change the results *)
       + econstructor; eauto.
-        eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
+        eapply list_add_seen_nd with (gm:=gm) in TLR; eauto.
         econstructor; eauto.
     (* group action *)
     - simpl. constructor; pike_subset; auto. intros res STATEND. inversion STATEND; subst.
@@ -758,7 +762,7 @@ Section PikeTree.
         apply list_result_nd; auto.
       (* when the tree did not contribute, adding it to seen does not change the results *)
       + econstructor; eauto.
-        eapply list_add_seen_nd with (gm:=gm) in TLR; auto.
+        eapply list_add_seen_nd with (gm:=gm) in TLR; eauto.
         econstructor; eauto.
     (* LK *)
     - simpl. constructor; pike_subset; auto.
@@ -769,7 +773,7 @@ Section PikeTree.
       intros res STATEND. inversion STATEND; subst.
       inversion ACTIVE; subst. simpl.
       apply SAMERES. eapply sr with (r2:=Some (inp,gm)); eauto.
-      replace (Some (inp,gm)) with (seqop (Some (inp,gm)) (list_result active0 inp)) by (simpl; auto).
+      replace (Some (inp,gm)) with (seqop (Some (inp,gm)) (list_result (suppl active0 inp))) by (simpl; auto).
       econstructor; auto.
       + apply tr_match.
       + apply list_result_nd; auto.
@@ -777,8 +781,8 @@ Section PikeTree.
     - destruct t; inversion STEP; subst. constructor; pike_subset; auto.
       intros res STATEND. inversion STATEND; subst.
       apply SAMERES.
-      rewrite list_result_app. rewrite list_result_cons.
-      replace (list_result [] (next_inp inp)) with (None:option leaf).
+      rewrite suppl_app. rewrite list_result_app. simpl. rewrite list_result_cons.
+      replace (list_result []) with (None:option leaf).
       2: { unfold list_result, seqop_list. simpl. auto. }
       rewrite seqop_none. rewrite <- seqop_assoc. rewrite seqop_assoc with (o3:=(seqop (option_flat_map (fun t : tree => first_leaf t inp) future) best)).
       econstructor; eauto.
