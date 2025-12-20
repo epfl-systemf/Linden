@@ -10,6 +10,12 @@ From Linden Require Import BooleanSemantics PikeSubset.
 From Linden Require Import Parameters SeenSets.
 From Warblre Require Import Base RegExpRecord.
 
+(* LATER: to be able to do multiple prefix acceleration,
+   we would like to return the seen set when we haven't found a match,
+   and prove that seen set does not allow to find any match.
+   Then, we should be able to start looking from multiple possible
+   start positions, sharing the seen set each time.
+ *)
 
 Section MemoBT.
   Context {params: LindenParameters}.

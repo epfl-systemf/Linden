@@ -19,6 +19,7 @@ Section MemoEquiv.
   
   (* FIXME: these are generalizations of definitions used in the PikeEquiv proof *)
   (* it could be nice to only use the generalized version everywhere *)
+  (* I should write an NFA library *)
 
   (* a tree and a configuration are equivalent when they are about to execute the same thing *)
   (* this means when the tree represents a given list of actions, *)
