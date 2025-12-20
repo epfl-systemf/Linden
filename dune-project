@@ -7,8 +7,10 @@
 (using coq 0.8)
 
 (homepage "https://github.com/epfl-systemf/Linden")
-
 (authors "Aurèle Barrière" "Victor Deng" "Clément Pit-Claudel")
+(maintainers "Aurèle Barrière")
+(bug_reports "https://github.com/epfl-systemf/Linden/issues")
+(license MIT)
 
 (package
  (name linden)
