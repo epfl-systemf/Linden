@@ -9,6 +9,7 @@ Import ListNotations.
 From Linden Require Import Regex Chars Semantics Tree.
 From Linden Require Import Parameters LWParameters.
 From Linden Require Import PikeSubset SeenSets FunctionalPikeVM.
+From Linden Require Import FunctionalMemoBT.
 From Linden Require Import Prefix.
 From Linden Require Import Correctness.
 From Warblre Require Import Base RegExpRecord.
@@ -78,8 +79,8 @@ Qed.
 #[export] #[refine]
 Instance PikeVMAnchoredEngine {strs:StrSearch}: AnchoredEngine rer := {
   exec r inp := match pike_vm_match rer r inp with
-                | OutOfFuel => None
-                | Finished res => res
+                | FunctionalPikeVM.OutOfFuel => None
+                | FunctionalPikeVM.Finished res => res
                 end;
   supported_regex := is_pike_regex;
 }.
@@ -99,8 +100,8 @@ Qed.
 #[export] #[refine]
 Instance PikeVMUnanchoredEngine {strs:StrSearch}: UnanchoredEngine rer := {
   un_exec r inp := match pike_vm_match_unanchored rer r inp with
-                | OutOfFuel => None
-                | Finished res => res
+                | FunctionalPikeVM.OutOfFuel => None
+                | FunctionalPikeVM.Finished res => res
                 end;
   un_supported_regex := is_pike_regex;
 }.
@@ -114,6 +115,27 @@ Instance PikeVMUnanchoredEngine {strs:StrSearch}: UnanchoredEngine rer := {
     subst. eauto using pike_vm_match_correct_unanchored, pike_vm_correct_unanchored.
   - intros <-.
     symmetry. eauto using pike_vm_match_correct_unanchored, pike_vm_correct_unanchored.
+Qed.
+
+(* we show that the MemoBT fits the scheme of an anchored engine *)
+#[export] #[refine]
+Instance MemoBTAnchoredEngine: AnchoredEngine rer := {
+  exec r inp := match memobt_match rer r inp with
+                | FunctionalMemoBT.OutOfFuel => None
+                | FunctionalMemoBT.Finished res => res
+                end;
+  supported_regex := is_pike_regex;
+}.
+  (* exec_correct *)
+  intros r inp tree ol Hsubset Htree.
+  rewrite is_pike_regex_correct in Hsubset.
+  pose proof (memobt_match_terminates rer r inp Hsubset) as [res Hmatch].
+  rewrite Hmatch.
+  split.
+  - intros Hleaf.
+    subst. eauto using memobt_match_correct, memobt_correct.
+  - intros <-.
+    symmetry. eauto using memobt_match_correct, memobt_correct.
 Qed.
 
 End Instances.
