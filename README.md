@@ -1,9 +1,15 @@
-Linden: Formal Verification for JavaScript Regular Expressions
-==============================================================
+Linden: A Linear Dependable Engine for JavaScript Regular Expressions
+=====================================================================
+
+[Project Page](https://aurele-barriere.github.io/linden.html)
+
+# Related Publication
+
+**POPL2026** [Formal Verification for JavaScript Regular Expressions: A Proven Mechanized Semantics and Its Applications](https://dl.acm.org/doi/10.1145/3776710)
+
+[Extended Version](https://arxiv.org/abs/2507.13091). Appendix A of the extended version provides a correspondence between paper definitions and the code.
 
 Authors: [Aurèle Barrière](https://aurele-barriere.github.io/), [Victor Deng](https://victor-deng.fr/) and [Clément Pit-Claudel](https://pit-claudel.fr/clement/).
-
-Related Preprint: [Formal Verification for JavaScript Regular Expressions: a Proven Semantics and its Applications](https://arxiv.org/abs/2507.13091). Appendix A provides a correspondence between paper definitions and the code.
 
 ![Linden](etc/linden.png)
 
