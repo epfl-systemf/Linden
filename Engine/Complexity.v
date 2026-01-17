@@ -549,6 +549,7 @@ Qed.
 (* Here we prove that the size of the NFA bytecode is linear in the size of the regex *)
 (* Note that this "size of the regex" counts counted quantifier as being unfolded, so it might not be linear in the size of the textual representation of the regex *)
 
+(* the exact size of the bytecode *)
 Fixpoint compsize (r:regex) : nat :=
   match r with
   | Epsilon => 0
@@ -606,6 +607,25 @@ Proof.
   apply compile_size in COMP; auto. rewrite <- COMP. rewrite app_length. simpl. lia.
 Qed.
 
+(* relating this compilation size to the size of the regex *)
+Theorem compsize_regex_size:
+  forall (r:regex),
+    S (compsize r) <= 4 * (regex_size r).
+Proof.
+  intros r. induction r; simpl; try lia.
+  - destruct min; simpl; [|lia].
+    destruct delta; simpl; [|lia].
+    destruct n; simpl; [lia|].
+    destruct n; simpl; lia.
+Qed.
+
+Corollary comp_size_regex_size:
+  forall r, pike_regex r ->
+    size (compilation r) <= 4 * (regex_size r).
+Proof.
+  intros r SUBSET. rewrite compilation_size; auto.
+  unfold codesize. apply compsize_regex_size.
+Qed.
 
 (** * Initial PikeVM Measure *)
 
