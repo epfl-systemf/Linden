@@ -1,5 +1,4 @@
-Linden: A Linear Dependable Engine for JavaScript Regular Expressions
-=====================================================================
+# Linden: A Linear Dependable Engine for JavaScript Regular Expressions
 
 [Project Page](https://aurele-barriere.github.io/linden.html)
 
@@ -17,10 +16,11 @@ Authors: [Aurèle Barrière](https://aurele-barriere.github.io/), [Victor Deng](
 
 This repository contains mechanized proofs, in Rocq, about JavaScript Regular Expressions.
 This includes:
-- a new *backtracking tree* semantics for JavaScript regexes, in folder `Semantics`.
+
+- a new _backtracking tree_ semantics for JavaScript regexes, in folder `Semantics`.
 - a proof that this semantics is equivalent to the [Warblre](https://github.com/epfl-systemf/Warblre) mechanization of JavaScript regexes, in folder `WarblreEquiv`.
 - a proof of the PikeVM linear-time matching algorithm supporting a subset of JavaScript regexes, in folder `Engine`. The algorithm is adapted to fit JavaScript unique quantifier semantics, following section 4.1 of [Linear Matching of JavaScript Regular Expressions](https://dl.acm.org/doi/10.1145/3656431).
-- proof of JavaScript regex *contextual equivalences*, in folder `Rewriting`.
+- proof of JavaScript regex _contextual equivalences_, in folder `Rewriting`.
 
 # Usage
 
@@ -33,7 +33,7 @@ This includes:
 2. Pin the version of Warblre:
 
    ```
-   opam pin add --no-action warblre.0.1.0 https://github.com/epfl-systemf/Warblre.git#a1ffc3f2e47d942ad9e1194dfb71f0783ead6d8a
+   opam pin add --no-action warblre.0.1.0 https://github.com/epfl-systemf/Warblre.git#c7b021e61d580b6061f0b040ca04d8e1b40e9de4
    ```
 
 3. Install dependencies:

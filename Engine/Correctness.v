@@ -1,6 +1,6 @@
 (** * Correctness theorems for the PikeVM engine  *)
 
-Require Import List Lia.
+From Stdlib Require Import List Lia.
 Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
@@ -254,7 +254,7 @@ Qed.
 (* Any execution of MemoBT to a final state corresponds to an execution of MemoTree *)
 Theorem memobt_to_memotree:
   forall r inp tree result,
-    pike_regex r -> 
+    pike_regex r ->
     bool_tree rer [Areg r] inp CanExit tree ->
     trc_memo_bt (compilation r) (MemoBT.initial_state inp) (MBT_final result) ->
     trc_memo_tree (initial_tree_state tree inp) (MTree_final result).
@@ -279,7 +279,7 @@ Proof.
   apply IHTRC. eapply memotree_preservation; eauto.
 Qed.
 
-  
+
 (** * Correctness Theorem of the PikeVM result  *)
 
 Theorem memobt_correct:
