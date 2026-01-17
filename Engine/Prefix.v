@@ -6,7 +6,7 @@
 (* do not contain this prefix. In some cases, this even allows us to skip *)
 (* the entire regex engine and just use a substring search. *)
 
-Require Import List Lia RelationClasses FunInd Recdef Arith.
+From Stdlib Require Import List Lia RelationClasses FunInd Recdef Arith.
 Import ListNotations.
 
 From Linden Require Import Regex Chars Semantics Tree FunctionalSemantics.
@@ -109,7 +109,7 @@ Proof.
   destruct ss as [|c ss'].
   - destruct i; [lia|].
     apply (no_earlier _ _ _ H i ltac:(lia)). constructor.
-  - assert (Hlen: length (skipn i s) = 0) by (rewrite skipn_length; lia).
+  - assert (Hlen: length (skipn i s) = 0) by (rewrite length_skipn; lia).
     destruct (skipn i s); [inversion Hsw|discriminate].
 Qed.
 
@@ -270,7 +270,7 @@ Proof.
   apply ss_fwd_diff in Hss as [diff [Hdiff [Hnext Hpref]]].
   exists (length diff). repeat split.
   - rewrite <-length_zero_iff_nil in Hdiff. lia.
-  - subst. simpl. rewrite app_length. lia.
+  - subst. simpl. rewrite length_app. lia.
   - simpl. rewrite Hnext, skipn_app.
     replace (length diff - length diff) with 0 by lia.
     now rewrite skipn_all2 by lia.
@@ -304,7 +304,7 @@ Proof.
       apply ss_fwd_diff in Hss2 as [diff [Hdiff [Hnext _]]]. subst.
       rewrite <-length_zero_iff_nil in Hdiff.
       apply f_equal with (f:=@length Character) in Hnext.
-      rewrite app_length, !skipn_length in Hnext. lia.
+      rewrite length_app, !length_skipn in Hnext. lia.
     }
     now apply Hne.
 Qed.
@@ -407,7 +407,7 @@ Lemma chain_literals_length:
     length (prefix (chain_literals l1 l2)) <= length (prefix l1) + length (prefix l2).
 Proof.
   intros l1 l2.
-  destruct l1, l2; simpl; try rewrite app_length; lia.
+  destruct l1, l2; simpl; try rewrite length_app; lia.
 Qed.
 
 Lemma repeat_literal_length:
@@ -523,7 +523,7 @@ Fixpoint extract_literal_char (cd: char_descr) : literal :=
   end.
 
 (* extracting literals from a regex *)
-(* 
+(*
   TODO: this could benefit from a few improvements:
   - Support lookarounds by performing intersection of overlapping literals.
     For instance /(?=abc)p/ => None, /(?<=abc)c/ => 'c' (but not exact nor prefix). This would require thinking reconsidering what Exact and Prefix mean.
@@ -745,7 +745,7 @@ Proof.
   (* tree_sequence *)
   - simpl in Hextract, IHHtree.
     destruct_i.
-    + destruct extract_actions_literal; try easy. 
+    + destruct extract_actions_literal; try easy.
       repeat rewrite chain_literals_impossible in IHHtree.
       eapply IHHtree; eauto.
     + rewrite chain_literals_assoc in IHHtree.

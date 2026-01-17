@@ -1,6 +1,6 @@
 (* The PikeVm algorithm, expressed as a fuel-based function *)
 
-Require Import List Lia.
+From Stdlib Require Import List Lia.
 Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
@@ -76,7 +76,7 @@ Fixpoint pike_vm_loop (c:code) (pvs:pike_vm_state) (fuel:nat) : pike_vm_state :=
 
 (* an upper bound for the fuel necessary to compute a result *)
 Definition vm_fuel (r:regex) (inp:input) : nat :=
-  complexity r inp. 
+  complexity r inp.
 
 Inductive matchres : Type :=
 | OutOfFuel

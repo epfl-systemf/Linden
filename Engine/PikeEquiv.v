@@ -1,6 +1,6 @@
 (* Relating the PikeVM smallstep semantics to the Pike Tree smallstep semantics *)
 
-Require Import List Lia.
+From Stdlib Require Import List Lia.
 Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
@@ -859,7 +859,7 @@ Qed.
 Lemma next_prefix_counter_none_nores {strs:StrSearch}:
   forall r inp future,
     pike_regex r ->
-    future_tree_shape rer r inp future -> 
+    future_tree_shape rer r inp future ->
     next_prefix_counter inp (extract_literal rer r) = None ->
     first_leaf future inp = None.
 Proof.
@@ -876,7 +876,7 @@ Proof.
     pose proof (not_found _ _ Hsearch 0 ltac:(lia)) as Hnostart.
     let inp := constr:(Input next (c::pref)) in
     replace (skipn 0 next) with (next_str inp) in Hnostart by easy.
-    eapply extract_literal_prefix_contra in Hnostart; eauto. 
+    eapply extract_literal_prefix_contra in Hnostart; eauto.
     unfold first_leaf in Hnostart |- *. simpl. unfold advance_input'. simpl.
     rewrite Hnostart. simpl.
     (* IH for titer *)
@@ -1050,7 +1050,7 @@ Proof.
   2: { inversion H. }
   assert (HL: pc < length (r_code ++ [Accept])).
   { eapply nth_error_Some. rewrite NTH. intros HI. inversion HI. }
-  rewrite app_length in HL. simpl in HL.
+  rewrite length_app in HL. simpl in HL.
   assert (pc = length (r_code) \/ pc < length (r_code)) as [ACC|H1] by lia.
   (* accept *)
   { subst. assert (get_pc (r_code ++ [Accept]) (length r_code) = get_pc [Accept] 0).
@@ -1207,7 +1207,7 @@ Proof.
             -- eapply pikeinv; eauto using initial_tree_thread, initial_inclusion, ltt_app, ltt_cons, ltt_nil, future_nextprefix_some.
           * eexists. split.
             -- eapply pts_nextchar_generate; eauto using erases, next_prefix_counter_none_nores.
-            -- eauto using pikeinv, initial_tree_thread, initial_inclusion, ltt_app, ltt_cons, ltt_nil, nnp_none. 
+            -- eauto using pikeinv, initial_tree_thread, initial_inclusion, ltt_app, ltt_cons, ltt_nil, nnp_none.
       (* nextchar_filter *)
       + assert (pvs2 = PVS (Input next (c::pref)) ((pc,gmblocked,b)::threadlist) best [] (Some (nextprefix, lit)) initial_seenpcs)
            by eauto using pikevm_deterministic, pvs_nextchar_filter.

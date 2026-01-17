@@ -3,7 +3,7 @@
 (* The PikeVM algorithm, expressed as small-step semantics on the bytecode NFA *)
 (* It records the code labels it has already handled to avoid doing work twice *)
 
-(* 
+(*
 Anchored vs unanchored PikeVM:
 
 The PikeVM can operate in two modes: anchored and unanchored. Which mode we operate
@@ -34,7 +34,7 @@ and blocked thread, we can do the "acceleration" step, where we jump ahead in th
 to the next position where the prefix matches.
 *)
 
-Require Import List Lia.
+From Stdlib Require Import List Lia.
 Import ListNotations.
 
 From Linden Require Import Regex Chars Groups.
