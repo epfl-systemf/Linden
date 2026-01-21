@@ -78,7 +78,7 @@ Qed.
 
 (* we show that the PikeVM fits the scheme of an anchored engine *)
 #[export] #[refine]
-Instance PikeVMAnchoredEngine {strs:StrSearch}: AnchoredEngine rer := {
+Instance PikeVMAnchoredEngine: AnchoredEngine rer := {
   exec r inp := match pike_vm_match rer r inp with
                 | FunctionalPikeVM.OutOfFuel => None
                 | FunctionalPikeVM.Finished res => res
